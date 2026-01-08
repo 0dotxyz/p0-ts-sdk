@@ -428,17 +428,17 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 
 ## 🙏 Acknowledgments
 
-Built with inspiration from:
+This SDK is built on top of the [marginfi protocol](https://github.com/mrgnlabs/marginfi-v2), leveraging its on-chain programs and infrastructure.
 
-- [marginfi-v2](https://github.com/mrgnlabs/marginfi-v2) - The original marginfi protocol
-- [Solana Web3.js](https://github.com/solana-labs/solana-web3.js) - Solana JavaScript SDK
+Additional thanks to:
+
+- [Solana Web3.js](https://github.com/solana-labs/solana-web3.js) - Solana JavaScript API
 - [Anchor](https://github.com/coral-xyz/anchor) - Solana development framework
 
 ## ⚠️ Disclaimer
 
 This SDK is provided as-is. Always:
 
-- Test thoroughly on devnet before mainnet
 - Understand the risks of DeFi protocols
 - Monitor your account health
 - Use appropriate risk management
