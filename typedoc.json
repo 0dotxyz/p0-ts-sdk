@@ -1,0 +1,7 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "excludePrivate": true,
+  "readme": "README.md",
+  "name": "P0 TypeScript SDK"
+}

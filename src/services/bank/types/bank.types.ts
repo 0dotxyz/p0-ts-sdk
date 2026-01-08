@@ -1,0 +1,277 @@
+import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
+
+export enum RiskTier {
+  Collateral = "Collateral",
+  Isolated = "Isolated",
+}
+
+export enum OperationalState {
+  Paused = "Paused",
+  Operational = "Operational",
+  ReduceOnly = "ReduceOnly",
+  KilledByBankruptcy = "KilledByBankruptcy",
+}
+
+export interface RatePoint {
+  util: number;
+  rate: number;
+}
+
+export interface InterestRateConfig {
+  // Curve Params
+  optimalUtilizationRate: BigNumber;
+  plateauInterestRate: BigNumber;
+  maxInterestRate: BigNumber;
+
+  // Fees
+  insuranceFeeFixedApr: BigNumber;
+  insuranceIrFee: BigNumber;
+  protocolFixedFeeApr: BigNumber;
+  protocolIrFee: BigNumber;
+  protocolOriginationFee: BigNumber;
+
+  zeroUtilRate: number;
+  hundredUtilRate: number;
+  points: RatePoint[];
+  curveType: number;
+}
+
+export interface InterestRateConfigOpt
+  extends Omit<
+    InterestRateConfig,
+    | "optimalUtilizationRate"
+    | "plateauInterestRate"
+    | "maxInterestRate"
+    | "curveType"
+  > {}
+
+export enum OracleSetup {
+  None = "None",
+  PythLegacy = "PythLegacy",
+  SwitchboardV2 = "SwitchboardV2",
+  PythPushOracle = "PythPushOracle",
+  SwitchboardPull = "SwitchboardPull",
+  StakedWithPythPush = "StakedWithPythPush",
+  KaminoPythPush = "KaminoPythPush",
+  KaminoSwitchboardPull = "KaminoSwitchboardPull",
+  Fixed = "Fixed",
+}
+export enum AssetTag {
+  DEFAULT = 0,
+  SOL = 1,
+  STAKED = 2,
+  KAMINO = 3,
+}
+
+export enum BankConfigFlag {
+  PYTH_MIGRATED = 1 << 0, // 1
+}
+
+// BankConfigOpt Args
+export interface BankConfigOpt {
+  assetWeightInit: BigNumber | null;
+  assetWeightMaint: BigNumber | null;
+
+  liabilityWeightInit: BigNumber | null;
+  liabilityWeightMaint: BigNumber | null;
+
+  depositLimit: BigNumber | null;
+  borrowLimit: BigNumber | null;
+  operationalState: OperationalState | null;
+  interestRateConfig: InterestRateConfigOpt | null;
+
+  riskTier: RiskTier | null;
+  assetTag: AssetTag | null;
+  totalAssetValueInitLimit: BigNumber | null;
+
+  oracleMaxConfidence: number | null;
+  oracleMaxAge: number | null;
+  permissionlessBadDebtSettlement: boolean | null;
+  freezeSettings: boolean | null;
+  tokenlessRepaymentsAllowed: boolean | null;
+}
+
+export interface BankConfigType {
+  assetWeightInit: BigNumber;
+  assetWeightMaint: BigNumber;
+
+  liabilityWeightInit: BigNumber;
+  liabilityWeightMaint: BigNumber;
+
+  depositLimit: BigNumber;
+  borrowLimit: BigNumber;
+
+  riskTier: RiskTier;
+  totalAssetValueInitLimit: BigNumber;
+  assetTag: AssetTag;
+  configFlags?: BankConfigFlag;
+
+  interestRateConfig: InterestRateConfig;
+  operationalState: OperationalState;
+
+  oracleSetup: OracleSetup;
+  oracleKeys: PublicKey[];
+  oracleMaxAge: number;
+  oracleMaxConfidence: number;
+  fixedPrice: BigNumber;
+}
+
+export interface BankType {
+  address: PublicKey;
+  tokenSymbol?: string;
+  group: PublicKey;
+  mint: PublicKey;
+  mintDecimals: number;
+  mintRate: number | null;
+  mintPrice: number;
+
+  assetShareValue: BigNumber;
+  liabilityShareValue: BigNumber;
+
+  liquidityVault: PublicKey;
+  liquidityVaultBump: number;
+  liquidityVaultAuthorityBump: number;
+
+  insuranceVault: PublicKey;
+  insuranceVaultBump: number;
+  insuranceVaultAuthorityBump: number;
+  collectedInsuranceFeesOutstanding: BigNumber;
+
+  feeVault: PublicKey;
+  feeVaultBump: number;
+  feeVaultAuthorityBump: number;
+  collectedGroupFeesOutstanding: BigNumber;
+
+  lastUpdate: number;
+
+  config: BankConfigType;
+
+  totalAssetShares: BigNumber;
+  totalLiabilityShares: BigNumber;
+
+  emissionsActiveBorrowing: boolean;
+  emissionsActiveLending: boolean;
+  emissionsRate: number;
+  emissionsMint: PublicKey;
+  emissionsRemaining: BigNumber;
+
+  oracleKey: PublicKey;
+  emode: EmodeSettingsType;
+  feesDestinationAccount?: PublicKey;
+  lendingPositionCount?: BigNumber;
+  borrowingPositionCount?: BigNumber;
+
+  kaminoReserve: PublicKey;
+  kaminoObligation: PublicKey;
+}
+
+/**
+ * Bitwise flags for EMode entry
+ */
+export enum EmodeEntryFlags {
+  /**
+   * If set, isolated banks with this tag also benefit.
+   * If not set, isolated banks continue to offer zero collateral, even if they use this tag.
+   * (NOT YET IMPLEMENTED)
+   */
+  APPLIES_TO_ISOLATED = 1 << 0, // 1
+  /** Reserved for future use */
+  RESERVED_1 = 1 << 1, // 2
+  RESERVED_2 = 1 << 2, // 4
+  RESERVED_3 = 1 << 3, // 8
+  RESERVED_4 = 1 << 4, // 16
+  RESERVED_5 = 1 << 5, // 32
+}
+
+export interface EmodeEntry {
+  collateralBankEmodeTag: EmodeTag;
+  flags: EmodeEntryFlags[];
+  assetWeightInit: BigNumber;
+  assetWeightMaint: BigNumber;
+}
+
+/**
+ * Bitwise flags for EMode settings
+ */
+export enum EmodeFlags {
+  /** If set, at least one entry is configured */
+  EMODE_ON = 1 << 0, // 1
+  /** Reserved for future use */
+  RESERVED_1 = 1 << 1, // 2
+  RESERVED_2 = 1 << 2, // 4
+  RESERVED_3 = 1 << 3, // 8
+}
+
+export enum EmodeTag {
+  UNSET = 0,
+  SOL = 501,
+  LST_T1 = 1571,
+  LST_T2 = 1572,
+  JLP = 619,
+  STABLE_T1 = 57481,
+  STABLE_T2 = 57482,
+  BTC_T1 = 871,
+  BTC_T2 = 872,
+}
+
+export interface EmodeSettingsType {
+  emodeTag: EmodeTag;
+  timestamp: number;
+  flags: EmodeFlags[];
+  emodeEntries: EmodeEntry[];
+}
+
+export interface OracleConfigOpt {
+  setup: OracleSetup;
+  keys: PublicKey[];
+}
+
+export type EmodePair = {
+  collateralBanks: PublicKey[];
+  collateralBankTag: EmodeTag;
+  liabilityBank: PublicKey;
+  liabilityBankTag: EmodeTag;
+  assetWeightMaint: BigNumber;
+  assetWeightInit: BigNumber;
+};
+
+export type ActiveEmodePair = {
+  collateralBanks: PublicKey[];
+  collateralBankTags: EmodeTag[];
+  liabilityBanks: PublicKey[];
+  liabilityBankTags: EmodeTag[];
+  assetWeightMaint: BigNumber;
+  assetWeightInit: BigNumber;
+};
+
+export enum EmodeImpactStatus {
+  ActivateEmode,
+  ExtendEmode,
+  IncreaseEmode,
+  ReduceEmode,
+  RemoveEmode,
+  InactiveEmode,
+}
+
+export interface EmodeImpact {
+  status: EmodeImpactStatus;
+  resultingPairs: EmodePair[];
+  activePair?: ActiveEmodePair;
+}
+
+export interface ActionEmodeImpact {
+  borrowImpact?: EmodeImpact;
+  supplyImpact?: EmodeImpact;
+  repayAllImpact?: EmodeImpact;
+  withdrawAllImpact?: EmodeImpact;
+}
+
+/**
+ * Marginfi bank vault type
+ */
+export enum BankVaultType {
+  LiquidityVault,
+  InsuranceVault,
+  FeeVault,
+}
