@@ -1,4 +1,4 @@
-# P0 TypeScript SDK
+# Project 0 TypeScript SDK
 
 [![npm version](https://img.shields.io/npm/v/p0-ts-sdk.svg)](https://www.npmjs.com/package/p0-ts-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
