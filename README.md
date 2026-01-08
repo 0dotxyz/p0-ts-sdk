@@ -390,6 +390,24 @@ p0-ts-sdk/
 | `pnpm format`           | Format with Prettier       |
 | `pnpm typecheck`        | TypeScript type checking   |
 | `pnpm clean`            | Remove build artifacts     |
+| `pnpm changeset`        | Create a changeset for releases |
+| `pnpm version`          | Bump version from changesets |
+| `pnpm release`          | Build and publish to npm |
+
+## 📦 Publishing
+
+This package uses [Changesets](https://github.com/changesets/changesets) for version management and npm publishing.
+
+See [RELEASING.md](./RELEASING.md) for detailed instructions, or [.changeset/QUICKSTART.md](./.changeset/QUICKSTART.md) for a quick reference.
+
+**Quick publish:**
+```bash
+npm login
+pnpm changeset    # Document changes
+pnpm version      # Bump version
+pnpm release      # Publish to npm
+git push --follow-tags
+```
 
 ## 🤝 Contributing
 

@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "p0-ts-sdk": "0.0.0"
+  },
+  "changesets": [
+    "first-alpha"
+  ]
+}

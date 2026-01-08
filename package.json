@@ -1,6 +1,6 @@
 {
   "name": "p0-ts-sdk",
-  "version": "1.0.0",
+  "version": "1.0.0-alpha.0",
   "description": "TypeScript SDK for P0 Protocol - A Solana DeFi lending protocol",
   "type": "module",
   "sideEffects": false,
@@ -40,8 +40,11 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "docs": "typedoc",
-    "prepublishOnly": "npm run build",
-    "prepack": "npm run build"
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "pnpm build && changeset publish",
+    "prepublishOnly": "pnpm build",
+    "prepack": "pnpm build"
   },
   "keywords": [
     "solana",
@@ -81,6 +84,7 @@
     "superstruct": "^1.0.4"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@jup-ag/api": "6.0.39",
     "@types/big.js": "^6.2.2",
     "@types/bn.js": "^5.1.5",
