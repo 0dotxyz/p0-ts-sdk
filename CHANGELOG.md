@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-alpha.2
+
+### Patch Changes
+
+- Optimize performance to avoid unnecessary rerenders
+  - Improved code formatting in max-amounts utilities
+  - Better handling of active balances computation
+  - Reduced unnecessary recalculations in withdraw/borrow logic
+
 ## 1.0.0-alpha.1
 
 ### Patch Changes

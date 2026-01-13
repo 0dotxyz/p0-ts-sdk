@@ -6,6 +6,7 @@
   },
   "changesets": [
     "first-alpha",
+    "optimize-rerenders",
     "remove-mrgn-common"
   ]
 }
