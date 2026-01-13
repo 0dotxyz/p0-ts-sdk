@@ -34,10 +34,7 @@ function applyEmodeWeightsToBanks(
   const modifiedBanks = new Map(banks);
 
   banks.forEach((bank, key) => {
-    if (
-      bank.emode?.emodeTag &&
-      activePair.collateralBankTags.includes(bank.emode.emodeTag)
-    ) {
+    if (bank.emode?.emodeTag && activePair.collateralBankTags.includes(bank.emode.emodeTag)) {
       modifiedBanks.set(key, {
         ...bank,
         config: {
@@ -46,10 +43,7 @@ function applyEmodeWeightsToBanks(
             bank.config.assetWeightMaint,
             activePair.assetWeightMaint
           ),
-          assetWeightInit: BigNumber.max(
-            bank.config.assetWeightInit,
-            activePair.assetWeightInit
-          ),
+          assetWeightInit: BigNumber.max(bank.config.assetWeightInit, activePair.assetWeightInit),
         },
       });
     }
@@ -79,8 +73,7 @@ export function computeMaxBorrowForBank(
   if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
 
   const priceInfo = oraclePrices.get(bankAddress.toBase58());
-  if (!priceInfo)
-    throw Error(`Price info for ${bankAddress.toBase58()} not found`);
+  if (!priceInfo) throw Error(`Price info for ${bankAddress.toBase58()} not found`);
 
   const activeBalances = getActiveBalances(account.balances);
 
@@ -89,9 +82,8 @@ export function computeMaxBorrowForBank(
   // -------------------------- //
 
   const hasLiabilitiesAlready =
-    activeBalances.filter(
-      (b) => b.liabilityShares.gt(0) && !b.bankPk.equals(bankAddress)
-    ).length > 0;
+    activeBalances.filter((b) => b.liabilityShares.gt(0) && !b.bankPk.equals(bankAddress)).length >
+    0;
 
   const attemptingToBorrowIsolatedAssetWithActiveDebt =
     bank.config.riskTier === RiskTier.Isolated && hasLiabilitiesAlready;
@@ -100,12 +92,9 @@ export function computeMaxBorrowForBank(
     .filter((b) => b.liabilityShares.gt(0))
     .map((b) => effectiveBanks.get(b.bankPk.toBase58())!);
 
-  const attemptingToBorrowNewAssetWithExistingIsolatedDebt =
-    existingLiabilityBanks.some(
-      (b) =>
-        b.config.riskTier === RiskTier.Isolated &&
-        !b.address.equals(bankAddress)
-    );
+  const attemptingToBorrowNewAssetWithExistingIsolatedDebt = existingLiabilityBanks.some(
+    (b) => b.config.riskTier === RiskTier.Isolated && !b.address.equals(bankAddress)
+  );
 
   if (
     attemptingToBorrowIsolatedAssetWithActiveDebt ||
@@ -129,11 +118,9 @@ export function computeMaxBorrowForBank(
 
   let freeCollateral = useCache
     ? computeFreeCollateral(account).times(_volatilityFactor)
-    : computeFreeCollateralLegacy(
-        activeBalances,
-        effectiveBanks,
-        oraclePrices
-      ).times(_volatilityFactor);
+    : computeFreeCollateralLegacy(activeBalances, effectiveBanks, oraclePrices).times(
+        _volatilityFactor
+      );
 
   const untiedCollateralForBank = BigNumber.min(
     computeAssetUsdValue(
@@ -148,30 +135,17 @@ export function computeMaxBorrowForBank(
 
   const priceLowestBias = getPrice(priceInfo, PriceBias.Lowest, true);
   const priceHighestBias = getPrice(priceInfo, PriceBias.Highest, true);
-  const assetWeight = getAssetWeight(
-    bank,
-    MarginRequirementType.Initial,
-    priceInfo
-  );
-  const liabWeight = getLiabilityWeight(
-    bank.config,
-    MarginRequirementType.Initial
-  );
+  const assetWeight = getAssetWeight(bank, MarginRequirementType.Initial, priceInfo);
+  const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Initial);
 
   if (assetWeight.eq(0)) {
     return computeQuantityUi(balance, bank).assets.plus(
-      freeCollateral
-        .minus(untiedCollateralForBank)
-        .div(priceHighestBias.times(liabWeight))
+      freeCollateral.minus(untiedCollateralForBank).div(priceHighestBias.times(liabWeight))
     );
   } else {
     return untiedCollateralForBank
       .div(priceLowestBias.times(assetWeight))
-      .plus(
-        freeCollateral
-          .minus(untiedCollateralForBank)
-          .div(priceHighestBias.times(liabWeight))
-      );
+      .plus(freeCollateral.minus(untiedCollateralForBank).div(priceHighestBias.times(liabWeight)));
   }
 }
 
@@ -193,33 +167,23 @@ export function computeMaxWithdrawForBank(
   const bank = effectiveBanks.get(bankAddress.toBase58());
   if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
   const priceInfo = oraclePrices.get(bankAddress.toBase58());
-  if (!priceInfo)
-    throw Error(`Price info for ${bankAddress.toBase58()} not found`);
+  if (!priceInfo) throw Error(`Price info for ${bankAddress.toBase58()} not found`);
 
   const _volatilityFactor = opts?.volatilityFactor ?? 1;
 
   // Get weights - they'll use emode weights if bank was modified
-  const initAssetWeight = getAssetWeight(
-    bank,
-    MarginRequirementType.Initial,
-    priceInfo,
-    { ignoreSoftLimits: false }
-  );
-  const maintAssetWeight = getAssetWeight(
-    bank,
-    MarginRequirementType.Maintenance,
-    priceInfo,
-    { ignoreSoftLimits: false }
-  );
-  const balance = getBalance(bankAddress, account.balances);
+  const initAssetWeight = getAssetWeight(bank, MarginRequirementType.Initial, priceInfo, {
+    ignoreSoftLimits: false,
+  });
+  const maintAssetWeight = getAssetWeight(bank, MarginRequirementType.Maintenance, priceInfo, {
+    ignoreSoftLimits: false,
+  });
+  const activeBalances = getActiveBalances(account.balances);
+  const balance = getBalance(bankAddress, activeBalances);
 
   // Recalculate free collateral if emode weights were applied
   const freeCollateral = opts?.activePair
-    ? computeFreeCollateralLegacy(
-        account.balances,
-        effectiveBanks,
-        oraclePrices
-      )
+    ? computeFreeCollateralLegacy(activeBalances, effectiveBanks, oraclePrices)
     : computeFreeCollateral(account);
 
   const initCollateralForBank = computeAssetUsdValue(
@@ -266,8 +230,10 @@ export function computeMaxWithdrawForBank(
     } else if (freeCollateral.isZero()) {
       return new BigNumber(0); // inefficient, but reflective of contract which does not look at action delta, but only end state
     } else {
-      const { liabilities: maintLiabilities, assets: maintAssets } =
-        computeHealthComponents(account, MarginRequirementType.Maintenance);
+      const { liabilities: maintLiabilities, assets: maintAssets } = computeHealthComponents(
+        account,
+        MarginRequirementType.Maintenance
+      );
       const maintUntiedCollateral = maintAssets.minus(maintLiabilities);
 
       const priceLowestBias = getPrice(priceInfo, PriceBias.Lowest, true);
