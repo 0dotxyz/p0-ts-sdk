@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-alpha.1
+
+### Patch Changes
+
+- Remove @mrgnlabs/mrgn-common dependency
+  - Removed dependency on @mrgnlabs/mrgn-common
+  - Implemented required utilities internally
+  - Reduced bundle size and external dependencies
+
 ## 1.0.0-alpha.0
 
 ### Major Changes
