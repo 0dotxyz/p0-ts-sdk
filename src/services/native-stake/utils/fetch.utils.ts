@@ -7,16 +7,13 @@ import {
 } from "@solana/web3.js";
 
 import {
-  chunkedGetRawMultipleAccountInfoOrdered,
-  MAX_U64,
-} from "@mrgnlabs/mrgn-common";
-
-import {
   findPoolAddress,
   findPoolStakeAddress,
   findPoolMintAddress,
   findPoolOnRampAddress,
 } from "~/vendor/single-spl-pool";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { MAX_U64 } from "~/constants";
 
 import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
 
@@ -45,24 +42,18 @@ export const fetchNativeStakeAccounts = async (
 
   try {
     const epochInfo = await connection.getEpochInfo();
-    const accounts = await connection.getParsedProgramAccounts(
-      StakeProgram.programId,
-      {
-        filters: [
-          {
-            memcmp: {
-              offset: 12,
-              bytes: publicKey.toBase58(),
-            },
+    const accounts = await connection.getParsedProgramAccounts(StakeProgram.programId, {
+      filters: [
+        {
+          memcmp: {
+            offset: 12,
+            bytes: publicKey.toBase58(),
           },
-        ],
-      }
-    );
+        },
+      ],
+    });
 
-    const validatorMap = new Map<
-      string,
-      { pubkey: PublicKey; amount: number }[]
-    >();
+    const validatorMap = new Map<string, { pubkey: PublicKey; amount: number }[]>();
 
     // Map accounts to promises and run them in parallel
     await Promise.all(
@@ -74,8 +65,7 @@ export const fetchNativeStakeAccounts = async (
         if (
           !stakeInfo.stake?.delegation ||
           (opts.filterInactive &&
-            (Number(stakeInfo.stake.delegation.activationEpoch) >=
-              epochInfo.epoch ||
+            (Number(stakeInfo.stake.delegation.activationEpoch) >= epochInfo.epoch ||
               stakeInfo.stake.delegation.deactivationEpoch !== MAX_U64))
         ) {
           return;
@@ -83,8 +73,7 @@ export const fetchNativeStakeAccounts = async (
 
         const validatorAddress = stakeInfo.stake.delegation.voter;
         const accountPubkey = acc.pubkey;
-        const amount =
-          Number(stakeInfo.stake.delegation.stake) / LAMPORTS_PER_SOL;
+        const amount = Number(stakeInfo.stake.delegation.stake) / LAMPORTS_PER_SOL;
 
         const existingAccounts = validatorMap.get(validatorAddress) || [];
         validatorMap.set(validatorAddress, [
@@ -96,41 +85,36 @@ export const fetchNativeStakeAccounts = async (
 
     // Calculate pool keys once per validator when creating return value
     return Promise.all(
-      Array.from(validatorMap.entries()).map(
-        async ([validatorAddress, accounts]) => {
-          const poolKey = findPoolAddress(new PublicKey(validatorAddress));
-          const poolMintKey = findPoolMintAddress(poolKey);
-          const totalStake = accounts.reduce(
-            (acc, curr) => acc + curr.amount,
-            0
-          );
-          const largestAccount = accounts.reduce((acc, curr) =>
-            acc.amount > curr.amount ? acc : curr
-          );
-          const sortedAccounts = accounts.sort((a, b) => b.amount - a.amount);
+      Array.from(validatorMap.entries()).map(async ([validatorAddress, accounts]) => {
+        const poolKey = findPoolAddress(new PublicKey(validatorAddress));
+        const poolMintKey = findPoolMintAddress(poolKey);
+        const totalStake = accounts.reduce((acc, curr) => acc + curr.amount, 0);
+        const largestAccount = accounts.reduce((acc, curr) =>
+          acc.amount > curr.amount ? acc : curr
+        );
+        const sortedAccounts = accounts.sort((a, b) => b.amount - a.amount);
 
-          // if the largest account is not the first in the array, move it to the front
-          const firstAccount = sortedAccounts[0];
-          if (firstAccount && !firstAccount.pubkey.equals(largestAccount.pubkey)) {
-            const largestIndex = sortedAccounts.indexOf(largestAccount);
-            if (largestIndex > 0) {
-              const [removed] = sortedAccounts.splice(largestIndex, 1);
-              if (removed) {
-                sortedAccounts.unshift(removed);
-              }
+        // if the largest account is not the first in the array, move it to the front
+        const firstAccount = sortedAccounts[0];
+        if (firstAccount && !firstAccount.pubkey.equals(largestAccount.pubkey)) {
+          const largestIndex = sortedAccounts.indexOf(largestAccount);
+          if (largestIndex > 0) {
+            const [removed] = sortedAccounts.splice(largestIndex, 1);
+            if (removed) {
+              sortedAccounts.unshift(removed);
             }
           }
-
-          return {
-            validator: new PublicKey(validatorAddress),
-            poolKey,
-            poolMintKey,
-            accounts: sortedAccounts,
-            totalStake,
-            selectedAccount: largestAccount,
-          };
         }
-      )
+
+        return {
+          validator: new PublicKey(validatorAddress),
+          poolKey,
+          poolMintKey,
+          accounts: sortedAccounts,
+          totalStake,
+          selectedAccount: largestAccount,
+        };
+      })
     );
   } catch (e) {
     console.error("Error getting stake accounts", e);
@@ -167,16 +151,13 @@ export const fetchStakePoolActiveStates = async (
   const poolStakeAddressKeys = Object.keys(poolStakeAddressRecord);
 
   const poolStakeAccounts = Object.fromEntries(
-    (
-      await chunkedGetRawMultipleAccountInfoOrdered(
-        connection,
-        poolStakeAddressKeys
-      )
-    ).map((ai, index) => {
-      const key = poolStakeAddressKeys[index];
-      const validatorVote = key ? poolStakeAddressRecord[key] : undefined;
-      return [validatorVote, ai?.data || null];
-    }).filter(([key]) => key !== undefined)
+    (await chunkedGetRawMultipleAccountInfoOrdered(connection, poolStakeAddressKeys))
+      .map((ai, index) => {
+        const key = poolStakeAddressKeys[index];
+        const validatorVote = key ? poolStakeAddressRecord[key] : undefined;
+        return [validatorVote, ai?.data || null];
+      })
+      .filter(([key]) => key !== undefined)
   );
 
   validatorVoteAccounts.map((validatorVoteAccount) => {
@@ -312,10 +293,7 @@ export const fetchStakePoolMev = async (
   const poolAddressRecord: Record<string, PublicKey> = {};
   const poolStakeAddressRecord: Record<string, PublicKey> = {};
   const onRampAddressRecord: Record<string, PublicKey> = {};
-  const mev: StakePoolMevMap = new Map<
-    string,
-    { pool: number; onramp: number }
-  >();
+  const mev: StakePoolMevMap = new Map<string, { pool: number; onramp: number }>();
 
   validatorVoteAccounts.forEach((validatorVoteAccount) => {
     const poolAddress = findPoolAddress(validatorVoteAccount);
@@ -328,50 +306,40 @@ export const fetchStakePoolMev = async (
   });
 
   const poolStakeAddresses = validatorVoteAccounts
-    .map((validatorVoteAccount) =>
-      poolStakeAddressRecord[validatorVoteAccount.toBase58()]
-    )
+    .map((validatorVoteAccount) => poolStakeAddressRecord[validatorVoteAccount.toBase58()])
     .filter((address): address is PublicKey => address !== undefined);
-  
+
   const onRampAddresses = validatorVoteAccounts
-    .map((validatorVoteAccount) =>
-      onRampAddressRecord[validatorVoteAccount.toBase58()]
-    )
+    .map((validatorVoteAccount) => onRampAddressRecord[validatorVoteAccount.toBase58()])
     .filter((address): address is PublicKey => address !== undefined);
 
-  const allAddresses = [...poolStakeAddresses, ...onRampAddresses].map(
-    (address) => address.toBase58()
+  const allAddresses = [...poolStakeAddresses, ...onRampAddresses].map((address) =>
+    address.toBase58()
   );
 
-  return chunkedGetRawMultipleAccountInfoOrdered(connection, allAddresses).then(
-    (accountInfos) => {
-      const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
-      const onRampInfos = accountInfos.slice(poolStakeAddresses.length);
-      const rent = 2282280;
+  return chunkedGetRawMultipleAccountInfoOrdered(connection, allAddresses).then((accountInfos) => {
+    const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
+    const onRampInfos = accountInfos.slice(poolStakeAddresses.length);
+    const rent = 2282280;
 
-      validatorVoteAccounts.forEach((validatorVoteAccount, index) => {
-        const poolStakeInfo = poolStakeInfos[index];
-        const onRampInfo = onRampInfos[index];
+    validatorVoteAccounts.forEach((validatorVoteAccount, index) => {
+      const poolStakeInfo = poolStakeInfos[index];
+      const onRampInfo = onRampInfos[index];
 
-        if (poolStakeInfo && onRampInfo) {
-          const stakeDecoded = fetchStakeAccount(poolStakeInfo.data);
-          const onrampDecoded = fetchStakeAccount(onRampInfo.data);
-          const poolLamps =
-            poolStakeInfo.lamports -
-            rent -
-            Number(stakeDecoded.stake.delegation.stake.toString());
-          const onrampStake = Number(
-            onrampDecoded.stake.delegation.stake.toString()
-          );
+      if (poolStakeInfo && onRampInfo) {
+        const stakeDecoded = fetchStakeAccount(poolStakeInfo.data);
+        const onrampDecoded = fetchStakeAccount(onRampInfo.data);
+        const poolLamps =
+          poolStakeInfo.lamports - rent - Number(stakeDecoded.stake.delegation.stake.toString());
+        const onrampStake = Number(onrampDecoded.stake.delegation.stake.toString());
 
-          mev.set(validatorVoteAccount.toBase58(), {
-            pool: poolLamps >= 1000 ? poolLamps : 0,
-            onramp: onrampStake,
-          });
-        }
-      });
+        mev.set(validatorVoteAccount.toBase58(), {
+          pool: poolLamps >= 1000 ? poolLamps : 0,
+          onramp: onrampStake,
+        });
+      }
+    });
 
-      return mev;
-    }
-  );
+    return mev;
+  });
 };

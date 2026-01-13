@@ -1,18 +1,18 @@
 import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
 
-import { Amount, toBigNumber } from "@mrgnlabs/mrgn-common";
-
 import { OraclePrice, PriceBias, getPrice } from "~/services/price";
 import { MarginRequirementType } from "~/services/account/types";
 import {
-  PDA_BANK_FEE_VAULT_AUTH_SEED,
-  PDA_BANK_FEE_VAULT_SEED,
-  PDA_BANK_INSURANCE_VAULT_AUTH_SEED,
-  PDA_BANK_INSURANCE_VAULT_SEED,
-  PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED,
   PDA_BANK_LIQUIDITY_VAULT_SEED,
-} from "~/constants";
+  PDA_BANK_INSURANCE_VAULT_SEED,
+  PDA_BANK_FEE_VAULT_SEED,
+  PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED,
+  PDA_BANK_INSURANCE_VAULT_AUTH_SEED,
+  PDA_BANK_FEE_VAULT_AUTH_SEED,
+  toBigNumber,
+} from "~/utils";
+import { Amount } from "~/types";
 
 import { BankType, BankConfigType, BankVaultType } from "../types";
 
@@ -21,10 +21,8 @@ export function computeMaxLeverage(
   borrowBank: BankType,
   opts?: { assetWeightInit?: BigNumber; liabilityWeightInit?: BigNumber }
 ): { maxLeverage: number; ltv: number } {
-  const assetWeightInit =
-    opts?.assetWeightInit || depositBank.config.assetWeightInit;
-  const liabilityWeightInit =
-    opts?.liabilityWeightInit || borrowBank.config.liabilityWeightInit;
+  const assetWeightInit = opts?.assetWeightInit || depositBank.config.assetWeightInit;
+  const liabilityWeightInit = opts?.liabilityWeightInit || borrowBank.config.liabilityWeightInit;
 
   const ltv = assetWeightInit.div(liabilityWeightInit).toNumber();
   const maxLeverage = 1 / (1 - ltv);
@@ -51,9 +49,7 @@ export function computeLoopingParams(
   let clampedLeverage = targetLeverage;
 
   if (targetLeverage < 1) {
-    console.warn(
-      `computeLoopingParams: targetLeverage ${targetLeverage} < 1, clamping to 1`
-    );
+    console.warn(`computeLoopingParams: targetLeverage ${targetLeverage} < 1, clamping to 1`);
     clampedLeverage = 1;
   } else if (targetLeverage > maxLeverage) {
     console.warn(
@@ -62,9 +58,7 @@ export function computeLoopingParams(
     clampedLeverage = maxLeverage;
   }
 
-  const totalDepositAmount = initialCollateral.times(
-    new BigNumber(clampedLeverage)
-  );
+  const totalDepositAmount = initialCollateral.times(new BigNumber(clampedLeverage));
   const additionalDepositAmount = totalDepositAmount.minus(initialCollateral);
   const totalBorrowAmount = additionalDepositAmount
     .times(depositOracleInfo.priceWeighted.lowestPrice)
@@ -92,34 +86,22 @@ export function getTotalLiabilityQuantity(bank: BankType): BigNumber {
   return bank.totalLiabilityShares.times(bank.liabilityShareValue);
 }
 
-export function getAssetQuantity(
-  bank: BankType,
-  assetShares: BigNumber
-): BigNumber {
+export function getAssetQuantity(bank: BankType, assetShares: BigNumber): BigNumber {
   return assetShares.times(bank.assetShareValue);
 }
 
-export function getLiabilityQuantity(
-  bank: BankType,
-  liabilityShares: BigNumber
-): BigNumber {
+export function getLiabilityQuantity(bank: BankType, liabilityShares: BigNumber): BigNumber {
   return liabilityShares.times(bank.liabilityShareValue);
 }
 
-export function getAssetShares(
-  bank: BankType,
-  assetQuantity: BigNumber
-): BigNumber {
+export function getAssetShares(bank: BankType, assetQuantity: BigNumber): BigNumber {
   if (bank.assetShareValue.isZero()) {
     return new BigNumber(0);
   }
   return assetQuantity.div(bank.assetShareValue);
 }
 
-export function getLiabilityShares(
-  bank: BankType,
-  liabilityQuantity: BigNumber
-): BigNumber {
+export function getLiabilityShares(bank: BankType, liabilityQuantity: BigNumber): BigNumber {
   if (bank.liabilityShareValue.isZero()) {
     return new BigNumber(0);
   }
@@ -138,10 +120,8 @@ export function getAssetWeight(
     };
   }
 ): BigNumber {
-  const assetWeightInit =
-    opts?.overrideWeights?.assetWeightInit ?? bank.config.assetWeightInit;
-  const assetWeightMaint =
-    opts?.overrideWeights?.assetWeightMaint ?? bank.config.assetWeightMaint;
+  const assetWeightInit = opts?.overrideWeights?.assetWeightInit ?? bank.config.assetWeightInit;
+  const assetWeightMaint = opts?.overrideWeights?.assetWeightMaint ?? bank.config.assetWeightMaint;
 
   switch (marginRequirementType) {
     case MarginRequirementType.Initial:
@@ -155,11 +135,7 @@ export function getAssetWeight(
         PriceBias.Lowest,
         opts?.overrideWeights
       );
-      if (
-        totalBankCollateralValue.isGreaterThan(
-          bank.config.totalAssetValueInitLimit
-        )
-      ) {
+      if (totalBankCollateralValue.isGreaterThan(bank.config.totalAssetValueInitLimit)) {
         return bank.config.totalAssetValueInitLimit
           .div(totalBankCollateralValue)
           .times(assetWeightInit);
@@ -201,10 +177,7 @@ export function computeLiabilityUsdValue(
   priceBias: PriceBias
 ): BigNumber {
   const liabilityQuantity = getLiabilityQuantity(bank, liabilityShares);
-  const liabilityWeight = getLiabilityWeight(
-    bank.config,
-    marginRequirementType
-  );
+  const liabilityWeight = getLiabilityWeight(bank.config, marginRequirementType);
   const isWeighted = isWeightedPrice(marginRequirementType);
   return computeUsdValue(
     bank,
@@ -232,14 +205,7 @@ export function computeAssetUsdValue(
     overrideWeights,
   });
   const isWeighted = isWeightedPrice(marginRequirementType);
-  return computeUsdValue(
-    bank,
-    oraclePrice,
-    assetQuantity,
-    priceBias,
-    isWeighted,
-    assetWeight
-  );
+  return computeUsdValue(bank, oraclePrice, assetQuantity, priceBias, isWeighted, assetWeight);
 }
 
 export function computeUsdValue(
@@ -258,10 +224,7 @@ export function computeUsdValue(
     .dividedBy(scaleToBase ? 10 ** bank.mintDecimals : 1);
 }
 
-export function computeTvl(
-  bank: BankType,
-  oraclePrice: OraclePrice
-): BigNumber {
+export function computeTvl(bank: BankType, oraclePrice: OraclePrice): BigNumber {
   return computeAssetUsdValue(
     bank,
     oraclePrice,

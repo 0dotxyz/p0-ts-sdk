@@ -1,12 +1,11 @@
 import { PublicKey } from "@solana/web3.js";
 
+import { BankType } from "~/services/bank";
+import { InstructionsWrapper } from "~/services/transaction";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
-  InstructionsWrapper,
-} from "@mrgnlabs/mrgn-common";
-
-import { BankType } from "~/services/bank";
+} from "~/vendor/spl";
 import { MarginfiProgram, MintData } from "~/types";
 import instructions from "~/instructions";
 
@@ -25,12 +24,9 @@ export async function makeWithdrawEmissionsIx(
   const bank = banks.get(bankAddress.toBase58());
   if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
   const mintData = mintDatas.get(bankAddress.toBase58());
-  if (!mintData)
-    throw Error(`Mint data for bank ${bankAddress.toBase58()} not found`);
+  if (!mintData) throw Error(`Mint data for bank ${bankAddress.toBase58()} not found`);
   if (!mintData.emissionTokenProgram) {
-    throw Error(
-      `Emission token program not found for bank ${bankAddress.toBase58()}`
-    );
+    throw Error(`Emission token program not found for bank ${bankAddress.toBase58()}`);
   }
 
   let ixs = [];
@@ -41,23 +37,21 @@ export async function makeWithdrawEmissionsIx(
     true,
     mintData.emissionTokenProgram
   ); // We allow off curve addresses here to support Fuse.
-  const createAtaIdempotentIx =
-    createAssociatedTokenAccountIdempotentInstruction(
-      marginfiAccount.authority,
-      userAta,
-      marginfiAccount.authority,
-      bank.emissionsMint,
-      mintData.emissionTokenProgram
-    );
+  const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+    marginfiAccount.authority,
+    userAta,
+    marginfiAccount.authority,
+    bank.emissionsMint,
+    mintData.emissionTokenProgram
+  );
   ixs.push(createAtaIdempotentIx);
 
-  const withdrawEmissionsIx =
-    await instructions.makelendingAccountWithdrawEmissionIx(program, {
-      marginfiAccount: marginfiAccount.address,
-      destinationAccount: userAta,
-      bank: bank.address,
-      tokenProgram: mintData.emissionTokenProgram,
-    });
+  const withdrawEmissionsIx = await instructions.makelendingAccountWithdrawEmissionIx(program, {
+    marginfiAccount: marginfiAccount.address,
+    destinationAccount: userAta,
+    bank: bank.address,
+    tokenProgram: mintData.emissionTokenProgram,
+  });
   ixs.push(withdrawEmissionsIx);
 
   return { instructions: ixs, keys: [] };

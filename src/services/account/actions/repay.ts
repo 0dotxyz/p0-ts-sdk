@@ -11,38 +11,31 @@ import { BigNumber } from "bignumber.js";
 import { QuoteResponse } from "@jup-ag/api";
 
 import {
-  getAssociatedTokenAddressSync,
-  TOKEN_2022_PROGRAM_ID,
-  NATIVE_MINT,
-  uiToNative,
-  ExtendedTransaction,
-  addTransactionMetadata,
-  TransactionType,
-  MAX_TX_SIZE,
-  getTxSize,
-  getAccountKeys,
-  splitInstructionsToFitTransactions,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  nativeToUi,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-} from "@mrgnlabs/mrgn-common";
-
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_2022_PROGRAM_ID,
+} from "~/vendor/spl";
+import { nativeToUi, uiToNative } from "~/utils";
 import instructions from "~/instructions";
 import { AssetTag } from "~/services/bank";
-import { makeWrapSolIxs } from "~/services/transaction";
 import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-} from "~/services/price";
+  addTransactionMetadata,
+  ExtendedTransaction,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeWrapSolIxs,
+  splitInstructionsToFitTransactions,
+  TransactionType,
+  getAccountKeys,
+  getTxSize,
+} from "~/services/transaction";
+import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
 
-import {
-  MakeRepayIxParams,
-  MakeRepayTxParams,
-  MakeRepayWithCollatTxParams,
-} from "../types";
+import { MakeRepayIxParams, MakeRepayTxParams, MakeRepayWithCollatTxParams } from "../types";
 import { isWholePosition, getJupiterSwapIxsForFlashloan } from "../utils";
 
 import { makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
@@ -90,21 +83,14 @@ export async function makeRepayIx({
   const repayIxs = [];
 
   // Add repay-related instructions
-  const userAta = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userAta = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   const remainingAccounts = tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
     ? [{ pubkey: bank.mint, isSigner: false, isWritable: false }]
     : [];
 
   if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    repayIxs.push(
-      ...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi))
-    );
+    repayIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
   }
 
   const repayIx =
@@ -169,9 +155,7 @@ export async function makeRepayIx({
  *
  * @returns Promise resolving to an ExtendedTransaction with metadata
  */
-export async function makeRepayTx(
-  params: MakeRepayTxParams
-): Promise<ExtendedTransaction> {
+export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTransaction> {
   const { luts, ...depositIxParams } = params;
 
   const ixs = await makeRepayIx(depositIxParams);
@@ -186,9 +170,7 @@ export async function makeRepayTx(
   return solanaTx;
 }
 
-export async function makeRepayWithCollatTx(
-  params: MakeRepayWithCollatTxParams
-) {
+export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams) {
   const {
     program,
     marginfiAccount,
@@ -202,8 +184,7 @@ export async function makeRepayWithCollatTx(
     crossbarUrl,
   } = params;
 
-  const blockhash = (await connection.getLatestBlockhash("confirmed"))
-    .blockhash;
+  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
   // Create atas if needed
   const setupIxs = await makeSetupIx({
@@ -229,17 +210,11 @@ export async function makeRepayWithCollatTx(
     bankMetadataMap
   );
 
-  const {
-    flashloanTx,
-    setupInstructions,
-    swapQuote,
-    amountToRepay,
-    withdrawIxs,
-    repayIxs,
-  } = await buildRepayWithCollatFlashloanTx({
-    ...params,
-    blockhash,
-  });
+  const { flashloanTx, setupInstructions, swapQuote, amountToRepay, withdrawIxs, repayIxs } =
+    await buildRepayWithCollatFlashloanTx({
+      ...params,
+      blockhash,
+    });
 
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
     // filter out compute budget instructions
@@ -264,16 +239,15 @@ export async function makeRepayWithCollatTx(
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } =
-    await makeSmartCrankSwbFeedIx({
-      marginfiAccount,
-      bankMap,
-      oraclePrices,
-      instructions: [...withdrawIxs.instructions, ...repayIxs.instructions],
-      program,
-      connection,
-      crossbarUrl,
-    });
+  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
+    marginfiAccount,
+    bankMap,
+    oraclePrices,
+    instructions: [...withdrawIxs.instructions, ...repayIxs.instructions],
+    program,
+    connection,
+    crossbarUrl,
+  });
 
   let additionalTxs: ExtendedV0Transaction[] = [];
 
@@ -355,9 +329,7 @@ async function buildRepayWithCollatFlashloanTx({
       new PublicKey(repayOpts.repayBank.mint),
       marginfiAccount.authority,
       true,
-      repayOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-        ? TOKEN_2022_PROGRAM_ID
-        : undefined
+      repayOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
     );
 
     // Get Jupiter swap instruction using calculated available TX size
@@ -383,12 +355,8 @@ async function buildRepayWithCollatFlashloanTx({
     });
 
     swapResponse.forEach((response) => {
-      const { swapInstruction, addressLookupTableAddresses, quoteResponse } =
-        response;
-      const outAmount = nativeToUi(
-        quoteResponse.outAmount,
-        repayOpts.repayBank.mintDecimals
-      );
+      const { swapInstruction, addressLookupTableAddresses, quoteResponse } = response;
+      const outAmount = nativeToUi(quoteResponse.outAmount, repayOpts.repayBank.mintDecimals);
       const outAmountThreshold = nativeToUi(
         quoteResponse.otherAmountThreshold,
         repayOpts.repayBank.mintDecimals
@@ -414,8 +382,7 @@ async function buildRepayWithCollatFlashloanTx({
   // Logic to determine if the withdraw bank is kamino
   if (withdrawOpts.withdrawBank.config.assetTag === AssetTag.KAMINO) {
     const reserve =
-      bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]
-        ?.kaminoStates?.reserveState;
+      bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.kaminoStates?.reserveState;
 
     if (!reserve) {
       throw TransactionBuildingError.kaminoReserveNotFound(
@@ -484,13 +451,8 @@ async function buildRepayWithCollatFlashloanTx({
   }
 
   for (const [index, item] of swapResult.entries()) {
-    const {
-      amountToRepay,
-      swapInstructions,
-      setupInstructions,
-      swapLookupTables,
-      quoteResponse,
-    } = item;
+    const { amountToRepay, swapInstructions, setupInstructions, swapLookupTables, quoteResponse } =
+      item;
 
     const repayIxs = await makeRepayIx({
       program,
@@ -544,10 +506,7 @@ async function buildRepayWithCollatFlashloanTx({
 
     if (txSize > MAX_TX_SIZE || keySize > 64) {
       if (isLast) {
-        throw TransactionBuildingError.jupiterSwapSizeExceededRepay(
-          txSize,
-          keySize
-        );
+        throw TransactionBuildingError.jupiterSwapSizeExceededRepay(txSize, keySize);
       } else {
         continue;
       }

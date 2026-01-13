@@ -1,14 +1,13 @@
 import { BorshCoder } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
-import { InstructionsWrapper, Program } from "@mrgnlabs/mrgn-common";
-
 import { MarginfiIdlType } from "../idl";
 import { AccountType, MarginfiProgram } from "../types";
 import {
   BankConfigOpt,
   BankConfigOptRaw,
   fetchMultipleBanks,
+  InstructionsWrapper,
   makeAddPermissionlessStakedBankIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
@@ -31,12 +30,8 @@ class MarginfiGroup implements MarginfiGroupType {
     this.address = address;
   }
 
-  static async fetch(
-    address: PublicKey,
-    program: Program<MarginfiIdlType>
-  ): Promise<MarginfiGroup> {
-    const data: MarginfiGroupRaw =
-      await program.account.marginfiGroup.fetch(address);
+  static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiGroup> {
+    const data: MarginfiGroupRaw = await program.account.marginfiGroup.fetch(address);
     return MarginfiGroup.fromAccountParsed(address, data);
   }
 
@@ -52,19 +47,14 @@ class MarginfiGroup implements MarginfiGroupType {
       groupAddress: this.address,
     });
 
-    return bankDatas.map((bankData) =>
-      Bank.fromAccountParsed(bankData.address, bankData.data)
-    );
+    return bankDatas.map((bankData) => Bank.fromAccountParsed(bankData.address, bankData.data));
   }
 
   // ----------------------------------------------------------------------------
   // Factories
   // ----------------------------------------------------------------------------
 
-  static fromAccountParsed(
-    address: PublicKey,
-    accountData: MarginfiGroupRaw
-  ): MarginfiGroup {
+  static fromAccountParsed(address: PublicKey, accountData: MarginfiGroupRaw): MarginfiGroup {
     const marginfiGroup = {
       admin: accountData.admin,
     };
@@ -81,10 +71,7 @@ class MarginfiGroup implements MarginfiGroupType {
     return coder.accounts.decode(AccountType.MarginfiGroup, encoded);
   }
 
-  static async encode(
-    decoded: MarginfiGroupRaw,
-    idl: MarginfiIdlType
-  ): Promise<Buffer> {
+  static async encode(decoded: MarginfiGroupRaw, idl: MarginfiIdlType): Promise<Buffer> {
     const coder = new BorshCoder(idl);
     return await coder.accounts.encode(AccountType.MarginfiGroup, decoded);
   }

@@ -1,9 +1,9 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { InstructionsWrapper } from "@mrgnlabs/mrgn-common";
-
 import instructions from "~/instructions";
 import { MarginfiProgram } from "~/types";
+
+import { InstructionsWrapper } from "../transaction";
 
 import { BankConfigOpt, BankConfigOptRaw, OracleSetup } from "./types";
 import { serializeBankConfigOpt, serializeOracleSetupToIndex } from "./utils";

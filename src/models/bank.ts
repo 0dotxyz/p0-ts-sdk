@@ -1,8 +1,9 @@
-import { BankMetadata, nativeToUi, Program } from "@mrgnlabs/mrgn-common";
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { MarginfiIdlType } from "~/idl";
+import { nativeToUi } from "~/utils";
+import { MarginfiProgram } from "~/types";
 
 import {
   BankType,
@@ -43,6 +44,12 @@ import { EmodeSettings } from "./emode-settings";
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
 const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365.25;
+
+interface BankMetadata {
+  tokenAddress: string;
+  tokenName: string;
+  tokenSymbol: string;
+}
 
 // ----------------------------------------------------------------------------
 // Client types
@@ -90,7 +97,7 @@ class Bank implements BankType {
 
   static async fetch(
     address: PublicKey,
-    program: Program<MarginfiIdlType>,
+    program: MarginfiProgram,
     bankMetadata?: BankMetadata
   ): Promise<Bank> {
     const data: BankRaw = await program.account.bank.fetch(address);
@@ -101,11 +108,7 @@ class Bank implements BankType {
     return decodeBankRaw(encoded, idl);
   }
 
-  static fromBuffer(
-    bankPk: PublicKey,
-    rawData: Buffer,
-    idl: MarginfiIdlType
-  ): Bank {
+  static fromBuffer(bankPk: PublicKey, rawData: Buffer, idl: MarginfiIdlType): Bank {
     const accountParsed = Bank.decodeBankRaw(rawData, idl);
     return Bank.fromAccountParsed(bankPk, accountParsed);
   }

@@ -8,20 +8,7 @@ import {
 import BigNumber from "bignumber.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 
-import {
-  addTransactionMetadata,
-  ExtendedTransaction,
-  ExtendedV0Transaction,
-  getAssociatedTokenAddressSync,
-  InstructionsWrapper,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-  TransactionType,
-  uiToNative,
-} from "@mrgnlabs/mrgn-common";
-
-import { makeWrapSolIxs } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
+import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 import {
   deriveUserState,
   FARMS_PROGRAM_ID,
@@ -30,6 +17,16 @@ import {
   KlendIdlType,
   makeRefreshingIxs,
 } from "~/vendor/klend";
+import { uiToNative } from "~/utils";
+import {
+  addTransactionMetadata,
+  ExtendedTransaction,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeWrapSolIxs,
+  TransactionType,
+} from "~/services/transaction";
+import syncInstructions from "~/sync-instructions";
 import instructions from "~/instructions";
 
 import {
@@ -84,12 +81,7 @@ export async function makeKaminoDepositIx({
   const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
   const depositIxs: TransactionInstruction[] = [];
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   const {
     lendingMarketAuthority,
@@ -99,9 +91,7 @@ export async function makeKaminoDepositIx({
   } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
   if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(
-      ...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi))
-    );
+    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
   }
 
   const reserveFarm = !reserve.farmCollateral.equals(
@@ -246,8 +236,7 @@ export async function makeKaminoDepositTx(
 
   const blockhash =
     params.blockhash ??
-    (await connection.getLatestBlockhashAndContext("confirmed")).value
-      .blockhash;
+    (await connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
 
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -314,12 +303,7 @@ export async function makeDepositIx({
   const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
   const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   const remainingAccounts = tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
     ? [{ pubkey: bank.mint, isSigner: false, isWritable: false }]
@@ -328,9 +312,7 @@ export async function makeDepositIx({
   const depositIxs = [];
 
   if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(
-      ...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi))
-    );
+    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
   }
 
   const depositIx = isSync
@@ -394,9 +376,7 @@ export async function makeDepositIx({
  *
  * @returns Promise resolving to an ExtendedTransaction with metadata
  */
-export async function makeDepositTx(
-  params: MakeDepositTxParams
-): Promise<ExtendedTransaction> {
+export async function makeDepositTx(params: MakeDepositTxParams): Promise<ExtendedTransaction> {
   const { luts, ...depositIxParams } = params;
 
   const ixs = await makeDepositIx(depositIxParams);

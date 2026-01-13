@@ -1,8 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "@mrgnlabs/mrgn-common";
-
 import { Bank } from "~/models/bank";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
   ObligationRaw,
   ReserveRaw,
@@ -48,8 +47,7 @@ export async function fetchKaminoMetadata(
   // Filter banks that have Kamino integration
   const kaminoBanks = banks.filter(
     (b) =>
-      !b.kaminoReserve.equals(PublicKey.default) &&
-      !b.kaminoObligation.equals(PublicKey.default)
+      !b.kaminoReserve.equals(PublicKey.default) && !b.kaminoObligation.equals(PublicKey.default)
   );
 
   if (kaminoBanks.length === 0) {
@@ -97,13 +95,8 @@ export async function fetchKaminoMetadata(
       const obligationState = decodeKlendObligationData(obligationInfo.data);
 
       // Track farm collateral for second batch fetch
-      if (
-        !reserveState.farmCollateral.equals(
-          new PublicKey("11111111111111111111111111111111")
-        )
-      ) {
-        bankByFarmKey[reserveState.farmCollateral.toBase58()] =
-          tuple.bankAddress;
+      if (!reserveState.farmCollateral.equals(new PublicKey("11111111111111111111111111111111"))) {
+        bankByFarmKey[reserveState.farmCollateral.toBase58()] = tuple.bankAddress;
       }
 
       kaminoMap.set(tuple.bankAddress, {
@@ -114,20 +107,14 @@ export async function fetchKaminoMetadata(
         },
       });
     } catch (error) {
-      console.warn(
-        `Failed to decode Kamino data for bank ${tuple.bankAddress}:`,
-        error
-      );
+      console.warn(`Failed to decode Kamino data for bank ${tuple.bankAddress}:`, error);
     }
   }
 
   // Fetch farm states if any farm collateral keys were found
   if (Object.keys(bankByFarmKey).length > 0) {
     const farmKeys = Object.keys(bankByFarmKey);
-    const farmStates = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
-      connection,
-      farmKeys
-    );
+    const farmStates = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, farmKeys);
 
     // Add farm states to the corresponding banks
     for (let idx = 0; idx < farmKeys.length; idx++) {
@@ -165,10 +152,7 @@ export async function fetchKaminoMetadata(
           },
         });
       } catch (error) {
-        console.warn(
-          `Failed to decode farm state for bank ${bankAddress}:`,
-          error
-        );
+        console.warn(`Failed to decode farm state for bank ${bankAddress}:`, error);
       }
     }
   }

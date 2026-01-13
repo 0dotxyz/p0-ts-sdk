@@ -7,20 +7,13 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { TOKEN_PROGRAM_ID } from "@mrgnlabs/mrgn-common";
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-import {
-  deriveBankLiquidityVault,
-  deriveBankLiquidityVaultAuthority,
-} from "./utils";
+import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
 
 // Hardcoded addresses from Marginfi IDL
-const KAMINO_PROGRAM_ID = new PublicKey(
-  "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
-);
-const FARMS_PROGRAM_ID = new PublicKey(
-  "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
-);
+const KAMINO_PROGRAM_ID = new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+const FARMS_PROGRAM_ID = new PublicKey("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
 
 // ============================================================================
 // Encoding Utilities
@@ -60,46 +53,26 @@ function encodePublicKey(pubkey: PublicKey): Buffer {
 // ============================================================================
 
 const DISCRIMINATORS = {
-  MARGINFI_ACCOUNT_INITIALIZE: Buffer.from([
-    43, 78, 61, 255, 148, 52, 249, 154,
-  ]),
+  MARGINFI_ACCOUNT_INITIALIZE: Buffer.from([43, 78, 61, 255, 148, 52, 249, 154]),
   KAMINO_DEPOSIT: Buffer.from([237, 8, 188, 187, 115, 99, 49, 85]),
   LENDING_ACCOUNT_DEPOSIT: Buffer.from([171, 94, 235, 103, 82, 64, 212, 140]),
   LENDING_ACCOUNT_REPAY: Buffer.from([79, 209, 172, 177, 222, 51, 173, 151]),
   KAMINO_WITHDRAW: Buffer.from([199, 101, 41, 45, 213, 98, 224, 200]),
   LENDING_ACCOUNT_WITHDRAW: Buffer.from([36, 72, 74, 19, 210, 210, 192, 192]),
   LENDING_ACCOUNT_BORROW: Buffer.from([4, 126, 116, 53, 48, 5, 212, 31]),
-  LENDING_ACCOUNT_LIQUIDATE: Buffer.from([
-    214, 169, 151, 213, 251, 167, 86, 219,
-  ]),
-  LENDING_ACCOUNT_WITHDRAW_EMISSIONS: Buffer.from([
-    234, 22, 84, 214, 118, 176, 140, 170,
-  ]),
+  LENDING_ACCOUNT_LIQUIDATE: Buffer.from([214, 169, 151, 213, 251, 167, 86, 219]),
+  LENDING_ACCOUNT_WITHDRAW_EMISSIONS: Buffer.from([234, 22, 84, 214, 118, 176, 140, 170]),
   LENDING_POOL_ADD_BANK: Buffer.from([215, 68, 72, 78, 208, 218, 103, 182]),
-  LENDING_POOL_CONFIGURE_BANK: Buffer.from([
-    121, 173, 156, 40, 93, 148, 56, 237,
-  ]),
-  LENDING_ACCOUNT_START_FLASHLOAN: Buffer.from([
-    14, 131, 33, 220, 81, 186, 180, 107,
-  ]),
-  LENDING_ACCOUNT_END_FLASHLOAN: Buffer.from([
-    105, 124, 201, 106, 153, 2, 8, 156,
-  ]),
+  LENDING_POOL_CONFIGURE_BANK: Buffer.from([121, 173, 156, 40, 93, 148, 56, 237]),
+  LENDING_ACCOUNT_START_FLASHLOAN: Buffer.from([14, 131, 33, 220, 81, 186, 180, 107]),
+  LENDING_ACCOUNT_END_FLASHLOAN: Buffer.from([105, 124, 201, 106, 153, 2, 8, 156]),
   TRANSFER_TO_NEW_ACCOUNT: Buffer.from([28, 79, 129, 231, 169, 69, 69, 65]),
   MARGINFI_GROUP_INITIALIZE: Buffer.from([255, 67, 67, 26, 94, 31, 34, 20]),
   MARGINFI_ACCOUNT_CLOSE: Buffer.from([186, 221, 93, 34, 50, 97, 194, 241]),
-  LENDING_POOL_ADD_BANK_PERMISSIONLESS: Buffer.from([
-    127, 187, 121, 34, 187, 167, 238, 102,
-  ]),
-  LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([
-    209, 82, 255, 171, 124, 21, 71, 81,
-  ]),
-  LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([
-    186, 52, 117, 97, 34, 74, 39, 253,
-  ]),
-  LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([
-    187, 194, 110, 84, 82, 170, 204, 9,
-  ]),
+  LENDING_POOL_ADD_BANK_PERMISSIONLESS: Buffer.from([127, 187, 121, 34, 187, 167, 238, 102]),
+  LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([209, 82, 255, 171, 124, 21, 71, 81]),
+  LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
+  LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
 };
 
 // ============================================================================
@@ -242,10 +215,7 @@ function makeWithdrawIx(
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
   // Derive PDAs
-  const [bankLiquidityVaultAuthority] = deriveBankLiquidityVaultAuthority(
-    programId,
-    accounts.bank
-  );
+  const [bankLiquidityVaultAuthority] = deriveBankLiquidityVaultAuthority(programId, accounts.bank);
   const [liquidityVault] = deriveBankLiquidityVault(programId, accounts.bank);
 
   const keys: AccountMeta[] = [
@@ -294,10 +264,7 @@ function makeBorrowIx(
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
   // Derive PDAs
-  const [bankLiquidityVaultAuthority] = deriveBankLiquidityVaultAuthority(
-    programId,
-    accounts.bank
-  );
+  const [bankLiquidityVaultAuthority] = deriveBankLiquidityVaultAuthority(programId, accounts.bank);
   const [liquidityVault] = deriveBankLiquidityVault(programId, accounts.bank);
 
   const keys: AccountMeta[] = [
@@ -317,10 +284,7 @@ function makeBorrowIx(
 
   keys.push(...remainingAccounts);
 
-  const data = Buffer.concat([
-    DISCRIMINATORS.LENDING_ACCOUNT_BORROW,
-    encodeU64(args.amount),
-  ]);
+  const data = Buffer.concat([DISCRIMINATORS.LENDING_ACCOUNT_BORROW, encodeU64(args.amount)]);
 
   return new TransactionInstruction({
     keys,
@@ -409,10 +373,7 @@ function makeKaminoDepositIx(
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
-  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(
-    programId,
-    accounts.bank
-  )[0];
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
   const liquidityVault = deriveBankLiquidityVault(programId, accounts.bank)[0];
 
   const keys: AccountMeta[] = [
@@ -487,10 +448,7 @@ function makeKaminoDepositIx(
 
   keys.push(...remainingAccounts);
 
-  const data = Buffer.concat([
-    DISCRIMINATORS.KAMINO_DEPOSIT,
-    encodeU64(args.amount),
-  ]);
+  const data = Buffer.concat([DISCRIMINATORS.KAMINO_DEPOSIT, encodeU64(args.amount)]);
 
   return new TransactionInstruction({ keys, programId, data });
 }
@@ -521,10 +479,7 @@ function makeKaminoWithdrawIx(
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
-  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(
-    programId,
-    accounts.bank
-  )[0];
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
   const liquidityVault = deriveBankLiquidityVault(programId, accounts.bank)[0];
 
   const keys: AccountMeta[] = [

@@ -1,13 +1,10 @@
-import { InstructionsWrapper } from "@mrgnlabs/mrgn-common";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
+import { InstructionsWrapper } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
-import {
-  makeRefreshObligationIx,
-  makeRefreshReservesBatchIx,
-} from "~/vendor/klend";
+import { makeRefreshObligationIx, makeRefreshReservesBatchIx } from "~/vendor/klend";
 
 /**
  * Creates instructions to refresh Kamino lending protocol reserves and obligations.
@@ -42,9 +39,7 @@ export function makeRefreshKaminoBanksIxs(
   ].map((pk) => bankMap.get(pk)!);
 
   // filter kamino banks
-  const kaminoBanks = allActiveBanks.filter(
-    (bank) => bank.config.assetTag === 3
-  );
+  const kaminoBanks = allActiveBanks.filter((bank) => bank.config.assetTag === 3);
 
   if (kaminoBanks.length > 0) {
     const newBanksPkBase = newBanksPk.map((pk) => pk.toBase58());
@@ -59,8 +54,7 @@ export function makeRefreshKaminoBanksIxs(
         if (!bankMetadata?.kaminoStates) return;
 
         const kaminoReserve = kaminoBank.kaminoReserve;
-        const lendingMarket =
-          bankMetadata.kaminoStates.reserveState.lendingMarket;
+        const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
         return {
           reserve: kaminoReserve,
@@ -79,8 +73,7 @@ export function makeRefreshKaminoBanksIxs(
       if (!bankMetadata?.kaminoStates) continue;
 
       const kaminoReserve = kaminoBank.kaminoReserve;
-      const lendingMarket =
-        bankMetadata.kaminoStates.reserveState.lendingMarket;
+      const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
       const obligationIx = makeRefreshObligationIx(
         lendingMarket,

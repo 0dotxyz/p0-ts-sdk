@@ -4,14 +4,9 @@ import BigNumber from "bignumber.js";
 import { BorshCoder } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
-import {
-  bigNumberToWrappedI80F48,
-  toBigNumber,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
-
 import { AccountType } from "~/types";
 import { MarginfiIdlType } from "~/idl";
+import { bigNumberToWrappedI80F48, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
 import {
   MarginfiAccountRaw,
@@ -49,25 +44,18 @@ export const EMPTY_HEALTH_CACHE: HealthCacheRaw = {
   mrgnErr: 0,
 };
 
-export function decodeAccountRaw(
-  encoded: Buffer,
-  idl: MarginfiIdlType
-): MarginfiAccountRaw {
+export function decodeAccountRaw(encoded: Buffer, idl: MarginfiIdlType): MarginfiAccountRaw {
   const coder = new BorshCoder(idl);
   return coder.accounts.decode(AccountType.MarginfiAccount, encoded);
 }
 
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const active =
-    typeof balanceRaw.active === "number"
-      ? balanceRaw.active === 1
-      : balanceRaw.active;
+    typeof balanceRaw.active === "number" ? balanceRaw.active === 1 : balanceRaw.active;
   const bankPk = balanceRaw.bankPk;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
-  const emissionsOutstanding = wrappedI80F48toBigNumber(
-    balanceRaw.emissionsOutstanding
-  );
+  const emissionsOutstanding = wrappedI80F48toBigNumber(balanceRaw.emissionsOutstanding);
   const lastUpdate = balanceRaw.lastUpdate.toNumber();
 
   return {
@@ -80,25 +68,13 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   };
 }
 
-export function parseHealthCacheRaw(
-  healthCacheRaw: HealthCacheRaw
-): HealthCacheType {
+export function parseHealthCacheRaw(healthCacheRaw: HealthCacheRaw): HealthCacheType {
   const assetValue = wrappedI80F48toBigNumber(healthCacheRaw.assetValue);
-  const liabilityValue = wrappedI80F48toBigNumber(
-    healthCacheRaw.liabilityValue
-  );
-  const assetValueMaint = wrappedI80F48toBigNumber(
-    healthCacheRaw.assetValueMaint
-  );
-  const liabilityValueMaint = wrappedI80F48toBigNumber(
-    healthCacheRaw.liabilityValueMaint
-  );
-  const assetValueEquity = wrappedI80F48toBigNumber(
-    healthCacheRaw.assetValueEquity
-  );
-  const liabilityValueEquity = wrappedI80F48toBigNumber(
-    healthCacheRaw.liabilityValueEquity
-  );
+  const liabilityValue = wrappedI80F48toBigNumber(healthCacheRaw.liabilityValue);
+  const assetValueMaint = wrappedI80F48toBigNumber(healthCacheRaw.assetValueMaint);
+  const liabilityValueMaint = wrappedI80F48toBigNumber(healthCacheRaw.liabilityValueMaint);
+  const assetValueEquity = wrappedI80F48toBigNumber(healthCacheRaw.assetValueEquity);
+  const liabilityValueEquity = wrappedI80F48toBigNumber(healthCacheRaw.liabilityValueEquity);
   const timestamp = toBigNumber(healthCacheRaw.timestamp);
   const flags = getActiveHealthCacheFlags(healthCacheRaw.flags);
   const prices = healthCacheRaw.prices;
@@ -197,10 +173,7 @@ export function getActiveHealthCacheFlags(flags: number): HealthCacheFlags[] {
 /**
  * Check if a health cache flag is set
  */
-export function hasHealthCacheFlag(
-  flags: number,
-  flag: HealthCacheFlags
-): boolean {
+export function hasHealthCacheFlag(flags: number, flag: HealthCacheFlags): boolean {
   return (flags & flag) !== 0;
 }
 
@@ -241,9 +214,7 @@ export function dtoToMarginfiAccount(
     authority: new PublicKey(marginfiAccountDto.authority),
     balances: marginfiAccountDto.balances.map(dtoToBalance),
     accountFlags: marginfiAccountDto.accountFlags,
-    emissionsDestinationAccount: new PublicKey(
-      marginfiAccountDto.emissionsDestinationAccount
-    ),
+    emissionsDestinationAccount: new PublicKey(marginfiAccountDto.emissionsDestinationAccount),
     healthCache: dtoToHealthCache(marginfiAccountDto.healthCache),
   };
 }
@@ -259,9 +230,7 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
   };
 }
 
-export function dtoToHealthCache(
-  healthCacheDto: HealthCacheTypeDto
-): HealthCacheType {
+export function dtoToHealthCache(healthCacheDto: HealthCacheTypeDto): HealthCacheType {
   return {
     assetValue: new BigNumber(healthCacheDto.assetValue),
     liabilityValue: new BigNumber(healthCacheDto.liabilityValue),

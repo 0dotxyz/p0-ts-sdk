@@ -2,16 +2,13 @@ import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import { QuoteResponse } from "@jup-ag/api";
 
+import { Amount, BankIntegrationMetadataMap, MintData } from "~/types";
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 import {
-  Amount,
-  ExtendedTransaction,
-  ExtendedV0Transaction,
   InstructionsWrapper,
-  NATIVE_MINT,
-  TOKEN_PROGRAM_ID,
-} from "@mrgnlabs/mrgn-common";
-
-import { BankIntegrationMetadataMap, MintData } from "~/types";
+  ExtendedV0Transaction,
+  ExtendedTransaction,
+} from "~/services/transaction";
 import {
   MakeBorrowIxOpts,
   MakeDepositIxOpts,
@@ -38,6 +35,7 @@ import { Project0Client } from "./client";
 import { Balance } from "./balance";
 import { HealthCache } from "./health-cache";
 import { Bank } from "./bank";
+import { NATIVE_MINT } from "~/vendor/spl";
 
 /**
  * Wrapper around MarginfiAccount that auto-injects client data for cleaner API.
@@ -132,9 +130,7 @@ export class MarginfiAccountWrapper {
       } else {
         // Try to fetch token program for other mints
         const connection = this.client.program.provider.connection;
-        const fetchedMintData = await fetchProgramForMints(connection, [
-          bank.mint,
-        ]);
+        const fetchedMintData = await fetchProgramForMints(connection, [bank.mint]);
         const fetched = fetchedMintData[0];
         if (!fetched) {
           // Fallback to TOKEN_PROGRAM_ID for standard tokens
@@ -293,7 +289,6 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       tokenProgram: mintData.tokenProgram,
       amount,
-      bankMetadataMap: this.client.bankIntegrationMap,
       opts,
     });
   }
@@ -303,9 +298,7 @@ export class MarginfiAccountWrapper {
    *
    * @param bankAddress - Bank address to withdraw emissions from
    */
-  async makeWithdrawEmissionsIx(
-    bankAddress: PublicKey
-  ): Promise<InstructionsWrapper> {
+  async makeWithdrawEmissionsIx(bankAddress: PublicKey): Promise<InstructionsWrapper> {
     return this.account.makeWithdrawEmissionsIx(
       this.client.program,
       this.client.bankMap,
@@ -324,11 +317,7 @@ export class MarginfiAccountWrapper {
     endIndex: number,
     authority?: PublicKey
   ): Promise<InstructionsWrapper> {
-    return this.account.makeBeginFlashLoanIx(
-      this.client.program,
-      endIndex,
-      authority
-    );
+    return this.account.makeBeginFlashLoanIx(this.client.program, endIndex, authority);
   }
 
   /**
@@ -379,10 +368,7 @@ export class MarginfiAccountWrapper {
    * @param mandatoryBanks - Array of mandatory bank public keys
    * @param excludedBanks - Array of excluded bank public keys
    */
-  async makePulseHealthIx(
-    mandatoryBanks: PublicKey[],
-    excludedBanks: PublicKey[]
-  ) {
+  async makePulseHealthIx(mandatoryBanks: PublicKey[], excludedBanks: PublicKey[]) {
     return this.account.makePulseHealthIx(
       this.client.program,
       this.client.bankMap,
@@ -684,9 +670,7 @@ export class MarginfiAccountWrapper {
    * @param params - Flash loan transaction parameters (user provides: ixs, endIndex, etc.)
    * @returns Promise resolving to flash loan transaction details
    */
-  async makeFlashLoanTx(
-    params: Omit<MakeFlashLoanTxParams, "program" | "marginfiAccount">
-  ) {
+  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "program" | "marginfiAccount">) {
     return this.account.makeFlashLoanTx({
       ...params,
       program: this.client.program,
@@ -715,10 +699,7 @@ export class MarginfiAccountWrapper {
    * Computes net APY with auto-injected client data.
    */
   computeNetApy(): number {
-    return this.account.computeNetApy(
-      this.client.bankMap,
-      this.client.oraclePriceByBank
-    );
+    return this.account.computeNetApy(this.client.bankMap, this.client.oraclePriceByBank);
   }
 
   /**
@@ -824,11 +805,7 @@ export class MarginfiAccountWrapper {
     mandatoryBanks: PublicKey[] = [],
     excludedBanks: PublicKey[] = []
   ): BankType[] {
-    return this.account.getHealthCheckAccounts(
-      this.client.bankMap,
-      mandatoryBanks,
-      excludedBanks
-    );
+    return this.account.getHealthCheckAccounts(this.client.bankMap, mandatoryBanks, excludedBanks);
   }
 
   // ----------------------------------------------------------------------------

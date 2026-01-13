@@ -1,14 +1,13 @@
 import { Connection } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { chunkedGetRawMultipleAccountInfoOrdered } from "@mrgnlabs/mrgn-common";
-
 import {
   CrossbarSimulatePayload,
   decodeSwitchboardPullFeedData,
   FeedResponse,
 } from "~/vendor/switchboard_pull";
 import { BankType, OracleSetup } from "~/services/bank";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
 import {
@@ -43,9 +42,7 @@ type FetchSwbOracleApiOpts = {
   };
 };
 
-export type SwbOracleServiceOpts =
-  | FetchSwbOracleOnChainOpts
-  | FetchSwbOracleApiOpts;
+export type SwbOracleServiceOpts = FetchSwbOracleOnChainOpts | FetchSwbOracleApiOpts;
 
 /**
  * Fetches comprehensive Switchboard oracle data including price feeds and broken feed detection
@@ -74,9 +71,7 @@ export const fetchSwbOracleData = async (
   }
 
   let swbOracleAiDataByKey: SwbOracleAiDataByKey;
-  const oracleKeys = switchboardBanks.map((bank) =>
-    bank.config.oracleKeys[0]!.toBase58()
-  );
+  const oracleKeys = switchboardBanks.map((bank) => bank.config.oracleKeys[0]!.toBase58());
   if (opts.mode === "api") {
     swbOracleAiDataByKey = await fetchSwbOracleAccountsFromAPI(
       oracleKeys,
@@ -84,10 +79,7 @@ export const fetchSwbOracleData = async (
       { queryKey: opts.swbOnChainData.queryKey }
     );
   } else {
-    swbOracleAiDataByKey = await fetchSwbOracleAccountsFromChain(
-      oracleKeys,
-      opts.connection
-    );
+    swbOracleAiDataByKey = await fetchSwbOracleAccountsFromChain(oracleKeys, opts.connection);
   }
 
   // Step 4: Extract oracle keys for price fetching
@@ -100,9 +92,7 @@ export const fetchSwbOracleData = async (
     const rawPriceBN = new BN(oracleAiData.rawPrice);
 
     const isFeedBroken =
-      rawPriceBN.isZero() ||
-      rawPriceBN.eq(new BN(0.000001)) ||
-      rawPriceBN.eq(new BN(0.00000001));
+      rawPriceBN.isZero() || rawPriceBN.eq(new BN(0.000001)) || rawPriceBN.eq(new BN(0.00000001));
 
     if (isFeedBroken) {
       const bank = switchboardBanks.find(
@@ -188,9 +178,7 @@ export const fetchSwbOracleAccountsFromAPI = async (
   opts?: { queryKey?: string }
 ): Promise<SwbOracleAiDataByKey> => {
   const queryKey = opts?.queryKey ?? "oracleKeys";
-  const swbOracleKeyMapResponse = await fetch(
-    `${apiEndpoint}?${queryKey}=` + oracleKeys.join(",")
-  );
+  const swbOracleKeyMapResponse = await fetch(`${apiEndpoint}?${queryKey}=` + oracleKeys.join(","));
 
   if (!swbOracleKeyMapResponse.ok) {
     throw new Error("Failed to fetch swb oracle key map");
@@ -214,10 +202,7 @@ export const fetchSwbOracleAccountsFromChain = async (
   const swbOracleAiDataByKey: SwbOracleAiDataByKey = {};
 
   // Get oracle account info
-  const oracleAis = await chunkedGetRawMultipleAccountInfoOrdered(
-    connection,
-    oracleKeys
-  );
+  const oracleAis = await chunkedGetRawMultipleAccountInfoOrdered(connection, oracleKeys);
 
   // Process each oracle account
   oracleAis.forEach((oracleAi, idx) => {
@@ -261,9 +246,7 @@ export const fetchSwbOraclePricesFromAPI = async (
 ): Promise<Record<string, FeedResponse | undefined>> => {
   const queryKey = opts?.queryKey ?? "feedIds";
 
-  const response = await fetch(
-    `${apiEndpoint}?${queryKey}=` + swbFeedIds.join(",")
-  );
+  const response = await fetch(`${apiEndpoint}?${queryKey}=` + swbFeedIds.join(","));
 
   if (!response.ok) {
     throw new Error("Failed to fetch swb oracle data");
@@ -342,21 +325,13 @@ async function fetchCrossbarChunkWithFallback(
 ): Promise<{ validFeeds: FeedResponse[] }> {
   // Try primary endpoint first
   try {
-    return await fetchSingleCrossbarChunk(
-      primaryCrossbarEndpoint,
-      swbFeedIdsChunk,
-      true
-    );
+    return await fetchSingleCrossbarChunk(primaryCrossbarEndpoint, swbFeedIdsChunk, true);
   } catch (primaryError) {
     console.warn("Primary endpoint failed, trying fallback:", primaryError);
 
     // If primary fails, try fallback endpoint
     try {
-      return await fetchSingleCrossbarChunk(
-        fallbackCrossbarEndpoint,
-        swbFeedIdsChunk,
-        false
-      );
+      return await fetchSingleCrossbarChunk(fallbackCrossbarEndpoint, swbFeedIdsChunk, false);
     } catch (fallbackError) {
       console.error("Both primary and fallback endpoints failed:", {
         primary: primaryError,
@@ -384,9 +359,7 @@ async function fetchSingleCrossbarChunk(
     });
 
     if (!response.ok) {
-      throw new Error(
-        `${isPrimary ? "Primary" : "Fallback"} endpoint failed: ${response.status}`
-      );
+      throw new Error(`${isPrimary ? "Primary" : "Fallback"} endpoint failed: ${response.status}`);
     }
 
     const payload = (await response.json()) as CrossbarSimulatePayload;
@@ -399,23 +372,15 @@ async function fetchSingleCrossbarChunk(
       })
       .map((feed) => feed.feedHash);
 
-    const validFeeds = payload.filter(
-      (feed) => !brokenFeeds.includes(feed.feedHash)
-    );
+    const validFeeds = payload.filter((feed) => !brokenFeeds.includes(feed.feedHash));
 
     if (brokenFeeds.length > 0) {
-      console.log(
-        `Broken feeds from ${isPrimary ? "primary" : "fallback"} endpoint:`,
-        brokenFeeds
-      );
+      console.log(`Broken feeds from ${isPrimary ? "primary" : "fallback"} endpoint:`, brokenFeeds);
     }
 
     return { validFeeds };
   } catch (error) {
-    console.error(
-      `${isPrimary ? "Primary" : "Fallback"} crossbar chunk failed:`,
-      error
-    );
+    console.error(`${isPrimary ? "Primary" : "Fallback"} crossbar chunk failed:`, error);
     throw error;
   }
 }

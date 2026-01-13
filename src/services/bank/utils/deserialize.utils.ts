@@ -3,7 +3,7 @@ import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { BankMetadata, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { wrappedI80F48toBigNumber } from "~/utils";
 
 import { DEFAULT_ORACLE_MAX_AGE } from "~/constants";
 import { MarginfiIdlType } from "~/idl";
@@ -45,9 +45,7 @@ export function decodeBankRaw(encoded: Buffer, idl: MarginfiIdlType): BankRaw {
   return coder.accounts.decode(AccountType.Bank, encoded);
 }
 
-export function parseEmodeSettingsRaw(
-  emodeSettingsRaw: EmodeSettingsRaw
-): EmodeSettingsType {
+export function parseEmodeSettingsRaw(emodeSettingsRaw: EmodeSettingsRaw): EmodeSettingsType {
   const emodeTag = parseEmodeTag(emodeSettingsRaw.emodeTag);
   const timestamp = emodeSettingsRaw.timestamp.toNumber();
   const flags = getActiveEmodeFlags(emodeSettingsRaw.flags);
@@ -72,6 +70,12 @@ export function parseEmodeSettingsRaw(
   return emodeSettings;
 }
 
+interface BankMetadata {
+  tokenAddress: string;
+  tokenName: string;
+  tokenSymbol: string;
+}
+
 export function parseBankRaw(
   address: PublicKey,
   accountParsed: BankRaw,
@@ -87,12 +91,8 @@ export function parseBankRaw(
   const mintDecimals = accountParsed.mintDecimals;
   const group = accountParsed.group;
 
-  const assetShareValue = wrappedI80F48toBigNumber(
-    accountParsed.assetShareValue
-  );
-  const liabilityShareValue = wrappedI80F48toBigNumber(
-    accountParsed.liabilityShareValue
-  );
+  const assetShareValue = wrappedI80F48toBigNumber(accountParsed.assetShareValue);
+  const liabilityShareValue = wrappedI80F48toBigNumber(accountParsed.liabilityShareValue);
 
   const liquidityVault = accountParsed.liquidityVault;
   const liquidityVaultBump = accountParsed.liquidityVaultBump;
@@ -118,12 +118,8 @@ export function parseBankRaw(
 
   const lastUpdate = accountParsed.lastUpdate.toNumber();
 
-  const totalAssetShares = wrappedI80F48toBigNumber(
-    accountParsed.totalAssetShares
-  );
-  const totalLiabilityShares = wrappedI80F48toBigNumber(
-    accountParsed.totalLiabilityShares
-  );
+  const totalAssetShares = wrappedI80F48toBigNumber(accountParsed.totalAssetShares);
+  const totalLiabilityShares = wrappedI80F48toBigNumber(accountParsed.totalLiabilityShares);
 
   const emissionsActiveBorrowing = (flags & 1) > 0;
   const emissionsActiveLending = (flags & 2) > 0;
@@ -209,15 +205,11 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     insuranceVault: new PublicKey(bankDto.insuranceVault),
     insuranceVaultBump: bankDto.insuranceVaultBump,
     insuranceVaultAuthorityBump: bankDto.insuranceVaultAuthorityBump,
-    collectedInsuranceFeesOutstanding: new BigNumber(
-      bankDto.collectedInsuranceFeesOutstanding
-    ),
+    collectedInsuranceFeesOutstanding: new BigNumber(bankDto.collectedInsuranceFeesOutstanding),
     feeVault: new PublicKey(bankDto.feeVault),
     feeVaultBump: bankDto.feeVaultBump,
     feeVaultAuthorityBump: bankDto.feeVaultAuthorityBump,
-    collectedGroupFeesOutstanding: new BigNumber(
-      bankDto.collectedGroupFeesOutstanding
-    ),
+    collectedGroupFeesOutstanding: new BigNumber(bankDto.collectedGroupFeesOutstanding),
     lastUpdate: bankDto.lastUpdate,
     config: dtoToBankConfig(bankDto.config),
     totalAssetShares: new BigNumber(bankDto.totalAssetShares),
@@ -246,9 +238,7 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
   };
 }
 
-export function dtoToEmodeSettings(
-  emodeSettingsDto: EmodeSettingsDto
-): EmodeSettingsType {
+export function dtoToEmodeSettings(emodeSettingsDto: EmodeSettingsDto): EmodeSettingsType {
   return {
     emodeTag: emodeSettingsDto.emodeTag,
     timestamp: emodeSettingsDto.timestamp,
@@ -274,17 +264,13 @@ export function dtoToBankConfig(bankConfigDto: BankConfigDto): BankConfigType {
     borrowLimit: new BigNumber(bankConfigDto.borrowLimit),
     riskTier: bankConfigDto.riskTier,
     operationalState: bankConfigDto.operationalState,
-    totalAssetValueInitLimit: new BigNumber(
-      bankConfigDto.totalAssetValueInitLimit
-    ),
+    totalAssetValueInitLimit: new BigNumber(bankConfigDto.totalAssetValueInitLimit),
     assetTag: bankConfigDto.assetTag,
     configFlags: bankConfigDto.configFlags,
     oracleSetup: bankConfigDto.oracleSetup,
     oracleKeys: bankConfigDto.oracleKeys.map((key) => new PublicKey(key)),
     oracleMaxAge: bankConfigDto.oracleMaxAge,
-    interestRateConfig: dtoToInterestRateConfig(
-      bankConfigDto.interestRateConfig
-    ),
+    interestRateConfig: dtoToInterestRateConfig(bankConfigDto.interestRateConfig),
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: new BigNumber(bankConfigDto.fixedPrice),
   };
@@ -294,24 +280,14 @@ export function dtoToInterestRateConfig(
   interestRateConfigDto: InterestRateConfigDto
 ): InterestRateConfig {
   return {
-    optimalUtilizationRate: new BigNumber(
-      interestRateConfigDto.optimalUtilizationRate
-    ),
-    plateauInterestRate: new BigNumber(
-      interestRateConfigDto.plateauInterestRate
-    ),
+    optimalUtilizationRate: new BigNumber(interestRateConfigDto.optimalUtilizationRate),
+    plateauInterestRate: new BigNumber(interestRateConfigDto.plateauInterestRate),
     maxInterestRate: new BigNumber(interestRateConfigDto.maxInterestRate),
-    insuranceFeeFixedApr: new BigNumber(
-      interestRateConfigDto.insuranceFeeFixedApr
-    ),
+    insuranceFeeFixedApr: new BigNumber(interestRateConfigDto.insuranceFeeFixedApr),
     insuranceIrFee: new BigNumber(interestRateConfigDto.insuranceIrFee),
-    protocolFixedFeeApr: new BigNumber(
-      interestRateConfigDto.protocolFixedFeeApr
-    ),
+    protocolFixedFeeApr: new BigNumber(interestRateConfigDto.protocolFixedFeeApr),
     protocolIrFee: new BigNumber(interestRateConfigDto.protocolIrFee),
-    protocolOriginationFee: new BigNumber(
-      interestRateConfigDto.protocolOriginationFee
-    ),
+    protocolOriginationFee: new BigNumber(interestRateConfigDto.protocolOriginationFee),
     zeroUtilRate: interestRateConfigDto.zeroUtilRate,
     hundredUtilRate: interestRateConfigDto.hundredUtilRate,
     points: interestRateConfigDto.points,
@@ -335,8 +311,7 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
     insuranceVault: new PublicKey(bankDto.insuranceVault),
     insuranceVaultBump: bankDto.insuranceVaultBump,
     insuranceVaultAuthorityBump: bankDto.insuranceVaultAuthorityBump,
-    collectedInsuranceFeesOutstanding:
-      bankDto.collectedInsuranceFeesOutstanding,
+    collectedInsuranceFeesOutstanding: bankDto.collectedInsuranceFeesOutstanding,
 
     feeVault: new PublicKey(bankDto.feeVault),
     feeVaultBump: bankDto.feeVaultBump,
@@ -370,9 +345,7 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
   };
 }
 
-export function dtoToEmodeSettingsRaw(
-  emodeSettingsDto: EmodeSettingsRawDto
-): EmodeSettingsRaw {
+export function dtoToEmodeSettingsRaw(emodeSettingsDto: EmodeSettingsRawDto): EmodeSettingsRaw {
   return {
     emodeTag: emodeSettingsDto.emodeTag,
     timestamp: new BN(emodeSettingsDto.timestamp),
@@ -390,9 +363,7 @@ export function dtoToEmodeSettingsRaw(
   };
 }
 
-export function dtoToBankConfigRaw(
-  bankConfigDto: BankConfigRawDto
-): BankConfigRaw {
+export function dtoToBankConfigRaw(bankConfigDto: BankConfigRawDto): BankConfigRaw {
   return {
     assetWeightInit: bankConfigDto.assetWeightInit,
     assetWeightMaint: bankConfigDto.assetWeightMaint,
@@ -406,9 +377,7 @@ export function dtoToBankConfigRaw(
     assetTag: bankConfigDto.assetTag,
     configFlags: bankConfigDto.configFlags,
     oracleSetup: bankConfigDto.oracleSetup,
-    oracleKeys: bankConfigDto.oracleKeys.map(
-      (key: string) => new PublicKey(key)
-    ),
+    oracleKeys: bankConfigDto.oracleKeys.map((key: string) => new PublicKey(key)),
     oracleMaxAge: bankConfigDto.oracleMaxAge,
     interestRateConfig: bankConfigDto.interestRateConfig,
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
@@ -420,48 +389,28 @@ export function dtoToBankConfigRaw(
  * Bank config deserialization
  */
 
-export function parseBankConfigRaw(
-  bankConfigRaw: BankConfigRaw
-): BankConfigType {
-  const assetWeightInit = wrappedI80F48toBigNumber(
-    bankConfigRaw.assetWeightInit
-  );
-  const assetWeightMaint = wrappedI80F48toBigNumber(
-    bankConfigRaw.assetWeightMaint
-  );
-  const liabilityWeightInit = wrappedI80F48toBigNumber(
-    bankConfigRaw.liabilityWeightInit
-  );
-  const liabilityWeightMaint = wrappedI80F48toBigNumber(
-    bankConfigRaw.liabilityWeightMaint
-  );
+export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType {
+  const assetWeightInit = wrappedI80F48toBigNumber(bankConfigRaw.assetWeightInit);
+  const assetWeightMaint = wrappedI80F48toBigNumber(bankConfigRaw.assetWeightMaint);
+  const liabilityWeightInit = wrappedI80F48toBigNumber(bankConfigRaw.liabilityWeightInit);
+  const liabilityWeightMaint = wrappedI80F48toBigNumber(bankConfigRaw.liabilityWeightMaint);
   const depositLimit = BigNumber(bankConfigRaw.depositLimit.toString());
   const borrowLimit = BigNumber(bankConfigRaw.borrowLimit.toString());
   const riskTier = parseRiskTier(bankConfigRaw.riskTier);
-  const operationalState = parseOperationalState(
-    bankConfigRaw.operationalState
-  );
-  const totalAssetValueInitLimit = BigNumber(
-    bankConfigRaw.totalAssetValueInitLimit.toString()
-  );
+  const operationalState = parseOperationalState(bankConfigRaw.operationalState);
+  const totalAssetValueInitLimit = BigNumber(bankConfigRaw.totalAssetValueInitLimit.toString());
   const assetTag = bankConfigRaw.assetTag as AssetTag;
   const configFlags = bankConfigRaw.configFlags;
   const oracleSetup = parseOracleSetup(bankConfigRaw.oracleSetup);
   const oracleKeys = bankConfigRaw.oracleKeys;
   const oracleMaxAge =
-    bankConfigRaw.oracleMaxAge === 0
-      ? DEFAULT_ORACLE_MAX_AGE
-      : bankConfigRaw.oracleMaxAge;
+    bankConfigRaw.oracleMaxAge === 0 ? DEFAULT_ORACLE_MAX_AGE : bankConfigRaw.oracleMaxAge;
   const interestRateConfig = {
     insuranceFeeFixedApr: wrappedI80F48toBigNumber(
       bankConfigRaw.interestRateConfig.insuranceFeeFixedApr
     ),
-    maxInterestRate: wrappedI80F48toBigNumber(
-      bankConfigRaw.interestRateConfig.maxInterestRate
-    ),
-    insuranceIrFee: wrappedI80F48toBigNumber(
-      bankConfigRaw.interestRateConfig.insuranceIrFee
-    ),
+    maxInterestRate: wrappedI80F48toBigNumber(bankConfigRaw.interestRateConfig.maxInterestRate),
+    insuranceIrFee: wrappedI80F48toBigNumber(bankConfigRaw.interestRateConfig.insuranceIrFee),
     optimalUtilizationRate: wrappedI80F48toBigNumber(
       bankConfigRaw.interestRateConfig.optimalUtilizationRate
     ),
@@ -471,9 +420,7 @@ export function parseBankConfigRaw(
     protocolFixedFeeApr: wrappedI80F48toBigNumber(
       bankConfigRaw.interestRateConfig.protocolFixedFeeApr
     ),
-    protocolIrFee: wrappedI80F48toBigNumber(
-      bankConfigRaw.interestRateConfig.protocolIrFee
-    ),
+    protocolIrFee: wrappedI80F48toBigNumber(bankConfigRaw.interestRateConfig.protocolIrFee),
     protocolOriginationFee: wrappedI80F48toBigNumber(
       bankConfigRaw.interestRateConfig.protocolOriginationFee
     ),
@@ -517,9 +464,7 @@ export function parseRiskTier(riskTierRaw: RiskTierRaw): RiskTier {
   }
 }
 
-export function parseOperationalState(
-  operationalStateRaw: OperationalStateRaw
-): OperationalState {
+export function parseOperationalState(operationalStateRaw: OperationalStateRaw): OperationalState {
   switch (Object.keys(operationalStateRaw)[0]!.toLowerCase()) {
     case "paused":
       return OperationalState.Paused;

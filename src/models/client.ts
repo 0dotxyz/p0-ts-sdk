@@ -1,17 +1,12 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
-
-import { Wallet } from "@mrgnlabs/mrgn-common";
 
 import {
   Project0Config,
   MintData,
   MarginfiProgram,
   BankIntegrationMetadataMap,
+  Wallet,
 } from "~/types";
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP } from "~/constants";
@@ -89,8 +84,7 @@ export class Project0Client {
 
     const provider = new AnchorProvider(connection, {} as Wallet, {
       ...AnchorProvider.defaultOptions(),
-      commitment:
-        connection.commitment ?? AnchorProvider.defaultOptions().commitment,
+      commitment: connection.commitment ?? AnchorProvider.defaultOptions().commitment,
     });
 
     const program: MarginfiProgram = new Program<MarginfiIdlType>(
@@ -106,22 +100,19 @@ export class Project0Client {
     const bankMap = new Map(banksArray.map((b) => [b.address.toBase58(), b]));
 
     // fetch oracle prices
-    const { bankOraclePriceMap, mintOraclePriceMap } = await fetchOracleData(
-      banksArray,
-      {
-        pythOpts: {
-          mode: "on-chain",
-          connection,
-        },
-        swbOpts: {
-          mode: "on-chain",
-          connection,
-        },
-        isolatedBanksOpts: {
-          fetchPrices: true,
-        },
-      }
-    );
+    const { bankOraclePriceMap, mintOraclePriceMap } = await fetchOracleData(banksArray, {
+      pythOpts: {
+        mode: "on-chain",
+        connection,
+      },
+      swbOpts: {
+        mode: "on-chain",
+        connection,
+      },
+      isolatedBanksOpts: {
+        fetchPrices: true,
+      },
+    });
 
     // fetch mint data (keyed by bank address for consistency)
     const uniqueMints = Array.from(new Set(banksArray.map((b) => b.mint)));
@@ -143,9 +134,7 @@ export class Project0Client {
     let addressLookupTables: AddressLookupTableAccount[] = [];
     if (lutKeys) {
       addressLookupTables = (
-        await Promise.all(
-          lutKeys.map((lut) => connection.getAddressLookupTable(lut))
-        )
+        await Promise.all(lutKeys.map((lut) => connection.getAddressLookupTable(lut)))
       )
         .map((response) => response?.value ?? null)
         .filter((table) => table !== null);

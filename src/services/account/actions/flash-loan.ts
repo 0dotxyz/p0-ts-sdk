@@ -1,25 +1,17 @@
-import {
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { BankType } from "~/services/bank";
 import {
   addTransactionMetadata,
   InstructionsWrapper,
   TransactionType,
-} from "@mrgnlabs/mrgn-common";
-
-import { BankType } from "~/services/bank";
+} from "~/services/transaction";
 import { MarginfiProgram } from "~/types";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
 
-import {
-  computeHealthAccountMetas,
-  computeProjectedActiveBanksNoCpi,
-} from "../utils";
+import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
 import { MakeFlashLoanTxParams } from "../types";
 
 export async function makeBeginFlashLoanIx(
@@ -99,15 +91,15 @@ export async function makeFlashLoanTx({
 }: MakeFlashLoanTxParams) {
   const endIndex = ixs.length + 1;
 
-  const projectedActiveBanksKeys: PublicKey[] =
-    computeProjectedActiveBanksNoCpi(marginfiAccount.balances, ixs, program);
+  const projectedActiveBanksKeys: PublicKey[] = computeProjectedActiveBanksNoCpi(
+    marginfiAccount.balances,
+    ixs,
+    program
+  );
 
   const projectedActiveBanks = projectedActiveBanksKeys.map((account) => {
     const b = bankMap.get(account.toBase58());
-    if (!b)
-      throw Error(
-        `Bank ${account.toBase58()} not found, in makeFlashLoanTx function`
-      );
+    if (!b) throw Error(`Bank ${account.toBase58()} not found, in makeFlashLoanTx function`);
     return b;
   });
 
@@ -129,11 +121,7 @@ export async function makeFlashLoanTx({
   const message = new TransactionMessage({
     payerKey: marginfiAccount.authority,
     recentBlockhash: blockhash,
-    instructions: [
-      ...beginFlashLoanIx.instructions,
-      ...ixs,
-      ...endFlashLoanIx.instructions,
-    ],
+    instructions: [...beginFlashLoanIx.instructions, ...ixs, ...endFlashLoanIx.instructions],
   }).compileToV0Message(addressLookupTableAccounts);
 
   const tx = addTransactionMetadata(new VersionedTransaction(message), {

@@ -5,7 +5,6 @@ import {
   LAMPORTS_PER_SOL,
   ComputeBudgetProgram,
 } from "@solana/web3.js";
-import { TransactionBroadcastType } from "@mrgnlabs/mrgn-common";
 
 /**
  * Creates a compute budget instruction to set the priority fee for a transaction.
@@ -14,9 +13,7 @@ import { TransactionBroadcastType } from "@mrgnlabs/mrgn-common";
  * @param priorityFeeMicro - Priority fee in micro-lamports per compute unit. If not provided, defaults to 1.
  * @returns A compute budget instruction with the specified priority fee
  */
-export function makePriorityFeeMicroIx(
-  priorityFeeMicro?: number
-): TransactionInstruction {
+export function makePriorityFeeMicroIx(priorityFeeMicro?: number): TransactionInstruction {
   return ComputeBudgetProgram.setComputeUnitPrice({
     microLamports: Math.floor(priorityFeeMicro ?? 1),
   });
@@ -39,8 +36,7 @@ export function makePriorityFeeIx(
     const isAbsurdPriorityFee = priorityFeeUi > 0.1;
 
     if (!isAbsurdPriorityFee) {
-      const priorityFeeMicroLamports =
-        priorityFeeUi * LAMPORTS_PER_SOL * 1_000_000;
+      const priorityFeeMicroLamports = priorityFeeUi * LAMPORTS_PER_SOL * 1_000_000;
       microLamports = Math.round(priorityFeeMicroLamports / limit);
     }
   }
@@ -61,17 +57,13 @@ export function makePriorityFeeIx(
 export function makeTxPriorityIx(
   feePayer: PublicKey,
   feeUi: number = 0,
-  broadcastType: TransactionBroadcastType = "BUNDLE",
-  computeUnitsLimit?: number
+  broadcastType: "BUNDLE" | "RPC" | "DYNAMIC"
 ) {
   let bundleTipIx: TransactionInstruction | undefined = undefined;
   let priorityFeeIx: TransactionInstruction = makePriorityFeeMicroIx();
 
   if (broadcastType === "BUNDLE") {
-    bundleTipIx = makeBundleTipIx(
-      feePayer,
-      Math.trunc(feeUi * LAMPORTS_PER_SOL)
-    );
+    bundleTipIx = makeBundleTipIx(feePayer, Math.trunc(feeUi * LAMPORTS_PER_SOL));
   } else {
     priorityFeeIx = makePriorityFeeMicroIx(feeUi);
   }
@@ -91,21 +83,18 @@ export function makeBundleTipIx(
 ): TransactionInstruction {
   // they have remained constant so function not used (for now)
   const getTipAccounts = async () => {
-    const response = await fetch(
-      "https://mainnet.block-engine.jito.wtf/api/v1/bundles",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "getTipAccounts",
-          params: [],
-        }),
-      }
-    );
+    const response = await fetch("https://mainnet.block-engine.jito.wtf/api/v1/bundles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getTipAccounts",
+        params: [],
+      }),
+    });
     return response.json();
   };
 
@@ -120,8 +109,7 @@ export function makeBundleTipIx(
     "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
   ];
 
-  const tipAccount =
-    tipAccounts[Math.floor(Math.random() * tipAccounts.length)]!;
+  const tipAccount = tipAccounts[Math.floor(Math.random() * tipAccounts.length)]!;
 
   const bundleTipInstruction = SystemProgram.transfer({
     fromPubkey: feePayer,

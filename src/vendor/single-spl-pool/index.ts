@@ -12,19 +12,18 @@ import {
 import BigNumber from "bignumber.js";
 import { BN } from "bn.js";
 
+import { SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import {
-  TOKEN_PROGRAM_ID,
   MPL_METADATA_PROGRAM_ID,
   SINGLE_POOL_PROGRAM_ID,
   STAKE_PROGRAM_ID,
+  SYSTEM_PROGRAM_ID,
   SYSVAR_CLOCK_ID,
   SYSVAR_RENT_ID,
   SYSVAR_STAKE_HISTORY_ID,
-  SYSTEM_PROGRAM_ID,
-  addTransactionMetadata,
-  TransactionType,
-} from "@mrgnlabs/mrgn-common";
-import { SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+} from "~/constants";
+
+import { TOKEN_PROGRAM_ID } from "../spl";
 
 interface AccountMeta {
   pubkey: PublicKey;
@@ -160,7 +159,10 @@ const SinglePoolInstruction = {
     );
   },
 
-  createTokenMetadata: async (pool: PublicKey, payer: PublicKey): Promise<TransactionInstruction> => {
+  createTokenMetadata: async (
+    pool: PublicKey,
+    payer: PublicKey
+  ): Promise<TransactionInstruction> => {
     const mint = findPoolMintAddress(pool);
     const [mintAuthority, mplAuthority, mplMetadata] = await Promise.all([
       findPoolMintAuthorityAddress(pool),
@@ -202,7 +204,10 @@ const SinglePoolInstruction = {
     }
 
     const pool = findPoolAddress(voteAccount);
-    const [mint, mplAuthority] = await Promise.all([findPoolMintAddress(pool), findPoolMplAuthorityAddress(pool)]);
+    const [mint, mplAuthority] = await Promise.all([
+      findPoolMintAddress(pool),
+      findPoolMplAuthorityAddress(pool),
+    ]);
     const mplMetadata = await findMplMetadataAddress(mint);
 
     const data = Buffer.concat([
@@ -242,19 +247,30 @@ const createTransactionInstruction = (
   };
 };
 
-const findPda = (baseAddress: PublicKey, prefix: string, programId: PublicKey = SINGLE_POOL_PROGRAM_ID): PublicKey => {
-  const [pda] = PublicKey.findProgramAddressSync([Buffer.from(prefix), baseAddress.toBuffer()], programId);
+const findPda = (
+  baseAddress: PublicKey,
+  prefix: string,
+  programId: PublicKey = SINGLE_POOL_PROGRAM_ID
+): PublicKey => {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from(prefix), baseAddress.toBuffer()],
+    programId
+  );
   return pda;
 };
 
 const findPoolMintAddressByVoteAccount = (voteAccountAddress: PublicKey): PublicKey =>
   findPda(findPoolAddress(voteAccountAddress), "mint");
-const findPoolAddress = (voteAccountAddress: PublicKey): PublicKey => findPda(voteAccountAddress, "pool");
+const findPoolAddress = (voteAccountAddress: PublicKey): PublicKey =>
+  findPda(voteAccountAddress, "pool");
 const findPoolMintAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "mint");
 const findPoolStakeAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "stake");
-const findPoolStakeAuthorityAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "stake_authority");
-const findPoolMintAuthorityAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "mint_authority");
-const findPoolMplAuthorityAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "mpl_authority");
+const findPoolStakeAuthorityAddress = (poolAddress: PublicKey): PublicKey =>
+  findPda(poolAddress, "stake_authority");
+const findPoolMintAuthorityAddress = (poolAddress: PublicKey): PublicKey =>
+  findPda(poolAddress, "mint_authority");
+const findPoolMplAuthorityAddress = (poolAddress: PublicKey): PublicKey =>
+  findPda(poolAddress, "mpl_authority");
 const findPoolOnRampAddress = (poolAddress: PublicKey): PublicKey => findPda(poolAddress, "onramp");
 
 const findMplMetadataAddress = async (poolMintAddress: PublicKey): Promise<PublicKey> => {
@@ -269,13 +285,21 @@ const SINGLE_POOL_ACCOUNT_SIZE = BigInt(33);
 const STAKE_ACCOUNT_SIZE = BigInt(200);
 const MINT_SIZE = BigInt(82);
 
-async function initializeStakedPoolTx(connection: Connection, payer: PublicKey, voteAccountAddress: PublicKey) {
+async function initializeStakedPoolTx(
+  connection: Connection,
+  payer: PublicKey,
+  voteAccountAddress: PublicKey
+) {
   const instructions = await initializeStakedPoolIxs(connection, payer, voteAccountAddress);
   const tx = new Transaction().add(...instructions);
   return tx;
 }
 
-async function initializeStakedPoolIxs(connection: Connection, payer: PublicKey, voteAccountAddress: PublicKey) {
+async function initializeStakedPoolIxs(
+  connection: Connection,
+  payer: PublicKey,
+  voteAccountAddress: PublicKey
+) {
   const poolAddress = findPoolAddress(voteAccountAddress);
 
   const stakeAddress = findPoolStakeAddress(poolAddress);
@@ -295,7 +319,9 @@ async function initializeStakedPoolIxs(connection: Connection, payer: PublicKey,
   const instructions: TransactionInstruction[] = [];
 
   // instructions
-  instructions.push(SystemProgram.transfer({ fromPubkey: payer, toPubkey: poolAddress, lamports: poolRent }));
+  instructions.push(
+    SystemProgram.transfer({ fromPubkey: payer, toPubkey: poolAddress, lamports: poolRent })
+  );
   instructions.push(
     SystemProgram.transfer({
       fromPubkey: payer,
@@ -303,8 +329,12 @@ async function initializeStakedPoolIxs(connection: Connection, payer: PublicKey,
       lamports: stakeRent + minimumDelegation + LAMPORTS_PER_SOL * 1,
     })
   );
-  instructions.push(SystemProgram.transfer({ fromPubkey: payer, toPubkey: onRampAddress, lamports: stakeRent }));
-  instructions.push(SystemProgram.transfer({ fromPubkey: payer, toPubkey: mintAddress, lamports: mintRent }));
+  instructions.push(
+    SystemProgram.transfer({ fromPubkey: payer, toPubkey: onRampAddress, lamports: stakeRent })
+  );
+  instructions.push(
+    SystemProgram.transfer({ fromPubkey: payer, toPubkey: mintAddress, lamports: mintRent })
+  );
 
   instructions.push(SinglePoolInstruction.initializePool(voteAccountAddress));
   instructions.push(SinglePoolInstruction.initializeOnRamp(poolAddress));

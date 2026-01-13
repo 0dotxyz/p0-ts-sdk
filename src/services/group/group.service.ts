@@ -7,13 +7,10 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import {
-  InstructionsWrapper,
-  SINGLE_POOL_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from "@mrgnlabs/mrgn-common";
 import instructions from "~/instructions";
 import { MarginfiProgram } from "~/types";
+import { SINGLE_POOL_PROGRAM_ID } from "~/constants";
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 import {
   findPoolAddress,
   findPoolStakeAddress,
@@ -27,6 +24,7 @@ import {
   serializeBankConfigOpt,
   BankConfigCompactRaw,
 } from "../bank";
+import { InstructionsWrapper } from "../transaction";
 
 export async function makePoolConfigureBankIx(
   program: MarginfiProgram,

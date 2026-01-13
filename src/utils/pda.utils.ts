@@ -1,5 +1,18 @@
 import { PublicKey } from "@solana/web3.js";
 
+export const PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED = Buffer.from("liquidity_vault_auth");
+export const PDA_BANK_INSURANCE_VAULT_AUTH_SEED = Buffer.from("insurance_vault_auth");
+export const PDA_BANK_FEE_VAULT_AUTH_SEED = Buffer.from("fee_vault_auth");
+
+export const PDA_BANK_LIQUIDITY_VAULT_SEED = Buffer.from("liquidity_vault");
+export const PDA_BANK_INSURANCE_VAULT_SEED = Buffer.from("insurance_vault");
+export const PDA_BANK_FEE_VAULT_SEED = Buffer.from("fee_vault");
+export const PDA_BANK_FEE_STATE_SEED = Buffer.from("feestate");
+export const PDA_BANK_EMISSIONS_AUTH_SEED = Buffer.from("emissions_auth_seed");
+export const PDA_BANK_EMISSIONS_VAULT_SEED = Buffer.from("emissions_vault");
+
+export const PDA_MARGINFI_ACCOUNT_SEED = Buffer.from("marginfi_account");
+
 /**
  * Derives the liquidity vault authority PDA for a bank
  * Seeds: ["liquidity_vault_auth", bank]
@@ -9,7 +22,7 @@ export function deriveBankLiquidityVaultAuthority(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("liquidity_vault_auth"), bank.toBuffer()],
+    [PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -23,7 +36,7 @@ export function deriveBankLiquidityVault(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("liquidity_vault"), bank.toBuffer()],
+    [PDA_BANK_LIQUIDITY_VAULT_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -37,7 +50,7 @@ export function deriveBankInsuranceVaultAuthority(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("insurance_vault_auth"), bank.toBuffer()],
+    [PDA_BANK_INSURANCE_VAULT_AUTH_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -51,7 +64,7 @@ export function deriveBankInsuranceVault(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("insurance_vault"), bank.toBuffer()],
+    [PDA_BANK_INSURANCE_VAULT_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -65,7 +78,7 @@ export function deriveBankFeeVaultAuthority(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("fee_vault_auth"), bank.toBuffer()],
+    [PDA_BANK_FEE_VAULT_AUTH_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -74,14 +87,8 @@ export function deriveBankFeeVaultAuthority(
  * Derives the fee vault PDA for a bank
  * Seeds: ["fee_vault", bank]
  */
-export function deriveBankFeeVault(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("fee_vault"), bank.toBuffer()],
-    programId
-  );
+export function deriveBankFeeVault(programId: PublicKey, bank: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync([PDA_BANK_FEE_VAULT_SEED, bank.toBuffer()], programId);
 }
 
 /**
@@ -89,7 +96,7 @@ export function deriveBankFeeVault(
  * Seeds: ["feestate"]
  */
 export function deriveFeeState(programId: PublicKey): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync([Buffer.from("feestate")], programId);
+  return PublicKey.findProgramAddressSync([PDA_BANK_FEE_STATE_SEED], programId);
 }
 
 /**
@@ -101,7 +108,7 @@ export function deriveBankEmissionsAuth(
   bank: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("emissions_auth_seed"), bank.toBuffer()],
+    [PDA_BANK_EMISSIONS_AUTH_SEED, bank.toBuffer()],
     programId
   );
 }
@@ -116,7 +123,7 @@ export function deriveBankEmissionsVault(
   emissionsMint: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("emissions_vault"), bank.toBuffer(), emissionsMint.toBuffer()],
+    [PDA_BANK_EMISSIONS_VAULT_SEED, bank.toBuffer(), emissionsMint.toBuffer()],
     programId
   );
 }
@@ -140,7 +147,7 @@ export function deriveMarginfiAccount(
 
   return PublicKey.findProgramAddressSync(
     [
-      Buffer.from("marginfi_account"),
+      PDA_MARGINFI_ACCOUNT_SEED,
       group.toBuffer(),
       authority.toBuffer(),
       accountIndexBuf,

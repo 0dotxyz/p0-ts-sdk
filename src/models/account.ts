@@ -1,16 +1,9 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import {
-  Amount,
-  ExtendedV0Transaction,
-  ExtendedTransaction,
-  InstructionsWrapper,
-  Program,
-} from "@mrgnlabs/mrgn-common";
 import { QuoteResponse } from "@jup-ag/api";
 
 import instructions from "~/instructions";
-import { BankIntegrationMetadataMap, MarginfiProgram, MintData } from "~/types";
+import { Amount, BankIntegrationMetadataMap, MarginfiProgram, MintData, Program } from "~/types";
 import { MarginfiIdlType } from "~/idl";
 import {
   AccountFlags,
@@ -32,12 +25,10 @@ import {
   getBalance,
   makeBeginFlashLoanIx,
   makeBorrowIx,
-  MakeBorrowIxOpts,
   MakeBorrowIxParams,
   makeBorrowTx,
   MakeBorrowTxParams,
   makeDepositIx,
-  MakeDepositIxOpts,
   MakeDepositIxParams,
   makeDepositTx,
   MakeDepositTxParams,
@@ -51,7 +42,6 @@ import {
   makeLoopTx,
   makePulseHealthIx,
   makeRepayIx,
-  MakeRepayIxOpts,
   MakeRepayIxParams,
   makeRepayTx,
   MakeRepayTxParams,
@@ -59,7 +49,6 @@ import {
   MakeRepayWithCollatTxParams,
   makeWithdrawEmissionsIx,
   makeWithdrawIx,
-  MakeWithdrawIxOpts,
   MakeWithdrawIxParams,
   makeWithdrawTx,
   MakeWithdrawTxParams,
@@ -79,7 +68,13 @@ import {
   ActiveEmodePair,
 } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
-import { makeUnwrapSolIx, makeWrapSolIxs } from "~/services/transaction";
+import {
+  ExtendedTransaction,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeUnwrapSolIx,
+  makeWrapSolIxs,
+} from "~/services/transaction";
 
 import { Balance } from "./balance";
 import { Bank } from "./bank";
@@ -108,19 +103,12 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @returns Promise resolving to a MarginfiAccount instance
    */
-  static async fetch(
-    address: PublicKey,
-    program: Program<MarginfiIdlType>
-  ): Promise<MarginfiAccount> {
-    const data: MarginfiAccountRaw =
-      await program.account.marginfiAccount.fetch(address);
+  static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiAccount> {
+    const data: MarginfiAccountRaw = await program.account.marginfiAccount.fetch(address);
     return MarginfiAccount.fromAccountParsed(address, data);
   }
 
-  static decodeAccountRaw(
-    encoded: Buffer,
-    idl: MarginfiIdlType
-  ): MarginfiAccountRaw {
+  static decodeAccountRaw(encoded: Buffer, idl: MarginfiIdlType): MarginfiAccountRaw {
     return decodeAccountRaw(encoded, idl);
   }
 
@@ -144,10 +132,7 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @returns A new MarginfiAccount instance
    */
-  static fromAccountParsed(
-    marginfiAccountPk: PublicKey,
-    accountData: MarginfiAccountRaw
-  ) {
+  static fromAccountParsed(marginfiAccountPk: PublicKey, accountData: MarginfiAccountRaw) {
     const props = parseMarginfiAccountRaw(marginfiAccountPk, accountData);
     return new MarginfiAccount(
       props.address,
@@ -179,35 +164,24 @@ class MarginfiAccount implements MarginfiAccountType {
     oraclePrices: Map<string, OraclePrice>,
     bankMetadataMap: BankIntegrationMetadataMap
   ) {
-    const accountWithHealthCache = await simulateAccountHealthCacheWithFallback(
-      {
-        program,
-        bankMap,
-        oraclePrices,
-        marginfiAccount: this,
-        balances: this.balances,
-        bankMetadataMap: bankMetadataMap,
-      }
-    );
+    const accountWithHealthCache = await simulateAccountHealthCacheWithFallback({
+      program,
+      bankMap,
+      oraclePrices,
+      marginfiAccount: this,
+      balances: this.balances,
+      bankMetadataMap: bankMetadataMap,
+    });
 
     return {
-      account: MarginfiAccount.fromAccountType(
-        accountWithHealthCache.marginfiAccount
-      ),
+      account: MarginfiAccount.fromAccountType(accountWithHealthCache.marginfiAccount),
       error: accountWithHealthCache.error,
     };
   }
 
-  static fromAccountDataRaw(
-    marginfiAccountPk: PublicKey,
-    rawData: Buffer,
-    idl: MarginfiIdlType
-  ) {
+  static fromAccountDataRaw(marginfiAccountPk: PublicKey, rawData: Buffer, idl: MarginfiIdlType) {
     const marginfiAccountData = MarginfiAccount.decodeAccountRaw(rawData, idl);
-    return MarginfiAccount.fromAccountParsed(
-      marginfiAccountPk,
-      marginfiAccountData
-    );
+    return MarginfiAccount.fromAccountParsed(marginfiAccountPk, marginfiAccountData);
   }
   // ----------------------------------------------------------------------------
   // Attributes
@@ -257,9 +231,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @returns True if authority transfer is allowed, false otherwise
    */
   get isTransferAccountAuthorityEnabled(): boolean {
-    return this.accountFlags.includes(
-      AccountFlags.ACCOUNT_TRANSFER_AUTHORITY_ALLOWED
-    );
+    return this.accountFlags.includes(AccountFlags.ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
   }
 
   /**
@@ -293,12 +265,7 @@ class MarginfiAccount implements MarginfiAccountType {
     oraclePrices: Map<string, OraclePrice>,
     opts?: { clamped?: boolean }
   ): BigNumber {
-    return computeFreeCollateralLegacy(
-      this.activeBalances,
-      banks,
-      oraclePrices,
-      opts
-    );
+    return computeFreeCollateralLegacy(this.activeBalances, banks, oraclePrices, opts);
   }
 
   /**
@@ -372,10 +339,7 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @returns The net APY as a decimal (e.g., 0.05 = 5%)
    */
-  computeNetApy(
-    banks: Map<string, BankType>,
-    oraclePrices: Map<string, OraclePrice>
-  ): number {
+  computeNetApy(banks: Map<string, BankType>, oraclePrices: Map<string, OraclePrice>): number {
     return computeNetApy(this, this.activeBalances, banks, oraclePrices);
   }
 
@@ -414,13 +378,7 @@ class MarginfiAccount implements MarginfiAccountType {
       activePair?: ActiveEmodePair;
     }
   ): BigNumber {
-    return computeMaxBorrowForBank(
-      this,
-      banks,
-      oraclePrices,
-      bankAddress,
-      opts
-    );
+    return computeMaxBorrowForBank(this, banks, oraclePrices, bankAddress, opts);
   }
 
   /**
@@ -446,13 +404,7 @@ class MarginfiAccount implements MarginfiAccountType {
       activePair?: ActiveEmodePair;
     }
   ): BigNumber {
-    return computeMaxWithdrawForBank(
-      this,
-      banks,
-      oraclePrices,
-      bankAddress,
-      opts
-    );
+    return computeMaxWithdrawForBank(this, banks, oraclePrices, bankAddress, opts);
   }
 
   /**
@@ -471,12 +423,7 @@ class MarginfiAccount implements MarginfiAccountType {
     mandatoryBanks: PublicKey[] = [],
     excludedBanks: PublicKey[] = []
   ): BankType[] {
-    return computeHealthCheckAccounts(
-      this.balances,
-      banks,
-      mandatoryBanks,
-      excludedBanks
-    );
+    return computeHealthCheckAccounts(this.balances, banks, mandatoryBanks, excludedBanks);
   }
 
   /**
@@ -496,11 +443,7 @@ class MarginfiAccount implements MarginfiAccountType {
     const activeCollateral = this.activeBalances
       .filter((balance) => balance.assetShares.gt(0))
       .map((balance) => balance.bankPk);
-    return computeActiveEmodePairs(
-      emodePairs,
-      activeLiabilities,
-      activeCollateral
-    );
+    return computeActiveEmodePairs(emodePairs, activeLiabilities, activeCollateral);
   }
 
   /**
@@ -528,12 +471,7 @@ class MarginfiAccount implements MarginfiAccountType {
       .filter((balance) => balance.assetShares.gt(0))
       .map((balance) => balance.bankPk);
 
-    return computeEmodeImpacts(
-      emodePairs,
-      activeLiabilities,
-      activeCollateral,
-      banks
-    );
+    return computeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, banks);
   }
 
   // ----------------------------------------------------------------------------
@@ -633,13 +571,7 @@ class MarginfiAccount implements MarginfiAccountType {
     mintDatas: Map<string, MintData>,
     bankAddress: PublicKey
   ): Promise<InstructionsWrapper> {
-    return makeWithdrawEmissionsIx(
-      program,
-      this,
-      banks,
-      mintDatas,
-      bankAddress
-    );
+    return makeWithdrawEmissionsIx(program, this, banks, mintDatas, bankAddress);
   }
 
   /**
@@ -658,12 +590,7 @@ class MarginfiAccount implements MarginfiAccountType {
     endIndex: number,
     authority?: PublicKey
   ): Promise<InstructionsWrapper> {
-    return await makeBeginFlashLoanIx(
-      program,
-      this.address,
-      endIndex,
-      authority
-    );
+    return await makeBeginFlashLoanIx(program, this.address, endIndex, authority);
   }
 
   /**
@@ -690,18 +617,14 @@ class MarginfiAccount implements MarginfiAccountType {
     authority?: PublicKey
   ): Promise<InstructionsWrapper> {
     // Pre-validate all banks exist before processing
-    const missingBanks = projectedActiveBanks.filter(
-      (account) => !bankMap.get(account.toBase58())
-    );
+    const missingBanks = projectedActiveBanks.filter((account) => !bankMap.get(account.toBase58()));
     if (missingBanks.length > 0) {
       throw Error(
         `Banks not found for flashloan end operation: ${missingBanks.map((b) => b.toBase58()).join(", ")}`
       );
     }
 
-    const banks = projectedActiveBanks.map(
-      (account) => bankMap.get(account.toBase58())!
-    );
+    const banks = projectedActiveBanks.map((account) => bankMap.get(account.toBase58())!);
 
     return makeEndFlashLoanIx(program, this.address, banks, authority);
   }
@@ -724,13 +647,15 @@ class MarginfiAccount implements MarginfiAccountType {
     newMarginfiAccount: PublicKey,
     newAuthority: PublicKey
   ): Promise<InstructionsWrapper> {
-    const accountTransferToNewAccountIx =
-      await instructions.makeAccountTransferToNewAccountIx(program, {
+    const accountTransferToNewAccountIx = await instructions.makeAccountTransferToNewAccountIx(
+      program,
+      {
         oldMarginfiAccount: this.address,
         newMarginfiAccount,
         newAuthority,
         feePayer: this.authority,
-      });
+      }
+    );
     return { instructions: [accountTransferToNewAccountIx], keys: [] };
   }
 
@@ -746,9 +671,7 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @see {@link makeCloseAccountIx} for implementation
    */
-  async makeCloseAccountIx(
-    program: MarginfiProgram
-  ): Promise<InstructionsWrapper> {
+  async makeCloseAccountIx(program: MarginfiProgram): Promise<InstructionsWrapper> {
     const ix = await instructions.makeCloseAccountIx(program, {
       marginfiAccount: this.address,
       feePayer: this.authority,
@@ -803,11 +726,7 @@ class MarginfiAccount implements MarginfiAccountType {
     program: MarginfiProgram,
     instructions: TransactionInstruction[]
   ): PublicKey[] {
-    return computeProjectedActiveBanksNoCpi(
-      this.balances,
-      instructions,
-      program
-    );
+    return computeProjectedActiveBanksNoCpi(this.balances, instructions, program);
   }
 
   /**
@@ -978,10 +897,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @see {@link makeKaminoDepositTx} for detailed implementation
    */
   async makeKaminoDepositTx(
-    params: Omit<
-      MakeKaminoDepositTxParams,
-      "accountAddress" | "authority" | "group"
-    >
+    params: Omit<MakeKaminoDepositTxParams, "accountAddress" | "authority" | "group">
   ): Promise<ExtendedV0Transaction> {
     return makeKaminoDepositTx({
       ...params,
@@ -1068,9 +984,7 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @see {@link makeFlashLoanTx} for detailed implementation
    */
-  async makeFlashLoanTx(
-    params: Omit<MakeFlashLoanTxParams, "marginfiAccount">
-  ) {
+  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "marginfiAccount">) {
     return makeFlashLoanTx({
       ...params,
       marginfiAccount: this,

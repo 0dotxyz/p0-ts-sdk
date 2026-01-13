@@ -3,13 +3,6 @@ import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { BorshInstructionCoder } from "@coral-xyz/anchor";
 
 import {
-  aprToApy,
-  composeRemainingAccounts,
-  nativeToUi,
-  shortenAddress,
-} from "@mrgnlabs/mrgn-common";
-
-import {
   BankType,
   computeInterestRates,
   computeAssetUsdValue,
@@ -23,6 +16,7 @@ import {
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { MarginfiProgram } from "~/types";
+import { aprToApy, composeRemainingAccounts, nativeToUi, shortenAddress } from "~/utils";
 
 import {
   MarginfiAccountType,
@@ -50,9 +44,7 @@ export function computeFreeCollateral(
 
   const signedFreeCollateral = assets.minus(liabilities);
 
-  return _clamped
-    ? BigNumber.max(0, signedFreeCollateral)
-    : signedFreeCollateral;
+  return _clamped ? BigNumber.max(0, signedFreeCollateral) : signedFreeCollateral;
 }
 
 export function computeFreeCollateralLegacy(
@@ -73,9 +65,7 @@ export function computeFreeCollateralLegacy(
 
   const signedFreeCollateral = assets.minus(liabilities);
 
-  return _clamped
-    ? BigNumber.max(0, signedFreeCollateral)
-    : signedFreeCollateral;
+  return _clamped ? BigNumber.max(0, signedFreeCollateral) : signedFreeCollateral;
 }
 
 export function computeHealthComponents(
@@ -123,8 +113,7 @@ export function computeHealthComponentsLegacy(
   liabilities: BigNumber;
 } {
   const filteredBalances = activeBalances.filter(
-    (accountBalance) =>
-      !excludedBanks.find((b) => b.equals(accountBalance.bankPk))
+    (accountBalance) => !excludedBanks.find((b) => b.equals(accountBalance.bankPk))
   );
 
   const updatedOraclePrices = new Map(oraclePrices);
@@ -139,9 +128,7 @@ export function computeHealthComponentsLegacy(
         return [new BigNumber(0), new BigNumber(0)];
       }
 
-      const priceInfo = updatedOraclePrices.get(
-        accountBalance.bankPk.toBase58()
-      );
+      const priceInfo = updatedOraclePrices.get(accountBalance.bankPk.toBase58());
       if (!priceInfo) {
         console.warn(
           `Price info for bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
@@ -149,23 +136,16 @@ export function computeHealthComponentsLegacy(
         return [new BigNumber(0), new BigNumber(0)];
       }
 
-      const emodeWeight =
-        activeEmodeWeights?.[accountBalance.bankPk.toBase58()];
+      const emodeWeight = activeEmodeWeights?.[accountBalance.bankPk.toBase58()];
 
       // if emode weight is lower than bank config, use bank config
       const overrideWeights = emodeWeight
         ? {
             assetWeightInit: emodeWeight.assetWeightInit
-              ? BigNumber.max(
-                  bank.config.assetWeightInit,
-                  emodeWeight.assetWeightInit
-                )
+              ? BigNumber.max(bank.config.assetWeightInit, emodeWeight.assetWeightInit)
               : bank.config.assetWeightInit,
             assetWeightMaint: emodeWeight.assetWeightMaint
-              ? BigNumber.max(
-                  bank.config.assetWeightMaint,
-                  emodeWeight.assetWeightMaint
-                )
+              ? BigNumber.max(bank.config.assetWeightMaint, emodeWeight.assetWeightMaint)
               : bank.config.assetWeightMaint,
           }
         : undefined;
@@ -218,9 +198,7 @@ export function computeHealthComponentsWithoutBiasLegacy(
         return [new BigNumber(0), new BigNumber(0)];
       }
 
-      const priceInfo = updatedOraclePrices.get(
-        accountBalance.bankPk.toBase58()
-      );
+      const priceInfo = updatedOraclePrices.get(accountBalance.bankPk.toBase58());
       if (!priceInfo) {
         console.warn(
           `Price info for bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
@@ -228,23 +206,16 @@ export function computeHealthComponentsWithoutBiasLegacy(
         return [new BigNumber(0), new BigNumber(0)];
       }
 
-      const emodeWeight =
-        activeEmodeWeights?.[accountBalance.bankPk.toBase58()];
+      const emodeWeight = activeEmodeWeights?.[accountBalance.bankPk.toBase58()];
 
       // if emode weight is lower than bank config, use bank config
       const overrideWeights = emodeWeight
         ? {
             assetWeightInit: emodeWeight.assetWeightInit
-              ? BigNumber.max(
-                  bank.config.assetWeightInit,
-                  emodeWeight.assetWeightInit
-                )
+              ? BigNumber.max(bank.config.assetWeightInit, emodeWeight.assetWeightInit)
               : bank.config.assetWeightInit,
             assetWeightMaint: emodeWeight.assetWeightMaint
-              ? BigNumber.max(
-                  bank.config.assetWeightMaint,
-                  emodeWeight.assetWeightMaint
-                )
+              ? BigNumber.max(bank.config.assetWeightMaint, emodeWeight.assetWeightMaint)
               : bank.config.assetWeightMaint,
           }
         : undefined;
@@ -269,9 +240,7 @@ export function computeHealthComponentsWithoutBiasLegacy(
   return { assets: assets!, liabilities: liabilities! };
 }
 
-export function computeAccountValue(
-  marginfiAccount: MarginfiAccountType
-): BigNumber {
+export function computeAccountValue(marginfiAccount: MarginfiAccountType): BigNumber {
   const { assets, liabilities } = computeHealthComponents(
     marginfiAccount,
     MarginRequirementType.Equity
@@ -312,24 +281,15 @@ export function computeNetApy(
         .minus(
           computeInterestRates(bank)
             .borrowingRate.times(
-              computeBalanceUsdValue(
-                balance,
-                bank,
-                priceInfo,
-                MarginRequirementType.Equity
-              ).liabilities
+              computeBalanceUsdValue(balance, bank, priceInfo, MarginRequirementType.Equity)
+                .liabilities
             )
             .div(totalUsdValue.isEqualTo(0) ? 1 : totalUsdValue)
         )
         .plus(
           computeInterestRates(bank)
             .lendingRate.times(
-              computeBalanceUsdValue(
-                balance,
-                bank,
-                priceInfo,
-                MarginRequirementType.Equity
-              ).assets
+              computeBalanceUsdValue(balance, bank, priceInfo, MarginRequirementType.Equity).assets
             )
             .div(totalUsdValue.isEqualTo(0) ? 1 : totalUsdValue)
         );
@@ -414,10 +374,7 @@ export function computeQuantity(
   liabilities: BigNumber;
 } {
   const assetsQuantity = getAssetQuantity(bank, balance.assetShares);
-  const liabilitiesQuantity = getLiabilityQuantity(
-    bank,
-    balance.liabilityShares
-  );
+  const liabilitiesQuantity = getLiabilityQuantity(bank, balance.liabilityShares);
   return { assets: assetsQuantity, liabilities: liabilitiesQuantity };
 }
 
@@ -432,10 +389,7 @@ export function computeQuantityUi(
     nativeToUi(getAssetQuantity(bank, balance.assetShares), bank.mintDecimals)
   );
   const liabilitiesQuantity = new BigNumber(
-    nativeToUi(
-      getLiabilityQuantity(bank, balance.liabilityShares),
-      bank.mintDecimals
-    )
+    nativeToUi(getLiabilityQuantity(bank, balance.liabilityShares), bank.mintDecimals)
   );
   return { assets: assetsQuantity, liabilities: liabilitiesQuantity };
 }
@@ -466,10 +420,7 @@ export function computeClaimedEmissions(
       .times(balanceAmount)
       .times(emissionsRate)
       .div(31_536_000 * Math.pow(10, bank.mintDecimals));
-    const emissionsReal = BigNumber.min(
-      emissions,
-      new BigNumber(bank.emissionsRemaining)
-    );
+    const emissionsReal = BigNumber.min(emissions, new BigNumber(bank.emissionsRemaining));
 
     return emissionsReal;
   }
@@ -477,16 +428,9 @@ export function computeClaimedEmissions(
   return new BigNumber(0);
 }
 
-export function computeTotalOutstandingEmissions(
-  balance: BalanceType,
-  bank: BankType
-): BigNumber {
+export function computeTotalOutstandingEmissions(balance: BalanceType, bank: BankType): BigNumber {
   const claimedEmissions = balance.emissionsOutstanding;
-  const unclaimedEmissions = computeClaimedEmissions(
-    balance,
-    bank,
-    Date.now() / 1000
-  );
+  const unclaimedEmissions = computeClaimedEmissions(balance, bank, Date.now() / 1000);
   return claimedEmissions.plus(unclaimedEmissions);
 }
 
@@ -501,9 +445,7 @@ export function computeHealthCheckAccounts(
   const mandatoryBanksSet = new Set(mandatoryBanks.map((b) => b.toBase58()));
   const excludedBanksSet = new Set(excludedBanks.map((b) => b.toBase58()));
   const activeBanks = new Set(activeBalances.map((b) => b.bankPk.toBase58()));
-  const banksToAdd = new Set(
-    [...mandatoryBanksSet].filter((x) => !activeBanks.has(x))
-  );
+  const banksToAdd = new Set([...mandatoryBanksSet].filter((x) => !activeBanks.has(x)));
 
   let slotsToKeep = banksToAdd.size;
   const projectedActiveBanks = balances
@@ -579,14 +521,9 @@ export function getActiveBalances(balances: BalanceType[]): BalanceType[] {
   return balances.filter((b) => b.active);
 }
 
-export function getBalance(
-  bankAddress: PublicKey,
-  balances: BalanceType[]
-): BalanceType {
+export function getBalance(bankAddress: PublicKey, balances: BalanceType[]): BalanceType {
   return (
-    balances
-      .filter((b) => b.active)
-      .find((b) => b.bankPk.equals(bankAddress)) ??
+    balances.filter((b) => b.active).find((b) => b.bankPk.equals(bankAddress)) ??
     createEmptyBalance(bankAddress)
   );
 }
@@ -600,33 +537,32 @@ export function computeLiquidationPriceForBank(
 
   if (!balance.active) return null;
 
-  const { assets: assetBank, liabilities: liabilitiesBank } =
-    computeBalanceUsdValue(
-      balance,
-      bank,
-      priceInfo,
-      MarginRequirementType.Maintenance
-    );
+  const { assets: assetBank, liabilities: liabilitiesBank } = computeBalanceUsdValue(
+    balance,
+    bank,
+    priceInfo,
+    MarginRequirementType.Maintenance
+  );
 
-  const { assets: assetsAccount, liabilities: liabilitiesAccount } =
-    computeHealthComponents(marginfiAccount, MarginRequirementType.Maintenance);
+  const { assets: assetsAccount, liabilities: liabilitiesAccount } = computeHealthComponents(
+    marginfiAccount,
+    MarginRequirementType.Maintenance
+  );
 
   const assets = assetsAccount.minus(assetBank);
   const liabilities = liabilitiesAccount.minus(liabilitiesBank);
 
   const isLending = balance.liabilityShares.isZero();
-  const { assets: assetQuantityUi, liabilities: liabQuantitiesUi } =
-    computeQuantityUi(balance, bank);
+  const { assets: assetQuantityUi, liabilities: liabQuantitiesUi } = computeQuantityUi(
+    balance,
+    bank
+  );
 
   let liquidationPrice: BigNumber;
   if (isLending) {
     if (liabilities.eq(0)) return null;
 
-    const assetWeight = getAssetWeight(
-      bank,
-      MarginRequirementType.Maintenance,
-      priceInfo
-    );
+    const assetWeight = getAssetWeight(bank, MarginRequirementType.Maintenance, priceInfo);
     const priceConfidence = getPrice(priceInfo, PriceBias.None, false).minus(
       getPrice(priceInfo, PriceBias.Lowest, false)
     );
@@ -635,10 +571,7 @@ export function computeLiquidationPriceForBank(
       .div(assetQuantityUi.times(assetWeight))
       .plus(priceConfidence);
   } else {
-    const liabWeight = getLiabilityWeight(
-      bank.config,
-      MarginRequirementType.Maintenance
-    );
+    const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Maintenance);
     const priceConfidence = getPrice(priceInfo, PriceBias.Highest, false).minus(
       getPrice(priceInfo, PriceBias.None, false)
     );
@@ -647,11 +580,7 @@ export function computeLiquidationPriceForBank(
       .div(liabQuantitiesUi.times(liabWeight))
       .minus(priceConfidence);
   }
-  if (
-    liquidationPrice.isNaN() ||
-    liquidationPrice.lt(0) ||
-    !liquidationPrice.isFinite()
-  )
+  if (liquidationPrice.isNaN() || liquidationPrice.lt(0) || !liquidationPrice.isFinite())
     return null;
   return liquidationPrice.toNumber();
 }
@@ -661,9 +590,7 @@ export function computeProjectedActiveBanksNoCpi(
   instructions: TransactionInstruction[],
   program: MarginfiProgram
 ): PublicKey[] {
-  let projectedBalances = [
-    ...balances.map((b) => ({ active: b.active, bankPk: b.bankPk })),
-  ];
+  let projectedBalances = [...balances.map((b) => ({ active: b.active, bankPk: b.bankPk }))];
 
   for (let index = 0; index < instructions.length; index++) {
     const ix = instructions[index];
@@ -681,17 +608,10 @@ export function computeProjectedActiveBanksNoCpi(
       case "kaminoDeposit":
       case "lendingAccountDeposit": {
         const targetBank = new PublicKey(ix?.keys[3]!.pubkey);
-        const targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
-          const firstInactiveBalanceIndex = projectedBalances.findIndex(
-            (b) => !b.active
-          );
-          if (
-            firstInactiveBalanceIndex === -1 ||
-            !projectedBalances[firstInactiveBalanceIndex]
-          ) {
+          const firstInactiveBalanceIndex = projectedBalances.findIndex((b) => !b.active);
+          if (firstInactiveBalanceIndex === -1 || !projectedBalances[firstInactiveBalanceIndex]) {
             throw Error("No inactive balance found");
           }
 
@@ -704,9 +624,7 @@ export function computeProjectedActiveBanksNoCpi(
       case "kaminoWithdraw":
       case "lendingAccountWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
-        const targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
           throw Error(
             `Balance for bank ${targetBank.toBase58()} should be projected active at this point (ix ${index}: ${
@@ -785,20 +703,13 @@ export function computeProjectedActiveBalancesNoCpi(
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
 
-        let targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
 
         if (!targetBalance) {
           // Need to activate a new balance slot
-          const firstInactiveBalanceIndex = projectedBalances.findIndex(
-            (b) => !b.active
-          );
+          const firstInactiveBalanceIndex = projectedBalances.findIndex((b) => !b.active);
 
-          if (
-            firstInactiveBalanceIndex === -1 ||
-            !projectedBalances[firstInactiveBalanceIndex]
-          ) {
+          if (firstInactiveBalanceIndex === -1 || !projectedBalances[firstInactiveBalanceIndex]) {
             throw Error("No inactive balance found");
           }
 
@@ -810,16 +721,13 @@ export function computeProjectedActiveBalancesNoCpi(
         }
 
         // Convert token amount to shares and add to asset shares
-        const depositTokenAmount = new BigNumber(
-          ixArgs.amount?.toString() || "0"
-        );
+        const depositTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
         const bank = bankMap.get(targetBank.toBase58());
         if (!bank) {
           throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
         }
         const depositShares = getAssetShares(bank, depositTokenAmount);
-        targetBalance.assetShares =
-          targetBalance.assetShares.plus(depositShares);
+        targetBalance.assetShares = targetBalance.assetShares.plus(depositShares);
         break;
       }
 
@@ -827,20 +735,13 @@ export function computeProjectedActiveBalancesNoCpi(
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedLiabilityBanks.add(targetBank.toBase58());
 
-        let targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
 
         if (!targetBalance) {
           // Need to activate a new balance slot
-          const firstInactiveBalanceIndex = projectedBalances.findIndex(
-            (b) => !b.active
-          );
+          const firstInactiveBalanceIndex = projectedBalances.findIndex((b) => !b.active);
 
-          if (
-            firstInactiveBalanceIndex === -1 ||
-            !projectedBalances[firstInactiveBalanceIndex]
-          ) {
+          if (firstInactiveBalanceIndex === -1 || !projectedBalances[firstInactiveBalanceIndex]) {
             throw Error("No inactive balance found");
           }
 
@@ -852,16 +753,13 @@ export function computeProjectedActiveBalancesNoCpi(
         }
 
         // Convert token amount to shares and add to liability shares
-        const borrowTokenAmount = new BigNumber(
-          ixArgs.amount?.toString() || "0"
-        );
+        const borrowTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
         const bank = bankMap.get(targetBank.toBase58());
         if (!bank) {
           throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
         }
         const borrowShares = getLiabilityShares(bank, borrowTokenAmount);
-        targetBalance.liabilityShares =
-          targetBalance.liabilityShares.plus(borrowShares);
+        targetBalance.liabilityShares = targetBalance.liabilityShares.plus(borrowShares);
         break;
       }
 
@@ -870,9 +768,7 @@ export function computeProjectedActiveBalancesNoCpi(
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedLiabilityBanks.add(targetBank.toBase58());
 
-        const targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
 
         if (!targetBalance) {
           throw Error(
@@ -893,9 +789,7 @@ export function computeProjectedActiveBalancesNoCpi(
           }
         } else {
           // Convert token amount to shares and subtract from liability shares
-          const repayTokenAmount = new BigNumber(
-            ixArgs.amount?.toString() || "0"
-          );
+          const repayTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
           const bank = bankMap.get(targetBank.toBase58());
           if (!bank) {
             throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
@@ -907,10 +801,7 @@ export function computeProjectedActiveBalancesNoCpi(
           );
 
           // If fully repaid and no assets, close the balance
-          if (
-            targetBalance.liabilityShares.eq(0) &&
-            targetBalance.assetShares.eq(0)
-          ) {
+          if (targetBalance.liabilityShares.eq(0) && targetBalance.assetShares.eq(0)) {
             targetBalance.active = false;
             targetBalance.bankPk = PublicKey.default;
           }
@@ -923,9 +814,7 @@ export function computeProjectedActiveBalancesNoCpi(
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
 
-        const targetBalance = projectedBalances.find((b) =>
-          b.bankPk.equals(targetBank)
-        );
+        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
 
         if (!targetBalance) {
           throw Error(
@@ -946,9 +835,7 @@ export function computeProjectedActiveBalancesNoCpi(
           }
         } else {
           // Convert token amount to shares and subtract from asset shares
-          const withdrawTokenAmount = new BigNumber(
-            ixArgs.amount?.toString() || "0"
-          );
+          const withdrawTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
           const bank = bankMap.get(targetBank.toBase58());
           if (!bank) {
             throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
@@ -960,10 +847,7 @@ export function computeProjectedActiveBalancesNoCpi(
           );
 
           // If fully withdrawn and no liabilities, close the balance
-          if (
-            targetBalance.assetShares.eq(0) &&
-            targetBalance.liabilityShares.eq(0)
-          ) {
+          if (targetBalance.assetShares.eq(0) && targetBalance.liabilityShares.eq(0)) {
             targetBalance.active = false;
             targetBalance.bankPk = PublicKey.default;
           }
@@ -1080,9 +964,7 @@ export function computeAssetHealthComponent(
   const assetSet = new Set(assetBanks.map((b) => b.toBase58()));
 
   // Filter to only include asset balances
-  const assetBalances = balances.filter(
-    (b) => b.active && assetSet.has(b.bankPk.toBase58())
-  );
+  const assetBalances = balances.filter((b) => b.active && assetSet.has(b.bankPk.toBase58()));
 
   const { assets } = computeHealthComponentsLegacy(
     assetBalances,

@@ -1,9 +1,8 @@
 import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { chunkedGetRawMultipleAccountInfoOrdered } from "@mrgnlabs/mrgn-common";
-
 import { BankType } from "~/services/bank";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 
 import { OraclePrice, OraclePriceDto } from "../types";
 import {

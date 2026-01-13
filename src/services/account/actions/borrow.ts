@@ -5,35 +5,26 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 
+import instructions from "~/instructions";
 import {
   addTransactionMetadata,
-  createAssociatedTokenAccountIdempotentInstruction,
   ExtendedV0Transaction,
-  getAssociatedTokenAddressSync,
   InstructionsWrapper,
+  makeUnwrapSolIx,
+  TransactionType,
+} from "~/services/transaction";
+import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import syncInstructions from "~/sync-instructions";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
-  TransactionType,
-  uiToNative,
-} from "@mrgnlabs/mrgn-common";
+} from "~/vendor/spl";
+import { uiToNative } from "~/utils";
 
-import instructions from "~/instructions";
-import { makeUnwrapSolIx } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-} from "~/services/price";
-import syncInstructions from "~/sync-instructions";
-
-import {
-  computeHealthAccountMetas,
-  computeHealthCheckAccounts,
-} from "../utils";
-import {
-  MakeBorrowIxParams,
-  MakeBorrowTxParams,
-  TransactionBuilderResult,
-} from "../types";
+import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
+import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from "../types";
 
 export async function makeBorrowIx({
   program,
@@ -42,7 +33,6 @@ export async function makeBorrowIx({
   tokenProgram,
   amount,
   marginfiAccount,
-  bankMetadataMap,
   authority,
   isSync,
   opts = {},
@@ -52,22 +42,16 @@ export async function makeBorrowIx({
 
   const borrowIxs: TransactionInstruction[] = [];
 
-  const userAta = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userAta = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   if (createAtas) {
-    const createAtaIdempotentIx =
-      createAssociatedTokenAccountIdempotentInstruction(
-        authority,
-        userAta,
-        authority,
-        bank.mint,
-        tokenProgram
-      );
+    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+      authority,
+      userAta,
+      authority,
+      bank.mint,
+      tokenProgram
+    );
     borrowIxs.push(createAtaIdempotentIx);
   }
 
@@ -98,8 +82,7 @@ export async function makeBorrowIx({
           bank: bank.address,
           destinationTokenAccount: userAta,
           tokenProgram: tokenProgram,
-          authority:
-            opts?.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          authority: opts?.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           group: opts?.overrideInferAccounts?.group ?? marginfiAccount.group,
         },
         { amount: uiToNative(amount, bank.mintDecimals) },
@@ -138,9 +121,7 @@ export async function makeBorrowIx({
   };
 }
 
-export async function makeBorrowTx(
-  params: MakeBorrowTxParams
-): Promise<TransactionBuilderResult> {
+export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<TransactionBuilderResult> {
   const { luts, connection, ...borrowIxParams } = params;
 
   const refreshIxs = makeRefreshKaminoBanksIxs(
@@ -152,16 +133,15 @@ export async function makeBorrowTx(
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } =
-    await makeSmartCrankSwbFeedIx({
-      marginfiAccount: params.marginfiAccount,
-      bankMap: params.bankMap,
-      oraclePrices: params.oraclePrices,
-      instructions: borrowIxs.instructions,
-      program: params.program,
-      connection: params.connection,
-      crossbarUrl: params.crossbarUrl,
-    });
+  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
+    marginfiAccount: params.marginfiAccount,
+    bankMap: params.bankMap,
+    oraclePrices: params.oraclePrices,
+    instructions: borrowIxs.instructions,
+    program: params.program,
+    connection: params.connection,
+    crossbarUrl: params.crossbarUrl,
+  });
 
   const {
     value: { blockhash },

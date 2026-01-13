@@ -10,20 +10,16 @@ import {
 import BN from "bn.js";
 import BigNumber from "bignumber.js";
 
+import { addTransactionMetadata, SolanaTransaction, TransactionType } from "~/services/transaction";
 import {
-  addTransactionMetadata,
-  bigNumberToWrappedI80F48,
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
-  SolanaTransaction,
   TOKEN_2022_PROGRAM_ID,
-  TransactionType,
-} from "@mrgnlabs/mrgn-common";
-
+} from "~/vendor/spl";
 import instructions from "~/instructions";
 import { MarginfiProgram } from "~/types";
 import { BankType } from "~/services/bank";
-import { deriveMarginfiAccount } from "~/utils";
+import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
 
 import {
   BalanceRaw,
@@ -140,11 +136,7 @@ export async function makeCreateAccountTxWithProjection(props: {
     props.thirdPartyId
   );
 
-  const account = generateDummyAccount(
-    props.group,
-    props.authority,
-    marginfiAccountAddress
-  );
+  const account = generateDummyAccount(props.group, props.authority, marginfiAccountAddress);
   const tx = await makeCreateMarginfiAccountTx(
     props.program,
     props.authority,
@@ -187,11 +179,7 @@ export async function makeCreateAccountIxWithProjection(props: {
     props.thirdPartyId
   );
 
-  const account = generateDummyAccount(
-    props.group,
-    props.authority,
-    marginfiAccountAddress
-  );
+  const account = generateDummyAccount(props.group, props.authority, marginfiAccountAddress);
   const ix = await makeCreateMarginfiAccountIx(
     props.program,
     props.authority,
@@ -283,16 +271,11 @@ export async function makeCreateMarginfiAccountIx(
   return initMarginfiAccountIx;
 }
 
-export async function makeSetupIx({
-  connection,
-  authority,
-  tokens,
-}: MakeSetupIxParams) {
+export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIxParams) {
   try {
     // Filter out duplicate mints
     const uniqueTokens = tokens.filter(
-      (token, index, self) =>
-        index === self.findIndex((t) => t.mint.equals(token.mint))
+      (token, index, self) => index === self.findIndex((t) => t.mint.equals(token.mint))
     );
 
     const userAtas = uniqueTokens.map((token) => {
@@ -300,9 +283,7 @@ export async function makeSetupIx({
         new PublicKey(token.mint),
         authority,
         true,
-        token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-          ? TOKEN_2022_PROGRAM_ID
-          : undefined
+        token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
       );
     });
 
@@ -319,9 +300,7 @@ export async function makeSetupIx({
             userAtaAddress,
             authority,
             new PublicKey(token.mint),
-            token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-              ? TOKEN_2022_PROGRAM_ID
-              : undefined
+            token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
           )
         );
       }
@@ -341,12 +320,7 @@ export async function makePulseHealthIx(
   mandatoryBanks: PublicKey[],
   excludedBanks: PublicKey[]
 ) {
-  const healthAccounts = computeHealthCheckAccounts(
-    balances,
-    banks,
-    mandatoryBanks,
-    excludedBanks
-  );
+  const healthAccounts = computeHealthCheckAccounts(balances, banks, mandatoryBanks, excludedBanks);
   const accountMetas = computeHealthAccountMetas(healthAccounts);
 
   // const sortIx = await instructions.makeLendingAccountSortBalancesIx(program, {
@@ -368,11 +342,7 @@ export async function makePulseHealthIx(
   return { instructions: [ix], keys: [] };
 }
 
-function generateDummyAccount(
-  group: PublicKey,
-  authority: PublicKey,
-  accountKey: PublicKey
-) {
+function generateDummyAccount(group: PublicKey, authority: PublicKey, accountKey: PublicKey) {
   // create a dummy account with 15 empty balances to be used in other transactions
   const dummyWrappedI80F48 = bigNumberToWrappedI80F48(new BigNumber(0));
   const dummyBalances: BalanceRaw[] = Array(15).fill({
@@ -407,9 +377,7 @@ function generateDummyAccount(
       internalLiqErr: 0,
       mrgnErr: 0,
     },
-    emissionsDestinationAccount: new PublicKey(
-      "11111111111111111111111111111111"
-    ),
+    emissionsDestinationAccount: new PublicKey("11111111111111111111111111111111"),
     accountFlags: new BN([0, 0, 0]),
   };
 

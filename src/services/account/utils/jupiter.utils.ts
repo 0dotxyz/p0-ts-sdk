@@ -11,27 +11,17 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { LUT_PROGRAM_AUTHORITY_INDEX } from "@mrgnlabs/mrgn-common";
+import { ADDRESS_LOOKUP_TABLE_FOR_SWAP, JUP_SWAP_LUT_PROGRAM_AUTHORITY_INDEX } from "~/constants";
 
-import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
-
-const REFERRAL_PROGRAM_ID = new PublicKey(
-  "REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3"
-);
-const REFERRAL_ACCOUNT_PUBKEY = new PublicKey(
-  "Mm7HcujSK2JzPW4eX7g4oqTXbWYDuFxapNMHXe8yp1B"
-);
+const REFERRAL_PROGRAM_ID = new PublicKey("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
+const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("Mm7HcujSK2JzPW4eX7g4oqTXbWYDuFxapNMHXe8yp1B");
 
 const getFeeAccount = (mint: PublicKey) => {
   const referralProgramPubkey = REFERRAL_PROGRAM_ID;
   const referralAccountPubkey = REFERRAL_ACCOUNT_PUBKEY;
 
   const [feeAccount] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("referral_ata"),
-      referralAccountPubkey.toBuffer(),
-      mint.toBuffer(),
-    ],
+    [Buffer.from("referral_ata"), referralAccountPubkey.toBuffer(), mint.toBuffer()],
     referralProgramPubkey
   );
   return feeAccount.toBase58();
@@ -74,16 +64,11 @@ export const getJupiterSwapIxsForFlashloan = async ({
   });
 
   const feeMint =
-    quoteParams.swapMode === "ExactIn"
-      ? quoteParams.outputMint
-      : quoteParams.inputMint;
+    quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint;
   const feeAccount = getFeeAccount(new PublicKey(feeMint));
-  const hasFeeAccount = !!(await connection.getAccountInfo(
-    new PublicKey(feeAccount)
-  ));
-  const project0JupiterLut = (
-    await connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP)
-  )?.value;
+  const hasFeeAccount = !!(await connection.getAccountInfo(new PublicKey(feeAccount)));
+  const project0JupiterLut = (await connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP))
+    ?.value;
 
   let finalQuoteParams: QuoteGetRequest = quoteParams;
   // Ideally we shouldn't be checking this, slows the entire flow down by a rpc call
@@ -114,7 +99,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
         swapRequest: {
           quoteResponse: quote,
           userPublicKey: authority.toBase58(),
-          programAuthorityId: LUT_PROGRAM_AUTHORITY_INDEX,
+          programAuthorityId: JUP_SWAP_LUT_PROGRAM_AUTHORITY_INDEX,
           feeAccount: hasFeeAccount ? feeAccount : undefined,
           wrapAndUnwrapSol: false,
           destinationTokenAccount: destinationTokenAccount.toBase58(),
@@ -124,8 +109,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
   );
 
   const lutAddresses = swapInstructionResponses.map(
-    (swapInstructionResponse) =>
-      swapInstructionResponse.addressLookupTableAddresses
+    (swapInstructionResponse) => swapInstructionResponse.addressLookupTableAddresses
   );
 
   const lutAccountsRaw = await connection.getMultipleAccountsInfo(
@@ -153,10 +137,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
     const addressesEndIndex = addressesStartIndex + addressesLength;
     currentIndex = addressesEndIndex;
 
-    const lutAccounts = lutAccountsRaw.slice(
-      addressesStartIndex,
-      addressesEndIndex
-    );
+    const lutAccounts = lutAccountsRaw.slice(addressesStartIndex, addressesEndIndex);
 
     const addressLookupTableAccounts = lutAccounts
       .map((accountInfo, index) => {
@@ -175,9 +156,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
       .concat(project0JupiterLut ? [project0JupiterLut] : []);
 
     const instruction = deserializeJupiterInstruction(response.swapInstruction);
-    const setupInstructions = response.setupInstructions.map(
-      deserializeJupiterInstruction
-    );
+    const setupInstructions = response.setupInstructions.map(deserializeJupiterInstruction);
 
     jupiterSwapIxs.push({
       swapInstruction: instruction,

@@ -10,25 +10,18 @@ import {
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import {
-  Program,
-  SolanaTransaction,
-  TransactionType,
-  addTransactionMetadata,
-  bigNumberToWrappedI80F48,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
-
-import { MarginfiIdlType } from "~/idl";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
-import {
-  makeCrankSwbFeedIx,
-  makeUpdateSwbFeedIx,
-  OraclePrice,
-} from "~/services/price";
+import { makeCrankSwbFeedIx, makeUpdateSwbFeedIx, OraclePrice } from "~/services/price";
 import klendInstructions from "~/vendor/klend/instructions";
-import { simulateBundle } from "~/services/transaction";
+import {
+  addTransactionMetadata,
+  simulateBundle,
+  SolanaTransaction,
+  TransactionType,
+} from "~/services/transaction";
+import { ZERO_ORACLE_KEY } from "~/constants";
+import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
 
 import {
   BalanceType,
@@ -45,10 +38,9 @@ import {
   computeHealthComponentsWithoutBiasLegacy,
 } from "../utils";
 import { makePulseHealthIx } from "../actions";
-import { ZERO_ORACLE_KEY } from "~/constants";
 
 export async function simulateAccountHealthCacheWithFallback(props: {
-  program: Program<MarginfiIdlType>;
+  program: MarginfiProgram;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   marginfiAccount: MarginfiAccountType;
@@ -79,15 +71,11 @@ export async function simulateAccountHealthCacheWithFallback(props: {
       bankMetadataMap: props.bankMetadataMap,
     });
 
-    simulatedAccount.healthCache.assetValueEquity =
-      bigNumberToWrappedI80F48(assetValueEquity);
+    simulatedAccount.healthCache.assetValueEquity = bigNumberToWrappedI80F48(assetValueEquity);
     simulatedAccount.healthCache.liabilityValueEquity =
       bigNumberToWrappedI80F48(liabilityValueEquity);
 
-    marginfiAccount = parseMarginfiAccountRaw(
-      props.marginfiAccount.address,
-      simulatedAccount
-    );
+    marginfiAccount = parseMarginfiAccountRaw(props.marginfiAccount.address, simulatedAccount);
   } catch (e) {
     console.log("e", e);
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
@@ -131,14 +119,13 @@ export async function simulateAccountHealthCacheWithFallback(props: {
 }
 
 export async function simulateAccountHealthCache(props: {
-  program: Program<MarginfiIdlType>;
+  program: MarginfiProgram;
   bankMap: Map<string, BankType>;
   marginfiAccountPk: PublicKey;
   balances: BalanceType[];
   bankMetadataMap?: BankIntegrationMetadataMap;
 }): Promise<MarginfiAccountRaw> {
-  const { program, bankMap, marginfiAccountPk, balances, bankMetadataMap } =
-    props;
+  const { program, bankMap, marginfiAccountPk, balances, bankMetadataMap } = props;
 
   const activeBalances = balances.filter((b) => b.active);
 
@@ -148,9 +135,7 @@ export async function simulateAccountHealthCache(props: {
     .map((balance) => bankMap.get(balance.bankPk.toBase58()))
     .filter((bank): bank is NonNullable<typeof bank> => !!bank);
 
-  const kaminoBanks = activeBanks.filter(
-    (bank) => bank.config.assetTag === AssetTag.KAMINO
-  );
+  const kaminoBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
 
   const staleSwbOracles = activeBanks
     .filter(
@@ -164,9 +149,7 @@ export async function simulateAccountHealthCache(props: {
   const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_400_000,
   });
-  const blockhash = (
-    await program.provider.connection.getLatestBlockhash("confirmed")
-  ).blockhash;
+  const blockhash = (await program.provider.connection.getLatestBlockhash("confirmed")).blockhash;
 
   const fundAccountIx = SystemProgram.transfer({
     fromPubkey: new PublicKey("DD3AeAssFvjqTvRTrRAtpfjkBF8FpVKnFuwnMLN9haXD"), // marginfi SOL VAULT
@@ -178,15 +161,12 @@ export async function simulateAccountHealthCache(props: {
     .map((bank) => {
       const bankMetadata = bankMetadataMap?.[bank.address.toBase58()];
       if (!bankMetadata?.kaminoStates) {
-        console.error(
-          `Bank metadata for kamino bank ${bank.address.toBase58()} not found`
-        );
+        console.error(`Bank metadata for kamino bank ${bank.address.toBase58()} not found`);
         return;
       }
 
       const kaminoReserve = bank.kaminoReserve;
-      const lendingMarket =
-        bankMetadata.kaminoStates.reserveState.lendingMarket;
+      const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
       return {
         reserve: kaminoReserve,
@@ -197,8 +177,7 @@ export async function simulateAccountHealthCache(props: {
 
   const refreshReservesIxs = [];
   if (refreshReserveData.length > 0) {
-    const refreshIx =
-      klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
+    const refreshIx = klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
     refreshReservesIxs.push(refreshIx);
   }
 
@@ -259,11 +238,9 @@ export async function simulateAccountHealthCache(props: {
     throw new Error("Too many transactions");
   }
 
-  const simulationResult = await simulateBundle(
-    program.provider.connection.rpcEndpoint,
-    txs,
-    [marginfiAccountPk]
-  );
+  const simulationResult = await simulateBundle(program.provider.connection.rpcEndpoint, txs, [
+    marginfiAccountPk,
+  ]);
 
   const postExecutionAccount = simulationResult.find(
     (result) => result.postExecutionAccounts.length > 0
@@ -274,17 +251,11 @@ export async function simulateAccountHealthCache(props: {
   }
 
   const marginfiAccountPost = decodeAccountRaw(
-    Buffer.from(
-      postExecutionAccount.postExecutionAccounts[0].data[0],
-      "base64"
-    ),
+    Buffer.from(postExecutionAccount.postExecutionAccounts[0].data[0], "base64"),
     program.idl
   );
 
-  if (
-    marginfiAccountPost.healthCache.mrgnErr ||
-    marginfiAccountPost.healthCache.internalErr
-  ) {
+  if (marginfiAccountPost.healthCache.mrgnErr || marginfiAccountPost.healthCache.internalErr) {
     console.log(
       "cranked swb oracles",
       staleSwbOracles.map((oracle) => oracle.oracleKey)
@@ -293,10 +264,7 @@ export async function simulateAccountHealthCache(props: {
       "MarginfiAccountPost healthCache internalErr",
       marginfiAccountPost.healthCache.internalErr
     );
-    console.log(
-      "MarginfiAccountPost healthCache mrgnErr",
-      marginfiAccountPost.healthCache.mrgnErr
-    );
+    console.log("MarginfiAccountPost healthCache mrgnErr", marginfiAccountPost.healthCache.mrgnErr);
 
     if (marginfiAccountPost.healthCache.mrgnErr === 6009) {
       const assetValue = !wrappedI80F48toBigNumber(
@@ -392,9 +360,7 @@ export async function getHealthSimulationTransactions({
 
   // Convert to string sets for easier comparison
   const activeBankStrings = new Set(activeBanks.map((pk) => pk.toString()));
-  const projectedActiveBankStrings = new Set(
-    projectedActiveBanks.map((pk) => pk.toString())
-  );
+  const projectedActiveBankStrings = new Set(projectedActiveBanks.map((pk) => pk.toString()));
 
   // if active bank is not in projectedActiveBanks, it should be excluded
   const excludedBanks: PublicKey[] = activeBanks.filter(
@@ -412,17 +378,12 @@ export async function getHealthSimulationTransactions({
       const bankMetadata = bankMetadataMap?.[bankPk.toBase58()];
       const bank = bankMap.get(bankPk.toBase58());
 
-      if (
-        !bankMetadata?.kaminoStates ||
-        !bank ||
-        bank.config.assetTag !== AssetTag.KAMINO
-      ) {
+      if (!bankMetadata?.kaminoStates || !bank || bank.config.assetTag !== AssetTag.KAMINO) {
         return;
       }
 
       const kaminoReserve = bank.kaminoReserve;
-      const lendingMarket =
-        bankMetadata.kaminoStates.reserveState.lendingMarket;
+      const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
       return {
         reserve: kaminoReserve,
@@ -433,8 +394,7 @@ export async function getHealthSimulationTransactions({
 
   const refreshReservesIx: TransactionInstruction[] = [];
   if (refreshReserveData.length > 0) {
-    const refreshIx =
-      klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
+    const refreshIx = klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
     refreshReservesIx.push(refreshIx);
   }
 

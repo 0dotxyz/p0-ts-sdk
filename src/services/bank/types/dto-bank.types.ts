@@ -1,4 +1,4 @@
-import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { WrappedI80F48 } from "~/types";
 
 import {
   AssetTag,

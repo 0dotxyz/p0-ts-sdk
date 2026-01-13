@@ -1,9 +1,4 @@
 import {
-  Amount,
-  BankMetadataMap,
-  SolanaTransaction,
-} from "@mrgnlabs/mrgn-common";
-import {
   AddressLookupTableAccount,
   Connection,
   PublicKey,
@@ -11,11 +6,13 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { BankType } from "~/services/bank";
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { BalanceType, MarginfiAccountType } from "./account.types";
 import { ReserveRaw } from "~/vendor/klend";
+import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
+import { SolanaTransaction } from "~/services/transaction";
+import { Amount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+
+import { MarginfiAccountType } from "./account.types";
 
 export interface MakeDepositIxOpts {
   wrapAndUnwrapSol?: boolean;
@@ -160,7 +157,6 @@ export interface MakeBorrowIxParams {
   amount: Amount;
   marginfiAccount: MarginfiAccountType;
   authority: PublicKey;
-  bankMetadataMap: BankIntegrationMetadataMap;
   isSync?: boolean;
   opts?: MakeBorrowIxOpts;
 }
@@ -168,6 +164,7 @@ export interface MakeBorrowIxParams {
 export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }

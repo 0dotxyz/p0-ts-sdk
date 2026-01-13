@@ -11,28 +11,19 @@ import {
 
 import {
   addTransactionMetadata,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   ExtendedV0Transaction,
   getAccountKeys,
-  getAssociatedTokenAddressSync,
   getTxSize,
   InstructionsWrapper,
-  MAX_TX_SIZE,
-  NATIVE_MINT,
-  nativeToUi,
+  makeWrapSolIxs,
   splitInstructionsToFitTransactions,
-  TOKEN_2022_PROGRAM_ID,
   TransactionType,
-  uiToNative,
-} from "@mrgnlabs/mrgn-common";
-
-import { makeWrapSolIxs } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-} from "~/services/price";
+} from "~/services/transaction";
+import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
+import { MAX_TX_SIZE } from "~/constants";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 
 import { getJupiterSwapIxsForFlashloan } from "../utils";
 import { MakeLoopTxParams } from "../types";
@@ -41,6 +32,8 @@ import { makeDepositIx, makeKaminoDepositIx } from "./deposit";
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
+import { getAssociatedTokenAddressSync, NATIVE_MINT } from "~/vendor/spl";
+import { nativeToUi, uiToNative } from "~/utils";
 
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
@@ -61,8 +54,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     additionalIxs = [],
   } = params;
 
-  const blockhash = (await connection.getLatestBlockhash("confirmed"))
-    .blockhash;
+  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
   const setupIxs = await makeSetupIx({
     connection,
@@ -86,17 +78,11 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     bankMetadataMap
   );
 
-  const {
-    flashloanTx,
-    setupInstructions,
-    swapQuote,
-    amountToDeposit,
-    depositIxs,
-    borrowIxs,
-  } = await buildLoopFlashloanTx({
-    ...params,
-    blockhash,
-  });
+  const { flashloanTx, setupInstructions, swapQuote, amountToDeposit, depositIxs, borrowIxs } =
+    await buildLoopFlashloanTx({
+      ...params,
+      blockhash,
+    });
 
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
     // filter out compute budget instructions
@@ -121,43 +107,28 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } =
-    await makeSmartCrankSwbFeedIx({
-      marginfiAccount,
-      bankMap,
-      oraclePrices,
-      instructions: [...borrowIxs.instructions, ...depositIxs.instructions],
-      program,
-      connection,
-      crossbarUrl,
-    });
+  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
+    marginfiAccount,
+    bankMap,
+    oraclePrices,
+    instructions: [...borrowIxs.instructions, ...depositIxs.instructions],
+    program,
+    connection,
+    crossbarUrl,
+  });
 
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // wrap sol if needed
-  if (
-    depositOpts.depositBank.mint.equals(NATIVE_MINT) &&
-    depositOpts.inputDepositAmount
-  ) {
+  if (depositOpts.depositBank.mint.equals(NATIVE_MINT) && depositOpts.inputDepositAmount) {
     setupIxs.push(
-      ...makeWrapSolIxs(
-        marginfiAccount.authority,
-        new BigNumber(depositOpts.inputDepositAmount)
-      )
+      ...makeWrapSolIxs(marginfiAccount.authority, new BigNumber(depositOpts.inputDepositAmount))
     );
   }
 
   // if atas are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    additionalIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0
-  ) {
-    const ixs = [
-      ...additionalIxs,
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-    ];
+  if (setupIxs.length > 0 || additionalIxs.length > 0 || kaminoRefreshIxs.instructions.length > 0) {
+    const ixs = [...additionalIxs, ...setupIxs, ...kaminoRefreshIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -229,9 +200,7 @@ async function buildLoopFlashloanTx({
     swapResult.push({
       amountToDeposit:
         borrowOpts.borrowAmount +
-        (depositOpts.loopMode === "DEPOSIT"
-          ? depositOpts.inputDepositAmount
-          : 0),
+        (depositOpts.loopMode === "DEPOSIT" ? depositOpts.inputDepositAmount : 0),
       swapInstructions: [],
       setupInstructions: [],
       swapLookupTables: [],
@@ -241,19 +210,14 @@ async function buildLoopFlashloanTx({
       new PublicKey(depositOpts.depositBank.mint),
       marginfiAccount.authority,
       true,
-      depositOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-        ? TOKEN_2022_PROGRAM_ID
-        : undefined
+      depositOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
     );
     // Get Jupiter swap instruction using calculated available TX size
     const swapResponse = await getJupiterSwapIxsForFlashloan({
       quoteParams: {
         inputMint: borrowOpts.borrowBank.mint.toBase58(),
         outputMint: depositOpts.depositBank.mint.toBase58(),
-        amount: uiToNative(
-          borrowOpts.borrowAmount,
-          borrowOpts.borrowBank.mintDecimals
-        ).toNumber(),
+        amount: uiToNative(borrowOpts.borrowAmount, borrowOpts.borrowBank.mintDecimals).toNumber(),
         dynamicSlippage: swapOpts.jupiterOptions
           ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
           : true,
@@ -275,9 +239,7 @@ async function buildLoopFlashloanTx({
 
       const amountToDeposit =
         outAmountThreshold +
-        (depositOpts.loopMode === "DEPOSIT"
-          ? depositOpts.inputDepositAmount
-          : 0);
+        (depositOpts.loopMode === "DEPOSIT" ? depositOpts.inputDepositAmount : 0);
 
       swapResult.push({
         amountToDeposit,
@@ -297,7 +259,6 @@ async function buildLoopFlashloanTx({
     amount: borrowOpts.borrowAmount,
     marginfiAccount,
     authority: marginfiAccount.authority,
-    bankMetadataMap,
     isSync: true,
     opts: {
       createAtas: false,
@@ -319,8 +280,7 @@ async function buildLoopFlashloanTx({
 
     if (depositOpts.depositBank.config.assetTag === AssetTag.KAMINO) {
       const reserve =
-        bankMetadataMap[depositOpts.depositBank.address.toBase58()]
-          ?.kaminoStates?.reserveState;
+        bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.kaminoStates?.reserveState;
 
       if (!reserve) {
         throw TransactionBuildingError.kaminoReserveNotFound(
@@ -391,10 +351,7 @@ async function buildLoopFlashloanTx({
 
     if (txSize > MAX_TX_SIZE || keySize > 64) {
       if (isLast) {
-        throw TransactionBuildingError.jupiterSwapSizeExceededLoop(
-          txSize,
-          keySize
-        );
+        throw TransactionBuildingError.jupiterSwapSizeExceededLoop(txSize, keySize);
       } else {
         continue;
       }

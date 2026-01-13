@@ -1,17 +1,9 @@
 import BN from "bn.js";
 import BigNumber from "bignumber.js";
 
-import { median } from "@mrgnlabs/mrgn-common";
-
-import {
-  FeedResponse,
-  SWITCHBOARD_ONDEMANDE_PRICE_PRECISION,
-} from "~/vendor/switchboard_pull";
+import { FeedResponse, SWITCHBOARD_ONDEMANDE_PRICE_PRECISION } from "~/vendor/switchboard_pull";
 import { BankType } from "~/services/bank";
-import {
-  MAX_CONFIDENCE_INTERVAL_RATIO,
-  SWB_PRICE_CONF_INTERVALS,
-} from "~/constants";
+import { MAX_CONFIDENCE_INTERVAL_RATIO, SWB_PRICE_CONF_INTERVALS } from "~/constants";
 
 import { capConfidenceInterval } from "./compute.utils";
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
@@ -111,12 +103,8 @@ export function parseSwbOraclePriceData(
 ): OraclePrice {
   const swbPrice = Array.isArray(price)
     ? new BigNumber(median(price))
-    : new BigNumber(price.toString()).div(
-        10 ** SWITCHBOARD_ONDEMANDE_PRICE_PRECISION
-      );
-  const swbConfidence = new BigNumber(stdDev.toString()).times(
-    SWB_PRICE_CONF_INTERVALS
-  );
+    : new BigNumber(price.toString()).div(10 ** SWITCHBOARD_ONDEMANDE_PRICE_PRECISION);
+  const swbConfidence = new BigNumber(stdDev.toString()).times(SWB_PRICE_CONF_INTERVALS);
   const swbConfidenceCapped = capConfidenceInterval(
     swbPrice,
     swbConfidence,
@@ -141,4 +129,18 @@ export function parseSwbOraclePriceData(
     timestamp: new BigNumber(timestamp),
     switchboardData: oracleData,
   };
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) {
+    throw new Error("Input array is empty");
+  }
+
+  // Sorting values, preventing original array
+  // from being mutated.
+  values = [...values].sort((a, b) => a - b);
+
+  const half = Math.floor(values.length / 2);
+
+  return values.length % 2 ? values[half] : (values[half - 1] + values[half]) / 2;
 }

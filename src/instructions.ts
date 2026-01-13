@@ -1,10 +1,9 @@
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { TOKEN_PROGRAM_ID } from "@mrgnlabs/mrgn-common";
-
 import { MarginfiProgram } from "./types";
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
+import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
 async function makeInitMarginfiAccountIx(
   mfProgram: MarginfiProgram,
@@ -15,10 +14,7 @@ async function makeInitMarginfiAccountIx(
     feePayer: PublicKey;
   }
 ) {
-  return mfProgram.methods
-    .marginfiAccountInitialize()
-    .accounts(accounts)
-    .instruction();
+  return mfProgram.methods.marginfiAccountInitialize().accounts(accounts).instruction();
 }
 
 async function makeInitMarginfiAccountPdaIx(
@@ -119,13 +115,7 @@ async function makeDepositIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const {
-    marginfiAccount,
-    signerTokenAccount,
-    bank,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
 
   return mfProgram.methods
     .lendingAccountDeposit(args.amount, args.depositUpToLimit ?? null)
@@ -159,13 +149,7 @@ async function makeRepayIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const {
-    marginfiAccount,
-    signerTokenAccount,
-    bank,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
 
   return mfProgram.methods
     .lendingAccountRepay(args.amount, args.repayAll ?? null)
@@ -263,13 +247,8 @@ async function makeWithdrawIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const {
-    marginfiAccount,
-    bank,
-    destinationTokenAccount,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
+    accounts;
 
   return mfProgram.methods
     .lendingAccountWithdraw(args.amount, args.withdrawAll ?? null)
@@ -301,13 +280,8 @@ async function makeBorrowIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const {
-    marginfiAccount,
-    bank,
-    destinationTokenAccount,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
+    accounts;
 
   return mfProgram.methods
     .lendingAccountBorrow(args.amount)
@@ -352,11 +326,7 @@ function makeLendingAccountLiquidateIx(
   } = accounts;
 
   return mfiProgram.methods
-    .lendingAccountLiquidate(
-      args.assetAmount,
-      args.liquidateeAccounts,
-      args.liquidatorAccounts
-    )
+    .lendingAccountLiquidate(args.assetAmount, args.liquidateeAccounts, args.liquidatorAccounts)
     .accounts({
       assetBank,
       liabBank,
@@ -383,13 +353,7 @@ function makelendingAccountWithdrawEmissionIx(
     emissionsMint?: PublicKey;
   }
 ) {
-  const {
-    marginfiAccount,
-    destinationAccount,
-    bank,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiAccount, destinationAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
 
   return mfiProgram.methods
     .lendingAccountWithdrawEmissions()
@@ -486,13 +450,8 @@ async function makeAccountTransferToNewAccountIx(
     authority?: PublicKey;
   }
 ) {
-  const {
-    oldMarginfiAccount,
-    newMarginfiAccount,
-    newAuthority,
-    feePayer,
-    ...optionalAccounts
-  } = accounts;
+  const { oldMarginfiAccount, newMarginfiAccount, newAuthority, feePayer, ...optionalAccounts } =
+    accounts;
 
   return mfProgram.methods
     .transferToNewAccount()
@@ -650,14 +609,7 @@ async function makePoolAddBankIx(
     bankConfig: BankConfigCompactRaw;
   }
 ) {
-  const {
-    marginfiGroup,
-    feePayer,
-    bankMint,
-    bank,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
+  const { marginfiGroup, feePayer, bankMint, bank, tokenProgram, ...optionalAccounts } = accounts;
 
   return mfProgram.methods
     .lendingPoolAddBank({

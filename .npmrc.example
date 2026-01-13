@@ -1,0 +1,15 @@
+# NPM Publishing Configuration
+# 
+# To publish without 2FA, create an automation token:
+#
+# 1. Go to https://www.npmjs.com/settings/YOUR_USERNAME/tokens
+# 2. Click "Generate New Token"
+# 3. Select "Automation" token type (bypasses 2FA)
+# 4. Copy the token
+# 5. Create .npmrc in this directory:
+#
+#    //registry.npmjs.org/:_authToken=npm_XXXXXXXXXXXXXXXXXXXX
+#
+# Then run: pnpm changeset publish
+
+//registry.npmjs.org/:_authToken=YOUR_TOKEN_HERE

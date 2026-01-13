@@ -7,20 +7,26 @@ import {
   Transaction,
   Blockhash,
 } from "@solana/web3.js";
-import {
-  isV0Tx,
-  decompileV0Transaction,
-  decodeInstruction,
-  getTxSize,
-  SolanaTransaction,
-} from "@mrgnlabs/mrgn-common";
 
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
+import { MAX_TX_SIZE } from "~/constants";
 
-// Temporary imports
-export const MAX_TX_SIZE = 1232;
-export const BUNDLE_TX_SIZE = 81;
-export const PRIORITY_TX_SIZE = 44;
+import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
+
+import { decodeInstruction, decompileV0Transaction } from "./decode";
+import { getTxSize } from "./tx-size";
+
+/**
+ * Determines if a given transaction is a VersionedTransaction.
+ * This function checks for the presence of a 'message' property to identify
+ * if the transaction is of type VersionedTransaction.
+ *
+ * @param tx - The transaction object, which can be either a VersionedTransaction or a Transaction.
+ * @returns A boolean indicating whether the transaction is a VersionedTransaction.
+ */
+export function isV0Tx(tx: Transaction | VersionedTransaction): tx is VersionedTransaction {
+  return "message" in tx;
+}
 
 export function isFlashloan(tx: SolanaTransaction): boolean {
   if (isV0Tx(tx)) {
@@ -30,30 +36,12 @@ export function isFlashloan(tx: SolanaTransaction): boolean {
       ...MARGINFI_IDL,
       address: new PublicKey(0),
     } as unknown as MarginfiIdlType;
-    const decoded = message.instructions.map((ix) =>
-      decodeInstruction(idl, ix.data)
-    );
+    const decoded = message.instructions.map((ix) => decodeInstruction(idl, ix.data));
     return decoded.some((ix) => ix?.name.toLowerCase().includes("flashloan"));
   }
   //TODO: add legacy tx check
   return false;
 }
-
-function getFlashloanIndex(transactions: SolanaTransaction[]): number | null {
-  for (const [index, transaction] of transactions.entries()) {
-    if (isFlashloan(transaction)) {
-      return index;
-    }
-  }
-  return null;
-}
-
-type FeeSettings = {
-  priorityFeeMicro: number;
-  bundleTipUi: number;
-  feePayer: PublicKey;
-  maxCapUi?: number;
-};
 
 export async function makeVersionedTransaction(
   blockhash: Blockhash,
@@ -140,4 +128,22 @@ export function splitInstructionsToFitTransactions(
   }
 
   return result;
+}
+
+/**
+ * Enhances a given transaction with additional metadata.
+ *
+ * @param transaction - The transaction to be enhanced, can be either VersionedTransaction or Transaction.
+ * @param options - An object containing optional metadata:
+ *   - signers: An array of Signer objects that are associated with the transaction.
+ *   - addressLookupTables: An array of AddressLookupTableAccount objects for address resolution.
+ *   - unitsConsumed: A number representing the compute units consumed by the transaction.
+ *   - type: The type of the transaction, as defined by TransactionType.
+ * @returns A SolanaTransaction object that includes the original transaction and the additional metadata.
+ */
+export function addTransactionMetadata<T extends Transaction | VersionedTransaction>(
+  transaction: T,
+  options: ExtendedTransactionProperties
+): T & ExtendedTransactionProperties {
+  return Object.assign(transaction, options);
 }

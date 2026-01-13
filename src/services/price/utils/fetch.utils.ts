@@ -1,7 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { BankMetadata } from "@mrgnlabs/mrgn-common";
-
 import { BankRaw } from "~/services/bank";
 
 /**
@@ -39,14 +37,13 @@ import { BankRaw } from "~/services/bank";
  */
 const convertVoteAccCoeffsToBankCoeffs = (
   pythStakedCollateralBanks: { address: PublicKey; data: BankRaw }[],
-  bankMetadataMap: { [address: string]: BankMetadata },
+  bankMetadataMap: { [address: string]: any },
   voteAccCoeffs: Record<string, number>
 ): Record<string, number> => {
   const priceCoeffByBank: Record<string, number> = {};
 
   pythStakedCollateralBanks.forEach((bank) => {
-    const voteAccount =
-      bankMetadataMap[bank.address.toBase58()]?.validatorVoteAccount;
+    const voteAccount = bankMetadataMap[bank.address.toBase58()]?.validatorVoteAccount;
     if (voteAccount && voteAccCoeffs[voteAccount] !== undefined) {
       priceCoeffByBank[bank.address.toBase58()] = voteAccCoeffs[voteAccount];
     }

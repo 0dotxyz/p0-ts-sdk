@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { WrappedI80F48 } from "~/types";
 
 // ----------------------------------------------------------------------------
 // On-chain types
@@ -107,11 +107,10 @@ interface BankConfigOptRaw {
   tokenlessRepaymentsAllowed: boolean | null;
 }
 
-interface BankConfigCompactRaw
-  extends Omit<
-    BankConfigRaw,
-    "oracleKeys" | "oracleSetup" | "fixedPrice" | "interestRateConfig"
-  > {
+interface BankConfigCompactRaw extends Omit<
+  BankConfigRaw,
+  "oracleKeys" | "oracleSetup" | "fixedPrice" | "interestRateConfig"
+> {
   interestRateConfig: InterestRateConfigCompactRaw;
 }
 
@@ -147,14 +146,10 @@ interface InterestRateConfigRaw {
   curveType: number;
 }
 
-interface InterestRateConfigCompactRaw
-  extends Omit<
-    InterestRateConfigRaw,
-    | "optimalUtilizationRate"
-    | "plateauInterestRate"
-    | "maxInterestRate"
-    | "curveType"
-  > {}
+interface InterestRateConfigCompactRaw extends Omit<
+  InterestRateConfigRaw,
+  "optimalUtilizationRate" | "plateauInterestRate" | "maxInterestRate" | "curveType"
+> {}
 
 interface InterestRateConfigOptRaw extends InterestRateConfigCompactRaw {}
 

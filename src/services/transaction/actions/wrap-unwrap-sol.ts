@@ -1,27 +1,18 @@
-import {
-  PublicKey,
-  SystemProgram,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
+import { uiToNative } from "~/utils";
+
 import {
-  NATIVE_MINT,
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
-  uiToNative,
-} from "@mrgnlabs/mrgn-common";
+  NATIVE_MINT,
+} from "~/vendor/spl";
 
-export function makeUnwrapSolIx(
-  walletAddress: PublicKey
-): TransactionInstruction {
-  const address = getAssociatedTokenAddressSync(
-    NATIVE_MINT,
-    walletAddress,
-    true
-  ); // We allow off curve addresses here to support Fuse.
+export function makeUnwrapSolIx(walletAddress: PublicKey): TransactionInstruction {
+  const address = getAssociatedTokenAddressSync(NATIVE_MINT, walletAddress, true); // We allow off curve addresses here to support Fuse.
   return createCloseAccountInstruction(address, walletAddress, walletAddress);
 }
 
@@ -29,11 +20,7 @@ export function makeWrapSolIxs(
   walletAddress: PublicKey,
   amount: BigNumber
 ): TransactionInstruction[] {
-  const address = getAssociatedTokenAddressSync(
-    NATIVE_MINT,
-    walletAddress,
-    true
-  );
+  const address = getAssociatedTokenAddressSync(NATIVE_MINT, walletAddress, true);
   const ixs = [
     createAssociatedTokenAccountIdempotentInstruction(
       walletAddress,

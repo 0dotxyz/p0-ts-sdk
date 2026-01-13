@@ -7,30 +7,23 @@ import {
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
+import { deriveUserState, FARMS_PROGRAM_ID, getAllDerivedKaminoAccounts } from "~/vendor/klend";
 import {
-  InstructionsWrapper,
-  getAssociatedTokenAddressSync,
   createAssociatedTokenAccountIdempotentInstruction,
-  uiToNative,
+  getAssociatedTokenAddressSync,
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
-  ExtendedV0Transaction,
-  addTransactionMetadata,
-  TransactionType,
-} from "@mrgnlabs/mrgn-common";
-
-import {
-  deriveUserState,
-  FARMS_PROGRAM_ID,
-  getAllDerivedKaminoAccounts,
-} from "~/vendor/klend";
+} from "~/vendor/spl";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
-import { makeUnwrapSolIx } from "~/services/transaction";
 import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-} from "~/services/price";
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeUnwrapSolIx,
+  TransactionType,
+} from "~/services/transaction";
+import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 
 import {
   MakeKaminoWithdrawIxParams,
@@ -39,10 +32,9 @@ import {
   TransactionBuilderResult,
   MakeKaminoWithdrawTxParams,
 } from "../types";
-import {
-  computeHealthCheckAccounts,
-  computeHealthAccountMetas,
-} from "../utils";
+import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
+
+import { uiToNative } from "~/utils";
 
 export async function makeKaminoWithdrawIx({
   program,
@@ -62,38 +54,22 @@ export async function makeKaminoWithdrawIx({
   const withdrawIxs: TransactionInstruction[] = [];
   const remainingAccounts: PublicKey[] = [];
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   if (createAtas) {
-    const createAtaIdempotentIx =
-      createAssociatedTokenAccountIdempotentInstruction(
-        authority,
-        userTokenAtaPk,
-        authority,
-        bank.mint,
-        tokenProgram
-      );
+    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+      authority,
+      userTokenAtaPk,
+      authority,
+      bank.mint,
+      tokenProgram
+    );
     withdrawIxs.push(createAtaIdempotentIx);
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(
-        marginfiAccount.balances,
-        bankMap,
-        [],
-        [bank.address]
-      )
-    : computeHealthCheckAccounts(
-        marginfiAccount.balances,
-        bankMap,
-        [bank.address],
-        []
-      );
+    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
+    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
 
   const lendingMarket = reserve.lendingMarket;
 
@@ -131,8 +107,7 @@ export async function makeKaminoWithdrawIx({
         {
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
           marginfiAccount: marginfiAccount.address,
-          authority:
-            opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           bank: bank.address,
           destinationTokenAccount: userTokenAtaPk,
 
@@ -179,8 +154,7 @@ export async function makeKaminoWithdrawIx({
           obligationFarmUserState: userFarmState,
           reserveFarmState: reserveFarm,
 
-          authority:
-            opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
         },
         {
@@ -223,38 +197,22 @@ export async function makeWithdrawIx({
 
   const withdrawIxs = [];
 
-  const userAta = getAssociatedTokenAddressSync(
-    bank.mint,
-    authority,
-    true,
-    tokenProgram
-  ); // We allow off curve addresses here to support Fuse.
+  const userAta = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
   if (createAtas) {
-    const createAtaIdempotentIx =
-      createAssociatedTokenAccountIdempotentInstruction(
-        authority,
-        userAta,
-        authority,
-        bank.mint,
-        tokenProgram
-      );
+    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+      authority,
+      userAta,
+      authority,
+      bank.mint,
+      tokenProgram
+    );
     withdrawIxs.push(createAtaIdempotentIx);
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(
-        marginfiAccount.balances,
-        bankMap,
-        [],
-        [bank.address]
-      )
-    : computeHealthCheckAccounts(
-        marginfiAccount.balances,
-        bankMap,
-        [bank.address],
-        []
-      );
+    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
+    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
 
   // Add withdraw-related instructions
   const remainingAccounts: PublicKey[] = [];
@@ -274,8 +232,7 @@ export async function makeWithdrawIx({
         {
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
           marginfiAccount: marginfiAccount.address,
-          authority:
-            opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           bank: bank.address,
           destinationTokenAccount: userAta,
           tokenProgram: tokenProgram,
@@ -294,8 +251,7 @@ export async function makeWithdrawIx({
           bank: bank.address,
           destinationTokenAccount: userAta,
           tokenProgram: tokenProgram,
-          authority:
-            opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
         },
         { amount: uiToNative(amount, bank.mintDecimals), withdrawAll },
@@ -333,16 +289,15 @@ export async function makeWithdrawTx(
   const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
 
   if (hasLiabilities) {
-    const { instructions: _updateFeedIxs, luts: _feedLuts } =
-      await makeSmartCrankSwbFeedIx({
-        marginfiAccount: params.marginfiAccount,
-        bankMap: params.bankMap,
-        oraclePrices: params.oraclePrices,
-        instructions: withdrawIxs.instructions,
-        program: params.program,
-        connection: params.connection,
-        crossbarUrl: params.crossbarUrl,
-      });
+    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
+      marginfiAccount: params.marginfiAccount,
+      bankMap: params.bankMap,
+      oraclePrices: params.oraclePrices,
+      instructions: withdrawIxs.instructions,
+      program: params.program,
+      connection: params.connection,
+      crossbarUrl: params.crossbarUrl,
+    });
     updateFeedIxs = _updateFeedIxs;
     feedLuts = _feedLuts;
   }
@@ -427,16 +382,15 @@ export async function makeKaminoWithdrawTx(
     ...withdrawIxParams,
   });
 
-  const { instructions: updateFeedIxs, luts: feedLuts } =
-    await makeSmartCrankSwbFeedIx({
-      marginfiAccount: params.marginfiAccount,
-      bankMap: params.bankMap,
-      oraclePrices: params.oraclePrices,
-      instructions: withdrawIxs.instructions,
-      program: params.program,
-      connection: params.connection,
-      crossbarUrl: params.crossbarUrl,
-    });
+  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
+    marginfiAccount: params.marginfiAccount,
+    bankMap: params.bankMap,
+    oraclePrices: params.oraclePrices,
+    instructions: withdrawIxs.instructions,
+    program: params.program,
+    connection: params.connection,
+    crossbarUrl: params.crossbarUrl,
+  });
 
   const {
     value: { blockhash },

@@ -6,12 +6,7 @@ import {
 } from "@solana/web3.js";
 import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import {
-  AnchorUtils,
-  Gateway,
-  PullFeed,
-  PullFeedAccountData,
-} from "@switchboard-xyz/on-demand";
+import { AnchorUtils, Gateway, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -33,9 +28,7 @@ type MakeSmartCrankSwbFeedIxParams = {
   crossbarUrl?: string;
 };
 
-export async function makeSmartCrankSwbFeedIx(
-  params: MakeSmartCrankSwbFeedIxParams
-): Promise<{
+export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxParams): Promise<{
   instructions: TransactionInstruction[];
   luts: AddressLookupTableAccount[];
 }> {
@@ -159,9 +152,7 @@ export async function makeUpdateSwbFeedIx(props: {
   });
 
   // latest swb intergation
-  const swbProgram = await AnchorUtils.loadProgramFromConnection(
-    props.connection
-  );
+  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
@@ -184,8 +175,7 @@ export async function makeUpdateSwbFeedIx(props: {
   }
 
   const crossbarClient = new CrossbarClient(
-    process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API ||
-      "https://integrator-crossbar.prod.mrgn.app"
+    process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
   const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
