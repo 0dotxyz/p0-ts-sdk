@@ -1,0 +1,22 @@
+[
+  {
+    "label": "production",
+    "program": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+    "group": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"
+  },
+  {
+    "label": "staging",
+    "program": "stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct",
+    "group": "FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo"
+  },
+  {
+    "label": "staging-mainnet-clone",
+    "program": "stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct",
+    "group": "Diu1q9gniR1qR4Daaej3rcHd6949HMmxLGsnQ94Z3rLz"
+  },
+  {
+    "label": "staging-alt",
+    "program": "5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY",
+    "group": "ERBiJdWtnVBBd4gFm7YVHT3a776x5NbGbJBR5BDvsxtj"
+  }
+]

@@ -1,0 +1,16 @@
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+*.js
+*.d.ts
+!config.d.ts
+
+# OS files
+.DS_Store
