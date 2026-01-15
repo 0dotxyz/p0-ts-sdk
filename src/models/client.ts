@@ -13,9 +13,17 @@ import { ADDRESS_LOOKUP_TABLE_FOR_GROUP } from "~/constants";
 import { fetchOracleData, OraclePrice } from "~/services/price";
 import { fetchProgramForMints } from "~/services/misc";
 import { fetchBankIntegrationMetadata } from "~/services/integration";
+import {
+  makeCreateMarginfiAccountTx,
+  makeCreateAccountIxWithProjection,
+  fetchMarginfiAccountAddresses,
+  fetchMarginfiAccountData,
+} from "~/services/account";
 
 import { MarginfiGroup } from "./group";
 import { Bank } from "./bank";
+import { MarginfiAccount } from "./account";
+import { MarginfiAccountWrapper } from "./account-wrapper";
 import { AssetTag } from "../services";
 
 export class Project0Client {
@@ -72,6 +80,100 @@ export class Project0Client {
       }
       return mintMatches;
     });
+  }
+
+  /**
+   * Creates a transaction to initialize a new marginfi account.
+   *
+   * @param authority - The authority public key for the new account
+   * @param accountIndex - The account index (default: 0)
+   * @param thirdPartyId - Optional third party identifier
+   * @returns A transaction ready to be signed and sent
+   */
+  async createMarginfiAccountTx(
+    authority: PublicKey,
+    accountIndex: number = 0,
+    thirdPartyId?: number
+  ) {
+    return makeCreateMarginfiAccountTx(
+      this.program,
+      authority,
+      this.group.address,
+      this.addressLookupTables,
+      accountIndex,
+      thirdPartyId
+    );
+  }
+
+  /**
+   * Creates a marginfi account instruction with a projected account wrapper.
+   *
+   * Returns a wrapped account instance that can be used for building transactions
+   * before the account actually exists on-chain. Useful for composing multiple
+   * operations including account creation in a single flow.
+   *
+   * @param authority - The authority public key for the new account
+   * @param accountIndex - The account index (default: 0)
+   * @param thirdPartyId - Optional third party identifier
+   * @returns Object containing the wrapped account and creation instruction
+   */
+  async createMarginfiAccountWithProjection(
+    authority: PublicKey,
+    accountIndex: number = 0,
+    thirdPartyId?: number
+  ) {
+    const { account, ix } = await makeCreateAccountIxWithProjection({
+      program: this.program,
+      authority,
+      group: this.group.address,
+      accountIndex,
+      thirdPartyId,
+    });
+
+    const marginfiAccount = MarginfiAccount.fromAccountType(account);
+    const wrappedAccount = new MarginfiAccountWrapper(marginfiAccount, this);
+
+    return {
+      wrappedAccount,
+      ix,
+    };
+  }
+
+  /**
+   * Fetches all marginfi account addresses for a given authority (wallet).
+   *
+   * This is useful for account discovery - finding all accounts that belong to a wallet.
+   *
+   * @param authority - The wallet public key to search for
+   * @returns Array of account addresses owned by the authority
+   */
+  async getAccountAddresses(authority: PublicKey): Promise<PublicKey[]> {
+    return fetchMarginfiAccountAddresses(this.program, authority, this.group.address);
+  }
+
+  /**
+   * Fetches and wraps a marginfi account in one call.
+   *
+   * This is a convenience method that combines fetching the account data
+   * and wrapping it for easier use. Equivalent to:
+   * ```typescript
+   * const account = await MarginfiAccount.fetch(address, client.program);
+   * const wrapped = new MarginfiAccountWrapper(account, client);
+   * ```
+   *
+   * @param accountAddress - The public key of the marginfi account
+   * @returns A wrapped account ready to use
+   */
+  async fetchAccount(accountAddress: PublicKey): Promise<MarginfiAccountWrapper> {
+    const bankMap = new Map(this.banks.map((b) => [b.address.toBase58(), b]));
+    const { marginfiAccount } = await fetchMarginfiAccountData(
+      this.program,
+      accountAddress,
+      bankMap,
+      this.bankIntegrationMap
+    );
+    const account = MarginfiAccount.fromAccountType(marginfiAccount);
+    return new MarginfiAccountWrapper(account, this);
   }
 
   static async initialize(connection: Connection, config: Project0Config) {
