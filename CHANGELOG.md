@@ -1,38 +1,32 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+> **Note**: Package migrated from `p0-ts-sdk` to `@0dotxyz/p0-ts-sdk` starting at v1.0.0-alpha.2
+
 ## 1.0.0-alpha.2
-
-### Patch Changes
-
-- Optimize performance to avoid unnecessary rerenders
-  - Improved code formatting in max-amounts utilities
-  - Better handling of active balances computation
-  - Reduced unnecessary recalculations in withdraw/borrow logic
-
-## 1.0.0-alpha.1
-
-### Patch Changes
-
-- Remove @mrgnlabs/mrgn-common dependency
-  - Removed dependency on @mrgnlabs/mrgn-common
-  - Implemented required utilities internally
-  - Reduced bundle size and external dependencies
-
-## 1.0.0-alpha.0
 
 ### Major Changes
 
-- Initial alpha release of Project 0 TypeScript SDK
-  - Complete TypeScript SDK for marginfi protocol on Solana
-  - Full type safety with comprehensive TypeScript definitions
-  - Modern build tooling with tsup (ESM + CJS)
-  - Unit and integration test suites with Vitest
-  - 7+ runnable examples covering all core features
-  - Production-ready architecture with `Project0Client` and `MarginfiAccountWrapper`
-  - Support for deposits, borrows, withdrawals, repayments
-  - Health monitoring and risk calculations
-  - Oracle price integration (Pyth, Switchboard)
-  - Kamino integration support
+- **Package renamed to `@0dotxyz/p0-ts-sdk`** - Now published under organization scope
+- Migrated from unscoped `p0-ts-sdk` to organization-scoped package
+- All imports must be updated to use `@0dotxyz/p0-ts-sdk`
+- Version continuity maintained from previous releases
+
+### Previous Changes (from p0-ts-sdk)
+
+- Optimize performance to avoid unnecessary rerenders
+- Removed @mrgnlabs/mrgn-common dependency
+- Complete TypeScript SDK for marginfi protocol on Solana
+- Full type safety with comprehensive TypeScript definitions
+- Modern build tooling with tsup (ESM + CJS)
+- Unit and integration test suites with Vitest
+- 7+ runnable examples covering all core features
+- Production-ready architecture with `Project0Client` and `MarginfiAccountWrapper`
+- Support for deposits, borrows, withdrawals, repayments
+- Health monitoring and risk calculations
+- Oracle price integration (Pyth, Switchboard)
+- Kamino integration support
 
 ---
 

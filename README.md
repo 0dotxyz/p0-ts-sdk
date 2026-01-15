@@ -1,6 +1,6 @@
 # Project 0 TypeScript SDK
 
-[![npm version](https://img.shields.io/npm/v/p0-ts-sdk.svg)](https://www.npmjs.com/package/p0-ts-sdk)
+[![npm version](https://img.shields.io/npm/v/@0dotxyz/p0-ts-sdk.svg)](https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 
@@ -19,11 +19,11 @@ A modern, type-safe TypeScript SDK for interacting with the P0 Protocol on Solan
 ## Installation
 
 ```bash
-npm install p0-ts-sdk
+npm install @0dotxyz/p0-ts-sdk
 # or
-yarn add p0-ts-sdk
+yarn add @0dotxyz/p0-ts-sdk
 # or
-pnpm add p0-ts-sdk
+pnpm add @0dotxyz/p0-ts-sdk
 ```
 
 ## Quick Start
@@ -32,7 +32,7 @@ pnpm add p0-ts-sdk
 
 ```typescript
 import { Connection, PublicKey } from "@solana/web3.js";
-import { Project0Client, getConfig } from "p0-ts-sdk";
+import { Project0Client, getConfig } from "@0dotxyz/p0-ts-sdk";
 
 // Connect to Solana
 const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
@@ -49,7 +49,7 @@ console.log(`Loaded ${client.banks.length} banks`);
 ### 2. Load Your Account
 
 ```typescript
-import { MarginfiAccount, MarginfiAccountWrapper } from "p0-ts-sdk";
+import { MarginfiAccount, MarginfiAccountWrapper } from "@0dotxyz/p0-ts-sdk";
 
 const accountAddress = new PublicKey("YOUR_MARGINFI_ACCOUNT_ADDRESS");
 
@@ -63,7 +63,7 @@ const wrappedAccount = new MarginfiAccountWrapper(account, client);
 ### 3. Find a Bank
 
 ```typescript
-import { AssetTag } from "p0-ts-sdk";
+import { AssetTag } from "@0dotxyz/p0-ts-sdk";
 
 // Option 1: Get bank by address
 const bank = client.getBank(new PublicKey("BANK_ADDRESS"));
@@ -110,7 +110,7 @@ const borrowTx = await wrappedAccount.makeBorrowTx(
 ### 6. Monitor Account Health
 
 ```typescript
-import { MarginRequirementType } from "p0-ts-sdk";
+import { MarginRequirementType } from "@0dotxyz/p0-ts-sdk";
 
 // Get free collateral in USD
 const freeCollateral = wrappedAccount.computeFreeCollateral();
@@ -228,10 +228,10 @@ The SDK provides optimized entry points:
 
 ```typescript
 // Main SDK (core functionality)
-import { Project0Client, MarginfiAccount, getConfig } from "p0-ts-sdk";
+import { Project0Client, MarginfiAccount, getConfig } from "@0dotxyz/p0-ts-sdk";
 
 // Vendor utilities (oracle integrations, Jupiter, etc.)
-import { fetchOracleData, OraclePrice } from "p0-ts-sdk/vendor";
+import { fetchOracleData, OraclePrice } from "@0dotxyz/p0-ts-sdk/vendor";
 ```
 
 **Why separate vendor exports?**
@@ -254,7 +254,7 @@ import type {
   OraclePrice,
   MarginRequirementType,
   Project0Config,
-} from "p0-ts-sdk";
+} from "@0dotxyz/p0-ts-sdk";
 ```
 
 ### Multiple Bank Support
@@ -275,7 +275,7 @@ const kaminoBanks = client.getBanksByMint(WSOL_MINT, AssetTag.KAMINO);
 Built-in account health monitoring:
 
 ```typescript
-import { MarginRequirementType } from "p0-ts-sdk";
+import { MarginRequirementType } from "@0dotxyz/p0-ts-sdk";
 
 // Free collateral (how much you can still borrow)
 const free = wrapped.computeFreeCollateral();

@@ -1,5 +1,5 @@
 {
-  "name": "p0-ts-sdk",
+  "name": "@0dotxyz/p0-ts-sdk",
   "version": "1.0.0-alpha.2",
   "description": "TypeScript SDK for P0 Protocol - A Solana DeFi lending protocol",
   "type": "module",
@@ -60,12 +60,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/p0-protocol/p0-ts-sdk.git"
+    "url": "https://github.com/0dotxyz/p0-ts-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/p0-protocol/p0-ts-sdk/issues"
+    "url": "https://github.com/0dotxyz/p0-ts-sdk/issues"
   },
-  "homepage": "https://github.com/p0-protocol/p0-ts-sdk#readme",
+  "homepage": "https://github.com/0dotxyz/p0-ts-sdk#readme",
   "engines": {
     "node": ">=18.0.0"
   },
