@@ -1,9 +1,10 @@
 # Project 0 TypeScript SDK
 
-[![npm version](https://img.shields.io/npm/v/@0dotxyz/p0-ts-sdk.svg)](https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk)
-[![npm downloads](https://img.shields.io/npm/dm/@0dotxyz/p0-ts-sdk.svg)](https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
+[![npm version](https://img.shields.io/npm/v/@0dotxyz/p0-ts-sdk.svg?style=flat-square)](https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@0dotxyz/p0-ts-sdk.svg?style=flat-square)](https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
+[![GitHub](https://img.shields.io/badge/GitHub-0dotxyz%2Fp0--ts--sdk-181717.svg?style=flat-square&logo=github)](https://github.com/0dotxyz/p0-ts-sdk)
 
 A modern, type-safe TypeScript SDK for interacting with the P0 Protocol on Solana. Lend, borrow, and manage leveraged DeFi positions with a clean, developer-friendly API.
 
