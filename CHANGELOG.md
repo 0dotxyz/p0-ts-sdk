@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Note**: Package migrated from `p0-ts-sdk` to `@0dotxyz/p0-ts-sdk` starting at v1.0.0-alpha.2
+> **Note**: Package migrated from `p0-ts-sdk` to `@0dotxyz/p0-ts-sdk` starting at v1.0.0-alpha.3
 
-## 1.0.0-alpha.2
+## 1.0.0-alpha.3
 
 ### Major Changes
 
