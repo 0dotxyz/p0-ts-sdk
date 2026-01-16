@@ -6,6 +6,7 @@ export enum TransactionBuildingErrorCode {
   JUPITER_SWAP_SIZE_EXCEEDED_LOOP = "JUPITER_SWAP_SIZE_EXCEEDED_LOOP",
   ORACLE_CRANK_FAILED = "ORACLE_CRANK_FAILED",
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
+  DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
 }
 
 /**
@@ -39,6 +40,11 @@ export interface TransactionBuildingErrorDetails {
     bankMint: string;
     bankSymbol?: string;
   };
+  [TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND]: {
+    bankAddress: string;
+    bankMint: string;
+    bankSymbol?: string;
+  };
 }
 
 /**
@@ -52,11 +58,7 @@ export class TransactionBuildingError<
   readonly code: T;
   readonly details: TransactionBuildingErrorDetails[T];
 
-  private constructor(
-    code: T,
-    message: string,
-    details: TransactionBuildingErrorDetails[T]
-  ) {
+  private constructor(code: T, message: string, details: TransactionBuildingErrorDetails[T]) {
     super(message);
     this.name = "TransactionBuildingError";
     this.code = code;
@@ -131,6 +133,21 @@ export class TransactionBuildingError<
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.KAMINO_RESERVE_NOT_FOUND,
       `Kamino reserve not found for ${bankSymbol ?? bankMint}`,
+      { bankAddress, bankMint, bankSymbol }
+    );
+  }
+
+  /**
+   * Failed to find drift state for a bank
+   */
+  static driftStateNotFound(
+    bankAddress: string,
+    bankMint: string,
+    bankSymbol?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND,
+      `Drift state not found for ${bankSymbol ?? bankMint}`,
       { bankAddress, bankMint, bankSymbol }
     );
   }

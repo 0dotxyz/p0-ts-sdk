@@ -44,6 +44,12 @@ interface BankRaw {
   kaminoReserve: PublicKey;
   kaminoObligation: PublicKey;
 
+  driftSpotMarket: PublicKey;
+  driftUser: PublicKey;
+  driftUserStats: PublicKey;
+  solendReserve: PublicKey;
+  solendObligation: PublicKey;
+
   emode: EmodeSettingsRaw;
   feesDestinationAccount?: PublicKey;
   cache?: BankCacheRaw;
@@ -162,7 +168,12 @@ type OracleSetupRaw =
   | { stakedWithPythPush: {} }
   | { kaminoPythPush: {} }
   | { kaminoSwitchboardPull: {} }
-  | { fixed: {} };
+  | { fixed: {} }
+  | { kaminoSwitchboardPull: {} }
+  | { driftPythPull: {} }
+  | { driftSwitchboardPull: {} }
+  | { solendPythPull: {} }
+  | { solendSwitchboardPull: {} };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;

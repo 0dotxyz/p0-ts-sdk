@@ -124,6 +124,13 @@ export async function makeBorrowIx({
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<TransactionBuilderResult> {
   const { luts, connection, ...borrowIxParams } = params;
 
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [borrowIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const refreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -170,7 +177,11 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
   const borrowTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs.instructions, ...borrowIxs.instructions],
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...borrowIxs.instructions,
+        ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(luts)

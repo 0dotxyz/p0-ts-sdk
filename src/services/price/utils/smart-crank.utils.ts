@@ -8,10 +8,7 @@ import {
   computeAssetHealthComponent,
   computeLiabilityHealthComponent,
 } from "~/services/account/utils";
-import {
-  computeProjectedActiveBalancesNoCpi,
-  MarginRequirementType,
-} from "~/services/account";
+import { computeProjectedActiveBalancesNoCpi, MarginRequirementType } from "~/services/account";
 
 import { OraclePrice } from "../types";
 import {
@@ -79,16 +76,9 @@ export async function computeSmartCrank({
 }: SmartCrankParams): Promise<SmartCrankResult> {
   // Step 0: Determine projected active balances after transaction
   const { projectedBalances, impactedAssetsBanks, impactedLiabilityBanks } =
-    computeProjectedActiveBalancesNoCpi(
-      marginfiAccount.balances,
-      instructions,
-      program,
-      bankMap
-    );
+    computeProjectedActiveBalancesNoCpi(marginfiAccount.balances, instructions, program, bankMap);
 
-  const liabilityBalances = projectedBalances.filter((b) =>
-    b.liabilityShares.gt(0)
-  );
+  const liabilityBalances = projectedBalances.filter((b) => b.liabilityShares.gt(0));
   const assetBalances = projectedBalances.filter((b) => b.assetShares.gt(0));
 
   // No liabilities means no risk, no cranking needed
@@ -104,7 +94,9 @@ export async function computeSmartCrank({
   // Helper to check if bank is Switchboard
   const isSwitchboard = (bank: BankType) =>
     bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-    bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull;
+    bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
+    bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
+    bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull;
 
   // Get banks from balances
   const getBanks = (balances: typeof projectedBalances) =>
@@ -151,8 +143,7 @@ export async function computeSmartCrank({
 
   // Get all available assets (both Switchboard and non-Switchboard)
   const allAvailableAssets = assetBanks.filter(
-    (ab) =>
-      crankable.some((c) => c.address.equals(ab.address)) || !isSwitchboard(ab)
+    (ab) => crankable.some((c) => c.address.equals(ab.address)) || !isSwitchboard(ab)
   );
 
   // If any liability oracle is uncrankable, transaction is blocked
@@ -169,9 +160,7 @@ export async function computeSmartCrank({
     };
   }
   // Helper to collect unique oracle keys with prices from banks
-  const getOracleKeys = (
-    banks: PublicKey[]
-  ): Array<{ key: PublicKey; price: OraclePrice }> => {
+  const getOracleKeys = (banks: PublicKey[]): Array<{ key: PublicKey; price: OraclePrice }> => {
     const oracleMap = new Map<string, OraclePrice>();
     banks.forEach((addr) => {
       const bank = bankMap.get(addr.toBase58());
@@ -198,9 +187,7 @@ export async function computeSmartCrank({
     MarginRequirementType.Initial
   );
 
-  const liabilityBankAddresses = liabilityBanks
-    .filter(isSwitchboard)
-    .map((b) => b.address);
+  const liabilityBankAddresses = liabilityBanks.filter(isSwitchboard).map((b) => b.address);
   const nonSWBAssets = assetBanks.filter((bank) => !isSwitchboard(bank));
   const swbAssets = assetBanks.filter(isSwitchboard);
 
@@ -217,9 +204,7 @@ export async function computeSmartCrank({
     const healthDiff = nonSWBAssetsHealth.minus(totalLiabilitiesInitHealth);
 
     if (healthDiff.gt(0)) {
-      console.log(
-        "\n✓ Pyth assets cover liabilities, cranking only liability SWB banks"
-      );
+      console.log("\n✓ Pyth assets cover liabilities, cranking only liability SWB banks");
       return {
         requiredOracles: getOracleKeys(liabilityBankAddresses),
         uncrankableLiabilities: [],
@@ -256,9 +241,7 @@ export async function computeSmartCrank({
   };
 
   // Calculate health with ALL available assets (both Switchboard and non-Switchboard)
-  const allAvailableAssetAddresses = allAvailableAssets.map(
-    (bank) => bank.address
-  );
+  const allAvailableAssetAddresses = allAvailableAssets.map((bank) => bank.address);
   const allAssetsHealth = computeAssetHealthComponent(
     projectedBalances,
     bankMap,
@@ -283,9 +266,7 @@ export async function computeSmartCrank({
 
     // If no uncrankable assets, this is a bug - fallback to cranking everything
     return {
-      requiredOracles: getOracleKeys(
-        allActiveSwbBanks.map((bank) => bank.address)
-      ),
+      requiredOracles: getOracleKeys(allActiveSwbBanks.map((bank) => bank.address)),
       uncrankableLiabilities: [],
       uncrankableAssets: [],
       isCrankable: true,
@@ -301,9 +282,7 @@ export async function computeSmartCrank({
 
   // Find minimal asset combinations needed for positive health
   const nonSWBAssetAddresses = nonSWBAssets.map((b) => b.address);
-  const liabilityOracleKeySet = new Set(
-    liabilityBanks.map((lb) => lb.oracleKey.toBase58())
-  );
+  const liabilityOracleKeySet = new Set(liabilityBanks.map((lb) => lb.oracleKey.toBase58()));
 
   for (let comboSize = 1; comboSize < crankableSWBAssets.length; comboSize++) {
     const assetCombos = getCombinations(crankableSWBAssets, comboSize);
@@ -328,9 +307,9 @@ export async function computeSmartCrank({
       });
 
       const allBanks = [...liabilityBankAddresses, ...additionalBanks];
-      const uniqueBanks = Array.from(
-        new Set(allBanks.map((b) => b.toBase58()))
-      ).map((addr) => new PublicKey(addr));
+      const uniqueBanks = Array.from(new Set(allBanks.map((b) => b.toBase58()))).map(
+        (addr) => new PublicKey(addr)
+      );
 
       combinations.push({
         banks: uniqueBanks,

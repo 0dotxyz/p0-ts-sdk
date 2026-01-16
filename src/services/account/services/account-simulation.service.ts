@@ -14,6 +14,7 @@ import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
 import { makeCrankSwbFeedIx, makeUpdateSwbFeedIx, OraclePrice } from "~/services/price";
 import klendInstructions from "~/vendor/klend/instructions";
+import { makeUpdateSpotMarketIx } from "~/vendor/drift";
 import {
   addTransactionMetadata,
   simulateBundle,
@@ -137,12 +138,16 @@ export async function simulateAccountHealthCache(props: {
 
   const kaminoBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
 
+  const driftBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
+
   const staleSwbOracles = activeBanks
     .filter(
       (bank) =>
         bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
         bank.config.oracleSetup === OracleSetup.SwitchboardV2 ||
-        bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull
+        bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
+        bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
+        bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
     )
     .filter((bank) => !bank.oracleKey.equals(new PublicKey(ZERO_ORACLE_KEY)));
 
@@ -156,6 +161,19 @@ export async function simulateAccountHealthCache(props: {
     toPubkey: program.provider.publicKey,
     lamports: 100_000_000, // 0.1 SOL
   });
+
+  const updateDriftMarketData = driftBanks
+    .map((bank) => {
+      const bankMetadata = bankMetadataMap?.[bank.address.toBase58()];
+      if (!bankMetadata?.driftStates) {
+        console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
+        return;
+      }
+
+      const driftMarket = bankMetadata.driftStates.spotMarketState;
+      return driftMarket;
+    })
+    .filter((state): state is NonNullable<typeof state> => !!state);
 
   const refreshReserveData = kaminoBanks
     .map((bank) => {
@@ -192,6 +210,12 @@ export async function simulateAccountHealthCache(props: {
         })
       : { instructions: [], luts: [] };
 
+  const updateDriftMarketIxs = updateDriftMarketData.map((market) => ({
+    ix: makeUpdateSpotMarketIx({
+      spotMarket: market,
+    }),
+  }));
+
   const healthPulseIxs = await makePulseHealthIx(
     program,
     marginfiAccountPk,
@@ -207,8 +231,13 @@ export async function simulateAccountHealthCache(props: {
     new TransactionMessage({
       payerKey: program.provider.publicKey,
       recentBlockhash: blockhash,
-      instructions: [computeIx, fundAccountIx, ...refreshReservesIxs],
-    }).compileToV0Message([...crankSwbIxs.luts])
+      instructions: [
+        computeIx,
+        fundAccountIx,
+        ...refreshReservesIxs,
+        ...updateDriftMarketIxs.map((ix) => ix.ix),
+      ],
+    }).compileToV0Message()
   );
 
   txs.push(additionalTx);
