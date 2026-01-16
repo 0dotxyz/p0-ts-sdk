@@ -49,6 +49,8 @@ import {
   MakeRepayWithCollatTxParams,
   makeSwapCollateralTx,
   MakeSwapCollateralTxParams,
+  makeSwapDebtTx,
+  MakeSwapDebtTxParams,
   makeWithdrawEmissionsIx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
@@ -909,6 +911,45 @@ class MarginfiAccount implements MarginfiAccountType {
     quoteResponse: QuoteResponse | undefined;
   }> {
     return makeSwapCollateralTx({
+      ...params,
+      marginfiAccount: this,
+    });
+  }
+
+  /**
+   * Creates a transaction to swap one debt position to another using a flash loan.
+   *
+   * A swap debt transaction:
+   * 1. Borrows new asset via flash loan (new debt)
+   * 2. Swaps new asset to old debt asset (via Jupiter)
+   * 3. Repays old debt with swapped assets
+   *
+   * This allows users to change their debt type (e.g., USDC debt -> SOL debt) without
+   * repaying and affecting their health during the swap.
+   *
+   * @param params - Swap debt transaction parameters
+   * @param params.connection - Solana connection instance
+   * @param params.oraclePrices - Map of current oracle prices
+   * @param params.repayOpts - Repay configuration (bank, amount, tokenProgram)
+   * @param params.borrowOpts - Borrow configuration (bank, tokenProgram)
+   * @param params.swapOpts - Jupiter swap configuration
+   * @param params.addressLookupTableAccounts - Address lookup tables
+   * @param params.overrideInferAccounts - Optional account overrides
+   * @param params.additionalIxs - Additional instructions to include
+   * @param params.crossbarUrl - Crossbar URL for oracle updates
+   *
+   * @returns Object containing transactions array, action index, and swap quote
+   *
+   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
+   *
+   * @see {@link makeSwapDebtTx} for detailed implementation
+   */
+  async makeSwapDebtTx(params: Omit<MakeSwapDebtTxParams, "marginfiAccount">): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: QuoteResponse | undefined;
+  }> {
+    return makeSwapDebtTx({
       ...params,
       marginfiAccount: this,
     });

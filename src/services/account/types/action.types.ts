@@ -367,6 +367,42 @@ export interface MakeSwapCollateralTxParams {
   crossbarUrl?: string;
 }
 
+export interface MakeSwapDebtTxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  connection: Connection;
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  // Source debt (what we're repaying)
+  repayOpts: {
+    // Amount of the total debt position
+    totalPositionAmount: number;
+    repayBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  // Destination debt (what we're borrowing)
+  borrowOpts: {
+    borrowBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  swapOpts: {
+    jupiterOptions?: {
+      slippageMode: "DYNAMIC" | "FIXED";
+      slippageBps: number;
+      platformFeeBps: number;
+      directRoutesOnly?: boolean;
+    };
+  };
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: {
+    group?: PublicKey;
+    authority?: PublicKey;
+  };
+  additionalIxs?: TransactionInstruction[];
+  crossbarUrl?: string;
+}
+
 export interface MakeSetupIxParams {
   connection: Connection;
   authority: PublicKey;
