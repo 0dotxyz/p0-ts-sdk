@@ -32,6 +32,8 @@ import instructions from "~/instructions";
 import {
   MakeDepositIxParams,
   MakeDepositTxParams,
+  MakeDriftDepositIxParams,
+  MakeDriftDepositTxParams,
   MakeKaminoDepositIxParams,
   MakeKaminoDepositTxParams,
 } from "../types";

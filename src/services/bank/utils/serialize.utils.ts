@@ -135,6 +135,14 @@ function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
       return 7;
     case OracleSetup.Fixed:
       return 8;
+    case OracleSetup.DriftPythPull:
+      return 9;
+    case OracleSetup.DriftSwitchboardPull:
+      return 10;
+    case OracleSetup.SolendPythPull:
+      return 11;
+    case OracleSetup.SolendSwitchboardPull:
+      return 12;
     default:
       return 0;
   }
@@ -201,6 +209,11 @@ function toBankDto(bank: BankType): BankTypeDto {
     borrowingPositionCount: bank.borrowingPositionCount?.toString(),
     kaminoReserve: bank.kaminoReserve.toBase58(),
     kaminoObligation: bank.kaminoObligation.toBase58(),
+    driftSpotMarket: bank.driftSpotMarket.toBase58(),
+    driftUser: bank.driftUser.toBase58(),
+    driftUserStats: bank.driftUserStats.toBase58(),
+    solendReserve: bank.solendReserve.toBase58(),
+    solendObligation: bank.solendObligation.toBase58(),
   };
 }
 

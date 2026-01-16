@@ -48,7 +48,9 @@ function parseOraclePriceData(
   switch (oracleSetup) {
     case OracleSetup.PythPushOracle:
     case OracleSetup.StakedWithPythPush:
-    case OracleSetup.KaminoPythPush: {
+    case OracleSetup.KaminoPythPush:
+    case OracleSetup.DriftPythPull:
+    case OracleSetup.SolendPythPull: {
       return parseRpcPythPriceData(rawData);
     }
 
@@ -72,6 +74,9 @@ function parseOraclePriceData(
       };
     }
     case OracleSetup.SwitchboardPull:
+    case OracleSetup.KaminoSwitchboardPull:
+    case OracleSetup.DriftSwitchboardPull:
+    case OracleSetup.SolendSwitchboardPull: {
       const pullFeedDAta = decodeSwitchboardPullFeedData(rawData);
 
       return parseSwbOraclePriceData(

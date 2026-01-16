@@ -128,6 +128,11 @@ export interface BankTypeDto {
   borrowingPositionCount?: string;
   kaminoReserve: string;
   kaminoObligation: string;
+  driftSpotMarket: string;
+  driftUser: string;
+  driftUserStats: string;
+  solendReserve: string;
+  solendObligation: string;
 }
 
 /*
@@ -165,6 +170,11 @@ export interface BankRawDto {
 
   kaminoReserve: string;
   kaminoObligation: string;
+  driftSpotMarket: string;
+  driftUser: string;
+  driftUserStats: string;
+  solendReserve: string;
+  solendObligation: string;
 
   flags: string;
   emissionsRate: string;

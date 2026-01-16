@@ -23,7 +23,11 @@ import {
   makeUnwrapSolIx,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 
 import {
   MakeKaminoWithdrawIxParams,
@@ -302,6 +306,13 @@ export async function makeWithdrawTx(
     feedLuts = _feedLuts;
   }
 
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const refreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -336,7 +347,11 @@ export async function makeWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs.instructions, ...withdrawIxs.instructions],
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(luts)
@@ -371,6 +386,13 @@ export async function makeKaminoWithdrawTx(
     .toNumber();
 
   const refreshIxs = makeRefreshKaminoBanksIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -419,7 +441,11 @@ export async function makeKaminoWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs.instructions, ...withdrawIxs.instructions],
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(luts)

@@ -147,6 +147,12 @@ export function parseBankRaw(
   const kaminoReserve = accountParsed.kaminoReserve;
   const kaminoObligation = accountParsed.kaminoObligation;
 
+  const driftSpotMarket = accountParsed.driftSpotMarket;
+  const driftUser = accountParsed.driftUser;
+  const driftUserStats = accountParsed.driftUserStats;
+  const solendReserve = accountParsed.solendReserve;
+  const solendObligation = accountParsed.solendObligation;
+
   return {
     address,
     group,
@@ -184,6 +190,11 @@ export function parseBankRaw(
     mintPrice: mintData?.mintPrice ?? 0,
     kaminoReserve,
     kaminoObligation,
+    driftSpotMarket,
+    driftUser,
+    driftUserStats,
+    solendReserve,
+    solendObligation,
   };
 }
 
@@ -235,6 +246,11 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     mintPrice: 0,
     kaminoReserve: new PublicKey(bankDto.kaminoReserve),
     kaminoObligation: new PublicKey(bankDto.kaminoObligation),
+    driftSpotMarket: new PublicKey(bankDto.driftSpotMarket),
+    driftUser: new PublicKey(bankDto.driftUser),
+    driftUserStats: new PublicKey(bankDto.driftUserStats),
+    solendReserve: new PublicKey(bankDto.solendReserve),
+    solendObligation: new PublicKey(bankDto.solendObligation),
   };
 }
 
@@ -342,6 +358,11 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
     emode: dtoToEmodeSettingsRaw(bankDto.emode),
     kaminoReserve: new PublicKey(bankDto.kaminoReserve),
     kaminoObligation: new PublicKey(bankDto.kaminoObligation),
+    driftSpotMarket: new PublicKey(bankDto.driftSpotMarket),
+    driftUser: new PublicKey(bankDto.driftUser),
+    driftUserStats: new PublicKey(bankDto.driftUserStats),
+    solendReserve: new PublicKey(bankDto.solendReserve),
+    solendObligation: new PublicKey(bankDto.solendObligation),
   };
 }
 
@@ -498,6 +519,14 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.KaminoSwitchboardPull;
     case "fixed":
       return OracleSetup.Fixed;
+    case "driftpythpull":
+      return OracleSetup.DriftPythPull;
+    case "driftswitchboardpull":
+      return OracleSetup.DriftSwitchboardPull;
+    case "solendpythpull":
+      return OracleSetup.SolendPythPull;
+    case "solendswitchboardpull":
+      return OracleSetup.SolendSwitchboardPull;
     default:
       return OracleSetup.None;
   }

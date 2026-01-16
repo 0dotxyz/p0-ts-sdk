@@ -497,6 +497,10 @@ export function computeHealthAccountMetas(
         keys.push(bank.kaminoReserve);
       }
 
+      if (bank.config.assetTag === 4) {
+        keys.push(bank.driftSpotMarket);
+      }
+
       return keys;
     })
   );

@@ -5,6 +5,13 @@ import { MarginfiIdlType } from "./idl";
 import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
 import {
+  DriftRewards,
+  DriftSpotMarket,
+  DriftSpotMarketJSON,
+  DriftUser,
+  DriftUserJSON,
+  DriftUserStats,
+  DriftUserStatsJSON,
   FarmStateJSON,
   FarmStateRaw,
   ObligationJSON,
@@ -79,6 +86,12 @@ export type BankIntegrationMetadata = {
     obligationState: ObligationRaw;
     farmState?: FarmStateRaw;
   };
+  driftStates?: {
+    spotMarketState: DriftSpotMarket;
+    userState: DriftUser;
+    userRewards: DriftRewards[];
+    userStatsState?: DriftUserStats;
+  };
 };
 
 export type BankIntegrationMetadataDto = {
@@ -86,6 +99,11 @@ export type BankIntegrationMetadataDto = {
     reserveState: ReserveJSON;
     obligationState: ObligationJSON;
     farmState?: FarmStateJSON;
+  };
+  driftStates?: {
+    spotMarketState: DriftSpotMarketJSON;
+    userState: DriftUserJSON;
+    userStatsState: DriftUserStatsJSON;
   };
 };
 

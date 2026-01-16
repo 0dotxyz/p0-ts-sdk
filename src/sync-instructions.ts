@@ -73,6 +73,8 @@ const DISCRIMINATORS = {
   LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([209, 82, 255, 171, 124, 21, 71, 81]),
   LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
   LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
+  DRIFT_DEPOSIT: Buffer.from([252, 63, 250, 201, 98, 55, 130, 12]),
+  DRIFT_WITHDRAW: Buffer.from([178, 238, 229, 72, 126, 212, 78, 103]),
 };
 
 // ============================================================================
@@ -893,6 +895,215 @@ function makePoolAddBankIx(
     programId,
     data: DISCRIMINATORS.LENDING_POOL_ADD_BANK,
   });
+}
+
+function makeDriftDepositIx(
+  programId: PublicKey,
+  accounts: {
+    group: PublicKey; // relations - caller must provide
+    marginfiAccount: PublicKey;
+    authority: PublicKey; // signer - caller must provide
+    bank: PublicKey;
+    driftOracle: PublicKey | null; // optional in IDL
+    liquidityVault: PublicKey; // relations: ["bank"] - caller must provide
+    signerTokenAccount: PublicKey;
+    driftState: PublicKey; // caller must provide
+    driftUser: PublicKey; // relations: ["bank"] - caller must provide
+    driftUserStats: PublicKey; // relations: ["bank"] - caller must provide
+    driftSpotMarket: PublicKey; // relations: ["bank"] - caller must provide
+    driftSpotMarketVault: PublicKey;
+    mint: PublicKey; // relations: ["bank"] - caller must provide
+    driftProgram: PublicKey; // fixed address - caller must provide
+    tokenProgram: PublicKey;
+    systemProgram: PublicKey; // fixed address - caller must provide
+  },
+  args: {
+    amount: BN;
+  }
+): TransactionInstruction {
+  // Derive PDA for liquidity vault authority
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
+
+  // Build keys in exact IDL order
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.authority, isSigner: true, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: true },
+  ];
+
+  // drift_oracle is optional
+  if (accounts.driftOracle) {
+    keys.push({
+      pubkey: accounts.driftOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  keys.push(
+    { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: false },
+    { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
+    { pubkey: accounts.signerTokenAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftState, isSigner: false, isWritable: false },
+    { pubkey: accounts.driftUser, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftUserStats, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftSpotMarket, isSigner: false, isWritable: true },
+    {
+      pubkey: accounts.driftSpotMarketVault,
+      isSigner: false,
+      isWritable: true,
+    },
+    { pubkey: accounts.mint, isSigner: false, isWritable: false },
+    { pubkey: accounts.driftProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.systemProgram, isSigner: false, isWritable: false }
+  );
+
+  const data = Buffer.concat([DISCRIMINATORS.DRIFT_DEPOSIT, encodeU64(args.amount)]);
+
+  return new TransactionInstruction({ keys, programId, data });
+}
+
+function makeDriftWithdrawIx(
+  programId: PublicKey,
+  accounts: {
+    group: PublicKey;
+    marginfiAccount: PublicKey;
+    authority: PublicKey;
+    bank: PublicKey;
+    liquidityVault: PublicKey;
+    destinationTokenAccount: PublicKey;
+    driftState: PublicKey;
+    driftUser: PublicKey;
+    driftUserStats: PublicKey;
+    driftSpotMarket: PublicKey;
+    driftSpotMarketVault: PublicKey;
+    driftSigner: PublicKey;
+    mint: PublicKey;
+    tokenProgram: PublicKey;
+    driftOracle?: PublicKey | null;
+    driftRewardOracle?: PublicKey | null;
+    driftRewardSpotMarket?: PublicKey | null;
+    driftRewardMint?: PublicKey | null;
+    driftRewardOracle2?: PublicKey | null;
+    driftRewardSpotMarket2?: PublicKey | null;
+    driftRewardMint2?: PublicKey | null;
+  },
+  args: {
+    amount: BN;
+    withdrawAll: boolean;
+  },
+  remainingAccounts: AccountMeta[] = []
+): TransactionInstruction {
+  // Derive PDA for liquidity vault authority
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
+
+  // Drift program address
+  const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
+  const SYSTEM_PROGRAM_ID = new PublicKey("11111111111111111111111111111111");
+
+  // Build keys in exact IDL order
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.authority, isSigner: true, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: true },
+  ];
+
+  // Add optional driftOracle
+  if (accounts.driftOracle) {
+    keys.push({
+      pubkey: accounts.driftOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  // Add required accounts in IDL order
+  keys.push(
+    { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: false },
+    { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
+    {
+      pubkey: accounts.destinationTokenAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    { pubkey: accounts.driftState, isSigner: false, isWritable: false },
+    { pubkey: accounts.driftUser, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftUserStats, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftSpotMarket, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftSpotMarketVault, isSigner: false, isWritable: true }
+  );
+
+  // Add optional reward accounts (in IDL order)
+  if (accounts.driftRewardOracle) {
+    keys.push({
+      pubkey: accounts.driftRewardOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardSpotMarket) {
+    keys.push({
+      pubkey: accounts.driftRewardSpotMarket,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardMint) {
+    keys.push({
+      pubkey: accounts.driftRewardMint,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardOracle2) {
+    keys.push({
+      pubkey: accounts.driftRewardOracle2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardSpotMarket2) {
+    keys.push({
+      pubkey: accounts.driftRewardSpotMarket2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardMint2) {
+    keys.push({
+      pubkey: accounts.driftRewardMint2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  // Add final required accounts
+  keys.push(
+    { pubkey: accounts.driftSigner, isSigner: false, isWritable: false },
+    { pubkey: accounts.mint, isSigner: false, isWritable: false },
+    { pubkey: DRIFT_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false }
+  );
+
+  // Add remaining accounts for health checks
+  keys.push(...remainingAccounts);
+
+  const data = Buffer.concat([
+    DISCRIMINATORS.DRIFT_WITHDRAW,
+    encodeU64(args.amount),
+    encodeBool(args.withdrawAll),
+  ]);
+
+  return new TransactionInstruction({ keys, programId, data });
 }
 
 function makePoolAddPermissionlessStakedBankIx(

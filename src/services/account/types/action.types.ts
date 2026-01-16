@@ -7,6 +7,7 @@ import {
 } from "@solana/web3.js";
 
 import { ReserveRaw } from "~/vendor/klend";
+import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { SolanaTransaction } from "~/services/transaction";
@@ -36,6 +37,20 @@ export interface MakeDepositIxParams {
   opts?: MakeDepositIxOpts;
 }
 
+export interface MakeDriftDepositIxParams {
+  program: MarginfiProgram;
+  bank: BankType;
+  tokenProgram: PublicKey;
+  amount: Amount;
+  accountAddress: PublicKey;
+  authority: PublicKey;
+  group: PublicKey;
+  driftOracle: PublicKey;
+  driftMarketIndex: number;
+  isSync?: boolean;
+  opts?: MakeDepositIxOpts;
+}
+
 export interface MakeKaminoDepositIxParams {
   program: MarginfiProgram;
   bank: BankType;
@@ -51,6 +66,12 @@ export interface MakeKaminoDepositIxParams {
 
 export interface MakeDepositTxParams extends MakeDepositIxParams {
   luts: AddressLookupTableAccount[];
+  blockhash?: string;
+}
+
+export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams {
+  luts: AddressLookupTableAccount[];
+  connection: Connection;
   blockhash?: string;
 }
 
@@ -94,6 +115,22 @@ export interface MakeWithdrawIxOpts {
     group?: PublicKey;
     authority?: PublicKey;
   };
+}
+
+export interface MakeDriftWithdrawIxParams {
+  program: MarginfiProgram;
+  bank: BankType;
+  bankMap: Map<string, BankType>;
+  tokenProgram: PublicKey;
+  amount: Amount;
+  marginfiAccount: MarginfiAccountType;
+  authority: PublicKey;
+  driftSpotMarket: DriftSpotMarket;
+  userRewards: DriftRewards[];
+  bankMetadataMap: BankIntegrationMetadataMap;
+  isSync?: boolean;
+  withdrawAll?: boolean;
+  opts?: MakeWithdrawIxOpts;
 }
 
 export interface MakeKaminoWithdrawIxParams {
@@ -165,6 +202,13 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  luts: AddressLookupTableAccount[];
+  crossbarUrl?: string;
+}
+
+export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
+  connection: Connection;
+  oraclePrices: Map<string, OraclePrice>;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }
