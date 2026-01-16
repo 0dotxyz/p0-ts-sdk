@@ -47,6 +47,8 @@ import {
   MakeRepayTxParams,
   makeRepayWithCollatTx,
   MakeRepayWithCollatTxParams,
+  makeSwapCollateralTx,
+  MakeSwapCollateralTxParams,
   makeWithdrawEmissionsIx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
@@ -868,6 +870,46 @@ class MarginfiAccount implements MarginfiAccountType {
     amountToRepay: number;
   }> {
     return makeRepayWithCollatTx({
+      ...params,
+      marginfiAccount: this,
+    });
+  }
+
+  /**
+   * Creates a transaction to swap one collateral position to another using a flash loan.
+   *
+   * A swap collateral transaction:
+   * 1. Withdraws existing collateral via flash loan
+   * 2. Swaps collateral to new asset (via Jupiter)
+   * 3. Deposits swapped assets as new collateral
+   *
+   * This allows users to change their collateral type (e.g., JitoSOL -> mSOL) without
+   * withdrawing and affecting their health during the swap.
+   *
+   * @param params - Swap collateral transaction parameters
+   * @param params.connection - Solana connection instance
+   * @param params.oraclePrices - Map of current oracle prices
+   * @param params.withdrawOpts - Withdraw configuration (bank, amount, tokenProgram)
+   * @param params.depositOpts - Deposit configuration (bank, tokenProgram)
+   * @param params.swapOpts - Jupiter swap configuration
+   * @param params.addressLookupTableAccounts - Address lookup tables
+   * @param params.overrideInferAccounts - Optional account overrides
+   * @param params.additionalIxs - Additional instructions to include
+   * @param params.crossbarUrl - Crossbar URL for oracle updates
+   *
+   * @returns Object containing transactions array, action index, and swap quote
+   *
+   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
+   * @throws {TransactionBuildingError} If Kamino reserve not found
+   *
+   * @see {@link makeSwapCollateralTx} for detailed implementation
+   */
+  async makeSwapCollateralTx(params: Omit<MakeSwapCollateralTxParams, "marginfiAccount">): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: QuoteResponse | undefined;
+  }> {
+    return makeSwapCollateralTx({
       ...params,
       marginfiAccount: this,
     });

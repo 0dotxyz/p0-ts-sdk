@@ -6,3 +6,4 @@ export * from "./loop";
 export * from "./repay";
 export * from "./flash-loan";
 export * from "./emissions";
+export * from "./swap-collateral";
