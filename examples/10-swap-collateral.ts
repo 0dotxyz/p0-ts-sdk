@@ -42,7 +42,7 @@ import {
 const SOURCE_MINT: PublicKey | null = null;
 
 // Destination collateral: the mint to swap into
-const DESTINATION_MINT = MINTS.USDC;
+const DESTINATION_MINT = MINTS.SOL;
 
 // Jupiter swap options
 const SLIPPAGE_MODE: "DYNAMIC" | "FIXED" = "DYNAMIC";
@@ -160,20 +160,33 @@ async function swapCollateralExample() {
   console.log(`   Symbol: ${destinationBank.tokenSymbol || "Unknown"}`);
   console.log(`   Mint: ${destinationBank.mint.toBase58()}`);
 
-  // Check if source and destination are the same
-  if (sourceBank.mint.equals(destinationBank.mint)) {
-    console.log("\n⚠️  Source and destination mints are the same - no swap needed.");
+  // Check if source and destination banks are the same
+  if (sourceBank.address.equals(destinationBank.address)) {
+    console.log("\n⚠️  Source and destination banks are the same - nothing to do.");
     return;
   }
+
+  // Determine if this is a swap (different mints) or transfer (same mint, different banks)
+  const isSameMint = sourceBank.mint.equals(destinationBank.mint);
 
   // --------------------------------------------------------------------------
   // Step 6: Build Swap Collateral Transaction
   // --------------------------------------------------------------------------
   console.log("\n📝 Building swap collateral transaction...");
+
   console.log(`   Swapping ${sourceUiAmount.toFixed(6)} ${sourceBank.tokenSymbol || "tokens"}`);
-  console.log(`   From: ${sourceBank.mint.toBase58()}`);
-  console.log(`   To: ${destinationBank.mint.toBase58()}`);
-  console.log(`   Slippage: ${SLIPPAGE_MODE === "DYNAMIC" ? "Dynamic" : `${SLIPPAGE_BPS / 100}%`}`);
+  console.log(`   From bank: ${sourceBank.address.toBase58()}`);
+  console.log(`   To bank: ${destinationBank.address.toBase58()}`);
+
+  if (isSameMint) {
+    console.log(`   (Same mint - no Jupiter swap needed)`);
+  } else {
+    console.log(`   From mint: ${sourceBank.mint.toBase58()}`);
+    console.log(`   To mint: ${destinationBank.mint.toBase58()}`);
+    console.log(
+      `   Slippage: ${SLIPPAGE_MODE === "DYNAMIC" ? "Dynamic" : `${SLIPPAGE_BPS / 100}%`}`
+    );
+  }
 
   // Get token programs for both banks
   const sourceMintData = await wrappedAccount.getMintDataFromBank(sourceBank);
@@ -212,6 +225,9 @@ async function swapCollateralExample() {
       `   Expected output: ~${expectedOutput.toFixed(6)} ${destinationBank.tokenSymbol || "tokens"}`
     );
     console.log(`   Price impact: ${result.quoteResponse.priceImpactPct || "N/A"}%`);
+  } else if (isSameMint) {
+    console.log(`\n📈 Same mint (no Jupiter swap needed):`);
+    console.log(`   Amount: ${sourceUiAmount.toFixed(6)} ${sourceBank.tokenSymbol || "tokens"}`);
   }
 
   // --------------------------------------------------------------------------
