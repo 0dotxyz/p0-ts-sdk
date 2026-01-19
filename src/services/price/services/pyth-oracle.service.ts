@@ -50,10 +50,21 @@ export const fetchPythOracleData = async (
   bankOraclePriceMap: Map<string, OraclePrice>;
 }> => {
   // Step 1: Categorize banks by oracle type
-  const { pythPushBanks, pythStakedCollateralBanks, pythPushKaminosBanks } =
-    categorizePythBanks(banks);
+  const {
+    pythPushBanks,
+    pythStakedCollateralBanks,
+    pythPushKaminosBanks,
+    driftPythPullBanks,
+    solendPythPullBanks,
+  } = categorizePythBanks(banks);
 
-  if (!pythPushBanks.length && !pythStakedCollateralBanks.length && !pythPushKaminosBanks.length) {
+  if (
+    !pythPushBanks.length &&
+    !pythStakedCollateralBanks.length &&
+    !pythPushKaminosBanks.length &&
+    !driftPythPullBanks.length &&
+    !solendPythPullBanks.length
+  ) {
     // Return empty structures when there are no banks to process
     return {
       bankOraclePriceMap: new Map<string, OraclePrice>(),
@@ -84,7 +95,12 @@ export const fetchPythOracleData = async (
   // }
 
   // Step 4: Extract oracle keys for price fetching
-  const combinedPythBanks = [...pythPushBanks, ...pythPushKaminosBanks];
+  const combinedPythBanks = [
+    ...pythPushBanks,
+    ...pythPushKaminosBanks,
+    ...driftPythPullBanks,
+    ...solendPythPullBanks,
+  ];
   const pythOracleKeys = extractPythOracleKeys(combinedPythBanks);
 
   // Filter for unique oracle keys to avoid duplicate fetches

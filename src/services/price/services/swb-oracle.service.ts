@@ -61,7 +61,9 @@ export const fetchSwbOracleData = async (
     (bank) =>
       bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
       bank.config.oracleSetup === OracleSetup.SwitchboardV2 ||
-      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull
+      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
+      bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
+      bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
   );
 
   if (switchboardBanks.length === 0) {

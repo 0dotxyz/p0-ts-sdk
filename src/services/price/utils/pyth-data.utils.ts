@@ -1,10 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import {
-  PYTH_PRICE_CONF_INTERVALS,
-  MAX_CONFIDENCE_INTERVAL_RATIO,
-} from "~/constants";
+import { PYTH_PRICE_CONF_INTERVALS, MAX_CONFIDENCE_INTERVAL_RATIO } from "~/constants";
 import { BankType, OracleSetup } from "~/services/bank";
 import { parsePriceInfo } from "~/vendor/pyth_push_oracle";
 
@@ -17,10 +14,11 @@ import { OraclePrice, PriceWithConfidence } from "../types";
  *   - pythLegacyBanks: Banks using deprecated Pyth legacy oracles
  *   - pythPushBanks: Banks using Pyth push oracles
  *   - pythStakedCollateralBanks: Banks using staked collateral with Pyth push oracles
+ *   - pythPushKaminosBanks: Banks using Kamino with Pyth push oracles
+ *   - driftPythPullBanks: Banks using Drift with Pyth pull oracles
+ *   - solendPythPullBanks: Banks using Solend with Pyth pull oracles
  */
-export const categorizePythBanks = (
-  banks: BankType[]
-) => {
+export const categorizePythBanks = (banks: BankType[]) => {
   // Depracated
   const pythLegacyBanks = banks.filter(
     (bank) => bank.config.oracleSetup === OracleSetup.PythLegacy
@@ -41,11 +39,23 @@ export const categorizePythBanks = (
     (bank) => bank.config.oracleSetup === OracleSetup.KaminoPythPush
   );
 
+  // Drift pyth pull banks
+  const driftPythPullBanks = banks.filter(
+    (bank) => bank.config.oracleSetup === OracleSetup.DriftPythPull
+  );
+
+  // Solend pyth pull banks
+  const solendPythPullBanks = banks.filter(
+    (bank) => bank.config.oracleSetup === OracleSetup.SolendPythPull
+  );
+
   return {
     pythLegacyBanks,
     pythPushBanks,
     pythStakedCollateralBanks,
     pythPushKaminosBanks,
+    driftPythPullBanks,
+    solendPythPullBanks,
   };
 };
 
@@ -80,12 +90,8 @@ export const convertVoteAccCoeffsToBankCoeffs = (
  * @param pythBanks - Array of Pyth bank objects
  * @returns Array of oracle key strings in base58 format
  */
-export const extractPythOracleKeys = (
-  pythBanks: BankType[]
-): string[] => {
-  const keys = pythBanks.map((bank) =>
-    bank.config.oracleKeys[0]!.toBase58()
-  );
+export const extractPythOracleKeys = (pythBanks: BankType[]): string[] => {
+  const keys = pythBanks.map((bank) => bank.config.oracleKeys[0]!.toBase58());
 
   return [...keys];
 };
@@ -125,14 +131,8 @@ export const mapPythBanksToOraclePrices = (
       if (oraclePrice) {
         bankOraclePriceMap.set(bank.address.toBase58(), {
           timestamp: oraclePrice.timestamp,
-          priceRealtime: adjustPriceComponent(
-            oraclePrice.priceRealtime,
-            priceCoeff
-          ),
-          priceWeighted: adjustPriceComponent(
-            oraclePrice.priceWeighted,
-            priceCoeff
-          ),
+          priceRealtime: adjustPriceComponent(oraclePrice.priceRealtime, priceCoeff),
+          priceWeighted: adjustPriceComponent(oraclePrice.priceWeighted, priceCoeff),
         });
       }
     }
@@ -147,10 +147,7 @@ export const mapPythBanksToOraclePrices = (
  * @param priceCoeff - Multiplier coefficient to adjust the price values
  * @returns Adjusted price component with multiplied price and bounds
  */
-export const adjustPriceComponent = (
-  priceComponent: PriceWithConfidence,
-  priceCoeff: number
-) => ({
+export const adjustPriceComponent = (priceComponent: PriceWithConfidence, priceCoeff: number) => ({
   price: priceComponent.price.multipliedBy(priceCoeff),
   confidence: priceComponent.confidence,
   lowestPrice: priceComponent.lowestPrice.multipliedBy(priceCoeff),
@@ -178,9 +175,7 @@ export function parseRpcPythPriceData(rawData: Buffer): OraclePrice {
 
   const exponent = new BigNumber(10 ** data.priceMessage.exponent);
 
-  const priceRealTime = new BigNumber(Number(data.priceMessage.price)).times(
-    exponent
-  );
+  const priceRealTime = new BigNumber(Number(data.priceMessage.price)).times(exponent);
   const confidenceRealTime = new BigNumber(Number(data.priceMessage.conf))
     .times(exponent)
     .times(PYTH_PRICE_CONF_INTERVALS);
@@ -192,12 +187,8 @@ export function parseRpcPythPriceData(rawData: Buffer): OraclePrice {
   const lowestPriceRealTime = priceRealTime.minus(cappedConfidenceRealTime);
   const highestPriceRealTime = priceRealTime.plus(cappedConfidenceRealTime);
 
-  const priceTimeWeighted = new BigNumber(
-    Number(data.priceMessage.emaPrice)
-  ).times(exponent);
-  const confidenceTimeWeighted = new BigNumber(
-    Number(data.priceMessage.emaConf)
-  )
+  const priceTimeWeighted = new BigNumber(Number(data.priceMessage.emaPrice)).times(exponent);
+  const confidenceTimeWeighted = new BigNumber(Number(data.priceMessage.emaConf))
     .times(exponent)
     .times(PYTH_PRICE_CONF_INTERVALS);
   const cappedConfidenceWeighted = capConfidenceInterval(
