@@ -1,6 +1,6 @@
 import { PublicKey, Connection } from "@solana/web3.js";
 
-import { USDC_MINT } from "@mrgnlabs/mrgn-common";
+import { USDC_MINT } from "~/constants";
 
 import {
   DriftUser,
@@ -35,9 +35,7 @@ export async function getDriftRewards(
   // Not all rewards will be in spot markets we have fetched, so need to fetch seperately
   let missingMarketIndexes: Set<number> = new Set();
 
-  const spotMarketsMap = new Map(
-    spotMarkets.map((market) => [market.marketIndex, market])
-  );
+  const spotMarketsMap = new Map(spotMarkets.map((market) => [market.marketIndex, market]));
 
   // Get all active rewards
   const userStatesWithRewards = userStates.map((userState) => {
@@ -79,9 +77,7 @@ export async function getDriftRewards(
   // Any console error here should not be ignored and indicate something seriously wrong
   const missingMarketsMap: Map<number, DriftSpotMarketRaw> = new Map([
     // Include all existing spot markets
-    ...spotMarkets.map(
-      (market) => [market.marketIndex, market] as [number, DriftSpotMarketRaw]
-    ),
+    ...spotMarkets.map((market) => [market.marketIndex, market] as [number, DriftSpotMarketRaw]),
     // Add newly fetched missing markets
     ...missingMarketsAccounts
       .map((account, idx) => {
@@ -93,19 +89,14 @@ export async function getDriftRewards(
         }
 
         if (!account) {
-          console.error(
-            "Missing market account, for ",
-            missingMarketKeys[idx]?.toBase58()
-          );
+          console.error("Missing market account, for ", missingMarketKeys[idx]?.toBase58());
           return null;
         } else {
           const decodedMarket = decodeDriftSpotMarketData(account.data);
           return [marketIndex, decodedMarket];
         }
       })
-      .filter(
-        (market): market is [number, DriftSpotMarketRaw] => market !== null
-      ),
+      .filter((market): market is [number, DriftSpotMarketRaw] => market !== null),
   ]);
 
   // Formats the rewards by bank
@@ -150,9 +141,7 @@ export async function getAllRequiredMarkets(
     (index) => !spotMarkets.some((market) => market.marketIndex === index)
   );
 
-  const missingMarketKeys = missingMarketIndexes.map(
-    (index) => deriveDriftSpotMarket(index)[0]
-  );
+  const missingMarketKeys = missingMarketIndexes.map((index) => deriveDriftSpotMarket(index)[0]);
 
   const missingMarketsAccounts = missingMarketKeys.length
     ? await connection.getMultipleAccountsInfo(missingMarketKeys)
@@ -161,9 +150,7 @@ export async function getAllRequiredMarkets(
   // Use a Map internally to deduplicate by marketIndex
   const allMarketsMap: Map<number, DriftSpotMarketRaw> = new Map([
     // Include all existing spot markets
-    ...spotMarkets.map(
-      (market) => [market.marketIndex, market] as [number, DriftSpotMarketRaw]
-    ),
+    ...spotMarkets.map((market) => [market.marketIndex, market] as [number, DriftSpotMarketRaw]),
     // Add newly fetched missing markets
     ...missingMarketsAccounts
       .map((account, idx) => {
@@ -175,19 +162,14 @@ export async function getAllRequiredMarkets(
         }
 
         if (!account) {
-          console.error(
-            "Missing market account, for ",
-            missingMarketKeys[idx]?.toBase58()
-          );
+          console.error("Missing market account, for ", missingMarketKeys[idx]?.toBase58());
           return null;
         } else {
           const decodedMarket = decodeDriftSpotMarketData(account.data);
           return [marketIndex, decodedMarket];
         }
       })
-      .filter(
-        (market): market is [number, DriftSpotMarketRaw] => market !== null
-      ),
+      .filter((market): market is [number, DriftSpotMarketRaw] => market !== null),
   ]);
 
   return Array.from(allMarketsMap.values());
