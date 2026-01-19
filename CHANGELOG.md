@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.1] - 2026-01-19
+
+### Added
+
+- **Drift Protocol Integration** - Full support for Drift spot markets
+  - `makeDriftDepositIx` / `makeDriftDepositTx` - Deposit into Drift spot markets
+  - `makeDriftWithdrawIx` / `makeDriftWithdrawTx` - Withdraw from Drift spot markets
+  - `makeUpdateDriftMarketIxs` - Update Drift spot market cumulative interest
+  - Drift reward harvesting support (up to 2 reward tokens)
+  - Account wrapper methods: `makeDriftDepositTx()` and `makeDriftWithdrawTx()`
+- **New IDL** - Added `marginfi-types_0.1.7.ts` with Drift-related instructions
+- **Asset Tag** - Added `AssetTag.DRIFT = 4` for Drift-integrated banks
+- **Bank Fields** - Added `driftSpotMarket`, `driftUser`, `driftUserStats` to bank state
+- **Loop/Repay Support** - Integrated Drift withdrawals into loop and repay-with-collateral flows
+
+### Changed
+
+- Updated compute budget utilities to handle Drift spot market accounts
+- Enhanced loop and repay logic to support Drift banks via switch statements
+- Improved bank serialization to include Drift account fields
+
 ## [1.0.1] - 2026-01-19
 
 ### Changed
