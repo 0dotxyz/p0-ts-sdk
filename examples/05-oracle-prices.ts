@@ -13,7 +13,7 @@
  */
 
 import { PublicKey } from "@solana/web3.js";
-import { Project0Client, fetchOracleData } from "p0-ts-sdk";
+import { Project0Client, fetchOracleData } from "../src";
 import { getConnection, getMarginfiConfig } from "./config";
 
 // ============================================================================

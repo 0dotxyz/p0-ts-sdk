@@ -19,7 +19,7 @@ import {
   Project0Client,
   MarginfiAccountWrapper,
   MarginfiAccount,
-} from "p0-ts-sdk";
+} from "../src";
 import {
   getConnection,
   getMarginfiConfig,
