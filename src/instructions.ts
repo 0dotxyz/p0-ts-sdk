@@ -825,9 +825,11 @@ async function makePulseHealthIx(
 
 const instructions = {
   makeDepositIx,
+  makeDriftDepositIx,
   makeKaminoDepositIx,
   makeRepayIx,
   makeWithdrawIx,
+  makeDriftWithdrawIx,
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeInitMarginfiAccountIx,

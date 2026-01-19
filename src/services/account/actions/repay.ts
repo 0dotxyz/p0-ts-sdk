@@ -30,7 +30,11 @@ import {
   getAccountKeys,
   getTxSize,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 import { MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
@@ -38,7 +42,7 @@ import syncInstructions from "~/sync-instructions";
 import { MakeRepayIxParams, MakeRepayTxParams, MakeRepayWithCollatTxParams } from "../types";
 import { isWholePosition, getJupiterSwapIxsForFlashloan } from "../utils";
 
-import { makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
+import { makeDriftWithdrawIx, makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSetupIx } from "./account-lifecycle";
 
@@ -202,6 +206,13 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     ],
   });
 
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    marginfiAccount,
+    bankMap,
+    [withdrawOpts.withdrawBank.address],
+    bankMetadataMap
+  );
+
   // Will only refresh kamino banks if any banks in the portfolio are kamino
   const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     marginfiAccount,
@@ -252,8 +263,16 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // if atas are needed, add them
-  if (setupIxs.length > 0 || kaminoRefreshIxs.instructions.length > 0) {
-    const ixs = [...setupIxs, ...kaminoRefreshIxs.instructions];
+  if (
+    setupIxs.length > 0 ||
+    kaminoRefreshIxs.instructions.length > 0 ||
+    updateDriftMarketIxs.instructions.length > 0
+  ) {
+    const ixs = [
+      ...setupIxs,
+      ...kaminoRefreshIxs.instructions,
+      ...updateDriftMarketIxs.instructions,
+    ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -379,75 +398,120 @@ async function buildRepayWithCollatFlashloanTx({
 
   let withdrawIxs: InstructionsWrapper;
 
-  // Logic to determine if the withdraw bank is kamino
-  if (withdrawOpts.withdrawBank.config.assetTag === AssetTag.KAMINO) {
-    const reserve =
-      bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.kaminoStates?.reserveState;
+  switch (withdrawOpts.withdrawBank.config.assetTag) {
+    case AssetTag.KAMINO: {
+      const reserve =
+        bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.kaminoStates?.reserveState;
 
-    if (!reserve) {
-      throw TransactionBuildingError.kaminoReserveNotFound(
-        withdrawOpts.withdrawBank.address.toBase58(),
-        withdrawOpts.withdrawBank.mint.toBase58(),
-        withdrawOpts.withdrawBank.tokenSymbol
-      );
+      if (!reserve) {
+        throw TransactionBuildingError.kaminoReserveNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
+      const adjustedAmount = new BigNumber(withdrawOpts.withdrawAmount)
+        .div(withdrawOpts.withdrawBank.assetShareValue)
+        .times(1.0001)
+        .toNumber();
+
+      withdrawIxs = await makeKaminoWithdrawIx({
+        program,
+        bank: withdrawOpts.withdrawBank,
+        bankMap,
+        tokenProgram: withdrawOpts.tokenProgram,
+        amount: adjustedAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        reserve,
+        bankMetadataMap,
+        withdrawAll: isWholePosition(
+          {
+            amount: withdrawOpts.totalPositionAmount,
+            isLending: true,
+          },
+          withdrawOpts.withdrawAmount,
+          withdrawOpts.withdrawBank.mintDecimals
+        ),
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
     }
 
-    // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
-    const adjustedAmount = new BigNumber(withdrawOpts.withdrawAmount)
-      .div(withdrawOpts.withdrawBank.assetShareValue)
-      .times(1.0001)
-      .toNumber();
+    case AssetTag.DRIFT: {
+      const driftState = bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.driftStates;
 
-    withdrawIxs = await makeKaminoWithdrawIx({
-      program,
-      bank: withdrawOpts.withdrawBank,
-      bankMap,
-      tokenProgram: withdrawOpts.tokenProgram,
-      amount: adjustedAmount,
-      marginfiAccount,
-      authority: marginfiAccount.authority,
-      reserve,
-      bankMetadataMap,
-      withdrawAll: isWholePosition(
-        {
-          amount: withdrawOpts.totalPositionAmount,
-          isLending: true,
+      if (!driftState) {
+        throw TransactionBuildingError.driftStateNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      withdrawIxs = await makeDriftWithdrawIx({
+        program,
+        bank: withdrawOpts.withdrawBank,
+        bankMap,
+        tokenProgram: withdrawOpts.tokenProgram,
+        amount: withdrawOpts.withdrawAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        driftSpotMarket: driftState.spotMarketState,
+        userRewards: driftState.userRewards,
+        withdrawAll: isWholePosition(
+          {
+            amount: withdrawOpts.totalPositionAmount,
+            isLending: true,
+          },
+          withdrawOpts.withdrawAmount,
+          withdrawOpts.withdrawBank.mintDecimals
+        ),
+        bankMetadataMap,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
         },
-        withdrawOpts.withdrawAmount,
-        withdrawOpts.withdrawBank.mintDecimals
-      ),
-      isSync: true,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
-  } else {
-    withdrawIxs = await makeWithdrawIx({
-      program,
-      bank: withdrawOpts.withdrawBank,
-      bankMap,
-      tokenProgram: withdrawOpts.tokenProgram,
-      amount: withdrawOpts.withdrawAmount,
-      marginfiAccount,
-      authority: marginfiAccount.authority,
-      withdrawAll: isWholePosition(
-        {
-          amount: withdrawOpts.totalPositionAmount,
-          isLending: true,
+      });
+      break;
+    }
+
+    default: {
+      withdrawIxs = await makeWithdrawIx({
+        program,
+        bank: withdrawOpts.withdrawBank,
+        bankMap,
+        tokenProgram: withdrawOpts.tokenProgram,
+        amount: withdrawOpts.withdrawAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        withdrawAll: isWholePosition(
+          {
+            amount: withdrawOpts.totalPositionAmount,
+            isLending: true,
+          },
+          withdrawOpts.withdrawAmount,
+          withdrawOpts.withdrawBank.mintDecimals
+        ),
+        bankMetadataMap,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
         },
-        withdrawOpts.withdrawAmount,
-        withdrawOpts.withdrawBank.mintDecimals
-      ),
-      bankMetadataMap,
-      isSync: true,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
+      });
+      break;
+    }
   }
 
   for (const [index, item] of swapResult.entries()) {

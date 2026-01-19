@@ -59,6 +59,10 @@ import {
   parseMarginfiAccountRaw,
   simulateAccountHealthCacheWithFallback,
   TransactionBuilderResult,
+  MakeDriftDepositTxParams,
+  makeDriftDepositTx,
+  MakeDriftWithdrawTxParams,
+  makeDriftWithdrawTx,
 } from "~/services/account";
 import {
   BankType,
@@ -889,6 +893,25 @@ class MarginfiAccount implements MarginfiAccountType {
   }
 
   /**
+   * Creates a Drift deposit transaction.
+   *
+   * @param params - Parameters for the Drift deposit transaction
+   * @returns Promise resolving to an ExtendedV0Transaction
+   *
+   * @see {@link makeDriftDepositTx} for detailed implementation
+   */
+  async makeDriftDepositTx(
+    params: Omit<MakeDriftDepositTxParams, "accountAddress" | "authority" | "group">
+  ): Promise<ExtendedV0Transaction> {
+    return makeDriftDepositTx({
+      ...params,
+      accountAddress: this.address,
+      authority: this.authority,
+      group: this.group,
+    });
+  }
+
+  /**
    * Creates a Kamino deposit transaction.
    *
    * @param params - Parameters for the Kamino deposit transaction
@@ -954,6 +977,23 @@ class MarginfiAccount implements MarginfiAccountType {
     params: Omit<MakeWithdrawTxParams, "marginfiAccount">
   ): Promise<TransactionBuilderResult> {
     return makeWithdrawTx({
+      ...params,
+      marginfiAccount: this,
+    });
+  }
+
+  /**
+   * Creates a Drift withdraw transaction.
+   *
+   * @param params - Parameters for the Drift withdraw transaction
+   * @returns Promise resolving to an ExtendedV0Transaction
+   *
+   * @see {@link makeDriftWithdrawTx} for detailed implementation
+   */
+  async makeDriftWithdrawTx(
+    params: Omit<MakeDriftWithdrawTxParams, "marginfiAccount">
+  ): Promise<TransactionBuilderResult> {
+    return makeDriftWithdrawTx({
       ...params,
       marginfiAccount: this,
     });

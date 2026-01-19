@@ -1176,9 +1176,11 @@ function makePoolAddPermissionlessStakedBankIx(
 const syncInstructions = {
   makeInitMarginfiAccountIx,
   makeDepositIx,
+  makeDriftDepositIx,
   makeKaminoDepositIx,
   makeRepayIx,
   makeWithdrawIx,
+  makeDriftWithdrawIx,
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeLendingAccountLiquidateIx,

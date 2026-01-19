@@ -36,6 +36,8 @@ import { Balance } from "./balance";
 import { HealthCache } from "./health-cache";
 import { Bank } from "./bank";
 import { NATIVE_MINT } from "~/vendor/spl";
+import { ReserveRaw } from "~/vendor/klend";
+import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 
 /**
  * Wrapper around MarginfiAccount that auto-injects client data for cleaner API.
@@ -483,6 +485,42 @@ export class MarginfiAccountWrapper {
    *
    * @param bankAddress - Bank address to deposit to
    * @param amount - Amount to deposit in UI units
+   * @param spotMarket - Drift spot market data
+   * @param opts - Optional configuration
+   * @returns Promise resolving to an ExtendedV0Transaction
+   */
+  async makeDriftDepositTx(
+    bankAddress: PublicKey,
+    amount: Amount,
+    spotMarket: DriftSpotMarket,
+    opts: MakeDepositIxOpts = {}
+  ): Promise<ExtendedV0Transaction> {
+    // Try to get bank from client, fallback to fetching it
+    const bank = await this.getBankFromAddress(bankAddress);
+
+    // Try to get mint data from cache, fallback to fetching it
+    const mintData = await this.getMintDataFromBank(bank);
+
+    return this.account.makeDriftDepositTx({
+      program: this.client.program,
+      bank,
+      tokenProgram: mintData.tokenProgram,
+      amount,
+      driftMarketIndex: spotMarket.marketIndex,
+      driftOracle: spotMarket.oracle,
+      luts: this.client.addressLookupTables,
+      connection: this.client.program.provider.connection,
+      opts,
+    });
+  }
+
+  /**
+   * Creates a Kamino deposit transaction with auto-injected client data.
+   *
+   * Automatically looks up bank, mint data, and connection.
+   *
+   * @param bankAddress - Bank address to deposit to
+   * @param amount - Amount to deposit in UI units
    * @param reserve - Kamino reserve data
    * @param opts - Optional configuration
    * @returns Promise resolving to an ExtendedV0Transaction
@@ -490,7 +528,7 @@ export class MarginfiAccountWrapper {
   async makeKaminoDepositTx(
     bankAddress: PublicKey,
     amount: Amount,
-    reserve: any,
+    reserve: ReserveRaw,
     opts: MakeDepositIxOpts = {}
   ): Promise<ExtendedV0Transaction> {
     // Try to get bank from client, fallback to fetching it
@@ -610,6 +648,50 @@ export class MarginfiAccountWrapper {
       tokenProgram: mintData.tokenProgram,
       amount,
       authority: this.account.authority,
+      withdrawAll,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      luts: this.client.addressLookupTables,
+      connection: this.client.program.provider.connection,
+      opts,
+    });
+  }
+
+  /**
+   * Creates a Drift withdraw transaction with auto-injected client data.
+   *
+   * Automatically looks up bank, mint data, metadata, and oracle prices.
+   *
+   * @param bankAddress - Bank address to withdraw from
+   * @param amount - Amount to withdraw in UI units
+   * @param driftSpotMarket - Drift spot market data
+   * @param withdrawAll - If true, withdraws the entire collateral position
+   * @param opts - Optional configuration
+   * @returns Promise resolving to a TransactionBuilderResult
+   */
+  async makeDriftWithdrawTx(
+    bankAddress: PublicKey,
+    amount: Amount,
+    driftSpotMarket: DriftSpotMarket,
+    userRewards: DriftRewards[],
+    withdrawAll: boolean = false,
+    opts: MakeWithdrawIxOpts = {}
+  ): Promise<TransactionBuilderResult> {
+    // Try to get bank from client, fallback to fetching it
+    const bank = await this.getBankFromAddress(bankAddress);
+
+    // Try to get mint data from cache, fallback to fetching it
+    const mintData = await this.getMintDataFromBank(bank);
+
+    return this.account.makeDriftWithdrawTx({
+      program: this.client.program,
+      bank,
+      tokenProgram: mintData.tokenProgram,
+      amount,
+      authority: this.account.authority,
+      driftSpotMarket,
+      userRewards,
       withdrawAll,
       bankMap: this.client.bankMap,
       oraclePrices: this.client.oraclePriceByBank,

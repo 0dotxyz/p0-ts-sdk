@@ -37,6 +37,186 @@ import {
   MakeKaminoDepositIxParams,
   MakeKaminoDepositTxParams,
 } from "../types";
+import { deriveDriftSpotMarketVault, deriveDriftState, DRIFT_PROGRAM_ID } from "~/vendor/drift";
+import { SYSTEM_PROGRAM_ID } from "~/constants";
+
+/**
+ * Creates a Drift deposit instruction for depositing assets into a Drift spot market.
+ *
+ * This function handles:
+ * - Wrapping SOL to wSOL if needed (for native SOL deposits)
+ * - Deriving necessary Drift protocol accounts (state, spot market vault)
+ * - Creating the deposit instruction to the Drift spot market
+ *
+ * @param params - The parameters for creating the deposit instruction
+ * @param params.program - The Marginfi program instance
+ * @param params.bank - The bank to deposit into (must have Drift integration configured)
+ * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
+ * @param params.amount - The amount to deposit in UI units
+ * @param params.accountAddress - The Marginfi account address
+ * @param params.authority - The authority/signer public key
+ * @param params.group - The Marginfi group address
+ * @param params.driftMarketIndex - The Drift spot market index for the asset
+ * @param params.driftOracle - The Drift oracle account for the asset (optional for USDC/market 0)
+ * @param params.opts - Optional configuration
+ * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
+ * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
+ * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
+ *
+ * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
+ */
+export async function makeDriftDepositIx({
+  program,
+  bank,
+  tokenProgram,
+  amount,
+  accountAddress,
+  authority,
+  group,
+  driftMarketIndex,
+  driftOracle,
+  isSync,
+  opts = {
+    // If false, the deposit will not wrap SOL; should not be false in most usecases
+    wrapAndUnwrapSol: true,
+    // wSOL balance can be provided if the user wants to combine native and wrapped SOL
+    wSolBalanceUi: 0,
+  },
+}: MakeDriftDepositIxParams): Promise<InstructionsWrapper> {
+  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
+  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
+  const depositIxs: TransactionInstruction[] = [];
+
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
+
+  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
+    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
+  }
+
+  const driftState = deriveDriftState()[0];
+  const driftSpotMarketVault = deriveDriftSpotMarketVault(driftMarketIndex)[0];
+
+  const depositIx = isSync
+    ? syncInstructions.makeDriftDepositIx(
+        program.programId,
+        {
+          group: group,
+          marginfiAccount: accountAddress,
+          authority,
+          bank: bank.address,
+          driftOracle,
+          liquidityVault: bank.liquidityVault,
+          signerTokenAccount: userTokenAtaPk,
+          driftState,
+          driftUser: bank.driftUser,
+          driftUserStats: bank.driftUserStats,
+          driftSpotMarket: bank.driftSpotMarket,
+          driftSpotMarketVault,
+          mint: bank.mint,
+          driftProgram: DRIFT_PROGRAM_ID,
+          tokenProgram,
+          systemProgram: SYSTEM_PROGRAM_ID,
+        },
+        { amount: uiToNative(amount, bank.mintDecimals) }
+      )
+    : await instructions.makeDriftDepositIx(
+        program,
+        {
+          marginfiAccount: accountAddress,
+          bank: bank.address,
+          signerTokenAccount: userTokenAtaPk,
+          driftState,
+          driftSpotMarketVault,
+          driftOracle,
+          tokenProgram,
+
+          authority: opts.overrideInferAccounts?.authority ?? authority,
+          group: opts.overrideInferAccounts?.group ?? group,
+          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+        },
+        { amount: uiToNative(amount, bank.mintDecimals) }
+      );
+
+  depositIxs.push(depositIx);
+
+  return {
+    instructions: depositIxs,
+    keys: [],
+  };
+}
+
+/**
+ * Creates a complete Drift deposit transaction ready to be signed and sent.
+ *
+ * This function builds a full versioned transaction that includes:
+ * - SOL wrapping instructions if depositing native SOL
+ * - The actual deposit instruction to the Drift spot market
+ *
+ * The transaction is constructed with proper metadata, address lookup tables,
+ * and is ready to be signed by the authority and submitted to the network.
+ *
+ * @param params - The parameters for creating the deposit transaction
+ * @param params.luts - Address lookup tables for transaction compression
+ * @param params.connection - Solana connection for fetching blockhash
+ * @param params.amount - The amount to deposit in UI units
+ * @param params.blockhash - Optional recent blockhash (fetched if not provided)
+ * @param params.program - The Marginfi program instance
+ * @param params.bank - The bank to deposit into (must have driftUser and driftUserStats configured)
+ * @param params.tokenProgram - The token program ID
+ * @param params.accountAddress - The Marginfi account address
+ * @param params.authority - The authority/signer public key
+ * @param params.group - The Marginfi group address
+ * @param params.driftMarketIndex - The Drift spot market index for the asset
+ * @param params.driftOracle - The Drift oracle account for the asset
+ * @param params.opts - Optional configuration (wrapping, overrides, etc.)
+ *
+ * @returns Promise resolving to a versioned transaction with metadata
+ * @throws Error if the bank doesn't have Drift user or user stats configured
+ */
+export async function makeDriftDepositTx(
+  params: MakeDriftDepositTxParams
+): Promise<ExtendedV0Transaction> {
+  const { luts, connection, amount, ...depositIxParams } = params;
+
+  if (!depositIxParams.bank.driftUser) {
+    throw new Error("Bank has no drift user");
+  }
+
+  if (!depositIxParams.bank.driftUserStats) {
+    throw new Error("Bank has no drift user stats");
+  }
+
+  const depositIxs = await makeDriftDepositIx({
+    amount,
+    ...depositIxParams,
+  });
+
+  const blockhash =
+    params.blockhash ??
+    (await connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
+
+  const depositTx = addTransactionMetadata(
+    new VersionedTransaction(
+      new TransactionMessage({
+        instructions: [...depositIxs.instructions],
+        payerKey: params.authority,
+        recentBlockhash: blockhash,
+      }).compileToV0Message(luts)
+    ),
+    {
+      signers: depositIxs.keys,
+      addressLookupTables: luts,
+      type: TransactionType.DEPOSIT,
+    }
+  );
+
+  const solanaTx = addTransactionMetadata(depositTx, {
+    type: TransactionType.DEPOSIT,
+    signers: depositIxs.keys,
+    addressLookupTables: luts,
+  });
+  return solanaTx;
+}
 
 /**
  * Creates a Kamino deposit instruction for depositing assets into a Kamino reserve.

@@ -19,7 +19,11 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE } from "~/constants";
@@ -28,7 +32,7 @@ import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl
 import { getJupiterSwapIxsForFlashloan } from "../utils";
 import { MakeLoopTxParams } from "../types";
 
-import { makeDepositIx, makeKaminoDepositIx } from "./deposit";
+import { makeDepositIx, makeDriftDepositIx, makeKaminoDepositIx } from "./deposit";
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
@@ -70,6 +74,13 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
       },
     ],
   });
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [depositOpts.depositBank.address],
+    params.bankMetadataMap
+  );
 
   const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     marginfiAccount,
@@ -127,8 +138,18 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   }
 
   // if atas are needed, add them
-  if (setupIxs.length > 0 || additionalIxs.length > 0 || kaminoRefreshIxs.instructions.length > 0) {
-    const ixs = [...additionalIxs, ...setupIxs, ...kaminoRefreshIxs.instructions];
+  if (
+    setupIxs.length > 0 ||
+    additionalIxs.length > 0 ||
+    kaminoRefreshIxs.instructions.length > 0 ||
+    updateDriftMarketIxs.instructions.length > 0
+  ) {
+    const ixs = [
+      ...additionalIxs,
+      ...setupIxs,
+      ...kaminoRefreshIxs.instructions,
+      ...updateDriftMarketIxs.instructions,
+    ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -278,46 +299,84 @@ async function buildLoopFlashloanTx({
 
     let depositIxs: InstructionsWrapper;
 
-    if (depositOpts.depositBank.config.assetTag === AssetTag.KAMINO) {
-      const reserve =
-        bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.kaminoStates?.reserveState;
+    switch (depositOpts.depositBank.config.assetTag) {
+      case AssetTag.KAMINO: {
+        const reserve =
+          bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.kaminoStates?.reserveState;
 
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          depositOpts.depositBank.address.toBase58(),
-          depositOpts.depositBank.mint.toBase58(),
-          depositOpts.depositBank.tokenSymbol
-        );
+        if (!reserve) {
+          throw TransactionBuildingError.kaminoReserveNotFound(
+            depositOpts.depositBank.address.toBase58(),
+            depositOpts.depositBank.mint.toBase58(),
+            depositOpts.depositBank.tokenSymbol
+          );
+        }
+
+        depositIxs = await makeKaminoDepositIx({
+          program,
+          bank: depositOpts.depositBank,
+          tokenProgram: depositOpts.tokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          reserve,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
       }
 
-      depositIxs = await makeKaminoDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountToDeposit,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        reserve,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
-    } else {
-      depositIxs = await makeDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountToDeposit,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
+      case AssetTag.DRIFT: {
+        const driftState = bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.driftStates;
+
+        if (!driftState) {
+          throw TransactionBuildingError.driftStateNotFound(
+            depositOpts.depositBank.address.toBase58(),
+            depositOpts.depositBank.mint.toBase58(),
+            depositOpts.depositBank.tokenSymbol
+          );
+        }
+
+        const driftMarketIndex = driftState.spotMarketState.marketIndex;
+        const driftOracle = driftState.spotMarketState.oracle;
+
+        depositIxs = await makeDriftDepositIx({
+          program,
+          bank: depositOpts.depositBank,
+          tokenProgram: depositOpts.tokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          driftMarketIndex,
+          driftOracle,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
+
+      default: {
+        depositIxs = await makeDepositIx({
+          program,
+          bank: depositOpts.depositBank,
+          tokenProgram: depositOpts.tokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
     }
 
     const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];

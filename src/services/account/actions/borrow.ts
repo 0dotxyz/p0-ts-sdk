@@ -13,7 +13,11 @@ import {
   makeUnwrapSolIx,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 import syncInstructions from "~/sync-instructions";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
@@ -131,7 +135,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     params.bankMetadataMap
   );
 
-  const refreshIxs = makeRefreshKaminoBanksIxs(
+  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [borrowIxParams.bank.address],
@@ -178,7 +182,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     new VersionedTransaction(
       new TransactionMessage({
         instructions: [
-          ...refreshIxs.instructions,
+          ...kaminoRefreshIxs.instructions,
           ...updateDriftMarketIxs.instructions,
           ...borrowIxs.instructions,
         ],
@@ -187,7 +191,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
       }).compileToV0Message(luts)
     ),
     {
-      signers: [...refreshIxs.keys, ...borrowIxs.keys],
+      signers: [...kaminoRefreshIxs.keys, ...borrowIxs.keys],
       addressLookupTables: luts,
       type: TransactionType.BORROW,
     }
