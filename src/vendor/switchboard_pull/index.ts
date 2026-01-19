@@ -1,6 +1,8 @@
-import { BN, BorshCoder, Idl, Program, Provider } from "@coral-xyz/anchor";
-import SWB_ONDEMAND_IDL from "./idl.json";
+import { BorshCoder, Idl, Program, Provider } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
+
+import SWB_ONDEMAND_IDL from "./idl.json";
 
 export const SWITCHBOARD_ONDEMANDE_PRICE_PRECISION = 18;
 
@@ -47,16 +49,12 @@ export interface FeedResponse {
   results: number[];
 }
 
-export const switchboardAccountCoder = new BorshCoder(
-  SWB_ONDEMAND_IDL as unknown as Idl
-);
+export const switchboardAccountCoder = new BorshCoder(SWB_ONDEMAND_IDL as unknown as Idl);
 export function getSwitchboardProgram(provider: Provider): Program {
   return new Program(SWB_ONDEMAND_IDL as unknown as Idl, provider);
 }
 
-export function decodeSwitchboardPullFeedData(
-  data: Buffer
-): PullFeedAccountData {
+export function decodeSwitchboardPullFeedData(data: Buffer): PullFeedAccountData {
   const pullFeedDAta = switchboardAccountCoder.accounts.decode(
     "PullFeedAccountData",
     data

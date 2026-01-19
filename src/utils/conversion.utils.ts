@@ -1,4 +1,5 @@
-import { Address, BN } from "@coral-xyz/anchor";
+import { Address } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import { Decimal } from "decimal.js";

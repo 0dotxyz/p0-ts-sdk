@@ -1,4 +1,5 @@
-import { BN, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import {
   ACCUMULATOR_MAGIC,
   MAJOR_VERSION,
@@ -13,12 +14,7 @@ import {
   PRICE_FEED_MESSAGE_VARIANT,
 } from "./pyth.consts";
 import { WormholeCoreBridgeSolana } from "./idl";
-import {
-  Keypair,
-  PublicKey,
-  Signer,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { Keypair, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 
 export function getGuardianSetIndex(vaa: Buffer) {
   return vaa.readUInt32BE(1);
@@ -26,15 +22,10 @@ export function getGuardianSetIndex(vaa: Buffer) {
 
 export const DEFAULT_REDUCED_GUARDIAN_SET_SIZE = 5;
 export const VAA_SIGNATURE_SIZE = 66;
-export function trimSignatures(
-  vaa: Buffer,
-  n = DEFAULT_REDUCED_GUARDIAN_SET_SIZE
-): Buffer {
+export function trimSignatures(vaa: Buffer, n = DEFAULT_REDUCED_GUARDIAN_SET_SIZE): Buffer {
   const currentNumSignatures = vaa[5]!;
   if (n > currentNumSignatures) {
-    throw new Error(
-      "Resulting VAA can't have more signatures than the original VAA"
-    );
+    throw new Error("Resulting VAA can't have more signatures than the original VAA");
   }
 
   const trimmedVaa = Buffer.concat([
@@ -59,9 +50,7 @@ export type AccumulatorUpdateData = {
   updates: { message: Buffer; proof: number[][] }[];
 };
 
-export function parseAccumulatorUpdateData(
-  data: Buffer
-): AccumulatorUpdateData {
+export function parseAccumulatorUpdateData(data: Buffer): AccumulatorUpdateData {
   if (!isAccumulatorUpdateData(data)) {
     throw new Error("Invalid accumulator message");
   }
@@ -93,9 +82,7 @@ export function parseAccumulatorUpdateData(
     cursor += 1;
     const proof = [];
     for (let j = 0; j < numProofs; j++) {
-      proof.push(
-        Array.from(data.subarray(cursor, cursor + KECCAK160_HASH_SIZE))
-      );
+      proof.push(Array.from(data.subarray(cursor, cursor + KECCAK160_HASH_SIZE)));
       cursor += KECCAK160_HASH_SIZE;
     }
 
@@ -191,36 +178,32 @@ async function generateVaaInstructionGroups(
   ];
 
   // Second write and verify instructions
-  const writeSecondPartAndVerifyInstructions: InstructionWithEphemeralSigners[] =
-    [
-      {
-        instruction: await wormhole.methods
-          .writeEncodedVaa({
-            index: VAA_SPLIT_INDEX,
-            data: vaa.subarray(VAA_SPLIT_INDEX),
-          })
-          .accounts({
-            draftVaa: encodedVaaKeypair.publicKey,
-          })
-          .instruction(),
-        signers: [],
-        computeUnits: WRITE_ENCODED_VAA_COMPUTE_BUDGET,
-      },
-      {
-        instruction: await wormhole.methods
-          .verifyEncodedVaaV1()
-          .accounts({
-            guardianSet: getGuardianSetPda(
-              getGuardianSetIndex(vaa),
-              wormhole.programId
-            ),
-            draftVaa: encodedVaaKeypair.publicKey,
-          })
-          .instruction(),
-        signers: [],
-        computeUnits: VERIFY_ENCODED_VAA_COMPUTE_BUDGET,
-      },
-    ];
+  const writeSecondPartAndVerifyInstructions: InstructionWithEphemeralSigners[] = [
+    {
+      instruction: await wormhole.methods
+        .writeEncodedVaa({
+          index: VAA_SPLIT_INDEX,
+          data: vaa.subarray(VAA_SPLIT_INDEX),
+        })
+        .accounts({
+          draftVaa: encodedVaaKeypair.publicKey,
+        })
+        .instruction(),
+      signers: [],
+      computeUnits: WRITE_ENCODED_VAA_COMPUTE_BUDGET,
+    },
+    {
+      instruction: await wormhole.methods
+        .verifyEncodedVaaV1()
+        .accounts({
+          guardianSet: getGuardianSetPda(getGuardianSetIndex(vaa), wormhole.programId),
+          draftVaa: encodedVaaKeypair.publicKey,
+        })
+        .instruction(),
+      signers: [],
+      computeUnits: VERIFY_ENCODED_VAA_COMPUTE_BUDGET,
+    },
+  ];
 
   // Close instructions
   const closeInstructions: InstructionWithEphemeralSigners[] = [
@@ -266,10 +249,7 @@ export async function buildEncodedVaaCreateInstruction(
 /**
  * Returns the address of a guardian set account from the Wormhole program.
  */
-export const getGuardianSetPda = (
-  guardianSetIndex: number,
-  wormholeProgramId: PublicKey
-) => {
+export const getGuardianSetPda = (guardianSetIndex: number, wormholeProgramId: PublicKey) => {
   const guardianSetIndexBuf = Buffer.alloc(4);
   guardianSetIndexBuf.writeUInt32BE(guardianSetIndex, 0);
   return PublicKey.findProgramAddressSync(
