@@ -8,6 +8,8 @@
 
 A modern, type-safe TypeScript SDK for interacting with the P0 Protocol on Solana. Lend, borrow, and manage leveraged DeFi positions with a clean, developer-friendly API.
 
+📖 **[Read the Full Documentation](https://docs.0.xyz/docs/typescript-sdk/getting-started)**
+
 ## Features
 
 - 🔒 **Type-safe**: Full TypeScript support with comprehensive type definitions
