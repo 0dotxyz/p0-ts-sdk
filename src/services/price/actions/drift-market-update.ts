@@ -3,7 +3,7 @@ import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
-import type { BankIntegrationMetadata } from "~/types";
+import type { BankIntegrationMetadata, BankIntegrationMetadataMap } from "~/types";
 import { makeUpdateSpotMarketIx } from "~/vendor/drift";
 
 /**
@@ -24,7 +24,7 @@ export function makeUpdateDriftMarketIxs(
   marginfiAccount: MarginfiAccountType,
   bankMap: Map<string, BankType>,
   banksToExclude: PublicKey[],
-  bankMetadataMap: BankIntegrationMetadata
+  bankMetadataMap: BankIntegrationMetadataMap
 ): InstructionsWrapper {
   const ixs: TransactionInstruction[] = [];
 

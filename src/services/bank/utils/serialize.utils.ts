@@ -313,6 +313,11 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     emode: emodeSettingsRawToDto(bankRaw.emode),
     kaminoReserve: bankRaw.kaminoReserve.toBase58(),
     kaminoObligation: bankRaw.kaminoObligation.toBase58(),
+    driftSpotMarket: bankRaw.driftSpotMarket.toBase58(),
+    driftUser: bankRaw.driftUser.toBase58(),
+    driftUserStats: bankRaw.driftUserStats.toBase58(),
+    solendReserve: bankRaw.solendReserve.toBase58(),
+    solendObligation: bankRaw.solendObligation.toBase58(),
   };
 }
 

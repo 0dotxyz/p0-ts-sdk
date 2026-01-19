@@ -41,10 +41,7 @@ export function capConfidenceInterval(
   return BigNumber.min(confidence, maxConfidenceInterval);
 }
 
-function parseOraclePriceData(
-  oracleSetup: OracleSetup,
-  rawData: Buffer
-): OraclePrice {
+function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): OraclePrice {
   switch (oracleSetup) {
     case OracleSetup.PythPushOracle:
     case OracleSetup.StakedWithPythPush:
@@ -92,6 +89,7 @@ function parseOraclePriceData(
           stdev: pullFeedDAta.result.std_dev.toString(),
         }
       );
+    }
     default:
       console.error("Invalid oracle setup", oracleSetup);
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);

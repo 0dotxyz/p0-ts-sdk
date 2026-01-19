@@ -6,9 +6,7 @@ type MakeUpdateSpotMarketIxParams = {
   spotMarket: DriftSpotMarket;
 };
 
-export function makeUpdateSpotMarketIx({
-  spotMarket,
-}: MakeUpdateSpotMarketIxParams) {
+export function makeUpdateSpotMarketIx({ spotMarket }: MakeUpdateSpotMarketIxParams) {
   const spotMarketKey = spotMarket.pubkey;
   const spotMarketOracle = spotMarket.oracle;
   const driftState = deriveDriftState()[0];
