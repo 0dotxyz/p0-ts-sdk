@@ -83,8 +83,8 @@ export async function makeDriftWithdrawIx({
 
   const { driftState, driftSigner, driftSpotMarketVault } = getAllDerivedDriftAccounts(marketIndex);
 
-  if (!bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!bank.driftIntegrationAccounts) {
+    throw new Error("Bank has no drift integration accounts");
   }
 
   if (opts.observationBanksOverride) {
@@ -125,9 +125,9 @@ export async function makeDriftWithdrawIx({
           destinationTokenAccount: userTokenAtaPk,
 
           driftState,
-          driftUser: bank.driftUser,
-          driftUserStats: bank.driftUserStats,
-          driftSpotMarket: bank.driftSpotMarket,
+          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
           driftSpotMarketVault,
           driftSigner,
           liquidityVault: bank.liquidityVault,
@@ -332,8 +332,8 @@ export async function makeKaminoWithdrawIx({
     reserveDestinationDepositCollateral,
   } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
-  if (!bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
   }
 
   const reserveFarm = !reserve.farmCollateral.equals(
@@ -343,7 +343,11 @@ export async function makeKaminoWithdrawIx({
     : null;
 
   const [userFarmState] = reserveFarm
-    ? deriveUserState(FARMS_PROGRAM_ID, reserveFarm, bank.kaminoObligation)
+    ? deriveUserState(
+        FARMS_PROGRAM_ID,
+        reserveFarm,
+        bank.kaminoIntegrationAccounts.kaminoObligation
+      )
     : [null];
 
   if (opts.observationBanksOverride) {
@@ -363,10 +367,10 @@ export async function makeKaminoWithdrawIx({
           bank: bank.address,
           destinationTokenAccount: userTokenAtaPk,
 
-          kaminoObligation: bank.kaminoObligation,
+          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
           lendingMarket,
           lendingMarketAuthority,
-          kaminoReserve: bank.kaminoReserve,
+          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
           reserveLiquidityMint: bank.mint,
           reserveLiquiditySupply,
           reserveCollateralMint,
@@ -621,12 +625,8 @@ export async function makeKaminoWithdrawTx(
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, amount, ...withdrawIxParams } = params;
 
-  if (!withdrawIxParams.bank.kaminoReserve) {
-    throw new Error("Bank has no kamino reserve");
-  }
-
-  if (!withdrawIxParams.bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!withdrawIxParams.bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
   }
 
   const adjustedAmount = new BigNumber(amount)

@@ -144,14 +144,34 @@ export function parseBankRaw(
     ? new BigNumber(accountParsed.borrowingPositionCount.toString())
     : new BigNumber(0);
 
-  const kaminoReserve = accountParsed.kaminoReserve;
-  const kaminoObligation = accountParsed.kaminoObligation;
+  let kaminoIntegrationAccounts,
+    driftIntegrationAccounts,
+    solendIntegrationAccounts = undefined;
 
-  const driftSpotMarket = accountParsed.driftSpotMarket;
-  const driftUser = accountParsed.driftUser;
-  const driftUserStats = accountParsed.driftUserStats;
-  const solendReserve = accountParsed.solendReserve;
-  const solendObligation = accountParsed.solendObligation;
+  switch (config.assetTag) {
+    case AssetTag.KAMINO:
+      kaminoIntegrationAccounts = {
+        kaminoReserve: accountParsed.integrationAcc1,
+        kaminoObligation: accountParsed.integrationAcc2,
+      };
+      break;
+    case AssetTag.DRIFT:
+      driftIntegrationAccounts = {
+        driftSpotMarket: accountParsed.integrationAcc1,
+        driftUser: accountParsed.integrationAcc2,
+        driftUserStats: accountParsed.integrationAcc3,
+      };
+      break;
+    case AssetTag.SOLEND:
+      solendIntegrationAccounts = {
+        solendReserve: accountParsed.integrationAcc1,
+        solendObligation: accountParsed.integrationAcc2,
+      };
+
+      break;
+    default:
+      break;
+  }
 
   return {
     address,
@@ -188,13 +208,9 @@ export function parseBankRaw(
     tokenSymbol,
     mintRate: mintData?.mintRate ?? null,
     mintPrice: mintData?.mintPrice ?? 0,
-    kaminoReserve,
-    kaminoObligation,
-    driftSpotMarket,
-    driftUser,
-    driftUserStats,
-    solendReserve,
-    solendObligation,
+    kaminoIntegrationAccounts,
+    driftIntegrationAccounts,
+    solendIntegrationAccounts,
   };
 }
 
@@ -244,13 +260,25 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
       : undefined,
     mintRate: null, // TODO: move these out
     mintPrice: 0,
-    kaminoReserve: new PublicKey(bankDto.kaminoReserve),
-    kaminoObligation: new PublicKey(bankDto.kaminoObligation),
-    driftSpotMarket: new PublicKey(bankDto.driftSpotMarket),
-    driftUser: new PublicKey(bankDto.driftUser),
-    driftUserStats: new PublicKey(bankDto.driftUserStats),
-    solendReserve: new PublicKey(bankDto.solendReserve),
-    solendObligation: new PublicKey(bankDto.solendObligation),
+    kaminoIntegrationAccounts: bankDto.kaminoIntegrationAccounts
+      ? {
+          kaminoReserve: new PublicKey(bankDto.kaminoIntegrationAccounts.kaminoReserve),
+          kaminoObligation: new PublicKey(bankDto.kaminoIntegrationAccounts.kaminoObligation),
+        }
+      : undefined,
+    driftIntegrationAccounts: bankDto.driftIntegrationAccounts
+      ? {
+          driftSpotMarket: new PublicKey(bankDto.driftIntegrationAccounts.driftSpotMarket),
+          driftUser: new PublicKey(bankDto.driftIntegrationAccounts.driftUser),
+          driftUserStats: new PublicKey(bankDto.driftIntegrationAccounts.driftUserStats),
+        }
+      : undefined,
+    solendIntegrationAccounts: bankDto.solendIntegrationAccounts
+      ? {
+          solendReserve: new PublicKey(bankDto.solendIntegrationAccounts.solendReserve),
+          solendObligation: new PublicKey(bankDto.solendIntegrationAccounts.solendObligation),
+        }
+      : undefined,
   };
 }
 
@@ -356,13 +384,9 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
       : undefined,
 
     emode: dtoToEmodeSettingsRaw(bankDto.emode),
-    kaminoReserve: new PublicKey(bankDto.kaminoReserve),
-    kaminoObligation: new PublicKey(bankDto.kaminoObligation),
-    driftSpotMarket: new PublicKey(bankDto.driftSpotMarket),
-    driftUser: new PublicKey(bankDto.driftUser),
-    driftUserStats: new PublicKey(bankDto.driftUserStats),
-    solendReserve: new PublicKey(bankDto.solendReserve),
-    solendObligation: new PublicKey(bankDto.solendObligation),
+    integrationAcc1: new PublicKey(bankDto.integrationAcc1),
+    integrationAcc2: new PublicKey(bankDto.integrationAcc2),
+    integrationAcc3: new PublicKey(bankDto.integrationAcc3),
   };
 }
 

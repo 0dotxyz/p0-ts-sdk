@@ -92,7 +92,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -156,19 +155,19 @@ export type Marginfi = {
           docs: ["The Drift state account"];
         },
         {
-          name: "driftUser";
+          name: "integrationAcc2";
           docs: ["The Drift user account owned by liquidity_vault_authority"];
           writable: true;
           relations: ["bank"];
         },
         {
-          name: "driftUserStats";
+          name: "integrationAcc3";
           docs: ["The Drift user stats account owned by liquidity_vault_authority"];
           writable: true;
           relations: ["bank"];
         },
         {
-          name: "driftSpotMarket";
+          name: "integrationAcc1";
           docs: ["The Drift spot market for this asset"];
           writable: true;
           relations: ["bank"];
@@ -386,19 +385,19 @@ export type Marginfi = {
           docs: ["Drift accounts"];
         },
         {
-          name: "driftUser";
+          name: "integrationAcc2";
           writable: true;
           relations: ["bank"];
         },
         {
-          name: "driftUserStats";
+          name: "integrationAcc3";
           writable: true;
           relations: ["bank"];
         },
         {
           name: "harvestDriftSpotMarket";
           docs: [
-            "The harvest spot market - MUST be different from bank's drift_spot_market",
+            "The harvest spot market - MUST be different from bank's Drift spot market (integration_acc_1)",
             "This is the market that contains admin deposits to harvest",
           ];
           writable: true;
@@ -504,7 +503,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "driftUserStats";
+          name: "integrationAcc3";
           docs: ["The user stats account to be created"];
           writable: true;
           pda: {
@@ -559,7 +558,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "driftUser";
+          name: "integrationAcc2";
           docs: ["The user account to be created (sub_account_id = 0)"];
           writable: true;
           pda: {
@@ -622,7 +621,7 @@ export type Marginfi = {
           writable: true;
         },
         {
-          name: "driftSpotMarket";
+          name: "integrationAcc1";
           writable: true;
           relations: ["bank"];
         },
@@ -743,19 +742,19 @@ export type Marginfi = {
           docs: ["The Drift state account"];
         },
         {
-          name: "driftUser";
+          name: "integrationAcc2";
           docs: ["The Drift user account owned by liquidity_vault_authority"];
           writable: true;
           relations: ["bank"];
         },
         {
-          name: "driftUserStats";
+          name: "integrationAcc3";
           docs: ["The Drift user stats account owned by liquidity_vault_authority"];
           writable: true;
           relations: ["bank"];
         },
         {
-          name: "driftSpotMarket";
+          name: "integrationAcc1";
           docs: ["The Drift spot market for this asset"];
           writable: true;
           relations: ["bank"];
@@ -1182,7 +1181,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -1241,7 +1239,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "kaminoObligation";
+          name: "integrationAcc2";
           writable: true;
           relations: ["bank"];
         },
@@ -1252,7 +1250,7 @@ export type Marginfi = {
           name: "lendingMarketAuthority";
         },
         {
-          name: "kaminoReserve";
+          name: "integrationAcc1";
           docs: ["The Kamino reserve that holds liquidity"];
           writable: true;
           relations: ["bank"];
@@ -1571,7 +1569,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "kaminoObligation";
+          name: "integrationAcc2";
           docs: [
             "The obligation account to be created. Note that the key was already derived when",
             "initializing the bank, and this must match the obligation recorded at that time.",
@@ -1590,7 +1588,7 @@ export type Marginfi = {
           name: "lendingMarketAuthority";
         },
         {
-          name: "kaminoReserve";
+          name: "integrationAcc1";
           writable: true;
           relations: ["bank"];
         },
@@ -1776,7 +1774,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "kaminoObligation";
+          name: "integrationAcc2";
           writable: true;
           relations: ["bank"];
         },
@@ -1789,7 +1787,7 @@ export type Marginfi = {
           docs: ["The Kamino lending market authority"];
         },
         {
-          name: "kaminoReserve";
+          name: "integrationAcc1";
           docs: ["The Kamino reserve that holds liquidity"];
           writable: true;
           relations: ["bank"];
@@ -1880,7 +1878,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -1957,7 +1954,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -1981,7 +1977,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -2058,7 +2053,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["liquidatorMarginfiAccount"];
         },
         {
           name: "liquidateeMarginfiAccount";
@@ -2365,7 +2359,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -2827,7 +2820,7 @@ export type Marginfi = {
         },
         {
           name: "bankMint";
-          docs: ["Must match the mint used by `drift_spot_market`"];
+          docs: ["Must match the mint used by `integration_acc_1`"];
         },
         {
           name: "bank";
@@ -2850,11 +2843,11 @@ export type Marginfi = {
           };
         },
         {
-          name: "driftSpotMarket";
+          name: "integrationAcc1";
           docs: ["Drift spot market account that must match the bank mint"];
         },
         {
-          name: "driftUser";
+          name: "integrationAcc2";
           docs: [
             "Drift user account for the marginfi program (derived from liquidity_vault_authority)",
           ];
@@ -2913,7 +2906,7 @@ export type Marginfi = {
           };
         },
         {
-          name: "driftUserStats";
+          name: "integrationAcc3";
           docs: [
             "Drift user stats account for the marginfi program (derived from liquidity_vault_authority)",
           ];
@@ -3162,8 +3155,8 @@ export type Marginfi = {
         {
           name: "bankMint";
           docs: [
-            "Must match the mint used by `kamino_reserve`, Kamino calls this the `reserve_liquidity_mint`",
-            "aka `liquidity.mint_pubkey`",
+            "Must match the mint used by the Kamino reserve (integration_acc_1), Kamino calls this the",
+            "`reserve_liquidity_mint` aka `liquidity.mint_pubkey`",
           ];
         },
         {
@@ -3187,16 +3180,18 @@ export type Marginfi = {
           };
         },
         {
-          name: "kaminoReserve";
+          name: "integrationAcc1";
         },
         {
-          name: "kaminoObligation";
+          name: "integrationAcc2";
           docs: ["Note: not yet initialized in this instruction, run `init_obligation` after."];
         },
         {
           name: "liquidityVaultAuthority";
           docs: [
-            "Will be authority of the bank's `kamino_obligation`. Note: When depositing/withdrawing",
+            "Will be authority of the bank's Kamino obligation (integration_acc_2). Note: When",
+            "depositing/withdrawing Kamino assets, the source/destination must also be owned by the",
+            "obligation authority.",
             "Kamino assets, the source/destination must also be owned by the obligation authority. This",
             "account owns the `liquidity_vault`, and thus acts as intermediary for deposits/withdraws",
           ];
@@ -3595,7 +3590,7 @@ export type Marginfi = {
         {
           name: "bankMint";
           docs: [
-            "Must match the mint used by `solend_reserve`, Solend calls this the `liquidity.mint_pubkey`",
+            "Must match the mint used by `integration_acc_1`, Solend calls this the `liquidity.mint_pubkey`",
           ];
         },
         {
@@ -3619,11 +3614,11 @@ export type Marginfi = {
           };
         },
         {
-          name: "solendReserve";
+          name: "integrationAcc1";
           docs: ["Solend reserve account that must match the bank mint"];
         },
         {
-          name: "solendObligation";
+          name: "integrationAcc2";
           docs: [
             "Obligation PDA for this bank in Solend",
             "Will be initialized and transferred to Solend in init_obligation instruction",
@@ -5389,6 +5384,30 @@ export type Marginfi = {
       ];
     },
     {
+      name: "marginfiAccountSetFreeze";
+      discriminator: [199, 179, 231, 30, 138, 247, 110, 227];
+      accounts: [
+        {
+          name: "group";
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "admin";
+          signer: true;
+        },
+      ];
+      args: [
+        {
+          name: "frozen";
+          type: "bool";
+        },
+      ];
+    },
+    {
       name: "marginfiAccountUpdateEmissionsDestinationAccount";
       discriminator: [73, 185, 162, 201, 111, 24, 116, 185];
       accounts: [
@@ -5452,10 +5471,6 @@ export type Marginfi = {
           type: "pubkey";
         },
         {
-          name: "isArenaGroup";
-          type: "bool";
-        },
-        {
           name: "emodeMaxInitLeverage";
           type: {
             option: {
@@ -5507,12 +5522,7 @@ export type Marginfi = {
           address: "11111111111111111111111111111111";
         },
       ];
-      args: [
-        {
-          name: "isArenaGroup";
-          type: "bool";
-        },
-      ];
+      args: [];
     },
     {
       name: "migrateCurve";
@@ -5692,7 +5702,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -5747,7 +5756,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "solendObligation";
+          name: "integrationAcc2";
           docs: ["The Solend obligation account"];
           writable: true;
           relations: ["bank"];
@@ -5760,7 +5769,7 @@ export type Marginfi = {
           docs: ["Derived from the lending market"];
         },
         {
-          name: "solendReserve";
+          name: "integrationAcc1";
           docs: ["The Solend reserve that holds liquidity"];
           writable: true;
           relations: ["bank"];
@@ -5890,7 +5899,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "solendObligation";
+          name: "integrationAcc2";
           writable: true;
           pda: {
             seeds: [
@@ -5932,7 +5941,7 @@ export type Marginfi = {
           docs: ["Derived from the lending market"];
         },
         {
-          name: "solendReserve";
+          name: "integrationAcc1";
           writable: true;
           relations: ["bank"];
         },
@@ -6068,7 +6077,7 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "solendObligation";
+          name: "integrationAcc2";
           docs: ["The Solend obligation account"];
           writable: true;
           relations: ["bank"];
@@ -6082,7 +6091,7 @@ export type Marginfi = {
           docs: ["Derived from the lending market"];
         },
         {
-          name: "solendReserve";
+          name: "integrationAcc1";
           docs: ["The Solend reserve that holds liquidity"];
           writable: true;
           relations: ["bank"];
@@ -6221,7 +6230,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["oldMarginfiAccount"];
         },
         {
           name: "feePayer";
@@ -6295,7 +6303,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["oldMarginfiAccount"];
         },
         {
           name: "feePayer";
@@ -6497,6 +6504,10 @@ export type Marginfi = {
     {
       name: "marginfiAccountCreateEvent";
       discriminator: [183, 5, 117, 104, 122, 199, 68, 51];
+    },
+    {
+      name: "marginfiAccountFreezeEvent";
+      discriminator: [219, 219, 57, 178, 75, 86, 146, 122];
     },
     {
       name: "marginfiAccountTransferToNewAccount";
@@ -6879,13 +6890,13 @@ export type Marginfi = {
     },
     {
       code: 6073;
-      name: "arenaBankLimit";
-      msg: "Arena groups can only support two banks";
+      name: "vacated0";
+      msg: "vacated0";
     },
     {
       code: 6074;
-      name: "arenaSettingCannotChange";
-      msg: "Arena groups cannot return to non-arena status";
+      name: "vacated1";
+      msg: "vacated1";
     },
     {
       code: 6075;
@@ -7026,6 +7037,11 @@ export type Marginfi = {
       code: 6102;
       name: "zeroWithdrawalLimit";
       msg: "Cannot set daily withdrawal limit to zero";
+    },
+    {
+      code: 6103;
+      name: "accountFrozen";
+      msg: "Account is frozen by the group admin";
     },
     {
       code: 6200;
@@ -7681,38 +7697,31 @@ export type Marginfi = {
             };
           },
           {
-            name: "kaminoReserve";
-            docs: ["Kamino banks only, otherwise Pubkey default"];
+            name: "integrationAcc1";
+            docs: [
+              "Integration account slot 1 (default Pubkey for non-integrations).",
+              "- Kamino: reserve",
+              "- Drift: spot market",
+              "- Solend: reserve",
+            ];
             type: "pubkey";
           },
           {
-            name: "kaminoObligation";
-            docs: ["Kamino banks only, otherwise Pubkey default"];
+            name: "integrationAcc2";
+            docs: [
+              "Integration account slot 2 (default Pubkey for non-integrations).",
+              "- Kamino: obligation",
+              "- Drift: user",
+              "- Solend: obligation",
+            ];
             type: "pubkey";
           },
           {
-            name: "driftSpotMarket";
-            docs: ["Drift banks only, otherwise Pubkey default"];
-            type: "pubkey";
-          },
-          {
-            name: "driftUser";
-            docs: ["Drift banks only, otherwise Pubkey default"];
-            type: "pubkey";
-          },
-          {
-            name: "driftUserStats";
-            docs: ["Drift banks only, otherwise Pubkey default"];
-            type: "pubkey";
-          },
-          {
-            name: "solendReserve";
-            docs: ["Solend banks only, otherwise Pubkey default"];
-            type: "pubkey";
-          },
-          {
-            name: "solendObligation";
-            docs: ["Solend banks only, otherwise Pubkey default"];
+            name: "integrationAcc3";
+            docs: [
+              "Integration account slot 3 (default Pubkey for non-integrations).",
+              "- Drift: user stats",
+            ];
             type: "pubkey";
           },
           {
@@ -7722,7 +7731,7 @@ export type Marginfi = {
                 {
                   array: ["u64", 2];
                 },
-                5,
+                13,
               ];
             };
           },
@@ -10208,6 +10217,8 @@ export type Marginfi = {
               "receivership, a liquidator is able to control borrows and withdraws until the end of the",
               "tx. This flag will only appear within a tx.",
               "- 32: `ACCOUNT_IN_DELEVERAGE - the account is being deleveraged by the risk admin",
+              "- 64: `ACCOUNT_FROZEN` - the admin has frozen the account; only the group admin may perform",
+              "actions until unfrozen.",
             ];
             type: "u64";
           },
@@ -10316,6 +10327,26 @@ export type Marginfi = {
       };
     },
     {
+      name: "marginfiAccountFreezeEvent";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "header";
+            type: {
+              defined: {
+                name: "accountEventHeader";
+              };
+            };
+          },
+          {
+            name: "frozen";
+            type: "bool";
+          },
+        ];
+      };
+    },
+    {
       name: "marginfiAccountTransferToNewAccount";
       type: {
         kind: "struct";
@@ -10362,8 +10393,8 @@ export type Marginfi = {
             docs: [
               "Bitmask for group settings flags.",
               "* 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.",
-              "* 1: `ARENA_GROUP` If set, this is an arena group, which can only have two banks",
-              "* Bits 2-63: Reserved for future use.",
+              "* 1: `ARENA_GROUP` Deprecated, available for future use.",
+              "* Bits 1-63: Reserved for future use.",
             ];
             type: "u64";
           },

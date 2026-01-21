@@ -96,6 +96,10 @@ export async function makeDriftDepositIx({
   const driftState = deriveDriftState()[0];
   const driftSpotMarketVault = deriveDriftSpotMarketVault(driftMarketIndex)[0];
 
+  if (!bank.driftIntegrationAccounts) {
+    throw new Error("Bank has no drift integration accounts");
+  }
+
   const depositIx = isSync
     ? syncInstructions.makeDriftDepositIx(
         program.programId,
@@ -108,9 +112,9 @@ export async function makeDriftDepositIx({
           liquidityVault: bank.liquidityVault,
           signerTokenAccount: userTokenAtaPk,
           driftState,
-          driftUser: bank.driftUser,
-          driftUserStats: bank.driftUserStats,
-          driftSpotMarket: bank.driftSpotMarket,
+          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
           driftSpotMarketVault,
           mint: bank.mint,
           driftProgram: DRIFT_PROGRAM_ID,
@@ -178,12 +182,8 @@ export async function makeDriftDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
-  if (!depositIxParams.bank.driftUser) {
-    throw new Error("Bank has no drift user");
-  }
-
-  if (!depositIxParams.bank.driftUserStats) {
-    throw new Error("Bank has no drift user stats");
+  if (!depositIxParams.bank.driftIntegrationAccounts) {
+    throw new Error("Bank has no drift integration accounts");
   }
 
   const depositIxs = await makeDriftDepositIx({
@@ -259,6 +259,10 @@ export async function makeKaminoDepositIx({
     wSolBalanceUi: 0,
   },
 }: MakeKaminoDepositIxParams): Promise<InstructionsWrapper> {
+  if (!bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
+  }
+
   const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
   const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
   const depositIxs: TransactionInstruction[] = [];
@@ -283,7 +287,11 @@ export async function makeKaminoDepositIx({
     : null;
 
   const [userFarmState] = reserveFarm
-    ? deriveUserState(FARMS_PROGRAM_ID, reserveFarm, bank.kaminoObligation)
+    ? deriveUserState(
+        FARMS_PROGRAM_ID,
+        reserveFarm,
+        bank.kaminoIntegrationAccounts.kaminoObligation
+      )
     : [null];
 
   const depositIx = isSync
@@ -296,8 +304,8 @@ export async function makeKaminoDepositIx({
           lendingMarket: reserve.lendingMarket,
           reserveLiquidityMint: bank.mint,
 
-          kaminoObligation: bank.kaminoObligation,
-          kaminoReserve: bank.kaminoReserve,
+          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
+          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
           mint: bank.mint,
 
           lendingMarketAuthority,
@@ -380,12 +388,8 @@ export async function makeKaminoDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
-  if (!depositIxParams.bank.kaminoReserve) {
-    throw new Error("Bank has no kamino reserve");
-  }
-
-  if (!depositIxParams.bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!depositIxParams.bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
   }
 
   // TODO: create dummy provider util in common
@@ -406,8 +410,8 @@ export async function makeKaminoDepositTx(
   const refreshIxs = await makeRefreshingIxs({
     klendProgram,
     reserve: depositIxParams.reserve,
-    reserveKey: depositIxParams.bank.kaminoReserve,
-    obligationKey: depositIxParams.bank.kaminoObligation,
+    reserveKey: depositIxParams.bank.kaminoIntegrationAccounts.kaminoReserve,
+    obligationKey: depositIxParams.bank.kaminoIntegrationAccounts.kaminoObligation,
     program: klendProgram,
   });
 

@@ -127,9 +127,9 @@ async function makeDriftDepositIx(
     group?: PublicKey;
     authority?: PublicKey;
     liquidityVault?: PublicKey;
-    driftUser?: PublicKey;
-    driftUserStats?: PublicKey;
-    driftSpotMarket?: PublicKey;
+    integrationAcc2?: PublicKey;
+    integrationAcc3?: PublicKey;
+    integrationAcc1?: PublicKey;
     mint?: PublicKey;
     driftProgram?: PublicKey;
     systemProgram?: PublicKey;
@@ -609,13 +609,10 @@ async function makeGroupInitIx(
   accounts: {
     marginfiGroup: PublicKey;
     admin: PublicKey;
-  },
-  args?: {
-    isArenaGroup?: boolean;
   }
 ) {
   return mfProgram.methods
-    .marginfiGroupInitialize(args?.isArenaGroup ?? false)
+    .marginfiGroupInitialize()
     .accounts({
       marginfiGroup: accounts.marginfiGroup,
       admin: accounts.admin,

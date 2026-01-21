@@ -14,7 +14,7 @@ import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
 import { makeCrankSwbFeedIx, makeUpdateSwbFeedIx, OraclePrice } from "~/services/price";
 import klendInstructions from "~/vendor/klend/instructions";
-import { makeUpdateSpotMarketIx } from "~/vendor/drift";
+import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
 import {
   addTransactionMetadata,
   simulateBundle,
@@ -182,8 +182,12 @@ export async function simulateAccountHealthCache(props: {
         console.error(`Bank metadata for kamino bank ${bank.address.toBase58()} not found`);
         return;
       }
+      if (!bankMetadata?.kaminoStates || !bank.kaminoIntegrationAccounts) {
+        console.error(`Integration data for kamino bank ${bank.address.toBase58()} not found`);
+        return;
+      }
 
-      const kaminoReserve = bank.kaminoReserve;
+      const kaminoReserve = bank.kaminoIntegrationAccounts.kaminoReserve;
       const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
       return {
@@ -402,30 +406,68 @@ export async function getHealthSimulationTransactions({
   );
 
   // todo only refresh reserves if not present
-  const refreshReserveData = projectedActiveBanks
-    .map((bankPk) => {
-      const bankMetadata = bankMetadataMap?.[bankPk.toBase58()];
-      const bank = bankMap.get(bankPk.toBase58());
+  const refreshReserveData: { reserve: PublicKey; lendingMarket: PublicKey }[] = [];
+  const updateDriftMarketData: DriftSpotMarket[] = [];
 
-      if (!bankMetadata?.kaminoStates || !bank || bank.config.assetTag !== AssetTag.KAMINO) {
-        return;
-      }
+  projectedActiveBanks.forEach((bankPk) => {
+    const bankMetadata = bankMetadataMap?.[bankPk.toBase58()];
+    const bank = bankMap.get(bankPk.toBase58());
 
-      const kaminoReserve = bank.kaminoReserve;
-      const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
+    if (!bank) {
+      console.error(`Bank ${bankPk.toBase58()} not found in bankMap`);
+      return;
+    }
 
-      return {
-        reserve: kaminoReserve,
-        lendingMarket,
-      };
-    })
-    .filter((bank): bank is NonNullable<typeof bank> => !!bank);
+    if (!bankMetadata) {
+      console.error(`Bank metadata not found for bank ${bankPk.toBase58()}`);
+      return;
+    }
+
+    switch (bank.config.assetTag) {
+      case AssetTag.KAMINO:
+        if (!bankMetadata.kaminoStates || !bank.kaminoIntegrationAccounts) {
+          console.error(
+            `Bank ${bankPk.toBase58()} is missing kamino states or integration accounts`
+          );
+          return;
+        }
+        const kaminoReserve = bank.kaminoIntegrationAccounts.kaminoReserve;
+        const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
+
+        refreshReserveData.push({
+          reserve: kaminoReserve,
+          lendingMarket,
+        });
+        break;
+      case AssetTag.DRIFT:
+        if (!bankMetadata?.driftStates) {
+          console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
+          return;
+        }
+        const driftMarket = bankMetadata.driftStates.spotMarketState;
+        updateDriftMarketData.push(driftMarket);
+
+        break;
+
+      case AssetTag.SOLEND:
+        break;
+
+      default:
+        break;
+    }
+  });
 
   const refreshReservesIx: TransactionInstruction[] = [];
   if (refreshReserveData.length > 0) {
     const refreshIx = klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
     refreshReservesIx.push(refreshIx);
   }
+
+  const updateDriftMarketIxs = updateDriftMarketData.map((market) => ({
+    ix: makeUpdateSpotMarketIx({
+      spotMarket: market,
+    }),
+  }));
 
   const healthPulseIx = await makePulseHealthIx(
     program,
@@ -438,7 +480,7 @@ export async function getHealthSimulationTransactions({
 
   const refreshReservesTx = new VersionedTransaction(
     new TransactionMessage({
-      instructions: [computeIx, ...refreshReservesIx],
+      instructions: [computeIx, ...refreshReservesIx, ...updateDriftMarketIxs.map((ix) => ix.ix)],
       payerKey: authority,
       recentBlockhash: blockhash,
     }).compileToV0Message([...luts])

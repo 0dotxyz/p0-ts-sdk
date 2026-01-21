@@ -164,13 +164,19 @@ export interface BankType {
   lendingPositionCount?: BigNumber;
   borrowingPositionCount?: BigNumber;
 
-  kaminoReserve: PublicKey;
-  kaminoObligation: PublicKey;
-  driftSpotMarket: PublicKey;
-  driftUser: PublicKey;
-  driftUserStats: PublicKey;
-  solendReserve: PublicKey;
-  solendObligation: PublicKey;
+  kaminoIntegrationAccounts?: {
+    kaminoReserve: PublicKey;
+    kaminoObligation: PublicKey;
+  };
+  driftIntegrationAccounts?: {
+    driftSpotMarket: PublicKey;
+    driftUser: PublicKey;
+    driftUserStats: PublicKey;
+  };
+  solendIntegrationAccounts?: {
+    solendReserve: PublicKey;
+    solendObligation: PublicKey;
+  };
 }
 
 /**

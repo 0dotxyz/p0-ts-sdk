@@ -357,10 +357,10 @@ function makeKaminoDepositIx(
     authority: PublicKey; // signer - caller must provide
     bank: PublicKey;
     signerTokenAccount: PublicKey;
-    kaminoObligation: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc2: PublicKey; // Kamino Obligation
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
-    kaminoReserve: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
     mint: PublicKey; // relations: ["bank"] - caller must provide
     reserveLiquidityMint: PublicKey;
     reserveLiquiditySupply: PublicKey;
@@ -390,14 +390,14 @@ function makeKaminoDepositIx(
       isWritable: true,
     },
     { pubkey: liquidityVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.kaminoObligation, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
     { pubkey: accounts.lendingMarket, isSigner: false, isWritable: false },
     {
       pubkey: accounts.lendingMarketAuthority,
       isSigner: false,
       isWritable: false,
     },
-    { pubkey: accounts.kaminoReserve, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     { pubkey: accounts.mint, isSigner: false, isWritable: false },
     {
       pubkey: accounts.reserveLiquidityMint,
@@ -463,10 +463,10 @@ function makeKaminoWithdrawIx(
     authority: PublicKey; // signer - caller must provide
     bank: PublicKey;
     destinationTokenAccount: PublicKey;
-    kaminoObligation: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc2: PublicKey; // Kamino Obligation
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
-    kaminoReserve: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
     reserveLiquidityMint: PublicKey;
     reserveLiquiditySupply: PublicKey;
     reserveCollateralMint: PublicKey;
@@ -496,14 +496,14 @@ function makeKaminoWithdrawIx(
     },
     { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: true },
     { pubkey: liquidityVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.kaminoObligation, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
     { pubkey: accounts.lendingMarket, isSigner: false, isWritable: false },
     {
       pubkey: accounts.lendingMarketAuthority,
       isSigner: false,
       isWritable: false,
     },
-    { pubkey: accounts.kaminoReserve, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     {
       pubkey: accounts.reserveLiquidityMint,
       isSigner: false,
@@ -908,9 +908,9 @@ function makeDriftDepositIx(
     liquidityVault: PublicKey; // relations: ["bank"] - caller must provide
     signerTokenAccount: PublicKey;
     driftState: PublicKey; // caller must provide
-    driftUser: PublicKey; // relations: ["bank"] - caller must provide
-    driftUserStats: PublicKey; // relations: ["bank"] - caller must provide
-    driftSpotMarket: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc2: PublicKey; // The Drift user account owned by liquidity_vault_authority
+    integrationAcc3: PublicKey; // The Drift user stats account owned by liquidity_vault_authority
+    integrationAcc1: PublicKey; // The Drift spot market for this asset
     driftSpotMarketVault: PublicKey;
     mint: PublicKey; // relations: ["bank"] - caller must provide
     driftProgram: PublicKey; // fixed address - caller must provide
@@ -946,9 +946,9 @@ function makeDriftDepositIx(
     { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
     { pubkey: accounts.signerTokenAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.driftState, isSigner: false, isWritable: false },
-    { pubkey: accounts.driftUser, isSigner: false, isWritable: true },
-    { pubkey: accounts.driftUserStats, isSigner: false, isWritable: true },
-    { pubkey: accounts.driftSpotMarket, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc3, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     {
       pubkey: accounts.driftSpotMarketVault,
       isSigner: false,
@@ -975,9 +975,9 @@ function makeDriftWithdrawIx(
     liquidityVault: PublicKey;
     destinationTokenAccount: PublicKey;
     driftState: PublicKey;
-    driftUser: PublicKey;
-    driftUserStats: PublicKey;
-    driftSpotMarket: PublicKey;
+    integrationAcc2: PublicKey; // The Drift user account owned by liquidity_vault_authority
+    integrationAcc3: PublicKey; // The Drift user stats account owned by liquidity_vault_authority"
+    integrationAcc1: PublicKey; // The Drift spot market for this asset
     driftSpotMarketVault: PublicKey;
     driftSigner: PublicKey;
     mint: PublicKey;
@@ -1030,9 +1030,9 @@ function makeDriftWithdrawIx(
       isWritable: true,
     },
     { pubkey: accounts.driftState, isSigner: false, isWritable: false },
-    { pubkey: accounts.driftUser, isSigner: false, isWritable: true },
-    { pubkey: accounts.driftUserStats, isSigner: false, isWritable: true },
-    { pubkey: accounts.driftSpotMarket, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc3, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     { pubkey: accounts.driftSpotMarketVault, isSigner: false, isWritable: true }
   );
 

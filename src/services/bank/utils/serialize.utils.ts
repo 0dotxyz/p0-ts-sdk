@@ -207,13 +207,25 @@ function toBankDto(bank: BankType): BankTypeDto {
     feesDestinationAccount: bank.feesDestinationAccount?.toBase58(),
     lendingPositionCount: bank.lendingPositionCount?.toString(),
     borrowingPositionCount: bank.borrowingPositionCount?.toString(),
-    kaminoReserve: bank.kaminoReserve.toBase58(),
-    kaminoObligation: bank.kaminoObligation.toBase58(),
-    driftSpotMarket: bank.driftSpotMarket.toBase58(),
-    driftUser: bank.driftUser.toBase58(),
-    driftUserStats: bank.driftUserStats.toBase58(),
-    solendReserve: bank.solendReserve.toBase58(),
-    solendObligation: bank.solendObligation.toBase58(),
+    kaminoIntegrationAccounts: bank.kaminoIntegrationAccounts
+      ? {
+          kaminoReserve: bank.kaminoIntegrationAccounts.kaminoReserve.toBase58(),
+          kaminoObligation: bank.kaminoIntegrationAccounts.kaminoObligation.toBase58(),
+        }
+      : undefined,
+    driftIntegrationAccounts: bank.driftIntegrationAccounts
+      ? {
+          driftSpotMarket: bank.driftIntegrationAccounts.driftSpotMarket.toBase58(),
+          driftUser: bank.driftIntegrationAccounts.driftUser.toBase58(),
+          driftUserStats: bank.driftIntegrationAccounts.driftUserStats.toBase58(),
+        }
+      : undefined,
+    solendIntegrationAccounts: bank.solendIntegrationAccounts
+      ? {
+          solendReserve: bank.solendIntegrationAccounts.solendReserve.toBase58(),
+          solendObligation: bank.solendIntegrationAccounts.solendObligation.toBase58(),
+        }
+      : undefined,
   };
 }
 
@@ -311,13 +323,9 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     borrowingPositionCount: bankRaw?.borrowingPositionCount?.toString(),
 
     emode: emodeSettingsRawToDto(bankRaw.emode),
-    kaminoReserve: bankRaw.kaminoReserve.toBase58(),
-    kaminoObligation: bankRaw.kaminoObligation.toBase58(),
-    driftSpotMarket: bankRaw.driftSpotMarket.toBase58(),
-    driftUser: bankRaw.driftUser.toBase58(),
-    driftUserStats: bankRaw.driftUserStats.toBase58(),
-    solendReserve: bankRaw.solendReserve.toBase58(),
-    solendObligation: bankRaw.solendObligation.toBase58(),
+    integrationAcc1: bankRaw.integrationAcc1.toBase58(),
+    integrationAcc2: bankRaw.integrationAcc2.toBase58(),
+    integrationAcc3: bankRaw.integrationAcc3.toBase58(),
   };
 }
 

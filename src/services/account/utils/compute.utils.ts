@@ -13,6 +13,7 @@ import {
   getLiabilityShares,
   getAssetWeight,
   getLiabilityWeight,
+  AssetTag,
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { MarginfiProgram } from "~/types";
@@ -493,12 +494,20 @@ export function computeHealthAccountMetas(
       }
 
       // for kamino banks, include kamino reserve
-      if (bank.config.assetTag === 3) {
-        keys.push(bank.kaminoReserve);
+      if (bank.config.assetTag === AssetTag.KAMINO) {
+        if (!bank.kaminoIntegrationAccounts) {
+          console.warn("Reserve for kamino bank not found ", bank.address.toBase58());
+        } else {
+          keys.push(bank.kaminoIntegrationAccounts.kaminoReserve);
+        }
       }
 
-      if (bank.config.assetTag === 4) {
-        keys.push(bank.driftSpotMarket);
+      if (bank.config.assetTag === AssetTag.DRIFT) {
+        if (!bank.driftIntegrationAccounts) {
+          console.warn("Drift spot market for drift bank not found ", bank.address.toBase58());
+        } else {
+          keys.push(bank.driftIntegrationAccounts.driftSpotMarket);
+        }
       }
 
       return keys;

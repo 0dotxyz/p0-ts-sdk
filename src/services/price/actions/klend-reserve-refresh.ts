@@ -1,7 +1,7 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { MarginfiAccountType } from "~/services/account";
-import { BankType } from "~/services/bank";
+import { AssetTag, BankType } from "~/services/bank";
 import { InstructionsWrapper } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
 import { makeRefreshObligationIx, makeRefreshReservesBatchIx } from "~/vendor/klend";
@@ -39,7 +39,7 @@ export function makeRefreshKaminoBanksIxs(
   ].map((pk) => bankMap.get(pk)!);
 
   // filter kamino banks
-  const kaminoBanks = allActiveBanks.filter((bank) => bank.config.assetTag === 3);
+  const kaminoBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
 
   if (kaminoBanks.length > 0) {
     const newBanksPkBase = newBanksPk.map((pk) => pk.toBase58());
@@ -52,8 +52,9 @@ export function makeRefreshKaminoBanksIxs(
       .map((kaminoBank) => {
         const bankMetadata = bankMetadataMap?.[kaminoBank.address.toBase58()];
         if (!bankMetadata?.kaminoStates) return;
+        if (!kaminoBank.kaminoIntegrationAccounts) return;
 
-        const kaminoReserve = kaminoBank.kaminoReserve;
+        const kaminoReserve = kaminoBank.kaminoIntegrationAccounts.kaminoReserve;
         const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
         return {
@@ -71,13 +72,14 @@ export function makeRefreshKaminoBanksIxs(
     for (const kaminoBank of banksToRefreshObligations) {
       const bankMetadata = bankMetadataMap?.[kaminoBank.address.toBase58()];
       if (!bankMetadata?.kaminoStates) continue;
+      if (!kaminoBank.kaminoIntegrationAccounts) continue;
 
-      const kaminoReserve = kaminoBank.kaminoReserve;
+      const kaminoReserve = kaminoBank.kaminoIntegrationAccounts.kaminoReserve;
       const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
 
       const obligationIx = makeRefreshObligationIx(
         lendingMarket,
-        kaminoBank.kaminoObligation,
+        kaminoBank.kaminoIntegrationAccounts.kaminoObligation,
         kaminoReserve
       );
       ixs.push(obligationIx);
