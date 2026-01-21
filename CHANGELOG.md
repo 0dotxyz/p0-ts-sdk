@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.4] - 2026-01-21
+
+### Changed
+
+- **Program Support** - Updated for Marginfi program v1.7rc2
+- **Bank Structure** - Unified integration accounts structure
+  - Replaced individual integration fields (`kaminoReserve`, `kaminoObligation`, `driftSpotMarket`, etc.) with unified `integrationAcc1`, `integrationAcc2`, `integrationAcc3` slots
+  - Bank type now exposes optional integration account objects: `kaminoIntegrationAccounts`, `driftIntegrationAccounts`, `solendIntegrationAccounts`
+  - Updated serialization/deserialization logic for the new structure
+- **IDL** - Updated marginfi-types_0.1.7.ts and marginfi_0.1.7.json for v1.7rc2
+
 ## [1.1.0-alpha.3] - 2026-01-19
 
 ### Changed
