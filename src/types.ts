@@ -6,6 +6,7 @@ import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
 import {
   DriftRewards,
+  DriftRewardsJSON,
   DriftSpotMarket,
   DriftSpotMarketJSON,
   DriftUser,
@@ -103,7 +104,8 @@ export type BankIntegrationMetadataDto = {
   driftStates?: {
     spotMarketState: DriftSpotMarketJSON;
     userState: DriftUserJSON;
-    userStatsState: DriftUserStatsJSON;
+    userRewards: DriftRewardsJSON[];
+    userStatsState?: DriftUserStatsJSON;
   };
 };
 
