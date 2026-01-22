@@ -121,7 +121,7 @@ async function makeDriftDepositIx(
     driftState: PublicKey;
     driftSpotMarketVault: PublicKey;
     tokenProgram: PublicKey;
-    driftOracle?: PublicKey | null;
+    driftOracle: PublicKey | null;
 
     // Optional accounts - to override inference
     group?: PublicKey;
@@ -145,7 +145,7 @@ async function makeDriftDepositIx(
     driftState,
     driftSpotMarketVault,
     tokenProgram,
-    driftOracle = null,
+    driftOracle,
     ...optionalAccounts
   } = accounts;
 
@@ -158,7 +158,7 @@ async function makeDriftDepositIx(
       driftState,
       driftSpotMarketVault,
       tokenProgram,
-      driftOracle: null,
+      driftOracle,
     })
     .accountsPartial(optionalAccounts)
     .instruction();
