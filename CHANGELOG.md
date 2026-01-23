@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.9] - 2026-01-23
+
+### Added
+
+- **Staging Program Constants** - Added staging environment program IDs
+  - Added `MARGINFI_PROGRAM_STAGING` constant (`stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct`)
+  - Added `MARGINFI_PROGRAM_STAGING_ALT` constant (`5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY`)
+
+### Fixed
+
+- **Sync Instructions** - Fixed multiple instruction builder bugs
+  - Fixed Drift withdraw instruction discriminator (was `[178, 238, 229, 72, 126, 212, 78, 103]`, now `[86, 59, 186, 123, 183, 181, 234, 137]`)
+  - Removed duplicate `reserveLiquidityMint` account from Kamino deposit instruction (bank mint already provides this)
+  - Fixed `lendingAccountWithdrawEmissionIx` account ordering: moved `destinationAccount` to correct position
+  - Removed redundant `emissionsTokenAccount` from `lendingAccountWithdrawEmissionIx`
+
 ## [1.1.0-alpha.8] - 2026-01-23
 
 ### Added
