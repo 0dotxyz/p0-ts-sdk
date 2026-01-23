@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.8] - 2026-01-23
+
+### Added
+
+- **Drift Pool ID** - Added `poolId` field to Drift spot market types
+  - Added `poolId: number` to `DriftSpotMarket` interface for market labeling (Main Market, JLP Market, LST Market, etc.)
+  - Added `poolId` to `DriftSpotMarketJSON` DTO type
+  - Updated serialization utilities: `driftSpotMarketRawToDto` now includes `poolId`
+  - Updated deserialization utilities: `dtoToDriftSpotMarketRaw` now includes `poolId`
+
 ## [1.1.0-alpha.7] - 2026-01-22
 
 ### Changed
