@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.10] - 2026-01-23
+
+### Fixed
+
+- **Sync Instructions** - Fixed `isWritable` flag misconfiguration
+  - Set `group` account to `isWritable: true` in Drift withdraw sync instruction (was incorrectly set to `false`)
+  
+- **Repay Actions** - Changed to use async instructions for better transaction reliability
+  - Updated `buildRepayWithCollatFlashloanTx`: Changed withdraw instructions from `isSync: true` to `isSync: false` (3 instances)
+  - Updated `buildRepayTxn`: Changed borrow and repay instructions from `isSync: true` to `isSync: false` (2 instances)
+  - Flashloan transactions still use `isSync: true` as required
+
 ## [1.1.0-alpha.9] - 2026-01-23
 
 ### Added
