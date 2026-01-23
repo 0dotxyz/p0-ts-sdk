@@ -114,6 +114,7 @@ export function driftSpotMarketRawToDto(
     insuranceFund: {
       totalFactor: spotMarketRaw.insuranceFund.totalFactor,
     },
+    poolId: spotMarketRaw.poolId,
   };
 }
 

@@ -20,6 +20,9 @@ export interface DriftSpotMarket {
   insuranceFund: {
     totalFactor: number;
   };
+
+  // Pool identifier for market labeling (Main Market, JLP Market, LST Market, etc.)
+  poolId: number;
 }
 
 export enum DriftSpotBalanceType {

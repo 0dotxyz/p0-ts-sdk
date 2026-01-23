@@ -154,6 +154,7 @@ export function dtoToDriftSpotMarketRaw(
     maxBorrowRate: spotMarketDto.maxBorrowRate,
     minBorrowRate: spotMarketDto.minBorrowRate,
     insuranceFund: spotMarketDto.insuranceFund,
+    poolId: spotMarketDto.poolId,
   };
 }
 
