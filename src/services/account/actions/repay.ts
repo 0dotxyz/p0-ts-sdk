@@ -435,7 +435,7 @@ async function buildRepayWithCollatFlashloanTx({
           withdrawOpts.withdrawAmount,
           withdrawOpts.withdrawBank.mintDecimals
         ),
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -475,7 +475,7 @@ async function buildRepayWithCollatFlashloanTx({
           withdrawOpts.withdrawBank.mintDecimals
         ),
         bankMetadataMap,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -503,7 +503,7 @@ async function buildRepayWithCollatFlashloanTx({
           withdrawOpts.withdrawBank.mintDecimals
         ),
         bankMetadataMap,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -533,7 +533,7 @@ async function buildRepayWithCollatFlashloanTx({
         amountToRepay,
         repayOpts.repayBank.mintDecimals
       ),
-      isSync: true,
+      isSync: false,
       opts: {
         wrapAndUnwrapSol: false,
         overrideInferAccounts,

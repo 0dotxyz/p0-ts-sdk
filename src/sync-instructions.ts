@@ -993,7 +993,7 @@ function makeDriftWithdrawIx(
 
   // Build keys in exact IDL order
   const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    { pubkey: accounts.group, isSigner: false, isWritable: true },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },

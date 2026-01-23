@@ -280,7 +280,7 @@ async function buildLoopFlashloanTx({
     amount: borrowOpts.borrowAmount,
     marginfiAccount,
     authority: marginfiAccount.authority,
-    isSync: true,
+    isSync: false,
     opts: {
       createAtas: false,
       wrapAndUnwrapSol: false,
