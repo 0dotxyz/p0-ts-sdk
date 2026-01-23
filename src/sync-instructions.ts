@@ -74,7 +74,7 @@ const DISCRIMINATORS = {
   LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
   LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
   DRIFT_DEPOSIT: Buffer.from([252, 63, 250, 201, 98, 55, 130, 12]),
-  DRIFT_WITHDRAW: Buffer.from([178, 238, 229, 72, 126, 212, 78, 103]),
+  DRIFT_WITHDRAW: Buffer.from([86, 59, 186, 123, 183, 181, 234, 137]),
 };
 
 // ============================================================================
@@ -361,8 +361,7 @@ function makeKaminoDepositIx(
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
     integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
-    mint: PublicKey; // relations: ["bank"] - caller must provide
-    reserveLiquidityMint: PublicKey;
+    mint: PublicKey; // relations: ["bank"] - Bank's liquidity token mint (Kamino calls this reserve_liquidity_mint)
     reserveLiquiditySupply: PublicKey;
     reserveCollateralMint: PublicKey;
     reserveDestinationDepositCollateral: PublicKey;
@@ -399,11 +398,6 @@ function makeKaminoDepositIx(
     },
     { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     { pubkey: accounts.mint, isSigner: false, isWritable: false },
-    {
-      pubkey: accounts.reserveLiquidityMint,
-      isSigner: false,
-      isWritable: true,
-    },
     {
       pubkey: accounts.reserveLiquiditySupply,
       isSigner: false,
@@ -628,12 +622,11 @@ function makelendingAccountWithdrawEmissionIx(
     group: PublicKey; // relations - caller must provide
     marginfiAccount: PublicKey;
     authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
-    destinationAccount: PublicKey;
     bank: PublicKey;
     emissionsMint: PublicKey; // relations: ["bank"] - caller must provide
     emissionsAuth: PublicKey; // PDA - caller must derive
-    emissionsTokenAccount: PublicKey; // relations: ["bank"] - caller must provide
     emissionsVault: PublicKey; // PDA - caller must derive
+    destinationAccount: PublicKey;
     tokenProgram: PublicKey;
   }
 ): TransactionInstruction {
@@ -641,16 +634,11 @@ function makelendingAccountWithdrawEmissionIx(
     { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
-    { pubkey: accounts.destinationAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
     { pubkey: accounts.emissionsMint, isSigner: false, isWritable: false },
     { pubkey: accounts.emissionsAuth, isSigner: false, isWritable: false },
-    {
-      pubkey: accounts.emissionsTokenAccount,
-      isSigner: false,
-      isWritable: false,
-    },
     { pubkey: accounts.emissionsVault, isSigner: false, isWritable: true },
+    { pubkey: accounts.destinationAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
   ];
 

@@ -48,7 +48,6 @@ async function makeKaminoDepositIx(
     bank: PublicKey;
     signerTokenAccount: PublicKey;
     lendingMarket: PublicKey;
-    reserveLiquidityMint: PublicKey;
 
     lendingMarketAuthority: PublicKey;
     reserveLiquiditySupply: PublicKey;
@@ -77,7 +76,6 @@ async function makeKaminoDepositIx(
     bank,
     signerTokenAccount,
     lendingMarket,
-    reserveLiquidityMint,
     lendingMarketAuthority,
     reserveLiquiditySupply,
     reserveCollateralMint,

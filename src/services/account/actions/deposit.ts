@@ -302,7 +302,6 @@ export async function makeKaminoDepositIx({
           bank: bank.address,
           signerTokenAccount: userTokenAtaPk,
           lendingMarket: reserve.lendingMarket,
-          reserveLiquidityMint: bank.mint,
 
           integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
           integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
@@ -329,7 +328,6 @@ export async function makeKaminoDepositIx({
           bank: bank.address,
           signerTokenAccount: userTokenAtaPk,
           lendingMarket: reserve.lendingMarket,
-          reserveLiquidityMint: bank.mint,
 
           lendingMarketAuthority,
           reserveLiquiditySupply,
