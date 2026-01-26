@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.11] - 2026-01-26
+
+### Added
+
+- **Drift Interest Rate Curve Calculations** - Added utilities for generating and visualizing Drift interest rate curves
+  - Added `DriftInterestRateCurvePoint` interface for curve data points (utilization, borrowAPY, supplyAPY)
+  - Added `generateDriftReserveCurve()` - Generates complete interest rate curve with 101 data points (0% to 100% utilization)
+  - Uses discrete compounding formula with `SLOTS_PER_YEAR` (63,072,000) for APY calculations
+  - Properly handles Drift's `SPOT_MARKET_UTILIZATION_PRECISION` (1e6) and `SPOT_MARKET_RATE_PRECISION` (1e6)
+
+### Changed
+
+- **Drift Function Naming** - Improved naming consistency with `Drift` prefix
+  - Renamed `getTokenAmount` → `getDriftTokenAmount`
+  - Renamed `calculateUtilization` → `calculateDriftUtilization`
+  - Renamed `calculateInterestRate` → `calculateDriftInterestRate`
+  - Renamed `calculateBorrowRate` → `calculateDriftBorrowRate`
+  - Renamed `calculateDepositRate` → `calculateDriftDepositRate`
+  - Renamed `calculateLendingAPR` → `calculateDriftLendingAPR`
+  - Renamed `calculateLendingAPY` → `calculateDriftLendingAPY`
+  - Renamed `calculateBorrowAPR` → `calculateDriftBorrowAPR`
+  - Renamed `calculateBorrowAPY` → `calculateDriftBorrowAPY`
+  
+- **Klend Function Naming** - Improved naming consistency with `Kamino` or `Klend` prefix
+  - Renamed `InterestRateCurvePoint` → `KlendInterestRateCurvePoint`
+  - Renamed `getBorrowRate` → `getKaminoBorrowRate`
+  - Renamed `getTotalSupply` → `getKaminoTotalSupply`
+  - Renamed `calculateEstimatedBorrowRate` → `calculateKaminoEstimatedBorrowRate`
+  - Renamed `calculateEstimatedSupplyRate` → `calculateKaminoEstimatedSupplyRate`
+  - Renamed `calculateSupplyAPY` → `calculateKaminoSupplyAPY`
+
 ## [1.1.0-alpha.10] - 2026-01-23
 
 ### Fixed
