@@ -1,9 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import {
-  DriftSpotBalanceType,
-  DriftSpotMarket,
-  isSpotBalanceTypeVariant,
-} from "../types";
+import { DriftSpotBalanceType, DriftSpotMarket, isSpotBalanceTypeVariant } from "../types";
 
 /**
  * All-in-one APY/APR calculation module for Drift Protocol
@@ -27,9 +23,7 @@ export const PERCENTAGE_PRECISION_EXP = new BN(6);
 export const PERCENTAGE_PRECISION = new BN(10).pow(PERCENTAGE_PRECISION_EXP);
 
 export const SPOT_MARKET_RATE_PRECISION_EXP = new BN(6);
-export const SPOT_MARKET_RATE_PRECISION = new BN(10).pow(
-  SPOT_MARKET_RATE_PRECISION_EXP
-);
+export const SPOT_MARKET_RATE_PRECISION = new BN(10).pow(SPOT_MARKET_RATE_PRECISION_EXP);
 
 export const SPOT_MARKET_UTILIZATION_PRECISION_EXP = new BN(6);
 export const SPOT_MARKET_UTILIZATION_PRECISION = new BN(10).pow(
@@ -58,7 +52,7 @@ function divCeil(a: BN, b: BN): BN {
 /**
  * Calculates the spot token amount including any accumulated interest.
  */
-export function getTokenAmount(
+export function getDriftTokenAmount(
   balanceAmount: BN,
   spotMarket: DriftSpotMarket,
   balanceType: DriftSpotBalanceType
@@ -66,15 +60,10 @@ export function getTokenAmount(
   const precisionDecrease = TEN.pow(new BN(19 - spotMarket.decimals));
 
   if (isSpotBalanceTypeVariant(balanceType, "deposit")) {
-    return balanceAmount
-      .mul(spotMarket.cumulativeDepositInterest)
-      .div(precisionDecrease);
+    return balanceAmount.mul(spotMarket.cumulativeDepositInterest).div(precisionDecrease);
   } else {
     // For borrows, use ceiling division
-    return divCeil(
-      balanceAmount.mul(spotMarket.cumulativeBorrowInterest),
-      precisionDecrease
-    );
+    return divCeil(balanceAmount.mul(spotMarket.cumulativeBorrowInterest), precisionDecrease);
   }
 }
 
@@ -86,16 +75,13 @@ export function getTokenAmount(
  * Calculates the utilization rate of a spot market
  * Utilization = borrows / deposits
  */
-export function calculateUtilization(
-  bank: DriftSpotMarket,
-  delta: BN = ZERO
-): BN {
-  let tokenDepositAmount = getTokenAmount(
+export function calculateDriftUtilization(bank: DriftSpotMarket, delta: BN = ZERO): BN {
+  let tokenDepositAmount = getDriftTokenAmount(
     bank.depositBalance,
     bank,
     DriftSpotBalanceType.DEPOSIT
   );
-  let tokenBorrowAmount = getTokenAmount(
+  let tokenBorrowAmount = getDriftTokenAmount(
     bank.borrowBalance,
     bank,
     DriftSpotBalanceType.BORROW
@@ -113,9 +99,7 @@ export function calculateUtilization(
   } else if (tokenDepositAmount.eq(ZERO)) {
     utilization = SPOT_MARKET_UTILIZATION_PRECISION;
   } else {
-    utilization = tokenBorrowAmount
-      .mul(SPOT_MARKET_UTILIZATION_PRECISION)
-      .div(tokenDepositAmount);
+    utilization = tokenBorrowAmount.mul(SPOT_MARKET_UTILIZATION_PRECISION).div(tokenDepositAmount);
   }
 
   return utilization;
@@ -124,19 +108,17 @@ export function calculateUtilization(
 /**
  * Calculates the interest rate based on utilization using a piecewise curve
  */
-export function calculateInterestRate(
+export function calculateDriftInterestRate(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null
 ): BN {
-  const utilization = currentUtilization || calculateUtilization(bank, delta);
+  const utilization = currentUtilization || calculateDriftUtilization(bank, delta);
 
   const optimalUtil = new BN(bank.optimalUtilization);
   const optimalRate = new BN(bank.optimalBorrowRate);
   const maxRate = new BN(bank.maxBorrowRate);
-  const minRate = new BN(bank.minBorrowRate).mul(
-    PERCENTAGE_PRECISION.divn(200)
-  );
+  const minRate = new BN(bank.minBorrowRate).mul(PERCENTAGE_PRECISION.divn(200));
 
   const weightsDivisor = new BN(1000);
   const segments: [BN, BN][] = [
@@ -151,9 +133,7 @@ export function calculateInterestRate(
   let rate: BN;
   if (utilization.lte(optimalUtil)) {
     // below optimal: linear ramp from 0 to optimalRate
-    const slope = optimalRate
-      .mul(SPOT_MARKET_UTILIZATION_PRECISION)
-      .div(optimalUtil);
+    const slope = optimalRate.mul(SPOT_MARKET_UTILIZATION_PRECISION).div(optimalUtil);
     rate = utilization.mul(slope).div(SPOT_MARKET_UTILIZATION_PRECISION);
   } else {
     // above optimal: piecewise segments
@@ -188,19 +168,19 @@ export function calculateInterestRate(
 /**
  * Calculates the borrow rate (APR) for a spot market
  */
-export function calculateBorrowRate(
+export function calculateDriftBorrowRate(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null
 ): BN {
-  return calculateInterestRate(bank, delta, currentUtilization);
+  return calculateDriftInterestRate(bank, delta, currentUtilization);
 }
 
 /**
  * Calculates the deposit rate (APR) for a spot market
  * This is the annualized interest rate lenders earn
  */
-export function calculateDepositRate(
+export function calculateDriftDepositRate(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null
@@ -208,8 +188,8 @@ export function calculateDepositRate(
   // positive delta => adding to deposit
   // negative delta => adding to borrow
 
-  const utilization = currentUtilization || calculateUtilization(bank, delta);
-  const borrowRate = calculateBorrowRate(bank, delta, utilization);
+  const utilization = currentUtilization || calculateDriftUtilization(bank, delta);
+  const borrowRate = calculateDriftBorrowRate(bank, delta, utilization);
   const depositRate = borrowRate
     .mul(PERCENTAGE_PRECISION.sub(new BN(bank.insuranceFund.totalFactor)))
     .mul(utilization)
@@ -243,14 +223,14 @@ export function calculateDepositRate(
  * console.log(`Lending APY: ${apyPercent.toFixed(2)}%`);
  * ```
  */
-export function calculateLendingAPY(
+export function calculateDriftLendingAPY(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null,
   compoundingPeriodsPerYear: number = 365
 ): BN {
   // Get the annualized deposit rate (APR)
-  const depositRate = calculateDepositRate(bank, delta, currentUtilization);
+  const depositRate = calculateDriftDepositRate(bank, delta, currentUtilization);
 
   if (depositRate.eq(ZERO)) {
     return ZERO;
@@ -317,18 +297,16 @@ export function calculateLendingAPY(
  * @param currentUtilization - Optional pre-calculated utilization (default: null)
  * @returns APR as a percentage scaled by PERCENTAGE_PRECISION
  */
-export function calculateLendingAPR(
+export function calculateDriftLendingAPR(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null
 ): BN {
-  const depositRate = calculateDepositRate(bank, delta, currentUtilization);
+  const depositRate = calculateDriftDepositRate(bank, delta, currentUtilization);
 
   // Convert from SPOT_MARKET_RATE_PRECISION to PERCENTAGE_PRECISION
   // depositRate is already annualized, just need to convert precision
-  const apr = depositRate
-    .mul(PERCENTAGE_PRECISION)
-    .div(SPOT_MARKET_RATE_PRECISION);
+  const apr = depositRate.mul(PERCENTAGE_PRECISION).div(SPOT_MARKET_RATE_PRECISION);
 
   return apr;
 }
@@ -342,13 +320,13 @@ export function calculateLendingAPR(
  * @param compoundingPeriodsPerYear - Number of times interest compounds per year (default: 365)
  * @returns APY as a percentage scaled by PERCENTAGE_PRECISION
  */
-export function calculateBorrowAPY(
+export function calculateDriftBorrowAPY(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null,
   compoundingPeriodsPerYear: number = 365
 ): BN {
-  const borrowRate = calculateBorrowRate(bank, delta, currentUtilization);
+  const borrowRate = calculateDriftBorrowRate(bank, delta, currentUtilization);
 
   if (borrowRate.eq(ZERO)) {
     return ZERO;
@@ -357,9 +335,7 @@ export function calculateBorrowAPY(
   // Same logic as lending APY but using borrow rate
   const CALC_PRECISION = new BN(10).pow(new BN(18));
 
-  const rateInCalcPrecisionDecimal = borrowRate
-    .mul(CALC_PRECISION)
-    .div(SPOT_MARKET_RATE_PRECISION);
+  const rateInCalcPrecisionDecimal = borrowRate.mul(CALC_PRECISION).div(SPOT_MARKET_RATE_PRECISION);
 
   let expResult = CALC_PRECISION;
   let term = rateInCalcPrecisionDecimal;
@@ -395,17 +371,15 @@ export function calculateBorrowAPY(
  * @param currentUtilization - Optional pre-calculated utilization (default: null)
  * @returns APR as a percentage scaled by PERCENTAGE_PRECISION
  */
-export function calculateBorrowAPR(
+export function calculateDriftBorrowAPR(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null
 ): BN {
-  const borrowRate = calculateBorrowRate(bank, delta, currentUtilization);
+  const borrowRate = calculateDriftBorrowRate(bank, delta, currentUtilization);
 
   // Convert from SPOT_MARKET_RATE_PRECISION to PERCENTAGE_PRECISION
-  const apr = borrowRate
-    .mul(PERCENTAGE_PRECISION)
-    .div(SPOT_MARKET_RATE_PRECISION);
+  const apr = borrowRate.mul(PERCENTAGE_PRECISION).div(SPOT_MARKET_RATE_PRECISION);
 
   return apr;
 }
@@ -417,7 +391,7 @@ export function calculateBorrowAPR(
 /**
  * Interest rate curve point for visualization
  */
-export interface InterestRateCurvePoint {
+export interface DriftInterestRateCurvePoint {
   utilization: number; // 0-100 percentage
   borrowAPY: number; // percentage
   supplyAPY: number; // percentage
@@ -431,7 +405,7 @@ const SLOTS_PER_YEAR = 63072000;
  * Convert APR to APY using discrete compounding formula
  * APY = (1 + APR/n)^n - 1, where n = SLOTS_PER_YEAR
  * This matches Kamino's approach for consistent curve generation
- * 
+ *
  * @param apr - Annual Percentage Rate as decimal (e.g., 0.05 for 5%)
  * @returns Annual Percentage Yield as decimal
  */
@@ -443,15 +417,15 @@ function calculateAPYFromAPR(apr: number): number {
 /**
  * Generate complete interest rate curve for a Drift spot market
  * Creates 101 data points from 0% to 100% utilization
- * 
+ *
  * @param spotMarket - The Drift spot market account
  * @returns Array of curve points with utilization, borrow APY, and supply APY
- * 
+ *
  * @example
  * ```typescript
  * const spotMarket = getDriftSpotMarket(0); // USDC market
  * const curve = generateDriftReserveCurve(spotMarket);
- * 
+ *
  * curve.forEach(point => {
  *   console.log(`Utilization: ${point.utilization}%`);
  *   console.log(`Borrow APY: ${point.borrowAPY.toFixed(2)}%`);
@@ -461,20 +435,20 @@ function calculateAPYFromAPR(apr: number): number {
  */
 export function generateDriftReserveCurve(
   spotMarket: DriftSpotMarket
-): InterestRateCurvePoint[] {
+): DriftInterestRateCurvePoint[] {
   return Array.from({ length: 101 }, (_, i) => {
     const utilizationPercent = i / 100; // 0.00 to 1.00
-    
+
     // Convert to BN with SPOT_MARKET_UTILIZATION_PRECISION (1e6)
     const utilizationBN = new BN(
       Math.floor(utilizationPercent * SPOT_MARKET_UTILIZATION_PRECISION.toNumber())
     );
 
     // Calculate borrow rate (APR) at this utilization
-    const borrowRateBN = calculateBorrowRate(spotMarket, ZERO, utilizationBN);
-    
+    const borrowRateBN = calculateDriftBorrowRate(spotMarket, ZERO, utilizationBN);
+
     // Calculate deposit rate (APR) at this utilization
-    const depositRateBN = calculateDepositRate(spotMarket, ZERO, utilizationBN);
+    const depositRateBN = calculateDriftDepositRate(spotMarket, ZERO, utilizationBN);
 
     // Convert from SPOT_MARKET_RATE_PRECISION to decimal
     // SPOT_MARKET_RATE_PRECISION is 1e6, representing rates as integers

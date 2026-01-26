@@ -22,7 +22,7 @@ import * as vendor from "../../..";
 // INTERFACES
 // =============================================================================
 
-export interface InterestRateCurvePoint {
+export interface KlendInterestRateCurvePoint {
   utilization: number; // 0-100 percentage
   borrowAPY: number; // percentage
   supplyAPY: number; // percentage
@@ -30,7 +30,7 @@ export interface InterestRateCurvePoint {
 
 export interface KaminoReserveCurveData {
   reserveAddress: string;
-  curvePoints: InterestRateCurvePoint[];
+  curvePoints: KlendInterestRateCurvePoint[];
 }
 
 // =============================================================================
@@ -56,7 +56,7 @@ export const interpolateLinear = (
  * @param curve - Array of [utilization, rate] points
  * @returns Borrow rate for the given utilization
  */
-export const getBorrowRate = (
+export const getKaminoBorrowRate = (
   currentUtilization: number,
   curve: [number, number][]
 ): number => {
@@ -120,22 +120,16 @@ export function calculateAPYFromAPR(apr: number): number {
  * @param reserve - The Kamino reserve
  * @returns Total supply in lamports
  */
-export function getTotalSupply(reserve: ReserveRaw): Decimal {
-  const liquidityAvailableAmount = new Decimal(
-    reserve.liquidity.availableAmount.toString()
-  );
-  const borrowedAmount = new Fraction(
-    reserve.liquidity.borrowedAmountSf
-  ).toDecimal();
+export function getKaminoTotalSupply(reserve: ReserveRaw): Decimal {
+  const liquidityAvailableAmount = new Decimal(reserve.liquidity.availableAmount.toString());
+  const borrowedAmount = new Fraction(reserve.liquidity.borrowedAmountSf).toDecimal();
   const accumulatedProtocolFee = new Fraction(
     reserve.liquidity.accumulatedProtocolFeesSf
   ).toDecimal();
   const accumulatedReferrerFees = new Fraction(
     reserve.liquidity.accumulatedReferrerFeesSf
   ).toDecimal();
-  const pendingReferrerFees = new Fraction(
-    reserve.liquidity.pendingReferrerFeesSf
-  ).toDecimal();
+  const pendingReferrerFees = new Fraction(reserve.liquidity.pendingReferrerFeesSf).toDecimal();
 
   return liquidityAvailableAmount
     .add(borrowedAmount)
@@ -151,10 +145,8 @@ export function getTotalSupply(reserve: ReserveRaw): Decimal {
  * @returns Utilization ratio (0-1, e.g., 0.75 = 75% utilized)
  */
 export function calculateUtilizationRatio(reserve: ReserveRaw): number {
-  const totalBorrows = new Fraction(
-    reserve.liquidity.borrowedAmountSf
-  ).toDecimal();
-  const totalSupply = getTotalSupply(reserve);
+  const totalBorrows = new Fraction(reserve.liquidity.borrowedAmountSf).toDecimal();
+  const totalSupply = getKaminoTotalSupply(reserve);
   if (totalSupply.eq(0)) {
     return 0;
   }
@@ -198,14 +190,14 @@ export function calculateSlotAdjustmentFactor(
  * @param recentSlotDurationMs - Recent slot duration (optional)
  * @returns Borrow rate as decimal (e.g., 0.05 = 5%)
  */
-export function calculateEstimatedBorrowRate(
+export function calculateKaminoEstimatedBorrowRate(
   reserve: ReserveRaw,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
   const slotAdjFactor = slotAdjustmentFactor(recentSlotDurationMs);
   const currentUtilization = calculateUtilizationRatio(reserve);
   const curve = truncateBorrowCurve(reserve.config.borrowRateCurve.points);
-  return getBorrowRate(currentUtilization, curve) * slotAdjFactor;
+  return getKaminoBorrowRate(currentUtilization, curve) * slotAdjFactor;
 }
 
 /**
@@ -215,14 +207,11 @@ export function calculateEstimatedBorrowRate(
  * @param recentSlotDurationMs - Recent slot duration (optional)
  * @returns Supply rate as decimal (e.g., 0.03 = 3%)
  */
-export function calculateEstimatedSupplyRate(
+export function calculateKaminoEstimatedSupplyRate(
   reserve: ReserveRaw,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
-  const borrowRate = calculateEstimatedBorrowRate(
-    reserve,
-    recentSlotDurationMs
-  );
+  const borrowRate = calculateKaminoEstimatedBorrowRate(reserve, recentSlotDurationMs);
   const currentUtilization = calculateUtilizationRatio(reserve);
   const protocolTakeRatePct = 1 - reserve.config.protocolTakeRatePct / 100;
 
@@ -237,27 +226,20 @@ export function calculateEstimatedSupplyRate(
  * @param recentSlotDurationMs - Recent slot duration (defaults to 450ms)
  * @returns Supply APY as decimal (e.g., 0.0512 = 5.12% APY)
  */
-export function calculateSupplyAPY(
+export function calculateKaminoSupplyAPY(
   reserve: ReserveRaw,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
   const currentUtilization = calculateUtilizationRatio(reserve);
-  const borrowRate = calculateEstimatedBorrowRate(
-    reserve,
-    recentSlotDurationMs
-  );
+  const borrowRate = calculateKaminoEstimatedBorrowRate(reserve, recentSlotDurationMs);
   const protocolTakeRatePct = 1 - reserve.config.protocolTakeRatePct / 100;
-  return calculateAPYFromAPR(
-    currentUtilization * borrowRate * protocolTakeRatePct
-  );
+  return calculateAPYFromAPR(currentUtilization * borrowRate * protocolTakeRatePct);
 }
 
 export function scaledSupplies(state: ReserveRaw): [Decimal, Decimal] {
   const liqMintDecimals = new Decimal(state.liquidity.mintDecimals.toString());
-  const totalSupplyLamports = getTotalSupply(state);
-  const mintTotalSupplyLam = new Decimal(
-    state.collateral.mintTotalSupply.toString()
-  );
+  const totalSupplyLamports = getKaminoTotalSupply(state);
+  const mintTotalSupplyLam = new Decimal(state.collateral.mintTotalSupply.toString());
 
   const liqScale = new Decimal(10).pow(liqMintDecimals);
   const collScale = new Decimal(10).pow(liqMintDecimals);
@@ -276,9 +258,7 @@ export function scaledSupplies(state: ReserveRaw): [Decimal, Decimal] {
  * Convert raw curve points to normalized [utilization, rate] pairs
  * Truncates curve at 100% utilization
  */
-export const truncateBorrowCurve = (
-  points: CurvePointFields[]
-): [number, number][] => {
+export const truncateBorrowCurve = (points: CurvePointFields[]): [number, number][] => {
   const curve: [number, number][] = [];
   for (const { utilizationRateBps, borrowRateBps } of points) {
     curve.push([
@@ -326,7 +306,7 @@ export function generateKaminoReserveCurve(
   slotAdjustmentFactor: number,
   fixedHostInterestRate: number,
   protocolTakeRatePct: number
-): InterestRateCurvePoint[] {
+): KlendInterestRateCurvePoint[] {
   if (curvePoints.length === 0) {
     return [];
   }
@@ -337,8 +317,7 @@ export function generateKaminoReserveCurve(
     const utilization = i / 100;
 
     // Calculate base borrow rate and add fixed host interest
-    const baseBorrowRate =
-      getBorrowRate(utilization, curve) * slotAdjustmentFactor;
+    const baseBorrowRate = getKaminoBorrowRate(utilization, curve) * slotAdjustmentFactor;
     const borrowAPR = baseBorrowRate + fixedHostInterestRate;
 
     // Calculate supply APR (utilization × borrowAPR × protocolTakeRate)
