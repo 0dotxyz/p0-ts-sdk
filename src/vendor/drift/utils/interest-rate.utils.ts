@@ -409,3 +409,86 @@ export function calculateBorrowAPR(
 
   return apr;
 }
+
+// ============================================================================
+// INTEREST RATE CURVE GENERATION
+// ============================================================================
+
+/**
+ * Interest rate curve point for visualization
+ */
+export interface InterestRateCurvePoint {
+  utilization: number; // 0-100 percentage
+  borrowAPY: number; // percentage
+  supplyAPY: number; // percentage
+}
+
+// Solana slots per year (same as Kamino for consistency)
+// 2 slots/second * 60 seconds * 60 minutes * 24 hours * 365 days
+const SLOTS_PER_YEAR = 63072000;
+
+/**
+ * Convert APR to APY using discrete compounding formula
+ * APY = (1 + APR/n)^n - 1, where n = SLOTS_PER_YEAR
+ * This matches Kamino's approach for consistent curve generation
+ * 
+ * @param apr - Annual Percentage Rate as decimal (e.g., 0.05 for 5%)
+ * @returns Annual Percentage Yield as decimal
+ */
+function calculateAPYFromAPR(apr: number): number {
+  if (apr === 0) return 0;
+  return Math.pow(1 + apr / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1;
+}
+
+/**
+ * Generate complete interest rate curve for a Drift spot market
+ * Creates 101 data points from 0% to 100% utilization
+ * 
+ * @param spotMarket - The Drift spot market account
+ * @returns Array of curve points with utilization, borrow APY, and supply APY
+ * 
+ * @example
+ * ```typescript
+ * const spotMarket = getDriftSpotMarket(0); // USDC market
+ * const curve = generateDriftReserveCurve(spotMarket);
+ * 
+ * curve.forEach(point => {
+ *   console.log(`Utilization: ${point.utilization}%`);
+ *   console.log(`Borrow APY: ${point.borrowAPY.toFixed(2)}%`);
+ *   console.log(`Supply APY: ${point.supplyAPY.toFixed(2)}%`);
+ * });
+ * ```
+ */
+export function generateDriftReserveCurve(
+  spotMarket: DriftSpotMarket
+): InterestRateCurvePoint[] {
+  return Array.from({ length: 101 }, (_, i) => {
+    const utilizationPercent = i / 100; // 0.00 to 1.00
+    
+    // Convert to BN with SPOT_MARKET_UTILIZATION_PRECISION (1e6)
+    const utilizationBN = new BN(
+      Math.floor(utilizationPercent * SPOT_MARKET_UTILIZATION_PRECISION.toNumber())
+    );
+
+    // Calculate borrow rate (APR) at this utilization
+    const borrowRateBN = calculateBorrowRate(spotMarket, ZERO, utilizationBN);
+    
+    // Calculate deposit rate (APR) at this utilization
+    const depositRateBN = calculateDepositRate(spotMarket, ZERO, utilizationBN);
+
+    // Convert from SPOT_MARKET_RATE_PRECISION to decimal
+    // SPOT_MARKET_RATE_PRECISION is 1e6, representing rates as integers
+    const borrowAPR = borrowRateBN.toNumber() / SPOT_MARKET_RATE_PRECISION.toNumber();
+    const supplyAPR = depositRateBN.toNumber() / SPOT_MARKET_RATE_PRECISION.toNumber();
+
+    // Convert APR to APY with compounding
+    const borrowAPY = calculateAPYFromAPR(borrowAPR);
+    const supplyAPY = calculateAPYFromAPR(supplyAPR);
+
+    return {
+      utilization: utilizationPercent * 100, // Convert to percentage (0-100)
+      borrowAPY: borrowAPY * 100, // Convert to percentage
+      supplyAPY: supplyAPY * 100, // Convert to percentage
+    };
+  });
+}
