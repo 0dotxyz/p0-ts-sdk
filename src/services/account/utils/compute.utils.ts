@@ -619,6 +619,8 @@ export function computeProjectedActiveBanksNoCpi(
     switch (decoded.name) {
       case "lendingAccountBorrow":
       case "kaminoDeposit":
+      case "driftDeposit":
+      case "solendDeposit":
       case "lendingAccountDeposit": {
         const targetBank = new PublicKey(ix?.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -635,6 +637,8 @@ export function computeProjectedActiveBanksNoCpi(
       }
       case "lendingAccountRepay":
       case "kaminoWithdraw":
+      case "driftWithdraw":
+      case "solendWithdraw":
       case "lendingAccountWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -711,6 +715,8 @@ export function computeProjectedActiveBalancesNoCpi(
     switch (decoded.name) {
       // Instructions that open or add to a position
       case "lendingAccountDeposit":
+      case "driftDeposit":
+      case "solendDeposit":
       case "kaminoDeposit": {
         // Bank is at index 3 for these instructions (group, account, authority, bank, ...)
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
@@ -823,6 +829,8 @@ export function computeProjectedActiveBalancesNoCpi(
       }
 
       case "lendingAccountWithdraw":
+      case "driftWithdraw":
+      case "solendWithdraw":
       case "kaminoWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
