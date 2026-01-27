@@ -1,6 +1,6 @@
 {
   "name": "@0dotxyz/p0-ts-sdk",
-  "version": "1.1.0-alpha.11",
+  "version": "1.1.0-alpha.12",
   "description": "TypeScript SDK for P0 Protocol - A Solana DeFi lending protocol",
   "type": "module",
   "sideEffects": false,
