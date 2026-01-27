@@ -48,7 +48,6 @@ async function makeKaminoDepositIx(
     bank: PublicKey;
     signerTokenAccount: PublicKey;
     lendingMarket: PublicKey;
-    reserveLiquidityMint: PublicKey;
 
     lendingMarketAuthority: PublicKey;
     reserveLiquiditySupply: PublicKey;
@@ -77,7 +76,6 @@ async function makeKaminoDepositIx(
     bank,
     signerTokenAccount,
     lendingMarket,
-    reserveLiquidityMint,
     lendingMarketAuthority,
     reserveLiquiditySupply,
     reserveCollateralMint,
@@ -93,6 +91,74 @@ async function makeKaminoDepositIx(
     .accounts(accounts)
     .accountsPartial(optionalAccounts)
     .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
+/**
+ * Create a Drift deposit instruction
+ * Deposits tokens into a Drift spot market through a marginfi bank account
+ *
+ * @param mfProgram - The marginfi program instance
+ * @param accounts - Required and optional accounts for the instruction
+ * @param accounts.marginfiAccount - The marginfi account depositing funds
+ * @param accounts.bank - The marginfi bank account for the asset
+ * @param accounts.signerTokenAccount - The signer's token account (source of funds)
+ * @param accounts.driftState - The Drift program state account
+ * @param accounts.driftSpotMarketVault - The Drift spot market vault receiving tokens
+ * @param accounts.tokenProgram - The SPL token program
+ * @param accounts.driftOracle - (Optional) Oracle account for the asset
+ * @param args - Instruction arguments
+ * @param args.amount - Amount to deposit in native token decimals
+ */
+async function makeDriftDepositIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    marginfiAccount: PublicKey;
+    bank: PublicKey;
+    signerTokenAccount: PublicKey;
+    driftState: PublicKey;
+    driftSpotMarketVault: PublicKey;
+    tokenProgram: PublicKey;
+    driftOracle: PublicKey | null;
+
+    // Optional accounts - to override inference
+    group?: PublicKey;
+    authority?: PublicKey;
+    liquidityVault?: PublicKey;
+    integrationAcc2?: PublicKey;
+    integrationAcc3?: PublicKey;
+    integrationAcc1?: PublicKey;
+    mint?: PublicKey;
+    driftProgram?: PublicKey;
+    systemProgram?: PublicKey;
+  },
+  args: {
+    amount: BN;
+  }
+) {
+  const {
+    marginfiAccount,
+    bank,
+    signerTokenAccount,
+    driftState,
+    driftSpotMarketVault,
+    tokenProgram,
+    driftOracle,
+    ...optionalAccounts
+  } = accounts;
+
+  return mfProgram.methods
+    .driftDeposit(args.amount)
+    .accounts({
+      marginfiAccount,
+      bank,
+      signerTokenAccount,
+      driftState,
+      driftSpotMarketVault,
+      tokenProgram,
+      driftOracle,
+    })
+    .accountsPartial(optionalAccounts)
     .instruction();
 }
 
@@ -158,6 +224,77 @@ async function makeRepayIx(
       signerTokenAccount,
       bank,
       tokenProgram,
+    })
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
+async function makeDriftWithdrawIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    marginfiAccount: PublicKey;
+    bank: PublicKey;
+    destinationTokenAccount: PublicKey;
+
+    driftState: PublicKey;
+    driftSigner: PublicKey;
+    driftSpotMarketVault: PublicKey;
+    tokenProgram: PublicKey;
+
+    driftOracle: PublicKey | null;
+    driftRewardOracle: PublicKey | null;
+    driftRewardSpotMarket: PublicKey | null;
+    driftRewardMint: PublicKey | null;
+    driftRewardOracle2: PublicKey | null;
+    driftRewardSpotMarket2: PublicKey | null;
+    driftRewardMint2: PublicKey | null;
+
+    // Optional accounts - to override inference
+    group?: PublicKey;
+    authority?: PublicKey;
+  },
+  args: {
+    amount: BN;
+    withdrawAll: boolean;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const {
+    marginfiAccount,
+    bank,
+    destinationTokenAccount,
+    driftState,
+    driftSigner,
+    driftSpotMarketVault,
+    tokenProgram,
+    driftOracle,
+    driftRewardOracle,
+    driftRewardSpotMarket,
+    driftRewardMint,
+    driftRewardOracle2,
+    driftRewardSpotMarket2,
+    driftRewardMint2,
+    ...optionalAccounts
+  } = accounts;
+
+  return mfProgram.methods
+    .driftWithdraw(args.amount, args.withdrawAll)
+    .accounts({
+      marginfiAccount,
+      bank,
+      destinationTokenAccount,
+      driftState,
+      driftSigner,
+      driftSpotMarketVault,
+      tokenProgram,
+      driftOracle,
+      driftRewardOracle,
+      driftRewardSpotMarket,
+      driftRewardMint,
+      driftRewardOracle2,
+      driftRewardSpotMarket2,
+      driftRewardMint2,
     })
     .accountsPartial(optionalAccounts)
     .remainingAccounts(remainingAccounts)
@@ -470,13 +607,10 @@ async function makeGroupInitIx(
   accounts: {
     marginfiGroup: PublicKey;
     admin: PublicKey;
-  },
-  args?: {
-    isArenaGroup?: boolean;
   }
 ) {
   return mfProgram.methods
-    .marginfiGroupInitialize(args?.isArenaGroup ?? false)
+    .marginfiGroupInitialize()
     .accounts({
       marginfiGroup: accounts.marginfiGroup,
       admin: accounts.admin,
@@ -686,9 +820,11 @@ async function makePulseHealthIx(
 
 const instructions = {
   makeDepositIx,
+  makeDriftDepositIx,
   makeKaminoDepositIx,
   makeRepayIx,
   makeWithdrawIx,
+  makeDriftWithdrawIx,
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeInitMarginfiAccountIx,

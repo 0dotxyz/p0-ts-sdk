@@ -1,6 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import { Bank } from "~/models/bank";
+import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
   ObligationRaw,
@@ -45,10 +46,7 @@ export async function fetchKaminoMetadata(
   const kaminoMap = new Map<string, KaminoMetadata>();
 
   // Filter banks that have Kamino integration
-  const kaminoBanks = banks.filter(
-    (b) =>
-      !b.kaminoReserve.equals(PublicKey.default) && !b.kaminoObligation.equals(PublicKey.default)
-  );
+  const kaminoBanks = banks.filter((b) => b.config.assetTag === AssetTag.KAMINO);
 
   if (kaminoBanks.length === 0) {
     return kaminoMap;
@@ -68,8 +66,16 @@ export async function fetchKaminoMetadata(
       reserveIndex: keysToFetch.length,
       obligationIndex: keysToFetch.length + 1,
     });
+    const kaminoIntegrationAccounts = bank.kaminoIntegrationAccounts;
 
-    keysToFetch.push(bank.kaminoReserve, bank.kaminoObligation);
+    if (kaminoIntegrationAccounts) {
+      keysToFetch.push(
+        kaminoIntegrationAccounts.kaminoReserve,
+        kaminoIntegrationAccounts.kaminoObligation
+      );
+    } else {
+      console.warn("Kamino data not found for bank: ", bank.address.toBase58());
+    }
   }
 
   // Batch fetch all accounts in one RPC call

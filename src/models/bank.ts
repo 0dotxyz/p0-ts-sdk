@@ -87,8 +87,19 @@ class Bank implements BankType {
     public readonly emissionsRemaining: BigNumber,
     public readonly oracleKey: PublicKey,
     public readonly emode: EmodeSettings,
-    public readonly kaminoReserve: PublicKey,
-    public readonly kaminoObligation: PublicKey,
+    public readonly kaminoIntegrationAccounts?: {
+      kaminoReserve: PublicKey;
+      kaminoObligation: PublicKey;
+    },
+    public readonly driftIntegrationAccounts?: {
+      driftSpotMarket: PublicKey;
+      driftUser: PublicKey;
+      driftUserStats: PublicKey;
+    },
+    public readonly solendIntegrationAccounts?: {
+      solendReserve: PublicKey;
+      solendObligation: PublicKey;
+    },
     public readonly feesDestinationAccount?: PublicKey,
     public readonly lendingPositionCount?: BigNumber,
     public readonly borrowingPositionCount?: BigNumber,
@@ -164,8 +175,9 @@ class Bank implements BankType {
       bankType.emissionsRemaining,
       bankType.oracleKey,
       bankType.emode,
-      bankType.kaminoReserve,
-      bankType.kaminoObligation,
+      bankType.kaminoIntegrationAccounts,
+      bankType.driftIntegrationAccounts,
+      bankType.solendIntegrationAccounts,
       bankType.feesDestinationAccount,
       bankType.lendingPositionCount,
       bankType.borrowingPositionCount,
@@ -210,8 +222,9 @@ class Bank implements BankType {
       props.emissionsRemaining,
       props.oracleKey,
       props.emode,
-      props.kaminoReserve,
-      props.kaminoObligation,
+      props.kaminoIntegrationAccounts,
+      props.driftIntegrationAccounts,
+      props.solendIntegrationAccounts,
       props.feesDestinationAccount,
       props.lendingPositionCount,
       props.borrowingPositionCount,

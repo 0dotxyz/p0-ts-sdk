@@ -41,14 +41,13 @@ export function capConfidenceInterval(
   return BigNumber.min(confidence, maxConfidenceInterval);
 }
 
-function parseOraclePriceData(
-  oracleSetup: OracleSetup,
-  rawData: Buffer
-): OraclePrice {
+function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): OraclePrice {
   switch (oracleSetup) {
     case OracleSetup.PythPushOracle:
     case OracleSetup.StakedWithPythPush:
-    case OracleSetup.KaminoPythPush: {
+    case OracleSetup.KaminoPythPush:
+    case OracleSetup.DriftPythPull:
+    case OracleSetup.SolendPythPull: {
       return parseRpcPythPriceData(rawData);
     }
 
@@ -72,6 +71,9 @@ function parseOraclePriceData(
       };
     }
     case OracleSetup.SwitchboardPull:
+    case OracleSetup.KaminoSwitchboardPull:
+    case OracleSetup.DriftSwitchboardPull:
+    case OracleSetup.SolendSwitchboardPull: {
       const pullFeedDAta = decodeSwitchboardPullFeedData(rawData);
 
       return parseSwbOraclePriceData(
@@ -87,6 +89,7 @@ function parseOraclePriceData(
           stdev: pullFeedDAta.result.std_dev.toString(),
         }
       );
+    }
     default:
       console.error("Invalid oracle setup", oracleSetup);
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);

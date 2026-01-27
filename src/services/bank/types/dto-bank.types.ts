@@ -126,8 +126,20 @@ export interface BankTypeDto {
   feesDestinationAccount?: string;
   lendingPositionCount?: string;
   borrowingPositionCount?: string;
-  kaminoReserve: string;
-  kaminoObligation: string;
+
+  kaminoIntegrationAccounts?: {
+    kaminoReserve: string;
+    kaminoObligation: string;
+  };
+  driftIntegrationAccounts?: {
+    driftSpotMarket: string;
+    driftUser: string;
+    driftUserStats: string;
+  };
+  solendIntegrationAccounts?: {
+    solendReserve: string;
+    solendObligation: string;
+  };
 }
 
 /*
@@ -163,8 +175,9 @@ export interface BankRawDto {
   totalLiabilityShares: WrappedI80F48;
   totalAssetShares: WrappedI80F48;
 
-  kaminoReserve: string;
-  kaminoObligation: string;
+  integrationAcc1: string;
+  integrationAcc2: string;
+  integrationAcc3: string;
 
   flags: string;
   emissionsRate: string;

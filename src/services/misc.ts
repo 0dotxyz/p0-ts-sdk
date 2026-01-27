@@ -19,6 +19,14 @@ import {
 } from "~/types";
 
 import {
+  driftRewardsRawToDto,
+  driftSpotMarketRawToDto,
+  driftUserRawToDto,
+  driftUserStatsRawToDto,
+  dtoToDriftRewardsRaw,
+  dtoToDriftSpotMarketRaw,
+  dtoToDriftUserRaw,
+  dtoToDriftUserStatsRaw,
   dtoToFarmRaw,
   dtoToObligationRaw,
   dtoToReserveRaw,
@@ -63,6 +71,16 @@ export function dtoToBankMetadata(
             : undefined,
         }
       : undefined,
+    driftStates: bankMetadataDto.driftStates
+      ? {
+          spotMarketState: dtoToDriftSpotMarketRaw(bankMetadataDto.driftStates.spotMarketState),
+          userState: dtoToDriftUserRaw(bankMetadataDto.driftStates.userState),
+          userRewards: bankMetadataDto.driftStates.userRewards.map(dtoToDriftRewardsRaw),
+          userStatsState: bankMetadataDto.driftStates.userStatsState
+            ? dtoToDriftUserStatsRaw(bankMetadataDto.driftStates.userStatsState)
+            : undefined,
+        }
+      : undefined,
   };
 }
 
@@ -76,6 +94,16 @@ export function bankMetadataToDto(
           obligationState: obligationRawToDto(bankMetadata.kaminoStates.obligationState),
           farmState: bankMetadata.kaminoStates.farmState
             ? farmRawToDto(bankMetadata.kaminoStates.farmState)
+            : undefined,
+        }
+      : undefined,
+    driftStates: bankMetadata.driftStates
+      ? {
+          spotMarketState: driftSpotMarketRawToDto(bankMetadata.driftStates.spotMarketState),
+          userState: driftUserRawToDto(bankMetadata.driftStates.userState),
+          userRewards: bankMetadata.driftStates.userRewards.map(driftRewardsRawToDto),
+          userStatsState: bankMetadata.driftStates.userStatsState
+            ? driftUserStatsRawToDto(bankMetadata.driftStates.userStatsState)
             : undefined,
         }
       : undefined,

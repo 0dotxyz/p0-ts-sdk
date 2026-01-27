@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { FarmStateRaw, ReserveRaw, RewardInfoFields } from "../../types";
 import { PublicKey } from "@solana/web3.js";
-import { getTotalSupply } from "../klend/interest-rate.utils";
+import { getKaminoTotalSupply } from "../klend/interest-rate.utils";
 
 export function getRewardPerTimeUnitSecond(reward: RewardInfoFields) {
   const now = new Decimal(new Date().getTime()).div(1000);
@@ -33,9 +33,7 @@ export function getRewardPerTimeUnitSecond(reward: RewardInfoFields) {
   const rewardAmountPerUnitDecimals = new Decimal(10).pow(
     reward.rewardsPerSecondDecimals.toString()
   );
-  const rewardAmountPerUnitLamports = new Decimal(10).pow(
-    rewardTokenDecimals.toString()
-  );
+  const rewardAmountPerUnitLamports = new Decimal(10).pow(rewardTokenDecimals.toString());
 
   const rpsAdjusted = new Decimal(rewardPerTimeUnitSecond.toString())
     .div(rewardAmountPerUnitDecimals)
@@ -75,11 +73,7 @@ export async function getReserveRewardsApy(
       continue;
     }
 
-    const { apy, apr } = calculateRewardApy(
-      priceByMint,
-      reserveState,
-      rewardInfo
-    );
+    const { apy, apr } = calculateRewardApy(priceByMint, reserveState, rewardInfo);
     rewardApys.push({ rewardApy: apy, rewardInfo, rewardApr: apr });
   }
 
@@ -92,7 +86,7 @@ export function calculateRewardApy(
   rewardInfo: RewardInfoFields
 ) {
   const decimals = reserve.liquidity.mintDecimals.toNumber();
-  const totalSupply = getTotalSupply(reserve);
+  const totalSupply = getKaminoTotalSupply(reserve);
   const mintAddress = reserve.liquidity.mintPubkey;
   const totalAmount = lamportsToNumberDecimal(totalSupply, decimals);
   const mintPrice = priceByMint[mintAddress.toString()] ?? 0;
@@ -109,16 +103,10 @@ function aprToApy(apr: Decimal, compoundPeriods: number) {
   // if periods = 365 => daily compound
   // periods = 1 => yearly compound
   // (1 + apr / periods) ** periods - 1;
-  return new Decimal(1)
-    .add(apr.div(compoundPeriods))
-    .pow(compoundPeriods)
-    .sub(1);
+  return new Decimal(1).add(apr.div(compoundPeriods)).pow(compoundPeriods).sub(1);
 }
 
-function lamportsToNumberDecimal(
-  amount: Decimal.Value,
-  decimals: number
-): Decimal {
+function lamportsToNumberDecimal(amount: Decimal.Value, decimals: number): Decimal {
   const factor = 10 ** decimals;
   return new Decimal(amount).div(factor);
 }

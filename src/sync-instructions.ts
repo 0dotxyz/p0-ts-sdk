@@ -73,6 +73,8 @@ const DISCRIMINATORS = {
   LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([209, 82, 255, 171, 124, 21, 71, 81]),
   LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
   LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
+  DRIFT_DEPOSIT: Buffer.from([252, 63, 250, 201, 98, 55, 130, 12]),
+  DRIFT_WITHDRAW: Buffer.from([86, 59, 186, 123, 183, 181, 234, 137]),
 };
 
 // ============================================================================
@@ -355,12 +357,11 @@ function makeKaminoDepositIx(
     authority: PublicKey; // signer - caller must provide
     bank: PublicKey;
     signerTokenAccount: PublicKey;
-    kaminoObligation: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc2: PublicKey; // Kamino Obligation
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
-    kaminoReserve: PublicKey; // relations: ["bank"] - caller must provide
-    mint: PublicKey; // relations: ["bank"] - caller must provide
-    reserveLiquidityMint: PublicKey;
+    integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
+    mint: PublicKey; // relations: ["bank"] - Bank's liquidity token mint (Kamino calls this reserve_liquidity_mint)
     reserveLiquiditySupply: PublicKey;
     reserveCollateralMint: PublicKey;
     reserveDestinationDepositCollateral: PublicKey;
@@ -388,20 +389,15 @@ function makeKaminoDepositIx(
       isWritable: true,
     },
     { pubkey: liquidityVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.kaminoObligation, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
     { pubkey: accounts.lendingMarket, isSigner: false, isWritable: false },
     {
       pubkey: accounts.lendingMarketAuthority,
       isSigner: false,
       isWritable: false,
     },
-    { pubkey: accounts.kaminoReserve, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     { pubkey: accounts.mint, isSigner: false, isWritable: false },
-    {
-      pubkey: accounts.reserveLiquidityMint,
-      isSigner: false,
-      isWritable: true,
-    },
     {
       pubkey: accounts.reserveLiquiditySupply,
       isSigner: false,
@@ -461,10 +457,10 @@ function makeKaminoWithdrawIx(
     authority: PublicKey; // signer - caller must provide
     bank: PublicKey;
     destinationTokenAccount: PublicKey;
-    kaminoObligation: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc2: PublicKey; // Kamino Obligation
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
-    kaminoReserve: PublicKey; // relations: ["bank"] - caller must provide
+    integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
     reserveLiquidityMint: PublicKey;
     reserveLiquiditySupply: PublicKey;
     reserveCollateralMint: PublicKey;
@@ -494,14 +490,14 @@ function makeKaminoWithdrawIx(
     },
     { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: true },
     { pubkey: liquidityVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.kaminoObligation, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
     { pubkey: accounts.lendingMarket, isSigner: false, isWritable: false },
     {
       pubkey: accounts.lendingMarketAuthority,
       isSigner: false,
       isWritable: false,
     },
-    { pubkey: accounts.kaminoReserve, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     {
       pubkey: accounts.reserveLiquidityMint,
       isSigner: false,
@@ -626,12 +622,11 @@ function makelendingAccountWithdrawEmissionIx(
     group: PublicKey; // relations - caller must provide
     marginfiAccount: PublicKey;
     authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
-    destinationAccount: PublicKey;
     bank: PublicKey;
     emissionsMint: PublicKey; // relations: ["bank"] - caller must provide
     emissionsAuth: PublicKey; // PDA - caller must derive
-    emissionsTokenAccount: PublicKey; // relations: ["bank"] - caller must provide
     emissionsVault: PublicKey; // PDA - caller must derive
+    destinationAccount: PublicKey;
     tokenProgram: PublicKey;
   }
 ): TransactionInstruction {
@@ -639,16 +634,11 @@ function makelendingAccountWithdrawEmissionIx(
     { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
-    { pubkey: accounts.destinationAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
     { pubkey: accounts.emissionsMint, isSigner: false, isWritable: false },
     { pubkey: accounts.emissionsAuth, isSigner: false, isWritable: false },
-    {
-      pubkey: accounts.emissionsTokenAccount,
-      isSigner: false,
-      isWritable: false,
-    },
     { pubkey: accounts.emissionsVault, isSigner: false, isWritable: true },
+    { pubkey: accounts.destinationAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
   ];
 
@@ -895,6 +885,215 @@ function makePoolAddBankIx(
   });
 }
 
+function makeDriftDepositIx(
+  programId: PublicKey,
+  accounts: {
+    group: PublicKey; // relations - caller must provide
+    marginfiAccount: PublicKey;
+    authority: PublicKey; // signer - caller must provide
+    bank: PublicKey;
+    driftOracle: PublicKey | null; // optional in IDL
+    liquidityVault: PublicKey; // relations: ["bank"] - caller must provide
+    signerTokenAccount: PublicKey;
+    driftState: PublicKey; // caller must provide
+    integrationAcc2: PublicKey; // The Drift user account owned by liquidity_vault_authority
+    integrationAcc3: PublicKey; // The Drift user stats account owned by liquidity_vault_authority
+    integrationAcc1: PublicKey; // The Drift spot market for this asset
+    driftSpotMarketVault: PublicKey;
+    mint: PublicKey; // relations: ["bank"] - caller must provide
+    driftProgram: PublicKey; // fixed address - caller must provide
+    tokenProgram: PublicKey;
+    systemProgram: PublicKey; // fixed address - caller must provide
+  },
+  args: {
+    amount: BN;
+  }
+): TransactionInstruction {
+  // Derive PDA for liquidity vault authority
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
+
+  // Build keys in exact IDL order
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.authority, isSigner: true, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: true },
+  ];
+
+  // drift_oracle is optional
+  if (accounts.driftOracle) {
+    keys.push({
+      pubkey: accounts.driftOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  keys.push(
+    { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: false },
+    { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
+    { pubkey: accounts.signerTokenAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftState, isSigner: false, isWritable: false },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc3, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
+    {
+      pubkey: accounts.driftSpotMarketVault,
+      isSigner: false,
+      isWritable: true,
+    },
+    { pubkey: accounts.mint, isSigner: false, isWritable: false },
+    { pubkey: accounts.driftProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.systemProgram, isSigner: false, isWritable: false }
+  );
+
+  const data = Buffer.concat([DISCRIMINATORS.DRIFT_DEPOSIT, encodeU64(args.amount)]);
+
+  return new TransactionInstruction({ keys, programId, data });
+}
+
+function makeDriftWithdrawIx(
+  programId: PublicKey,
+  accounts: {
+    group: PublicKey;
+    marginfiAccount: PublicKey;
+    authority: PublicKey;
+    bank: PublicKey;
+    liquidityVault: PublicKey;
+    destinationTokenAccount: PublicKey;
+    driftState: PublicKey;
+    integrationAcc2: PublicKey; // The Drift user account owned by liquidity_vault_authority
+    integrationAcc3: PublicKey; // The Drift user stats account owned by liquidity_vault_authority"
+    integrationAcc1: PublicKey; // The Drift spot market for this asset
+    driftSpotMarketVault: PublicKey;
+    driftSigner: PublicKey;
+    mint: PublicKey;
+    tokenProgram: PublicKey;
+    driftOracle?: PublicKey | null;
+    driftRewardOracle?: PublicKey | null;
+    driftRewardSpotMarket?: PublicKey | null;
+    driftRewardMint?: PublicKey | null;
+    driftRewardOracle2?: PublicKey | null;
+    driftRewardSpotMarket2?: PublicKey | null;
+    driftRewardMint2?: PublicKey | null;
+  },
+  args: {
+    amount: BN;
+    withdrawAll: boolean;
+  },
+  remainingAccounts: AccountMeta[] = []
+): TransactionInstruction {
+  // Derive PDA for liquidity vault authority
+  const liquidityVaultAuthority = deriveBankLiquidityVaultAuthority(programId, accounts.bank)[0];
+
+  // Drift program address
+  const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
+  const SYSTEM_PROGRAM_ID = new PublicKey("11111111111111111111111111111111");
+
+  // Build keys in exact IDL order
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.group, isSigner: false, isWritable: true },
+    { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.authority, isSigner: true, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: true },
+  ];
+
+  // Add optional driftOracle
+  if (accounts.driftOracle) {
+    keys.push({
+      pubkey: accounts.driftOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  // Add required accounts in IDL order
+  keys.push(
+    { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: false },
+    { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
+    {
+      pubkey: accounts.destinationTokenAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    { pubkey: accounts.driftState, isSigner: false, isWritable: false },
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc3, isSigner: false, isWritable: true },
+    { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
+    { pubkey: accounts.driftSpotMarketVault, isSigner: false, isWritable: true }
+  );
+
+  // Add optional reward accounts (in IDL order)
+  if (accounts.driftRewardOracle) {
+    keys.push({
+      pubkey: accounts.driftRewardOracle,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardSpotMarket) {
+    keys.push({
+      pubkey: accounts.driftRewardSpotMarket,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardMint) {
+    keys.push({
+      pubkey: accounts.driftRewardMint,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardOracle2) {
+    keys.push({
+      pubkey: accounts.driftRewardOracle2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardSpotMarket2) {
+    keys.push({
+      pubkey: accounts.driftRewardSpotMarket2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  if (accounts.driftRewardMint2) {
+    keys.push({
+      pubkey: accounts.driftRewardMint2,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+
+  // Add final required accounts
+  keys.push(
+    { pubkey: accounts.driftSigner, isSigner: false, isWritable: false },
+    { pubkey: accounts.mint, isSigner: false, isWritable: false },
+    { pubkey: DRIFT_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false }
+  );
+
+  // Add remaining accounts for health checks
+  keys.push(...remainingAccounts);
+
+  const data = Buffer.concat([
+    DISCRIMINATORS.DRIFT_WITHDRAW,
+    encodeU64(args.amount),
+    encodeBool(args.withdrawAll),
+  ]);
+
+  return new TransactionInstruction({ keys, programId, data });
+}
+
 function makePoolAddPermissionlessStakedBankIx(
   programId: PublicKey,
   accounts: {
@@ -965,9 +1164,11 @@ function makePoolAddPermissionlessStakedBankIx(
 const syncInstructions = {
   makeInitMarginfiAccountIx,
   makeDepositIx,
+  makeDriftDepositIx,
   makeKaminoDepositIx,
   makeRepayIx,
   makeWithdrawIx,
+  makeDriftWithdrawIx,
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeLendingAccountLiquidateIx,

@@ -105,7 +105,9 @@ export async function makeCrankSwbFeedIx(
   const swbPullBanks = allActiveBanks.filter(
     (bank) =>
       bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull
+      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
+      bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
+      bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
   );
 
   if (swbPullBanks.length > 0) {

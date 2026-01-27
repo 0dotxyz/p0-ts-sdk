@@ -135,6 +135,14 @@ function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
       return 7;
     case OracleSetup.Fixed:
       return 8;
+    case OracleSetup.DriftPythPull:
+      return 9;
+    case OracleSetup.DriftSwitchboardPull:
+      return 10;
+    case OracleSetup.SolendPythPull:
+      return 11;
+    case OracleSetup.SolendSwitchboardPull:
+      return 12;
     default:
       return 0;
   }
@@ -199,8 +207,25 @@ function toBankDto(bank: BankType): BankTypeDto {
     feesDestinationAccount: bank.feesDestinationAccount?.toBase58(),
     lendingPositionCount: bank.lendingPositionCount?.toString(),
     borrowingPositionCount: bank.borrowingPositionCount?.toString(),
-    kaminoReserve: bank.kaminoReserve.toBase58(),
-    kaminoObligation: bank.kaminoObligation.toBase58(),
+    kaminoIntegrationAccounts: bank.kaminoIntegrationAccounts
+      ? {
+          kaminoReserve: bank.kaminoIntegrationAccounts.kaminoReserve.toBase58(),
+          kaminoObligation: bank.kaminoIntegrationAccounts.kaminoObligation.toBase58(),
+        }
+      : undefined,
+    driftIntegrationAccounts: bank.driftIntegrationAccounts
+      ? {
+          driftSpotMarket: bank.driftIntegrationAccounts.driftSpotMarket.toBase58(),
+          driftUser: bank.driftIntegrationAccounts.driftUser.toBase58(),
+          driftUserStats: bank.driftIntegrationAccounts.driftUserStats.toBase58(),
+        }
+      : undefined,
+    solendIntegrationAccounts: bank.solendIntegrationAccounts
+      ? {
+          solendReserve: bank.solendIntegrationAccounts.solendReserve.toBase58(),
+          solendObligation: bank.solendIntegrationAccounts.solendObligation.toBase58(),
+        }
+      : undefined,
   };
 }
 
@@ -298,8 +323,9 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     borrowingPositionCount: bankRaw?.borrowingPositionCount?.toString(),
 
     emode: emodeSettingsRawToDto(bankRaw.emode),
-    kaminoReserve: bankRaw.kaminoReserve.toBase58(),
-    kaminoObligation: bankRaw.kaminoObligation.toBase58(),
+    integrationAcc1: bankRaw.integrationAcc1.toBase58(),
+    integrationAcc2: bankRaw.integrationAcc2.toBase58(),
+    integrationAcc3: bankRaw.integrationAcc3.toBase58(),
   };
 }
 

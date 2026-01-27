@@ -13,6 +13,7 @@ import {
   getLiabilityShares,
   getAssetWeight,
   getLiabilityWeight,
+  AssetTag,
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { MarginfiProgram } from "~/types";
@@ -493,8 +494,20 @@ export function computeHealthAccountMetas(
       }
 
       // for kamino banks, include kamino reserve
-      if (bank.config.assetTag === 3) {
-        keys.push(bank.kaminoReserve);
+      if (bank.config.assetTag === AssetTag.KAMINO) {
+        if (!bank.kaminoIntegrationAccounts) {
+          console.warn("Reserve for kamino bank not found ", bank.address.toBase58());
+        } else {
+          keys.push(bank.kaminoIntegrationAccounts.kaminoReserve);
+        }
+      }
+
+      if (bank.config.assetTag === AssetTag.DRIFT) {
+        if (!bank.driftIntegrationAccounts) {
+          console.warn("Drift spot market for drift bank not found ", bank.address.toBase58());
+        } else {
+          keys.push(bank.driftIntegrationAccounts.driftSpotMarket);
+        }
       }
 
       return keys;
@@ -606,6 +619,8 @@ export function computeProjectedActiveBanksNoCpi(
     switch (decoded.name) {
       case "lendingAccountBorrow":
       case "kaminoDeposit":
+      case "driftDeposit":
+      case "solendDeposit":
       case "lendingAccountDeposit": {
         const targetBank = new PublicKey(ix?.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -622,6 +637,8 @@ export function computeProjectedActiveBanksNoCpi(
       }
       case "lendingAccountRepay":
       case "kaminoWithdraw":
+      case "driftWithdraw":
+      case "solendWithdraw":
       case "lendingAccountWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -698,6 +715,8 @@ export function computeProjectedActiveBalancesNoCpi(
     switch (decoded.name) {
       // Instructions that open or add to a position
       case "lendingAccountDeposit":
+      case "driftDeposit":
+      case "solendDeposit":
       case "kaminoDeposit": {
         // Bank is at index 3 for these instructions (group, account, authority, bank, ...)
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
@@ -810,6 +829,8 @@ export function computeProjectedActiveBalancesNoCpi(
       }
 
       case "lendingAccountWithdraw":
+      case "driftWithdraw":
+      case "solendWithdraw":
       case "kaminoWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());

@@ -14,6 +14,7 @@ import {
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
+import { getAllDerivedDriftAccounts } from "~/vendor/drift";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
 import {
@@ -23,7 +24,12 @@ import {
   makeUnwrapSolIx,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
+import { uiToNative } from "~/utils";
 
 import {
   MakeKaminoWithdrawIxParams,
@@ -31,10 +37,256 @@ import {
   MakeWithdrawTxParams,
   TransactionBuilderResult,
   MakeKaminoWithdrawTxParams,
+  MakeDriftWithdrawTxParams,
+  MakeDriftWithdrawIxParams,
 } from "../types";
 import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
 
-import { uiToNative } from "~/utils";
+export async function makeDriftWithdrawIx({
+  program,
+  bank,
+  bankMap,
+  tokenProgram,
+  amount,
+  marginfiAccount,
+  driftSpotMarket,
+  userRewards,
+  authority,
+  withdrawAll = false,
+  isSync = false,
+  opts = {},
+}: MakeDriftWithdrawIxParams): Promise<InstructionsWrapper> {
+  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
+  const createAtas = opts.createAtas ?? true;
+  const withdrawIxs: TransactionInstruction[] = [];
+  const remainingAccounts: PublicKey[] = [];
+
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
+
+  if (createAtas) {
+    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+      authority,
+      userTokenAtaPk,
+      authority,
+      bank.mint,
+      tokenProgram
+    );
+    withdrawIxs.push(createAtaIdempotentIx);
+  }
+
+  const healthAccounts = withdrawAll
+    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
+    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+
+  const marketIndex = driftSpotMarket.marketIndex;
+  const driftOracle = driftSpotMarket.oracle;
+
+  const { driftState, driftSigner, driftSpotMarketVault } = getAllDerivedDriftAccounts(marketIndex);
+
+  if (!bank.driftIntegrationAccounts) {
+    throw new Error("Bank has no drift integration accounts");
+  }
+
+  if (opts.observationBanksOverride) {
+    remainingAccounts.push(...opts.observationBanksOverride);
+  } else {
+    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    remainingAccounts.push(...accountMetas);
+  }
+
+  // Extract reward values from userRewards array
+  // Handles 0, 1, 2, or 2+ rewards with proper error handling
+
+  // Validate array length
+  if (userRewards.length > 2) {
+    console.error(
+      `Warning: User has ${userRewards.length} Drift rewards, but only 2 are supported. Using first 2 only.`
+    );
+  }
+
+  // Extract first reward (or null if empty)
+  const driftRewardOracle = userRewards[0]?.oracle ?? null;
+  const driftRewardSpotMarket = userRewards[0]?.spotMarket ?? null;
+  const driftRewardMint = userRewards[0]?.mint ?? null;
+
+  // Extract second reward (or null if not present)
+  const driftRewardOracle2 = userRewards[1]?.oracle ?? null;
+  const driftRewardSpotMarket2 = userRewards[1]?.spotMarket ?? null;
+  const driftRewardMint2 = userRewards[1]?.mint ?? null;
+
+  const withdrawIx = isSync
+    ? syncInstructions.makeDriftWithdrawIx(
+        program.programId,
+        {
+          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
+          marginfiAccount: marginfiAccount.address,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          bank: bank.address,
+          destinationTokenAccount: userTokenAtaPk,
+
+          driftState,
+          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
+          driftSpotMarketVault,
+          driftSigner,
+          liquidityVault: bank.liquidityVault,
+          mint: bank.mint,
+          tokenProgram,
+
+          driftOracle,
+          driftRewardOracle,
+          driftRewardSpotMarket,
+          driftRewardMint,
+          driftRewardOracle2,
+          driftRewardSpotMarket2,
+          driftRewardMint2,
+        },
+        {
+          amount: uiToNative(amount, bank.mintDecimals),
+          withdrawAll,
+        },
+        remainingAccounts.map((account) => ({
+          pubkey: account,
+          isSigner: false,
+          isWritable: false,
+        }))
+      )
+    : await instructions.makeDriftWithdrawIx(
+        program,
+        {
+          marginfiAccount: marginfiAccount.address,
+          bank: bank.address,
+          destinationTokenAccount: userTokenAtaPk,
+
+          driftState,
+          driftSigner,
+          driftSpotMarketVault,
+          tokenProgram,
+
+          driftOracle,
+          driftRewardOracle,
+          driftRewardSpotMarket,
+          driftRewardMint,
+          driftRewardOracle2,
+          driftRewardSpotMarket2,
+          driftRewardMint2,
+
+          authority: opts.overrideInferAccounts?.authority,
+          group: opts.overrideInferAccounts?.group,
+        },
+        {
+          amount: uiToNative(amount, bank.mintDecimals),
+          withdrawAll,
+        },
+        remainingAccounts.map((account) => ({
+          pubkey: account,
+          isSigner: false,
+          isWritable: false,
+        }))
+      );
+
+  withdrawIxs.push(withdrawIx);
+
+  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
+    withdrawIxs.push(makeUnwrapSolIx(authority));
+  }
+
+  return {
+    instructions: withdrawIxs,
+    keys: [],
+  };
+}
+
+export async function makeDriftWithdrawTx(
+  params: MakeDriftWithdrawTxParams
+): Promise<TransactionBuilderResult> {
+  const { luts, connection, ...withdrawIxParams } = params;
+
+  const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
+    return balance.liabilityShares.gt(0);
+  });
+
+  let updateFeedIxs: TransactionInstruction[] = [];
+  let feedLuts: AddressLookupTableAccount[] = [];
+
+  const withdrawIxs = await makeDriftWithdrawIx(withdrawIxParams);
+
+  if (hasLiabilities) {
+    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
+      marginfiAccount: params.marginfiAccount,
+      bankMap: params.bankMap,
+      oraclePrices: params.oraclePrices,
+      instructions: withdrawIxs.instructions,
+      program: params.program,
+      connection: params.connection,
+      crossbarUrl: params.crossbarUrl,
+    });
+    updateFeedIxs = _updateFeedIxs;
+    feedLuts = _feedLuts;
+  }
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const refreshIxs = makeRefreshKaminoBanksIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const {
+    value: { blockhash },
+  } = await connection.getLatestBlockhashAndContext("confirmed");
+
+  let feedCrankTxs: ExtendedV0Transaction[] = [];
+
+  if (updateFeedIxs.length > 0) {
+    feedCrankTxs.push(
+      addTransactionMetadata(
+        new VersionedTransaction(
+          new TransactionMessage({
+            instructions: [...updateFeedIxs],
+            payerKey: params.authority,
+            recentBlockhash: blockhash,
+          }).compileToV0Message(feedLuts)
+        ),
+        {
+          addressLookupTables: feedLuts,
+          type: TransactionType.CRANK,
+        }
+      )
+    );
+  }
+
+  const withdrawTx = addTransactionMetadata(
+    new VersionedTransaction(
+      new TransactionMessage({
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
+        payerKey: params.authority,
+        recentBlockhash: blockhash,
+      }).compileToV0Message(luts)
+    ),
+    {
+      signers: [...refreshIxs.keys, ...withdrawIxs.keys],
+      addressLookupTables: luts,
+      type: TransactionType.WITHDRAW,
+    }
+  );
+
+  const transactions = [...feedCrankTxs, withdrawTx];
+
+  return { transactions, actionTxIndex: transactions.length - 1 };
+}
 
 export async function makeKaminoWithdrawIx({
   program,
@@ -80,8 +332,8 @@ export async function makeKaminoWithdrawIx({
     reserveDestinationDepositCollateral,
   } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
-  if (!bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
   }
 
   const reserveFarm = !reserve.farmCollateral.equals(
@@ -91,7 +343,11 @@ export async function makeKaminoWithdrawIx({
     : null;
 
   const [userFarmState] = reserveFarm
-    ? deriveUserState(FARMS_PROGRAM_ID, reserveFarm, bank.kaminoObligation)
+    ? deriveUserState(
+        FARMS_PROGRAM_ID,
+        reserveFarm,
+        bank.kaminoIntegrationAccounts.kaminoObligation
+      )
     : [null];
 
   if (opts.observationBanksOverride) {
@@ -111,10 +367,10 @@ export async function makeKaminoWithdrawIx({
           bank: bank.address,
           destinationTokenAccount: userTokenAtaPk,
 
-          kaminoObligation: bank.kaminoObligation,
+          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
           lendingMarket,
           lendingMarketAuthority,
-          kaminoReserve: bank.kaminoReserve,
+          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
           reserveLiquidityMint: bank.mint,
           reserveLiquiditySupply,
           reserveCollateralMint,
@@ -302,6 +558,13 @@ export async function makeWithdrawTx(
     feedLuts = _feedLuts;
   }
 
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const refreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -336,7 +599,11 @@ export async function makeWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs.instructions, ...withdrawIxs.instructions],
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(luts)
@@ -358,12 +625,8 @@ export async function makeKaminoWithdrawTx(
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, amount, ...withdrawIxParams } = params;
 
-  if (!withdrawIxParams.bank.kaminoReserve) {
-    throw new Error("Bank has no kamino reserve");
-  }
-
-  if (!withdrawIxParams.bank.kaminoObligation) {
-    throw new Error("Bank has no kamino obligation");
+  if (!withdrawIxParams.bank.kaminoIntegrationAccounts) {
+    throw new Error("Bank has no kamino integration accounts");
   }
 
   const adjustedAmount = new BigNumber(amount)
@@ -371,6 +634,13 @@ export async function makeKaminoWithdrawTx(
     .toNumber();
 
   const refreshIxs = makeRefreshKaminoBanksIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -419,7 +689,11 @@ export async function makeKaminoWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs.instructions, ...withdrawIxs.instructions],
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(luts)
