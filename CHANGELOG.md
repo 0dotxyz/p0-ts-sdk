@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-27
+
+### 🎉 Major Release: Drift Protocol Integration
+
+This stable release graduates from alpha and includes comprehensive Drift Protocol integration support.
+
+### Added
+
+- **Drift Protocol Integration** - Complete support for Drift lending and borrowing
+  - Drift deposit and withdraw instructions with all required accounts
+  - Drift market synchronization and updates
+  - Drift reward harvesting functionality
+  - Drift oracle support (Pyth Pull, Switchboard Pull)
+  - New IDL: `marginfi-types_0.1.7.ts` with Drift integration fields
+  - Drift spot market state management
+  - Drift user account and stats tracking
+  - Pool ID support for market categorization
+
+- **Drift Interest Rate Curve Calculations** - Utilities for generating and visualizing Drift interest rate curves
+  - `DriftInterestRateCurvePoint` interface for curve data points (utilization, borrowAPY, supplyAPY)
+  - `generateDriftReserveCurve()` - Generates complete interest rate curve with 101 data points (0% to 100% utilization)
+  - Discrete compounding formula with `SLOTS_PER_YEAR` (63,072,000) for APY calculations
+  - Proper handling of Drift's `SPOT_MARKET_UTILIZATION_PRECISION` (1e6) and `SPOT_MARKET_RATE_PRECISION` (1e6)
+
+- **Staging Environment Support** - New program constants and LUTs for staging
+  - `MARGINFI_PROGRAM_STAGING`: `stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct`
+  - `MARGINFI_PROGRAM_STAGING_ALT`: `5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY`
+  - Updated staging LUT address: `9p1CwvXMYNEY9CqSwuWySVXsG37NGb36nua94ea5KsiQ`
+  - Staging group ID: `FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo`
+
+### Changed
+
+- **Unified Bank Integration Structure** - Replaced individual integration fields with generic structure
+  - Changed from specific integration fields to `integrationAcc1`, `integrationAcc2`, `integrationAcc3`
+  - Exposed as optional `driftData` and `kaminoData` objects in `BankType`
+  - More flexible and maintainable integration architecture
+
+- **Drift Function Naming** - Improved naming consistency with `Drift` prefix
+  - `getTokenAmount` → `getDriftTokenAmount`
+  - `calculateUtilization` → `calculateDriftUtilization`
+  - `calculateInterestRate` → `calculateDriftInterestRate`
+  - `calculateBorrowRate` → `calculateDriftBorrowRate`
+  - `calculateDepositRate` → `calculateDriftDepositRate`
+  - `calculateLendingAPR` → `calculateDriftLendingAPR`
+  - `calculateLendingAPY` → `calculateDriftLendingAPY`
+  - `calculateBorrowAPR` → `calculateDriftBorrowAPR`
+  - `calculateBorrowAPY` → `calculateDriftBorrowAPY`
+
+- **Klend Function Naming** - Improved naming consistency with `Kamino`/`Klend` prefix
+  - `InterestRateCurvePoint` → `KlendInterestRateCurvePoint`
+  - `getBorrowRate` → `getKaminoBorrowRate`
+  - `getTotalSupply` → `getKaminoTotalSupply`
+  - `calculateEstimatedBorrowRate` → `calculateKaminoEstimatedBorrowRate`
+  - `calculateEstimatedSupplyRate` → `calculateKaminoEstimatedSupplyRate`
+  - `calculateSupplyAPY` → `calculateKaminoSupplyAPY`
+
+### Fixed
+
+- **Instruction Builder Bugs** - Fixed critical issues in integration instructions
+  - Fixed `makeKaminoDepositIx` missing Kamino lending program in accounts
+  - Fixed `makelendingAccountWithdrawEmissionIx` incorrect account ordering
+  - Fixed `DRIFT_WITHDRAW` discriminator (was using deposit discriminator)
+  - Corrected to `[86, 59, 186, 123, 183, 181, 234, 137]`
+
+- **Sync Instructions** - Fixed `isWritable` flag misconfiguration
+  - Set `group` account to `isWritable: true` in Drift withdraw sync instruction
+
+- **Repay Actions** - Changed to use async instructions for better transaction reliability
+  - Updated `buildRepayWithCollatFlashloanTx` withdraw instructions to use `isSync: false`
+  - Updated `buildRepayTxn` borrow and repay instructions to use `isSync: false`
+
+- **CPI Decoding** - Added Drift instructions to CPI decoding in compute utilities
+  - Added support for decoding Drift deposit instructions in `computeProjectedActiveBalancesNoCpi`
+  - Added support for decoding Drift withdraw instructions in `computeProjectedActiveBalancesNoCpi`
+  - Ensures Drift CPI transactions are properly accounted for in balance projections
+
+- **Drift Oracle Configuration** - Ensured explicit `driftOracle` parameter requirement in `makeDriftDepositIx`
+
+### Removed
+
+- **Dependency Cleanup** - Removed unused `@mrgnlabs/mrgn-common` dependency and updated package-lock
+
+---
+
 ## [1.1.0-alpha.12] - 2026-01-27
 
 ### Fixed
