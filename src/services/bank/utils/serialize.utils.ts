@@ -168,6 +168,14 @@ function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
       return { kaminoSwitchboardPull: {} };
     case OracleSetup.Fixed:
       return { fixed: {} };
+    case OracleSetup.DriftPythPull:
+      return { driftPythPull: {} };
+    case OracleSetup.DriftSwitchboardPull:
+      return { driftSwitchboardPull: {} };
+    case OracleSetup.SolendPythPull:
+      return { solendPythPull: {} };
+    case OracleSetup.SolendSwitchboardPull:
+      return { solendSwitchboardPull: {} };
     default:
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);
   }
