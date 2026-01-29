@@ -3,6 +3,9 @@ import {
   QuoteGetRequest,
   Instruction as JupiterInstruction,
   QuoteResponse,
+  ConfigurationParameters,
+  SwapApi,
+  Configuration,
 } from "@jup-ag/api";
 import {
   AddressLookupTableAccount,
@@ -44,6 +47,7 @@ type GetJupiterSwapIxsForFlashloanParams = {
   authority: PublicKey;
   connection: Connection;
   destinationTokenAccount: PublicKey;
+  configParams?: ConfigurationParameters;
 };
 
 export const getJupiterSwapIxsForFlashloan = async ({
@@ -51,6 +55,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
   authority,
   connection,
   destinationTokenAccount,
+  configParams,
 }: GetJupiterSwapIxsForFlashloanParams): Promise<
   {
     swapInstruction: TransactionInstruction;
@@ -59,9 +64,11 @@ export const getJupiterSwapIxsForFlashloan = async ({
     setupInstructions: TransactionInstruction[];
   }[]
 > => {
-  const jupiterApiClient = createJupiterApiClient({
-    basePath: "https://lite-api.jup.ag/swap/v1",
-  });
+  // Create SwapApi directly to respect custom basePath
+  // createJupiterApiClient ignores basePath and hardcodes it to jup.ag URLs
+  const jupiterApiClient = configParams?.basePath
+    ? new SwapApi(new Configuration(configParams))
+    : createJupiterApiClient(configParams);
 
   const feeMint =
     quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint;
@@ -99,7 +106,6 @@ export const getJupiterSwapIxsForFlashloan = async ({
         swapRequest: {
           quoteResponse: quote,
           userPublicKey: authority.toBase58(),
-          programAuthorityId: JUP_SWAP_LUT_PROGRAM_AUTHORITY_INDEX,
           feeAccount: hasFeeAccount ? feeAccount : undefined,
           wrapAndUnwrapSol: false,
           destinationTokenAccount: destinationTokenAccount.toBase58(),

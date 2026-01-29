@@ -250,6 +250,7 @@ async function buildLoopFlashloanTx({
       authority: marginfiAccount.authority,
       connection,
       destinationTokenAccount,
+      configParams: swapOpts.jupiterOptions?.configParams,
     });
 
     swapResponse.forEach((response) => {

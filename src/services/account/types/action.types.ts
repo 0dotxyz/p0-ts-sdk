@@ -5,6 +5,7 @@ import {
   Signer,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { ConfigurationParameters } from "@jup-ag/api";
 
 import { ReserveRaw } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
@@ -269,6 +270,7 @@ export interface MakeLoopTxParams {
       slippageBps: number;
       platformFeeBps: number;
       directRoutesOnly?: boolean;
+      configParams?: ConfigurationParameters;
     };
     // if swapIxs is provided, it will be used instead of creating instructions
     swapIxs?: {
@@ -314,6 +316,7 @@ export interface MakeRepayWithCollatTxParams {
       slippageBps: number;
       platformFeeBps: number;
       directRoutesOnly?: boolean;
+      configParams?: ConfigurationParameters;
     };
     // if swapIxs is provided, it will be used instead of creating instructions
     swapIxs?: {
