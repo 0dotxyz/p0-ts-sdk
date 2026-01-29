@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-01-29
+
+### Improved
+
+- **Oracle Key Serialization** - Enhanced oracle key handling and serialization for better reliability and performance
+  - Improved PublicKey serialization in oracle-related operations
+  - Better handling of oracle account data structures
+
+- **Jupiter API Key Support** - Added support for Jupiter API keys in swap operations
+  - Optional `jupiterApiKey` parameter in Jupiter swap utilities
+  - Allows for rate limit increases and priority access to Jupiter API
+  - Backward compatible - API key is optional
+
 ## [1.1.0] - 2026-01-27
 
 ### 🎉 Major Release: Drift Protocol Integration
