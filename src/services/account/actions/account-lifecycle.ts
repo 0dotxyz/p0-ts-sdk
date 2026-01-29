@@ -307,7 +307,8 @@ export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIx
     }
 
     return ixs;
-  } catch {
+  } catch (error) {
+    console.error("[makeSetupIx] Failed to create setup instructions:", error);
     return [];
   }
 }
