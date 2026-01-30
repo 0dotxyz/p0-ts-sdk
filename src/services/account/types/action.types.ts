@@ -356,6 +356,7 @@ export interface MakeSwapCollateralTxParams {
       slippageBps: number;
       platformFeeBps: number;
       directRoutesOnly?: boolean;
+      configParams?: ConfigurationParameters;
     };
   };
   addressLookupTableAccounts?: AddressLookupTableAccount[];
@@ -392,6 +393,7 @@ export interface MakeSwapDebtTxParams {
       slippageBps: number;
       platformFeeBps: number;
       directRoutesOnly?: boolean;
+      configParams?: ConfigurationParameters;
     };
   };
   addressLookupTableAccounts?: AddressLookupTableAccount[];

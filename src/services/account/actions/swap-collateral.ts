@@ -17,7 +17,11 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE } from "~/constants";
@@ -32,8 +36,8 @@ import { getJupiterSwapIxsForFlashloan } from "../utils";
 import { MakeSwapCollateralTxParams } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
-import { makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
-import { makeDepositIx, makeKaminoDepositIx } from "./deposit";
+import { makeDriftWithdrawIx, makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
+import { makeDepositIx, makeDriftDepositIx, makeKaminoDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 
 /**
@@ -84,6 +88,13 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
       { mint: depositOpts.depositBank.mint, tokenProgram: depositOpts.tokenProgram },
     ],
   });
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    marginfiAccount,
+    bankMap,
+    [withdrawOpts.withdrawBank.address],
+    bankMetadataMap
+  );
 
   // Build Kamino refresh instructions (returns empty if no Kamino banks involved)
   const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
@@ -136,8 +147,16 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
-  if (setupIxs.length > 0 || additionalIxs.length > 0 || kaminoRefreshIxs.instructions.length > 0) {
-    const ixs = [...additionalIxs, ...setupIxs, ...kaminoRefreshIxs.instructions];
+  if (
+    setupIxs.length > 0 ||
+    kaminoRefreshIxs.instructions.length > 0 ||
+    updateDriftMarketIxs.instructions.length > 0
+  ) {
+    const ixs = [
+      ...setupIxs,
+      ...kaminoRefreshIxs.instructions,
+      ...updateDriftMarketIxs.instructions,
+    ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -211,59 +230,98 @@ async function buildSwapCollateralFlashloanTx({
   // Build withdraw instruction
   let withdrawIxs: InstructionsWrapper;
 
-  if (withdrawBank.config.assetTag === AssetTag.KAMINO) {
-    const reserve = bankMetadataMap[withdrawBank.address.toBase58()]?.kaminoStates?.reserveState;
+  switch (withdrawOpts.withdrawBank.config.assetTag) {
+    case AssetTag.KAMINO: {
+      const reserve =
+        bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.kaminoStates?.reserveState;
 
-    if (!reserve) {
-      throw TransactionBuildingError.kaminoReserveNotFound(
-        withdrawBank.address.toBase58(),
-        withdrawBank.mint.toBase58(),
-        withdrawBank.tokenSymbol
-      );
+      if (!reserve) {
+        throw TransactionBuildingError.kaminoReserveNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
+      const adjustedAmount = new BigNumber(totalPositionAmount)
+        .div(withdrawOpts.withdrawBank.assetShareValue)
+        .times(1.0001)
+        .toNumber();
+
+      withdrawIxs = await makeKaminoWithdrawIx({
+        program,
+        bank: withdrawBank,
+        bankMap,
+        tokenProgram: withdrawTokenProgram,
+        amount: adjustedAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        reserve,
+        bankMetadataMap,
+        withdrawAll: true,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
+    }
+    case AssetTag.DRIFT: {
+      const driftState = bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.driftStates;
+
+      if (!driftState) {
+        throw TransactionBuildingError.driftStateNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      withdrawIxs = await makeDriftWithdrawIx({
+        program,
+        bank: withdrawOpts.withdrawBank,
+        bankMap,
+        tokenProgram: withdrawOpts.tokenProgram,
+        amount: totalPositionAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        driftSpotMarket: driftState.spotMarketState,
+        userRewards: driftState.userRewards,
+        bankMetadataMap,
+        withdrawAll: true,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
     }
 
-    // Sometimes the cToken conversion can be off by a few basis points
-    const adjustedAmount = new BigNumber(totalPositionAmount)
-      .div(withdrawBank.assetShareValue)
-      .times(1.0001)
-      .toNumber();
-
-    withdrawIxs = await makeKaminoWithdrawIx({
-      program,
-      bank: withdrawBank,
-      bankMap,
-      tokenProgram: withdrawTokenProgram,
-      amount: adjustedAmount,
-      marginfiAccount,
-      authority: marginfiAccount.authority,
-      reserve,
-      bankMetadataMap,
-      withdrawAll: true,
-      isSync: true,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
-  } else {
-    withdrawIxs = await makeWithdrawIx({
-      program,
-      bank: withdrawBank,
-      bankMap,
-      tokenProgram: withdrawTokenProgram,
-      amount: totalPositionAmount,
-      marginfiAccount,
-      authority: marginfiAccount.authority,
-      withdrawAll: true,
-      bankMetadataMap,
-      isSync: true,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
+    default: {
+      withdrawIxs = await makeWithdrawIx({
+        program,
+        bank: withdrawBank,
+        bankMap,
+        tokenProgram: withdrawTokenProgram,
+        amount: totalPositionAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        withdrawAll: true,
+        bankMetadataMap,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
+    }
   }
 
   // Handle same-mint case (no swap needed)
@@ -299,6 +357,7 @@ async function buildSwapCollateralFlashloanTx({
       authority: marginfiAccount.authority,
       connection,
       destinationTokenAccount,
+      configParams: swapOpts.jupiterOptions?.configParams,
     });
 
     swapResponses.forEach((response) => {
@@ -337,45 +396,81 @@ async function buildSwapCollateralFlashloanTx({
     // Build deposit instruction
     let depositIxs: InstructionsWrapper;
 
-    if (depositBank.config.assetTag === AssetTag.KAMINO) {
-      const reserve = bankMetadataMap[depositBank.address.toBase58()]?.kaminoStates?.reserveState;
+    switch (depositBank.config.assetTag) {
+      case AssetTag.KAMINO: {
+        const reserve = bankMetadataMap[depositBank.address.toBase58()]?.kaminoStates?.reserveState;
 
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          depositBank.address.toBase58(),
-          depositBank.mint.toBase58(),
-          depositBank.tokenSymbol
-        );
+        if (!reserve) {
+          throw TransactionBuildingError.kaminoReserveNotFound(
+            depositBank.address.toBase58(),
+            depositBank.mint.toBase58(),
+            depositBank.tokenSymbol
+          );
+        }
+
+        depositIxs = await makeKaminoDepositIx({
+          program,
+          bank: depositBank,
+          tokenProgram: depositTokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          reserve,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
       }
+      case AssetTag.DRIFT: {
+        const driftState = bankMetadataMap[depositBank.address.toBase58()]?.driftStates;
 
-      depositIxs = await makeKaminoDepositIx({
-        program,
-        bank: depositBank,
-        tokenProgram: depositTokenProgram,
-        amount: amountToDeposit,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        reserve,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
-    } else {
-      depositIxs = await makeDepositIx({
-        program,
-        bank: depositBank,
-        tokenProgram: depositTokenProgram,
-        amount: amountToDeposit,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
+        if (!driftState) {
+          throw TransactionBuildingError.driftStateNotFound(
+            depositBank.address.toBase58(),
+            depositBank.mint.toBase58(),
+            depositBank.tokenSymbol
+          );
+        }
+
+        const driftMarketIndex = driftState.spotMarketState.marketIndex;
+        const driftOracle = driftState.spotMarketState.oracle;
+
+        depositIxs = await makeDriftDepositIx({
+          program,
+          bank: depositBank,
+          tokenProgram: depositTokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          driftMarketIndex,
+          driftOracle,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
+      default: {
+        depositIxs = await makeDepositIx({
+          program,
+          bank: depositBank,
+          tokenProgram: depositTokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
     }
 
     const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
