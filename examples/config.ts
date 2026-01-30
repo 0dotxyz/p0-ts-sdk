@@ -66,9 +66,7 @@ export function getWalletPubkey(): PublicKey {
   try {
     return new PublicKey(pubkeyStr);
   } catch (error) {
-    throw new Error(
-      "Invalid WALLET_ADDRESS format. Expected base58 public key."
-    );
+    throw new Error("Invalid WALLET_ADDRESS format. Expected base58 public key.");
   }
 }
 
@@ -84,9 +82,7 @@ export function getWallet(): Keypair | null {
     const privateKey = JSON.parse(privateKeyStr);
     return Keypair.fromSecretKey(Buffer.from(privateKey));
   } catch (error) {
-    throw new Error(
-      "Invalid WALLET_PRIVATE_KEY format. Expected JSON array: [1,2,3,...]"
-    );
+    throw new Error("Invalid WALLET_PRIVATE_KEY format. Expected JSON array: [1,2,3,...]");
   }
 }
 
@@ -96,6 +92,9 @@ export function getWallet(): Keypair | null {
 export const MINTS = {
   USDC: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
   SOL: new PublicKey("So11111111111111111111111111111111111111112"),
+  JITOSOL: new PublicKey("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+  MSOL: new PublicKey("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"),
+  BSOL: new PublicKey("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
 };
 
 /**

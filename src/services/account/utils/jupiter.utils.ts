@@ -100,6 +100,10 @@ export const getJupiterSwapIxsForFlashloan = async ({
     })
   );
 
+  // Only pass feeAccount if platformFeeBps is set and > 0, AND the fee account exists
+  const shouldUseFeeAccount =
+    hasFeeAccount && finalQuoteParams.platformFeeBps && finalQuoteParams.platformFeeBps > 0;
+
   const swapInstructionResponses = await Promise.all(
     swapQuotes.map((quote) =>
       jupiterApiClient.swapInstructionsPost({
@@ -133,7 +137,6 @@ export const getJupiterSwapIxsForFlashloan = async ({
   for (let i = 0; i < swapInstructionResponses.length; i++) {
     const response = swapInstructionResponses[i];
     const quote = swapQuotes[i];
-    const isLast = i === swapInstructionResponses.length - 1;
 
     if (!response || !quote) continue;
 

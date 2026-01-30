@@ -16,6 +16,8 @@ import {
   MakeLoopTxParams,
   MakeRepayIxOpts,
   MakeRepayWithCollatTxParams,
+  MakeSwapCollateralTxParams,
+  MakeSwapDebtTxParams,
   MakeWithdrawIxOpts,
   MarginRequirementType,
   TransactionBuilderResult,
@@ -445,6 +447,80 @@ export class MarginfiAccountWrapper {
       addressLookupTableAccounts: this.client.addressLookupTables,
     };
     return this.account.makeRepayWithCollatTx(fullParams);
+  }
+
+  /**
+   * Creates a swap collateral transaction with auto-injected client data.
+   *
+   * Swaps one collateral type for another (e.g., JitoSOL -> mSOL) using a flash loan
+   * so account health is not affected during the swap.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
+   *
+   * @param params - Swap collateral parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, etc.)
+   */
+  async makeSwapCollateralTx(
+    params: Omit<
+      MakeSwapCollateralTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+    >
+  ): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: QuoteResponse | undefined;
+  }> {
+    const fullParams: MakeSwapCollateralTxParams = {
+      ...params,
+      program: this.client.program,
+      marginfiAccount: this.account,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+    };
+    return this.account.makeSwapCollateralTx(fullParams);
+  }
+
+  /**
+   * Creates a swap debt transaction with auto-injected client data.
+   *
+   * Swaps one debt type for another (e.g., USDC debt -> SOL debt) using a flash loan
+   * so account health is not affected during the swap.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
+   *
+   * @param params - Swap debt parameters (user provides: connection, repayOpts, borrowOpts, swapOpts, etc.)
+   */
+  async makeSwapDebtTx(
+    params: Omit<
+      MakeSwapDebtTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+    >
+  ): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: QuoteResponse | undefined;
+  }> {
+    const fullParams: MakeSwapDebtTxParams = {
+      ...params,
+      program: this.client.program,
+      marginfiAccount: this.account,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+    };
+    return this.account.makeSwapDebtTx(fullParams);
   }
 
   /**
