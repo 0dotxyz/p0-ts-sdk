@@ -16,7 +16,11 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshKaminoBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  makeRefreshKaminoBanksIxs,
+  makeSmartCrankSwbFeedIx,
+  makeUpdateDriftMarketIxs,
+} from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE } from "~/constants";
 import {
@@ -83,6 +87,13 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     ],
   });
 
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    marginfiAccount,
+    bankMap,
+    [], // debt can be in a drift bank
+    bankMetadataMap
+  );
+
   // Build Kamino refresh instructions (returns empty if no Kamino banks involved)
   const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     marginfiAccount,
@@ -134,8 +145,17 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
-  if (setupIxs.length > 0 || additionalIxs.length > 0 || kaminoRefreshIxs.instructions.length > 0) {
-    const ixs = [...additionalIxs, ...setupIxs, ...kaminoRefreshIxs.instructions];
+  if (
+    setupIxs.length > 0 ||
+    kaminoRefreshIxs.instructions.length > 0 ||
+    updateDriftMarketIxs.instructions.length > 0
+  ) {
+    const ixs = [
+      ...additionalIxs,
+      ...setupIxs,
+      ...kaminoRefreshIxs.instructions,
+      ...updateDriftMarketIxs.instructions,
+    ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -245,6 +265,7 @@ async function buildSwapDebtFlashloanTx({
       authority: marginfiAccount.authority,
       connection,
       destinationTokenAccount,
+      configParams: swapOpts.jupiterOptions?.configParams,
     });
 
     swapResponses.forEach((response) => {
