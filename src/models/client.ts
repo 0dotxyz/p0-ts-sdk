@@ -18,6 +18,9 @@ import {
   makeCreateAccountIxWithProjection,
   fetchMarginfiAccountAddresses,
   fetchMarginfiAccountData,
+  simulateAccountHealthCacheWithFallback,
+  MarginfiAccountType,
+  MarginfiAccountRaw,
 } from "~/services/account";
 
 import { MarginfiGroup } from "./group";
@@ -164,16 +167,28 @@ export class Project0Client {
    * @param accountAddress - The public key of the marginfi account
    * @returns A wrapped account ready to use
    */
-  async fetchAccount(accountAddress: PublicKey): Promise<MarginfiAccountWrapper> {
-    const bankMap = new Map(this.banks.map((b) => [b.address.toBase58(), b]));
-    const { marginfiAccount } = await fetchMarginfiAccountData(
-      this.program,
+  async fetchAccount(
+    accountAddress: PublicKey,
+    skipHealthCache?: boolean
+  ): Promise<MarginfiAccountWrapper> {
+    const marginfiAccountRaw: MarginfiAccountRaw =
+      await this.program.account.marginfiAccount.fetch(accountAddress);
+    let marginfiAccountParsed = MarginfiAccount.fromAccountParsed(
       accountAddress,
-      bankMap,
-      this.bankIntegrationMap
+      marginfiAccountRaw
     );
-    const account = MarginfiAccount.fromAccountType(marginfiAccount);
-    return new MarginfiAccountWrapper(account, this);
+
+    if (!skipHealthCache) {
+      const bankMap = new Map(this.banks.map((b) => [b.address.toBase58(), b]));
+      const { account: simulatedAccount } = await marginfiAccountParsed.simulateHealthCache(
+        this.program,
+        bankMap,
+        this.oraclePriceByBank,
+        this.bankIntegrationMap
+      );
+      marginfiAccountParsed = simulatedAccount;
+    }
+    return new MarginfiAccountWrapper(marginfiAccountParsed, this);
   }
 
   static async initialize(connection: Connection, config: Project0Config) {
