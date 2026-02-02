@@ -24,7 +24,7 @@ import {
   Project0Client,
   MarginfiAccount,
   MarginRequirementType,
-} from "p0-ts-sdk";
+} from "../src";
 import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ============================================================================

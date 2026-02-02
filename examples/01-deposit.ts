@@ -20,7 +20,7 @@ import {
   MarginfiAccountWrapper,
   MarginfiAccount,
   AssetTag,
-} from "p0-ts-sdk";
+} from "../src";
 import { Transaction } from "@solana/web3.js";
 import {
   getConnection,

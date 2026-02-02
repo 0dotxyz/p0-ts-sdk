@@ -26,7 +26,7 @@ import {
   MarginfiAccount,
   MarginRequirementType,
   simulateAccountHealthCacheWithFallback,
-} from "p0-ts-sdk";
+} from "../src";
 import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ============================================================================
