@@ -148,6 +148,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     marginfiAccount: params.marginfiAccount,
     bankMap: params.bankMap,
     oraclePrices: params.oraclePrices,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     instructions: borrowIxs.instructions,
     program: params.program,
     connection: params.connection,

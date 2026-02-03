@@ -254,6 +254,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     marginfiAccount,
     bankMap,
     oraclePrices,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     instructions: [...withdrawIxs.instructions, ...repayIxs.instructions],
     program,
     connection,

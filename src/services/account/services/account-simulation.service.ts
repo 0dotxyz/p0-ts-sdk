@@ -35,65 +35,143 @@ import {
 import {
   decodeAccountRaw,
   parseMarginfiAccountRaw,
-  computeHealthComponentsLegacy,
-  computeHealthComponentsWithoutBiasLegacy,
+  computeHealthComponentsFromBalances,
+  computeHealthComponentsWithoutBiasFromBalances,
 } from "../utils";
 import { makePulseHealthIx } from "../actions";
 
-export async function simulateAccountHealthCacheWithFallback(props: {
+/**
+ * Configuration for simulating account health cache with fallback
+ */
+export interface SimulateAccountHealthCacheWithFallbackParams {
+  /** The marginfi program instance */
   program: MarginfiProgram;
-  bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
+  /** Map of banks by their address */
+  banksMap: Map<string, BankType>;
+  /** Map of oracle prices by bank address */
+  oraclePricesByBank: Map<string, OraclePrice>;
+  /** The marginfi account to simulate health cache for */
   marginfiAccount: MarginfiAccountType;
-  bankMetadataMap: BankIntegrationMetadataMap;
-}): Promise<{
+  /** Bank integration metadata map (for Kamino, Drift, etc.) */
+  bankIntegrationMap: BankIntegrationMetadataMap;
+  /** Asset share value multipliers by bank address (for integrated protocols) */
+  assetShareValueMultiplierByBank?: Map<string, BigNumber>;
+  /** Optional emode weight overrides by bank address */
+  activeEmodeWeightsByBank?: Map<
+    string,
+    {
+      assetWeightMaint: BigNumber;
+      assetWeightInit: BigNumber;
+    }
+  >;
+}
+
+/**
+ * Simulates the health cache for a marginfi account with fallback computation.
+ *
+ * This function attempts to simulate the on-chain health cache calculation, which provides
+ * accurate health metrics for the account. If simulation fails (e.g., due to RPC issues),
+ * it falls back to computing health components locally.
+ *
+ * **Primary Method (Simulation):**
+ * - Simulates on-chain health pulse instruction
+ * - Returns the health cache as it would exist on-chain
+ * - Most accurate but requires RPC simulation support
+ *
+ * **Fallback Method (Computation):**
+ * - Computes health components locally using balance data
+ * - Calculates Initial, Maintenance, and Equity values
+ * - Used when simulation fails or is unavailable
+ *
+ * **Health Cache Values:**
+ * - **Initial**: For opening new positions (most conservative)
+ * - **Maintenance**: For liquidation threshold
+ * - **Equity**: Actual account value (no risk weighting)
+ *
+ * @param params - Configuration object for health cache simulation
+ * @returns Promise resolving to account with updated health cache and optional error
+ *
+ * @example
+ * ```typescript
+ * const { marginfiAccount, error } = await simulateAccountHealthCacheWithFallback({
+ *   program: client.program,
+ *   bankMap: client.bankMap,
+ *   oraclePrices: client.oraclePriceByBank,
+ *   marginfiAccount: account,
+ *   bankMetadataMap: client.bankIntegrationMap,
+ *   assetShareValueMultiplierByBank: client.assetShareMultiplierByBank,
+ * });
+ *
+ * if (error) {
+ *   console.warn("Simulation failed, using computed values:", error);
+ * }
+ *
+ * console.log("Health:", marginfiAccount.healthCache);
+ * ```
+ */
+export async function simulateAccountHealthCacheWithFallback(
+  params: SimulateAccountHealthCacheWithFallbackParams
+): Promise<{
   marginfiAccount: MarginfiAccountType;
   error?: HealthCacheSimulationError;
 }> {
-  let marginfiAccount = props.marginfiAccount;
+  const {
+    program,
+    banksMap,
+    oraclePricesByBank,
+    bankIntegrationMap,
+    assetShareValueMultiplierByBank,
+    activeEmodeWeightsByBank,
+  } = params;
+
+  let marginfiAccount = params.marginfiAccount;
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
   const { assets: assetValueEquity, liabilities: liabilityValueEquity } =
-    computeHealthComponentsWithoutBiasLegacy(
+    computeHealthComponentsWithoutBiasFromBalances({
       activeBalances,
-      props.bankMap,
-      props.oraclePrices,
-      MarginRequirementType.Equity
-    );
+      banksMap,
+      oraclePricesByBank,
+      marginRequirement: MarginRequirementType.Equity,
+      assetShareValueMultiplierByBank,
+      activeEmodeWeightsByBank,
+    });
 
   try {
     const simulatedAccount = await simulateAccountHealthCache({
-      program: props.program,
-      bankMap: props.bankMap,
-      marginfiAccount: props.marginfiAccount,
-      bankMetadataMap: props.bankMetadataMap,
+      program,
+      banksMap,
+      marginfiAccount,
+      bankIntegrationMap,
     });
 
     simulatedAccount.healthCache.assetValueEquity = bigNumberToWrappedI80F48(assetValueEquity);
     simulatedAccount.healthCache.liabilityValueEquity =
       bigNumberToWrappedI80F48(liabilityValueEquity);
 
-    marginfiAccount = parseMarginfiAccountRaw(props.marginfiAccount.address, simulatedAccount);
+    marginfiAccount = parseMarginfiAccountRaw(params.marginfiAccount.address, simulatedAccount);
   } catch (e) {
     console.log("e", e);
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
-      computeHealthComponentsLegacy(
+      computeHealthComponentsFromBalances({
         activeBalances,
-        props.bankMap,
-        props.oraclePrices,
-        MarginRequirementType.Maintenance,
-        []
-      );
+        banksMap,
+        oraclePricesByBank,
+        marginRequirement: MarginRequirementType.Maintenance,
+        assetShareValueMultiplierByBank,
+        activeEmodeWeightsByBank,
+      });
 
     const { assets: assetValueInitial, liabilities: liabilityValueInitial } =
-      computeHealthComponentsLegacy(
+      computeHealthComponentsFromBalances({
         activeBalances,
-        props.bankMap,
-        props.oraclePrices,
-        MarginRequirementType.Initial,
-        []
-      );
+        banksMap,
+        oraclePricesByBank,
+        marginRequirement: MarginRequirementType.Initial,
+        assetShareValueMultiplierByBank,
+        activeEmodeWeightsByBank,
+      });
 
     marginfiAccount.healthCache = {
       assetValue: assetValueInitial,
@@ -117,20 +195,20 @@ export async function simulateAccountHealthCacheWithFallback(props: {
   return { marginfiAccount };
 }
 
-export async function simulateAccountHealthCache(props: {
+export async function simulateAccountHealthCache(params: {
   program: MarginfiProgram;
-  bankMap: Map<string, BankType>;
+  banksMap: Map<string, BankType>;
   marginfiAccount: MarginfiAccountType;
-  bankMetadataMap?: BankIntegrationMetadataMap;
+  bankIntegrationMap?: BankIntegrationMetadataMap;
 }): Promise<MarginfiAccountRaw> {
-  const { program, bankMap, marginfiAccount, bankMetadataMap } = props;
+  const { program, banksMap, marginfiAccount, bankIntegrationMap } = params;
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
   // this will always return swb oracles regardless of staleness
   // stale functionality should be re-added once we increase amount of swb oracles
   const activeBanks = activeBalances
-    .map((balance) => bankMap.get(balance.bankPk.toBase58()))
+    .map((balance) => banksMap.get(balance.bankPk.toBase58()))
     .filter((bank): bank is NonNullable<typeof bank> => !!bank);
 
   const kaminoBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
@@ -161,7 +239,7 @@ export async function simulateAccountHealthCache(props: {
 
   const updateDriftMarketData = driftBanks
     .map((bank) => {
-      const bankMetadata = bankMetadataMap?.[bank.address.toBase58()];
+      const bankMetadata = bankIntegrationMap?.[bank.address.toBase58()];
       if (!bankMetadata?.driftStates) {
         console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
         return;
@@ -174,7 +252,7 @@ export async function simulateAccountHealthCache(props: {
 
   const refreshReserveData = kaminoBanks
     .map((bank) => {
-      const bankMetadata = bankMetadataMap?.[bank.address.toBase58()];
+      const bankMetadata = bankIntegrationMap?.[bank.address.toBase58()];
       if (!bankMetadata?.kaminoStates) {
         console.error(`Bank metadata for kamino bank ${bank.address.toBase58()} not found`);
         return;
@@ -220,7 +298,7 @@ export async function simulateAccountHealthCache(props: {
   const healthPulseIxs = await makePulseHealthIx(
     program,
     marginfiAccount.address,
-    bankMap,
+    banksMap,
     marginfiAccount.balances,
     activeBalances.map((b) => b.bankPk),
     []
@@ -342,7 +420,6 @@ export async function simulateAccountHealthCache(props: {
 }
 
 export async function getHealthSimulationTransactions({
-  connection,
   projectedActiveBanks,
   bankMap,
   bankMetadataMap,
@@ -353,7 +430,6 @@ export async function getHealthSimulationTransactions({
   includeCrankTx,
   blockhash,
 }: {
-  connection: Connection;
   projectedActiveBanks: PublicKey[];
   bankMap: Map<string, BankType>;
   bankMetadataMap: BankIntegrationMetadataMap;

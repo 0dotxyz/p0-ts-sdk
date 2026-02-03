@@ -655,6 +655,7 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       oraclePrices: this.client.oraclePriceByBank,
       bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
@@ -728,6 +729,7 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       oraclePrices: this.client.oraclePriceByBank,
       bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
@@ -772,6 +774,7 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       oraclePrices: this.client.oraclePriceByBank,
       bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
@@ -814,6 +817,7 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       oraclePrices: this.client.oraclePriceByBank,
       bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
@@ -841,23 +845,28 @@ export class MarginfiAccountWrapper {
 
   /**
    * Simulates health cache update with auto-injected client data.
-   *
-   * @param bankMetadataMap - Bank metadata map (required for simulation)
    */
-  async simulateHealthCache(bankMetadataMap: BankIntegrationMetadataMap) {
-    return this.account.simulateHealthCache(
-      this.client.program,
-      this.client.bankMap,
-      this.client.oraclePriceByBank,
-      bankMetadataMap
-    );
+  async simulateHealthCache() {
+    return this.account.simulateHealthCache({
+      program: this.client.program,
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
+      bankIntegrationMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      activeEmodeWeightsByBank: new Map(), // TODO
+    });
   }
 
   /**
    * Computes net APY with auto-injected client data.
    */
   computeNetApy(): number {
-    return this.account.computeNetApy(this.client.bankMap, this.client.oraclePriceByBank);
+    return this.account.computeNetApy({
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      activeEmodeWeightsByBank: new Map(), // TODO
+    });
   }
 
   /**
@@ -872,11 +881,11 @@ export class MarginfiAccountWrapper {
    *
    * @param marginRequirement - Margin requirement type
    */
-  computeHealthComponents(marginRequirement: MarginRequirementType): {
+  computeHealthComponentsFromCache(marginRequirement: MarginRequirementType): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return this.account.computeHealthComponents(marginRequirement);
+    return this.account.computeHealthComponentsFromCache(marginRequirement);
   }
 
   /**
@@ -884,8 +893,8 @@ export class MarginfiAccountWrapper {
    *
    * @param opts - Optional configuration
    */
-  computeFreeCollateral(opts?: { clamped?: boolean }): BigNumber {
-    return this.account.computeFreeCollateral(opts);
+  computeFreeCollateralFromCache(opts?: { clamped?: boolean }): BigNumber {
+    return this.account.computeFreeCollateralFromCache(opts);
   }
 
   /**
@@ -897,17 +906,18 @@ export class MarginfiAccountWrapper {
   computeMaxBorrowForBank(
     bankAddress: PublicKey,
     opts?: {
-      emodeImpactStatus?: EmodeImpactStatus;
       volatilityFactor?: number;
-      activePair?: ActiveEmodePair;
     }
   ): BigNumber {
-    return this.account.computeMaxBorrowForBank(
-      this.client.bankMap,
-      this.client.oraclePriceByBank,
+    return this.account.computeMaxBorrowForBank({
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
       bankAddress,
-      opts
-    );
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      emodeImpactStatus: undefined, // TODO
+      activePair: undefined, // TODO
+      volatilityFactor: opts?.volatilityFactor,
+    });
   }
 
   /**
@@ -920,15 +930,16 @@ export class MarginfiAccountWrapper {
     bankAddress: PublicKey,
     opts?: {
       volatilityFactor?: number;
-      activePair?: ActiveEmodePair;
     }
   ): BigNumber {
-    return this.account.computeMaxWithdrawForBank(
-      this.client.bankMap,
-      this.client.oraclePriceByBank,
+    return this.account.computeMaxWithdrawForBank({
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
       bankAddress,
-      opts
-    );
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      activePair: undefined, // TODO
+      volatilityFactor: opts?.volatilityFactor,
+    });
   }
 
   /**
