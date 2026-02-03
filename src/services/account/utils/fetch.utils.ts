@@ -37,8 +37,8 @@ export const fetchMarginfiAccountAddresses = async (
 export const fetchMarginfiAccountData = async (
   program: MarginfiProgram,
   marginfiAccountPk: PublicKey,
-  bankMap: Map<string, BankType>,
-  bankMetadataMap?: BankIntegrationMetadataMap
+  banksMap: Map<string, BankType>,
+  bankIntegrationMap?: BankIntegrationMetadataMap
 ): Promise<{
   marginfiAccount: MarginfiAccountType;
   error?: HealthCacheSimulationError;
@@ -52,9 +52,9 @@ export const fetchMarginfiAccountData = async (
   try {
     const simulatedAccount = await simulateAccountHealthCache({
       program,
-      bankMap,
+      banksMap,
       marginfiAccount,
-      bankMetadataMap,
+      bankIntegrationMap,
     });
 
     const marginfiAccountWithCache = parseMarginfiAccountRaw(marginfiAccountPk, simulatedAccount);

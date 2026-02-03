@@ -62,33 +62,47 @@ class Balance implements BalanceType {
   computeUsdValue(
     bank: Bank,
     oraclePrice: OraclePrice,
-    marginRequirementType = MarginRequirementType.Equity
+    marginRequirement = MarginRequirementType.Equity,
+    assetShareValueMultiplier?: BigNumber,
+    activeEmodeWeights?: {
+      assetWeightInit: BigNumber;
+      assetWeightMaint: BigNumber;
+    }
   ): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return computeBalanceUsdValue(
-      this,
+    return computeBalanceUsdValue({
+      balance: this,
       bank,
       oraclePrice,
-      marginRequirementType
-    );
+      marginRequirement,
+      assetShareValueMultiplier,
+      activeEmodeWeights,
+    });
   }
 
   getUsdValueWithPriceBias(
     bank: Bank,
     oraclePrice: OraclePrice,
-    marginRequirementType = MarginRequirementType.Equity
+    marginRequirement = MarginRequirementType.Equity,
+    assetShareValueMultiplier?: BigNumber,
+    activeEmodeWeights?: {
+      assetWeightInit: BigNumber;
+      assetWeightMaint: BigNumber;
+    }
   ): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return getBalanceUsdValueWithPriceBias(
-      this,
+    return getBalanceUsdValueWithPriceBias({
+      balance: this,
       bank,
       oraclePrice,
-      marginRequirementType
-    );
+      marginRequirement,
+      assetShareValueMultiplier,
+      activeEmodeWeights,
+    });
   }
 
   computeQuantity(bank: Bank): {
@@ -98,11 +112,14 @@ class Balance implements BalanceType {
     return computeQuantity(this, bank);
   }
 
-  computeQuantityUi(bank: Bank): {
+  computeQuantityUi(
+    bank: Bank,
+    assetShareValueMultiplier?: BigNumber
+  ): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return computeQuantityUi(this, bank);
+    return computeQuantityUi(this, bank, assetShareValueMultiplier);
   }
 
   computeTotalOutstandingEmissions(bank: Bank): BigNumber {
