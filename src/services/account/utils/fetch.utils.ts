@@ -4,11 +4,7 @@ import { deriveMarginfiAccount } from "~/utils";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { BankType } from "~/services/bank";
 
-import {
-  HealthCacheSimulationError,
-  MarginfiAccountRaw,
-  MarginfiAccountType,
-} from "../types";
+import { HealthCacheSimulationError, MarginfiAccountRaw, MarginfiAccountType } from "../types";
 import { simulateAccountHealthCache } from "../services";
 
 import { parseMarginfiAccountRaw } from "./deserialize.utils";
@@ -47,26 +43,21 @@ export const fetchMarginfiAccountData = async (
   marginfiAccount: MarginfiAccountType;
   error?: HealthCacheSimulationError;
 }> => {
-  const marginfiAccountRaw: MarginfiAccountRaw =
-    await program.account.marginfiAccount.fetch(marginfiAccountPk, "confirmed");
-  const marginfiAccount = parseMarginfiAccountRaw(
+  const marginfiAccountRaw: MarginfiAccountRaw = await program.account.marginfiAccount.fetch(
     marginfiAccountPk,
-    marginfiAccountRaw
+    "confirmed"
   );
+  const marginfiAccount = parseMarginfiAccountRaw(marginfiAccountPk, marginfiAccountRaw);
 
   try {
     const simulatedAccount = await simulateAccountHealthCache({
       program,
       bankMap,
-      marginfiAccountPk,
-      balances: marginfiAccount.balances,
+      marginfiAccount,
       bankMetadataMap,
     });
 
-    const marginfiAccountWithCache = parseMarginfiAccountRaw(
-      marginfiAccountPk,
-      simulatedAccount
-    );
+    const marginfiAccountWithCache = parseMarginfiAccountRaw(marginfiAccountPk, simulatedAccount);
 
     return { marginfiAccount: marginfiAccountWithCache };
   } catch (e) {
@@ -110,15 +101,11 @@ export async function findRandomAvailableAccountIndex(
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // 1. Pick a random batch of distinct indices in [0, 255]
-    const indices = randomDistinctIndices(
-      Math.min(BATCH_SIZE, MAX_INDEX),
-      MAX_INDEX
-    );
+    const indices = randomDistinctIndices(Math.min(BATCH_SIZE, MAX_INDEX), MAX_INDEX);
 
     // 2. Derive PDAs for these indices
     const pdas = indices.map(
-      (i) =>
-        deriveMarginfiAccount(programId, group, authority, i, thirdPartyId)[0]
+      (i) => deriveMarginfiAccount(programId, group, authority, i, thirdPartyId)[0]
     );
 
     // 3. Check which PDAs exist on-chain

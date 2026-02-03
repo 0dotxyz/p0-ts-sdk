@@ -173,7 +173,6 @@ class MarginfiAccount implements MarginfiAccountType {
       bankMap,
       oraclePrices,
       marginfiAccount: this,
-      balances: this.balances,
       bankMetadataMap: bankMetadataMap,
     });
 

@@ -45,7 +45,6 @@ export async function simulateAccountHealthCacheWithFallback(props: {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   marginfiAccount: MarginfiAccountType;
-  balances: BalanceType[];
   bankMetadataMap: BankIntegrationMetadataMap;
 }): Promise<{
   marginfiAccount: MarginfiAccountType;
@@ -53,7 +52,7 @@ export async function simulateAccountHealthCacheWithFallback(props: {
 }> {
   let marginfiAccount = props.marginfiAccount;
 
-  const activeBalances = props.balances.filter((b) => b.active);
+  const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
   const { assets: assetValueEquity, liabilities: liabilityValueEquity } =
     computeHealthComponentsWithoutBiasLegacy(
@@ -67,8 +66,7 @@ export async function simulateAccountHealthCacheWithFallback(props: {
     const simulatedAccount = await simulateAccountHealthCache({
       program: props.program,
       bankMap: props.bankMap,
-      marginfiAccountPk: props.marginfiAccount.address,
-      balances: props.balances,
+      marginfiAccount: props.marginfiAccount,
       bankMetadataMap: props.bankMetadataMap,
     });
 
@@ -122,13 +120,12 @@ export async function simulateAccountHealthCacheWithFallback(props: {
 export async function simulateAccountHealthCache(props: {
   program: MarginfiProgram;
   bankMap: Map<string, BankType>;
-  marginfiAccountPk: PublicKey;
-  balances: BalanceType[];
+  marginfiAccount: MarginfiAccountType;
   bankMetadataMap?: BankIntegrationMetadataMap;
 }): Promise<MarginfiAccountRaw> {
-  const { program, bankMap, marginfiAccountPk, balances, bankMetadataMap } = props;
+  const { program, bankMap, marginfiAccount, bankMetadataMap } = props;
 
-  const activeBalances = balances.filter((b) => b.active);
+  const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
   // this will always return swb oracles regardless of staleness
   // stale functionality should be re-added once we increase amount of swb oracles
@@ -158,7 +155,7 @@ export async function simulateAccountHealthCache(props: {
 
   const fundAccountIx = SystemProgram.transfer({
     fromPubkey: new PublicKey("DD3AeAssFvjqTvRTrRAtpfjkBF8FpVKnFuwnMLN9haXD"), // marginfi SOL VAULT
-    toPubkey: program.provider.publicKey,
+    toPubkey: marginfiAccount.authority,
     lamports: 100_000_000, // 0.1 SOL
   });
 
@@ -209,7 +206,7 @@ export async function simulateAccountHealthCache(props: {
           swbPullOracles: staleSwbOracles.map((oracle) => ({
             key: oracle.oracleKey,
           })),
-          feePayer: program.provider.publicKey,
+          feePayer: marginfiAccount.authority,
           connection: program.provider.connection,
         })
       : { instructions: [], luts: [] };
@@ -222,9 +219,9 @@ export async function simulateAccountHealthCache(props: {
 
   const healthPulseIxs = await makePulseHealthIx(
     program,
-    marginfiAccountPk,
+    marginfiAccount.address,
     bankMap,
-    balances,
+    marginfiAccount.balances,
     activeBalances.map((b) => b.bankPk),
     []
   );
@@ -233,7 +230,7 @@ export async function simulateAccountHealthCache(props: {
 
   const additionalTx = new VersionedTransaction(
     new TransactionMessage({
-      payerKey: program.provider.publicKey,
+      payerKey: marginfiAccount.authority,
       recentBlockhash: blockhash,
       instructions: [
         computeIx,
@@ -248,7 +245,7 @@ export async function simulateAccountHealthCache(props: {
 
   const swbTx = new VersionedTransaction(
     new TransactionMessage({
-      payerKey: program.provider.publicKey,
+      payerKey: marginfiAccount.authority,
       recentBlockhash: blockhash,
       instructions: [...crankSwbIxs.instructions],
     }).compileToV0Message([...crankSwbIxs.luts])
@@ -258,7 +255,7 @@ export async function simulateAccountHealthCache(props: {
 
   const healthTx = new VersionedTransaction(
     new TransactionMessage({
-      payerKey: program.provider.publicKey,
+      payerKey: marginfiAccount.authority,
       recentBlockhash: blockhash,
       instructions: [computeIx, ...healthPulseIxs.instructions],
     }).compileToV0Message([])
@@ -272,7 +269,7 @@ export async function simulateAccountHealthCache(props: {
   }
 
   const simulationResult = await simulateBundle(program.provider.connection.rpcEndpoint, txs, [
-    marginfiAccountPk,
+    marginfiAccount.address,
   ]);
 
   const postExecutionAccount = simulationResult.find(
