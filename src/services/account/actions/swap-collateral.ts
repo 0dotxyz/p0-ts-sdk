@@ -292,7 +292,7 @@ async function buildSwapCollateralFlashloanTx({
         userRewards: driftState.userRewards,
         bankMetadataMap,
         withdrawAll: true,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
