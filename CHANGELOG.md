@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-05
+
+### 🎉 Stable Release: Swap Collateral Feature
+
+This release graduates from alpha and adds swap collateral functionality for seamless position management.
+
+### Added
+
+- **Swap Collateral Transactions** - Flash loan-based collateral swapping without affecting account health
+  - Withdraw existing collateral via flash loan
+  - Swap to new asset using Jupiter integration
+  - Deposit swapped assets as new collateral
+  - Support for Kamino and Drift integrated banks
+  - Automatic ATA creation and oracle price updates
+
+- **Enhanced Transaction Building** - Better Jupiter integration for swap operations
+  - Multiple route evaluation for optimal execution
+  - Transaction size validation and optimization
+  - Dynamic slippage support
+  - Platform fee support
+
+### Fixed
+
+- **Swap Collateral Synchronization** - Disabled `isSync` flag to prevent synchronization issues during complex multi-instruction transactions
+- **Transaction Size Handling** - Improved handling of large swap transactions with lookup tables
+
+### Changed
+
+- **Loop Action Updates** - Enhanced loop transaction builders to support new swap infrastructure
+- **Flash Loan Improvements** - Better handling of flash loan transactions with swap operations
+
 ## [1.2.0-alpha.2] - 2026-02-04
 
 ### Fixed
