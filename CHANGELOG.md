@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-02-06
+
+### Added
+
+- **Partial Collateral Swap Support** - Enhanced collateral swap functionality to support partial swaps
+  - Ability to swap a portion of collateral instead of full amount
+  - Better control over position management
+  - More flexible rebalancing strategies
+
+- **Partial Debt Swap Support** - Enhanced debt swap functionality to support partial swaps
+  - Ability to swap a portion of debt instead of full amount
+  - Improved position management flexibility
+  - Support for gradual debt migration
+
+### Changed
+
+- **Debt Swap Mode** - Switched debt swap to use `ExactIn` mode instead of `ExactOut`
+  - More predictable input amounts for better UX
+  - Improved slippage handling
+  - Better alignment with Jupiter routing optimization
+
 ## [1.2.0] - 2026-02-05
 
 ### 🎉 Stable Release: Swap Collateral Feature
