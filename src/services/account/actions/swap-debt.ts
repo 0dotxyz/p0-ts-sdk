@@ -1,4 +1,4 @@
-import { QuoteResponse } from "@jup-ag/api";
+import { QuoteResponse, createJupiterApiClient, Configuration, SwapApi } from "@jup-ag/api";
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
@@ -210,8 +210,22 @@ async function buildSwapDebtFlashloanTx({
   overrideInferAccounts,
   blockhash,
 }: MakeSwapDebtTxParams & { blockhash: string }) {
-  const { repayBank, tokenProgram: repayTokenProgram, totalPositionAmount } = repayOpts;
+  const {
+    repayBank,
+    tokenProgram: repayTokenProgram,
+    totalPositionAmount,
+    repayAmount,
+  } = repayOpts;
   const { borrowBank, tokenProgram: borrowTokenProgram } = borrowOpts;
+
+  // Validate and clamp repayAmount
+  if (repayAmount !== undefined && repayAmount <= 0) {
+    throw new Error("repayAmount must be greater than 0");
+  }
+
+  // Use repayAmount if provided, otherwise use totalPositionAmount (full swap)
+  // Clamp to totalPositionAmount to prevent repaying more than owed
+  const actualRepayAmount = Math.min(repayAmount ?? totalPositionAmount, totalPositionAmount);
 
   const swapResult: {
     amountToRepay: number;
@@ -227,61 +241,83 @@ async function buildSwapDebtFlashloanTx({
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
   ];
 
-  // Handle same-mint case (no swap needed)
-  if (borrowBank.mint.equals(repayBank.mint)) {
-    swapResult.push({
-      amountToRepay: totalPositionAmount,
-      borrowAmount: totalPositionAmount,
-      swapInstructions: [],
-      setupInstructions: [],
-      swapLookupTables: [],
-    });
-  } else {
-    const destinationTokenAccount = getAssociatedTokenAddressSync(
-      repayBank.mint,
-      marginfiAccount.authority,
-      true,
-      repayTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
+  const destinationTokenAccount = getAssociatedTokenAddressSync(
+    repayBank.mint,
+    marginfiAccount.authority,
+    true,
+    repayTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
+  );
+
+  // Step 1: Get an estimate of how much to borrow using ExactOut quote
+  // This tells us the maximum input needed to get the desired output
+  const jupiterApiClient = swapOpts.jupiterOptions?.configParams?.basePath
+    ? new SwapApi(new Configuration(swapOpts.jupiterOptions.configParams))
+    : createJupiterApiClient(swapOpts.jupiterOptions?.configParams);
+
+  const estimateQuote = await jupiterApiClient.quoteGet({
+    inputMint: borrowBank.mint.toBase58(),
+    outputMint: repayBank.mint.toBase58(),
+    amount: uiToNative(actualRepayAmount, repayBank.mintDecimals).toNumber(),
+    swapMode: "ExactOut",
+    dynamicSlippage: swapOpts.jupiterOptions
+      ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
+      : true,
+    slippageBps: swapOpts.jupiterOptions?.slippageBps,
+  });
+
+  // Use otherAmountThreshold (max input with slippage) as our borrow amount estimate
+  const estimatedBorrowAmount = nativeToUi(
+    estimateQuote.otherAmountThreshold,
+    borrowBank.mintDecimals
+  );
+
+  // Step 2: Get the actual swap instructions using ExactIn mode
+  // This is more reliable as we know exactly how much we're borrowing
+  const swapResponses = await getJupiterSwapIxsForFlashloan({
+    quoteParams: {
+      inputMint: borrowBank.mint.toBase58(),
+      outputMint: repayBank.mint.toBase58(),
+      amount: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
+      dynamicSlippage: swapOpts.jupiterOptions
+        ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
+        : true,
+      slippageBps: swapOpts.jupiterOptions?.slippageBps,
+      swapMode: "ExactIn",
+      platformFeeBps: swapOpts.jupiterOptions?.platformFeeBps,
+      onlyDirectRoutes: swapOpts.jupiterOptions?.directRoutesOnly ?? false,
+    },
+    authority: marginfiAccount.authority,
+    connection,
+    destinationTokenAccount,
+    configParams: swapOpts.jupiterOptions?.configParams,
+  });
+
+  // Step 3: Process responses matching repay-with-collateral pattern
+  swapResponses.forEach((response) => {
+    const outAmount = nativeToUi(response.quoteResponse.outAmount, repayBank.mintDecimals);
+    const outAmountThreshold = nativeToUi(
+      response.quoteResponse.otherAmountThreshold,
+      repayBank.mintDecimals
     );
 
-    // For debt swap, we need to borrow enough of the new asset to repay the old debt
-    // We use ExactOut mode to get exactly the amount needed to repay
+    // Match repay-with-collateral logic:
+    // If output exceeds total debt, cap at total debt (for repayAll)
+    // Otherwise use minimum output with slippage protection
+    const amountToRepay =
+      outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
 
-    // Get Jupiter swap instructions - may return multiple routes
-    // We're swapping: borrowBank.mint (new debt) -> repayBank.mint (to repay old debt)
-    const swapResponses = await getJupiterSwapIxsForFlashloan({
-      quoteParams: {
-        inputMint: borrowBank.mint.toBase58(),
-        outputMint: repayBank.mint.toBase58(),
-        amount: uiToNative(totalPositionAmount, repayBank.mintDecimals).toNumber(),
-        dynamicSlippage: swapOpts.jupiterOptions
-          ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
-          : true,
-        slippageBps: swapOpts.jupiterOptions?.slippageBps,
-        swapMode: "ExactOut",
-        platformFeeBps: swapOpts.jupiterOptions?.platformFeeBps,
-        onlyDirectRoutes: swapOpts.jupiterOptions?.directRoutesOnly ?? false,
-      },
-      authority: marginfiAccount.authority,
-      connection,
-      destinationTokenAccount,
-      configParams: swapOpts.jupiterOptions?.configParams,
+    // For ExactIn, inAmount is what we borrow
+    const borrowAmount = nativeToUi(response.quoteResponse.inAmount, borrowBank.mintDecimals);
+
+    swapResult.push({
+      amountToRepay,
+      borrowAmount,
+      swapInstructions: [response.swapInstruction],
+      setupInstructions: response.setupInstructions,
+      swapLookupTables: response.addressLookupTableAddresses,
+      quoteResponse: response.quoteResponse,
     });
-
-    swapResponses.forEach((response) => {
-      // For ExactOut, inAmount is what we need to borrow, outAmount is what we'll repay
-      const borrowAmount = nativeToUi(response.quoteResponse.inAmount, borrowBank.mintDecimals);
-
-      swapResult.push({
-        amountToRepay: totalPositionAmount,
-        borrowAmount,
-        swapInstructions: [response.swapInstruction],
-        setupInstructions: response.setupInstructions,
-        swapLookupTables: response.addressLookupTableAddresses,
-        quoteResponse: response.quoteResponse,
-      });
-    });
-  }
+  });
 
   // Ensure we have at least one swap route
   if (swapResult.length === 0) {
