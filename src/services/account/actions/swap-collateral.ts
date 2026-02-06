@@ -32,7 +32,7 @@ import {
 } from "~/vendor/spl";
 import { nativeToUi, uiToNative } from "~/utils";
 
-import { getJupiterSwapIxsForFlashloan } from "../utils";
+import { getJupiterSwapIxsForFlashloan, isWholePosition } from "../utils";
 import { MakeSwapCollateralTxParams } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -211,8 +211,27 @@ async function buildSwapCollateralFlashloanTx({
   overrideInferAccounts,
   blockhash,
 }: MakeSwapCollateralTxParams & { blockhash: string }) {
-  const { withdrawBank, tokenProgram: withdrawTokenProgram, totalPositionAmount } = withdrawOpts;
+  const {
+    withdrawBank,
+    tokenProgram: withdrawTokenProgram,
+    totalPositionAmount,
+    withdrawAmount,
+  } = withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
+
+  // Validate and clamp withdrawAmount
+  if (withdrawAmount !== undefined && withdrawAmount <= 0) {
+    throw new Error("withdrawAmount must be greater than 0");
+  }
+
+  // Use withdrawAmount if provided, otherwise use totalPositionAmount (full swap)
+  // Clamp to totalPositionAmount to prevent withdrawing more than exists
+  const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
+  const isFullWithdraw = isWholePosition(
+    { amount: totalPositionAmount, isLending: true },
+    actualWithdrawAmount,
+    withdrawBank.mintDecimals
+  );
 
   const swapResult: {
     amountToDeposit: number;
@@ -244,7 +263,7 @@ async function buildSwapCollateralFlashloanTx({
       }
 
       // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
-      const adjustedAmount = new BigNumber(totalPositionAmount)
+      const adjustedAmount = new BigNumber(actualWithdrawAmount)
         .div(withdrawOpts.withdrawBank.assetShareValue)
         .times(1.0001)
         .toNumber();
@@ -259,7 +278,7 @@ async function buildSwapCollateralFlashloanTx({
         authority: marginfiAccount.authority,
         reserve,
         bankMetadataMap,
-        withdrawAll: true,
+        withdrawAll: isFullWithdraw,
         isSync: true,
         opts: {
           createAtas: false,
@@ -285,13 +304,13 @@ async function buildSwapCollateralFlashloanTx({
         bank: withdrawOpts.withdrawBank,
         bankMap,
         tokenProgram: withdrawOpts.tokenProgram,
-        amount: totalPositionAmount,
+        amount: actualWithdrawAmount,
         marginfiAccount,
         authority: marginfiAccount.authority,
         driftSpotMarket: driftState.spotMarketState,
         userRewards: driftState.userRewards,
         bankMetadataMap,
-        withdrawAll: true,
+        withdrawAll: isFullWithdraw,
         isSync: false,
         opts: {
           createAtas: false,
@@ -308,10 +327,10 @@ async function buildSwapCollateralFlashloanTx({
         bank: withdrawBank,
         bankMap,
         tokenProgram: withdrawTokenProgram,
-        amount: totalPositionAmount,
+        amount: actualWithdrawAmount,
         marginfiAccount,
         authority: marginfiAccount.authority,
-        withdrawAll: true,
+        withdrawAll: isFullWithdraw,
         bankMetadataMap,
         isSync: true,
         opts: {
@@ -327,7 +346,7 @@ async function buildSwapCollateralFlashloanTx({
   // Handle same-mint case (no swap needed)
   if (depositBank.mint.equals(withdrawBank.mint)) {
     swapResult.push({
-      amountToDeposit: totalPositionAmount,
+      amountToDeposit: actualWithdrawAmount,
       swapInstructions: [],
       setupInstructions: [],
       swapLookupTables: [],
@@ -345,7 +364,7 @@ async function buildSwapCollateralFlashloanTx({
       quoteParams: {
         inputMint: withdrawBank.mint.toBase58(),
         outputMint: depositBank.mint.toBase58(),
-        amount: uiToNative(totalPositionAmount, withdrawBank.mintDecimals).toNumber(),
+        amount: uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toNumber(),
         dynamicSlippage: swapOpts.jupiterOptions
           ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
           : true,

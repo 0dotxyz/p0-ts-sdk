@@ -341,8 +341,10 @@ export interface MakeSwapCollateralTxParams {
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
   withdrawOpts: {
-    // Amount of the total position
+    // Amount of the total position (used for withdrawAll case)
     totalPositionAmount: number;
+    // Amount to withdraw (optional, defaults to totalPositionAmount for full swap)
+    withdrawAmount?: number;
     withdrawBank: BankType;
     tokenProgram: PublicKey;
   };
@@ -377,8 +379,10 @@ export interface MakeSwapDebtTxParams {
   bankMetadataMap: BankIntegrationMetadataMap;
   // Source debt (what we're repaying)
   repayOpts: {
-    // Amount of the total debt position
+    // Amount of the total debt position (used for repayAll case)
     totalPositionAmount: number;
+    // Amount to repay (optional, defaults to totalPositionAmount for full swap)
+    repayAmount?: number;
     repayBank: BankType;
     tokenProgram: PublicKey;
   };
