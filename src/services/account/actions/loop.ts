@@ -122,6 +122,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     marginfiAccount,
     bankMap,
     oraclePrices,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     instructions: [...borrowIxs.instructions, ...depositIxs.instructions],
     program,
     connection,

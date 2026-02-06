@@ -12,14 +12,11 @@ import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP } from "~/constants";
 import { fetchOracleData, OraclePrice } from "~/services/price";
 import { fetchProgramForMints } from "~/services/misc";
-import { fetchBankIntegrationMetadata } from "~/services/integration";
+import { fetchBankIntegrationMetadata, getKaminoCTokenMultiplier } from "~/services/integration";
 import {
   makeCreateMarginfiAccountTx,
   makeCreateAccountIxWithProjection,
   fetchMarginfiAccountAddresses,
-  fetchMarginfiAccountData,
-  simulateAccountHealthCacheWithFallback,
-  MarginfiAccountType,
   MarginfiAccountRaw,
 } from "~/services/account";
 
@@ -28,6 +25,7 @@ import { Bank } from "./bank";
 import { MarginfiAccount } from "./account";
 import { MarginfiAccountWrapper } from "./account-wrapper";
 import { AssetTag } from "../services";
+import { getDriftCTokenMultiplier } from "~/services/integration/drift";
 
 export class Project0Client {
   constructor(
@@ -35,6 +33,7 @@ export class Project0Client {
     public readonly group: MarginfiGroup,
     public readonly bankMap: Map<string, Bank>,
     public readonly bankIntegrationMap: BankIntegrationMetadataMap,
+    public readonly assetShareValueMultiplierByBank: Map<string, BigNumber>,
     public readonly oraclePriceByBank: Map<string, OraclePrice>,
     public readonly mintDataByBank: Map<string, MintData>,
     public readonly addressLookupTables: AddressLookupTableAccount[]
@@ -180,12 +179,13 @@ export class Project0Client {
 
     if (!skipHealthCache) {
       const bankMap = new Map(this.banks.map((b) => [b.address.toBase58(), b]));
-      const { account: simulatedAccount } = await marginfiAccountParsed.simulateHealthCache(
-        this.program,
-        bankMap,
-        this.oraclePriceByBank,
-        this.bankIntegrationMap
-      );
+      // TODO emode
+      const { account: simulatedAccount } = await marginfiAccountParsed.simulateHealthCache({
+        program: this.program,
+        banksMap: bankMap,
+        oraclePricesByBank: this.oraclePriceByBank,
+        bankIntegrationMap: this.bankIntegrationMap,
+      });
       marginfiAccountParsed = simulatedAccount;
     }
     return new MarginfiAccountWrapper(marginfiAccountParsed, this);
@@ -263,11 +263,62 @@ export class Project0Client {
       banks: banksArray,
     });
 
+    // fetch asset share multipliers
+    const assetShareMultiplierByBank = new Map<string, BigNumber>();
+    banksArray.forEach((bank) => {
+      switch (bank.config.assetTag) {
+        case AssetTag.KAMINO:
+          const reserve = bankIntegrationMap[bank.address.toBase58()]?.kaminoStates?.reserveState;
+          if (!reserve) {
+            console.error(`No Kamino reserve found for bank ${bank.address.toBase58()}`);
+            assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+            break;
+          }
+          assetShareMultiplierByBank.set(
+            bank.address.toBase58(),
+            getKaminoCTokenMultiplier(reserve)
+          );
+          break;
+
+        case AssetTag.DRIFT:
+          const spotMarket =
+            bankIntegrationMap[bank.address.toBase58()]?.driftStates?.spotMarketState;
+          if (!spotMarket) {
+            console.error(`No Drift spot market found for bank ${bank.address.toBase58()}`);
+            assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+            break;
+          }
+          assetShareMultiplierByBank.set(
+            bank.address.toBase58(),
+            getDriftCTokenMultiplier(spotMarket)
+          );
+          break;
+
+        case AssetTag.SOLEND:
+          // SOLEND integration not yet implemented, use default multiplier
+          assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+          break;
+
+        case AssetTag.STAKED:
+          // STAKED integration not yet implemented, use default multiplier
+          assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+          break;
+
+        case AssetTag.DEFAULT:
+        case AssetTag.SOL:
+        default:
+          // Standard assets use 1:1 share multiplier
+          assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+          break;
+      }
+    });
+
     return new Project0Client(
       program,
       group,
       bankMap,
       bankIntegrationMap,
+      assetShareMultiplierByBank,
       bankOraclePriceMap,
       mintDataByBank,
       addressLookupTables

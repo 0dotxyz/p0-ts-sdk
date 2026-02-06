@@ -33,6 +33,7 @@ export interface SmartCrankParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   instructions: TransactionInstruction[];
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   program: MarginfiProgram;
   connection?: Connection;
   crossbarUrl?: string;
@@ -73,10 +74,17 @@ export async function computeSmartCrank({
   program,
   connection,
   crossbarUrl,
+  assetShareValueMultiplierByBank,
 }: SmartCrankParams): Promise<SmartCrankResult> {
   // Step 0: Determine projected active balances after transaction
   const { projectedBalances, impactedAssetsBanks, impactedLiabilityBanks } =
-    computeProjectedActiveBalancesNoCpi(marginfiAccount.balances, instructions, program, bankMap);
+    computeProjectedActiveBalancesNoCpi(
+      marginfiAccount.balances,
+      instructions,
+      program,
+      bankMap,
+      assetShareValueMultiplierByBank
+    );
 
   const liabilityBalances = projectedBalances.filter((b) => b.liabilityShares.gt(0));
   const assetBalances = projectedBalances.filter((b) => b.assetShares.gt(0));
@@ -179,13 +187,13 @@ export async function computeSmartCrank({
   };
 
   // Get total liability health
-  const totalLiabilitiesInitHealth = computeLiabilityHealthComponent(
-    projectedBalances,
-    bankMap,
-    oraclePrices,
-    liabilityBanks.map((b) => b.address),
-    MarginRequirementType.Initial
-  );
+  const totalLiabilitiesInitHealth = computeLiabilityHealthComponent({
+    balances: projectedBalances,
+    banksMap: bankMap,
+    oraclePricesByBank: oraclePrices,
+    liabilityBanks: liabilityBanks.map((b) => b.address),
+    marginRequirement: MarginRequirementType.Initial,
+  });
 
   const liabilityBankAddresses = liabilityBanks.filter(isSwitchboard).map((b) => b.address);
   const nonSWBAssets = assetBanks.filter((bank) => !isSwitchboard(bank));
@@ -193,13 +201,14 @@ export async function computeSmartCrank({
 
   // If non-Switchboard assets (Pyth) cover liabilities, only crank liabilities
   if (nonSWBAssets.length > 0) {
-    const nonSWBAssetsHealth = computeAssetHealthComponent(
-      projectedBalances,
-      bankMap,
-      oraclePrices,
-      nonSWBAssets.map((b) => b.address),
-      MarginRequirementType.Initial
-    );
+    const nonSWBAssetsHealth = computeAssetHealthComponent({
+      balances: projectedBalances,
+      banksMap: bankMap,
+      oraclePricesByBank: oraclePrices,
+      assetBanks: nonSWBAssets.map((b) => b.address),
+      marginRequirement: MarginRequirementType.Initial,
+      assetShareValueMultiplierByBank,
+    });
 
     const healthDiff = nonSWBAssetsHealth.minus(totalLiabilitiesInitHealth);
 
@@ -242,13 +251,14 @@ export async function computeSmartCrank({
 
   // Calculate health with ALL available assets (both Switchboard and non-Switchboard)
   const allAvailableAssetAddresses = allAvailableAssets.map((bank) => bank.address);
-  const allAssetsHealth = computeAssetHealthComponent(
-    projectedBalances,
-    bankMap,
-    oraclePrices,
-    allAvailableAssetAddresses,
-    MarginRequirementType.Initial
-  );
+  const allAssetsHealth = computeAssetHealthComponent({
+    balances: projectedBalances,
+    banksMap: bankMap,
+    oraclePricesByBank: oraclePrices,
+    assetBanks: allAvailableAssetAddresses,
+    marginRequirement: MarginRequirementType.Initial,
+    assetShareValueMultiplierByBank,
+  });
   const healthWithAllAssets = allAssetsHealth.minus(totalLiabilitiesInitHealth);
 
   // If assets don't cover liabilities even with all available cranked
@@ -289,13 +299,14 @@ export async function computeSmartCrank({
 
     for (const assetCombo of assetCombos) {
       const comboAddresses = assetCombo.map((bank) => bank.address);
-      const comboHealth = computeAssetHealthComponent(
-        projectedBalances,
-        bankMap,
-        oraclePrices,
-        [...nonSWBAssetAddresses, ...comboAddresses],
-        MarginRequirementType.Initial
-      );
+      const comboHealth = computeAssetHealthComponent({
+        balances: projectedBalances,
+        banksMap: bankMap,
+        oraclePricesByBank: oraclePrices,
+        assetBanks: [...nonSWBAssetAddresses, ...comboAddresses],
+        marginRequirement: MarginRequirementType.Initial,
+        assetShareValueMultiplierByBank,
+      });
 
       const health = comboHealth.minus(totalLiabilitiesInitHealth);
       if (!health.gt(0)) continue;
