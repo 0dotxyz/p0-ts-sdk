@@ -346,6 +346,7 @@ export interface MakeSwapCollateralTxParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   withdrawOpts: {
     // Amount of the total position (used for withdrawAll case)
     totalPositionAmount: number;
@@ -383,6 +384,7 @@ export interface MakeSwapDebtTxParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   // Source debt (what we're repaying)
   repayOpts: {
     // Amount of the total debt position (used for repayAll case)
