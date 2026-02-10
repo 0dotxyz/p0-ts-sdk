@@ -22,6 +22,7 @@ type MakeSmartCrankSwbFeedIxParams = {
   marginfiAccount: MarginfiAccountType;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   instructions: TransactionInstruction[];
   program: MarginfiProgram;
   connection: Connection;

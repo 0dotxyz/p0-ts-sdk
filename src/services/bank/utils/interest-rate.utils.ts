@@ -2,21 +2,14 @@ import BigNumber from "bignumber.js";
 
 import { BankType } from "../types";
 
-import {
-  getTotalAssetQuantity,
-  getTotalLiabilityQuantity,
-} from "./compute.utils";
+import { getTotalAssetQuantity, getTotalLiabilityQuantity } from "./compute";
 
 export function computeInterestRates(bank: BankType): {
   lendingRate: BigNumber;
   borrowingRate: BigNumber;
 } {
-  const {
-    insuranceFeeFixedApr,
-    insuranceIrFee,
-    protocolFixedFeeApr,
-    protocolIrFee,
-  } = bank.config.interestRateConfig;
+  const { insuranceFeeFixedApr, insuranceIrFee, protocolFixedFeeApr, protocolIrFee } =
+    bank.config.interestRateConfig;
 
   const fixedFee = insuranceFeeFixedApr.plus(protocolFixedFeeApr);
   const rateFee = insuranceIrFee.plus(protocolIrFee);
@@ -25,9 +18,7 @@ export function computeInterestRates(bank: BankType): {
   const utilizationRate = computeUtilizationRate(bank);
 
   const lendingRate = baseInterestRate.times(utilizationRate);
-  const borrowingRate = baseInterestRate
-    .times(new BigNumber(1).plus(rateFee))
-    .plus(fixedFee);
+  const borrowingRate = baseInterestRate.times(new BigNumber(1).plus(rateFee)).plus(fixedFee);
 
   return { lendingRate, borrowingRate };
 }
@@ -102,9 +93,7 @@ function computeLegacyCurve(
   maxInterestRate: BigNumber
 ): BigNumber {
   if (utilizationRate.lte(optimalUtilizationRate)) {
-    return utilizationRate
-      .times(plateauInterestRate)
-      .div(optimalUtilizationRate);
+    return utilizationRate.times(plateauInterestRate).div(optimalUtilizationRate);
   } else {
     return utilizationRate
       .minus(optimalUtilizationRate)
@@ -134,10 +123,7 @@ function computeMultipointCurve(
   const hundredRate = rateFromU32(hundredUtilRate);
 
   // clamp utilization rate to [0, 1] for safety
-  const clampedUtilizationRate = BigNumber.max(
-    0,
-    BigNumber.min(1, utilizationRate)
-  );
+  const clampedUtilizationRate = BigNumber.max(0, BigNumber.min(1, utilizationRate));
 
   // Filter out padding (where util = 0) to match on-chain behavior
   // Program enforces: no gaps, ascending order, all padding at end
@@ -217,16 +203,10 @@ export function computeRemainingCapacity(bank: BankType): {
   borrowCapacity: BigNumber;
 } {
   const totalDeposits = getTotalAssetQuantity(bank);
-  const remainingCapacity = BigNumber.max(
-    0,
-    bank.config.depositLimit.minus(totalDeposits)
-  );
+  const remainingCapacity = BigNumber.max(0, bank.config.depositLimit.minus(totalDeposits));
 
   const totalBorrows = getTotalLiabilityQuantity(bank);
-  const remainingBorrowCapacity = BigNumber.max(
-    0,
-    bank.config.borrowLimit.minus(totalBorrows)
-  );
+  const remainingBorrowCapacity = BigNumber.max(0, bank.config.borrowLimit.minus(totalBorrows));
 
   const durationSinceLastAccrual = Date.now() / 1000 - bank.lastUpdate;
 
@@ -241,12 +221,8 @@ export function computeRemainingCapacity(bank: BankType): {
     .dividedBy(SECONDS_PER_YEAR)
     .times(totalBorrows);
 
-  const depositCapacity = remainingCapacity.minus(
-    outstandingLendingInterest.times(2)
-  );
-  const borrowCapacity = remainingBorrowCapacity.minus(
-    outstandingBorrowInterest.times(2)
-  );
+  const depositCapacity = remainingCapacity.minus(outstandingLendingInterest.times(2));
+  const borrowCapacity = remainingBorrowCapacity.minus(outstandingBorrowInterest.times(2));
 
   return {
     depositCapacity,

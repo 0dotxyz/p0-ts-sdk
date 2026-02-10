@@ -20,9 +20,13 @@ import {
   getAssetShares,
   getLiabilityShares,
   computeAssetUsdValue,
+  ComputeAssetUsdValueParams,
   computeLiabilityUsdValue,
+  ComputeLiabilityUsdValueParams,
   computeUsdValue,
+  ComputeUsdValueParams,
   getAssetWeight,
+  GetAssetWeightParams,
   getLiabilityWeight,
   computeTvl,
   computeInterestRates,
@@ -295,72 +299,31 @@ class Bank implements BankType {
     return getLiabilityShares(this, liabilityQuantity);
   }
 
-  computeAssetUsdValue(
-    oraclePrice: OraclePrice,
-    assetShares: BigNumber,
-    marginRequirementType: MarginRequirementType,
-    priceBias: PriceBias,
-    overrideWeights?: {
-      assetWeightMaint: BigNumber;
-      assetWeightInit: BigNumber;
-    }
-  ): BigNumber {
-    return computeAssetUsdValue(
-      this,
-      oraclePrice,
-      assetShares,
-      marginRequirementType,
-      priceBias,
-      overrideWeights
-    );
+  computeAssetUsdValue(params: Omit<ComputeAssetUsdValueParams, "bank">): BigNumber {
+    return computeAssetUsdValue({
+      bank: this,
+      ...params,
+    });
   }
 
-  computeLiabilityUsdValue(
-    oraclePrice: OraclePrice,
-    liabilityShares: BigNumber,
-    marginRequirementType: MarginRequirementType,
-    priceBias: PriceBias
-  ): BigNumber {
-    return computeLiabilityUsdValue(
-      this,
-      oraclePrice,
-      liabilityShares,
-      marginRequirementType,
-      priceBias
-    );
+  computeLiabilityUsdValue(params: Omit<ComputeLiabilityUsdValueParams, "bank">): BigNumber {
+    return computeLiabilityUsdValue({
+      bank: this,
+      ...params,
+    });
   }
 
-  computeUsdValue(
-    oraclePrice: OraclePrice,
-    quantity: BigNumber,
-    priceBias: PriceBias,
-    weightedPrice: boolean,
-    weight?: BigNumber,
-    scaleToBase: boolean = true
-  ): BigNumber {
-    return computeUsdValue(
-      this,
-      oraclePrice,
-      quantity,
-      priceBias,
-      weightedPrice,
-      weight,
-      scaleToBase
-    );
+  computeUsdValue(params: Omit<ComputeUsdValueParams, "bank">): BigNumber {
+    return computeUsdValue({
+      bank: this,
+      ...params,
+    });
   }
 
-  getAssetWeight(
-    marginRequirementType: MarginRequirementType,
-    oraclePrice: OraclePrice,
-    ignoreSoftLimits: boolean = false,
-    overrideWeights?: {
-      assetWeightInit: BigNumber;
-      assetWeightMaint: BigNumber;
-    }
-  ): BigNumber {
-    return getAssetWeight(this, marginRequirementType, oraclePrice, {
-      ignoreSoftLimits,
-      overrideWeights,
+  getAssetWeight(params: Omit<GetAssetWeightParams, "bank">): BigNumber {
+    return getAssetWeight({
+      bank: this,
+      ...params,
     });
   }
 
@@ -392,45 +355,6 @@ class Bank implements BankType {
     borrowCapacity: BigNumber;
   } {
     return computeRemainingCapacity(this);
-  }
-
-  describe(oraclePrice: OraclePrice): string {
-    return `
-Bank address: ${this.address.toBase58()}
-Mint: ${this.mint.toBase58()}, decimals: ${this.mintDecimals}
-
-Total deposits: ${nativeToUi(this.getTotalAssetQuantity(), this.mintDecimals)}
-Total borrows: ${nativeToUi(this.getTotalLiabilityQuantity(), this.mintDecimals)}
-
-Total assets (USD value): ${this.computeAssetUsdValue(
-      oraclePrice,
-      this.totalAssetShares,
-      MarginRequirementType.Equity,
-      PriceBias.None
-    )}
-Total liabilities (USD value): ${this.computeLiabilityUsdValue(
-      oraclePrice,
-      this.totalLiabilityShares,
-      MarginRequirementType.Equity,
-      PriceBias.None
-    )}
-
-Asset price (USD): ${Bank.getPrice(oraclePrice, PriceBias.None, false)}
-Asset price Weighted (USD): ${Bank.getPrice(oraclePrice, PriceBias.None, true)}
-
-Config:
-- Asset weight init: ${this.config.assetWeightInit.toFixed(2)}
-- Asset weight maint: ${this.config.assetWeightMaint.toFixed(2)}
-- Liability weight init: ${this.config.liabilityWeightInit.toFixed(2)}
-- Liability weight maint: ${this.config.liabilityWeightMaint.toFixed(2)}
-
-- Deposit limit: ${this.config.depositLimit}
-- Borrow limit: ${this.config.borrowLimit}
-
-LTVs:
-- Initial: ${new BigNumber(1).div(this.config.liabilityWeightInit).times(100).toFixed(2)}%
-- Maintenance: ${new BigNumber(1).div(this.config.liabilityWeightMaint).times(100).toFixed(2)}%
-`;
   }
 }
 
