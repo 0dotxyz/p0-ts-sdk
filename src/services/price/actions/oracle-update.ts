@@ -212,6 +212,7 @@ export async function makeUpdateSwbFeedIx(props: {
     feeds: pullFeedInstances,
     numSignatures: 1,
     crossbarClient,
+    payer: props.feePayer,
   });
 
   console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
