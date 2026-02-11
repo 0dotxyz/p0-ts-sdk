@@ -203,6 +203,22 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
+  // Manually load on-chain feed data to diagnose feedHash mismatch
+  const onChainDatas = await PullFeed.loadMany(swbProgram, pullFeedInstances);
+  for (let i = 0; i < pullFeedInstances.length; i++) {
+    const feed = pullFeedInstances[i];
+    const onChainData = onChainDatas[i];
+    const configHash = feed.configs?.feedHash
+      ? Buffer.from(feed.configs.feedHash).toString("hex")
+      : "none";
+    const onChainHash = onChainData?.feedHash
+      ? Buffer.from(onChainData.feedHash).toString("hex")
+      : "none";
+    console.log(
+      `[makeUpdateSwbFeedIx] Feed ${feed.pubkey.toBase58()} | configs.feedHash: ${configHash} | onChain.feedHash: ${onChainHash} | loaded: ${!!onChainData}`
+    );
+  }
+
   console.log(`[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds`);
   console.log(
     `[makeUpdateSwbFeedIx] pullFeedInstances:`,
@@ -216,6 +232,36 @@ export async function makeUpdateSwbFeedIx(props: {
   });
 
   console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+
+  // Fix SDK bug: crossbar re-computes feed_hash from jobs which may differ from on-chain feedHash.
+  // This causes PublicKey.default to appear in remaining accounts. Replace with correct feed pubkey.
+  const feedPubkeySet = new Set(pullFeedInstances.map((f) => f.pubkey.toBase58()));
+  if (pullIx.length >= 2) {
+    const submitIx = pullIx[1];
+    const defaultKey = PublicKey.default.toBase58();
+
+    // Find feed pubkeys missing from the instruction's remaining accounts
+    const presentFeedKeys = new Set(
+      submitIx.keys
+        .filter((k) => feedPubkeySet.has(k.pubkey.toBase58()))
+        .map((k) => k.pubkey.toBase58())
+    );
+    const missingFeedKeys = pullFeedInstances
+      .map((f) => f.pubkey)
+      .filter((pk) => !presentFeedKeys.has(pk.toBase58()));
+
+    // Replace PublicKey.default entries with missing feed pubkeys
+    let missingIdx = 0;
+    for (const key of submitIx.keys) {
+      if (key.pubkey.toBase58() === defaultKey && missingIdx < missingFeedKeys.length) {
+        console.log(
+          `[makeUpdateSwbFeedIx] Replacing PublicKey.default with ${missingFeedKeys[missingIdx].toBase58()}`
+        );
+        key.pubkey = missingFeedKeys[missingIdx];
+        missingIdx++;
+      }
+    }
+  }
 
   return { instructions: pullIx, luts };
 }
