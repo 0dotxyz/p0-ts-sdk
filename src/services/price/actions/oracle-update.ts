@@ -230,6 +230,29 @@ export async function makeUpdateSwbFeedIx(props: {
     }
   }
 
+  // Log program account types available in IDL
+  console.log(`[DIAG][p0] swbProgram.account types: ${Object.keys(swbProgram.account).join(", ")}`);
+
+  // Test: manually fetch queue account to check discriminator
+  const queuePubkey = pullFeedInstances[0].data?.queue;
+  if (queuePubkey) {
+    console.log(`[DIAG][p0] testing manual queue fetch: ${queuePubkey.toBase58()}`);
+    try {
+      const rawQueueInfo = await props.connection.getAccountInfo(queuePubkey);
+      if (rawQueueInfo) {
+        console.log(`[DIAG][p0] queue raw data length: ${rawQueueInfo.data.length}`);
+        console.log(
+          `[DIAG][p0] queue raw discriminator (first 8 bytes): ${Buffer.from(rawQueueInfo.data.slice(0, 8)).toString("hex")}`
+        );
+        console.log(`[DIAG][p0] queue owner: ${rawQueueInfo.owner.toBase58()}`);
+      }
+      const queueData = await (swbProgram.account as any)["queueAccountData"].fetch(queuePubkey);
+      console.log(`[DIAG][p0] queue fetch via Anchor OK`);
+    } catch (e: any) {
+      console.error(`[DIAG][p0] queue fetch via Anchor FAILED: ${e.message}`);
+    }
+  }
+
   // Log exact params
   const fetchParams = {
     feeds: pullFeedInstances,
