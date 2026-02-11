@@ -213,6 +213,10 @@ export async function makeUpdateSwbFeedIx(props: {
   console.log(
     `[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds via gateway: ${gateway.gatewayUrl}`
   );
+  console.log(
+    `[makeUpdateSwbFeedIx] pullFeedInstances:`,
+    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasData: !!f.data }))
+  );
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
     gateway: gateway.gatewayUrl,
