@@ -158,16 +158,16 @@ export async function makeUpdateSwbFeedIx(props: {
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
-    if (oracle.price?.switchboardData) {
-      const swbData = oracle.price?.switchboardData;
+    // if (oracle.price?.switchboardData) {
+    //   const swbData = oracle.price?.switchboardData;
 
-      pullFeed.data = {
-        queue: new PublicKey(swbData.queue),
-        feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
-        maxVariance: new BN(swbData.maxVariance),
-        minResponses: swbData.minResponses,
-      } as PullFeedAccountData;
-    }
+    //   pullFeed.data = {
+    //     queue: new PublicKey(swbData.queue),
+    //     feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
+    //     maxVariance: new BN(swbData.maxVariance),
+    //     minResponses: swbData.minResponses,
+    //   } as PullFeedAccountData;
+    // }
     return pullFeed;
   });
 
