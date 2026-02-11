@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, Gateway, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -169,21 +169,41 @@ export async function makeUpdateSwbFeedIx(props: {
     )
   );
 
-  // latest swb intergation
-  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
+  // latest swb integration
+  const dummyWallet = {
+    publicKey: props.feePayer,
+    signTransaction: async (tx: any) => tx,
+    signAllTransactions: async (txs: any[]) => txs,
+  } as any;
+  console.log(`[makeUpdateSwbFeedIx] Loading SWB program from connection...`);
+  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection, dummyWallet);
+  console.log(
+    `[makeUpdateSwbFeedIx] SWB program loaded - programId: ${swbProgram.programId.toBase58()}`
+  );
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
-    // if (oracle.price?.switchboardData) {
-    //   const swbData = oracle.price?.switchboardData;
+    if (oracle.price?.switchboardData) {
+      const swbData = oracle.price?.switchboardData;
+      console.log(`[makeUpdateSwbFeedIx] Setting configs for ${oracle.key.toBase58()}:`, {
+        queue: swbData.queue,
+        feedHash: swbData.feedHash,
+        maxVariance: swbData.maxVariance,
+        minResponses: swbData.minResponses,
+      });
 
-    //   pullFeed.data = {
-    //     queue: new PublicKey(swbData.queue),
-    //     feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
-    //     maxVariance: new BN(swbData.maxVariance),
-    //     minResponses: swbData.minResponses,
-    //   } as PullFeedAccountData;
-    // }
+      pullFeed.configs = {
+        queue: new PublicKey(swbData.queue),
+        feedHash: Buffer.from(swbData.feedHash, "hex"),
+        maxVariance: Number(swbData.maxVariance),
+        minResponses: swbData.minResponses,
+        minSampleSize: swbData.minResponses,
+      };
+    } else {
+      console.log(
+        `[makeUpdateSwbFeedIx] No switchboardData for ${oracle.key.toBase58()} - feed will need on-chain fetch`
+      );
+    }
     return pullFeed;
   });
 
@@ -197,27 +217,59 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
-  const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
-  if (!gatewayUrls || gatewayUrls.length === 0) {
-    throw new Error(`No gateways available for mainnet`);
+  console.log(`[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds`);
+  console.log(
+    `[makeUpdateSwbFeedIx] pullFeedInstances:`,
+    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasConfigs: !!f.configs }))
+  );
+  console.log(
+    `[makeUpdateSwbFeedIx] crossbarClient URL: ${process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"}`
+  );
+  console.log(
+    `[makeUpdateSwbFeedIx] SWB on-demand version: 3.9.0, common version: 5.7.0 (alpha.2)`
+  );
+
+  try {
+    // Verify feed accounts exist before calling fetchUpdateManyIx
+    for (const feed of pullFeedInstances) {
+      try {
+        const accountInfo = await props.connection.getAccountInfo(feed.pubkey);
+        console.log(
+          `[makeUpdateSwbFeedIx] Feed account ${feed.pubkey.toBase58()}: exists=${!!accountInfo}, owner=${accountInfo?.owner?.toBase58() ?? "N/A"}, dataLen=${accountInfo?.data?.length ?? 0}`
+        );
+        if (accountInfo?.data) {
+          const discriminator = accountInfo.data.slice(0, 8);
+          console.log(
+            `[makeUpdateSwbFeedIx] Feed account ${feed.pubkey.toBase58()} discriminator: [${Array.from(discriminator).join(", ")}]`
+          );
+        }
+      } catch (accErr) {
+        console.error(
+          `[makeUpdateSwbFeedIx] Failed to fetch account info for ${feed.pubkey.toBase58()}:`,
+          accErr
+        );
+      }
+    }
+
+    console.log(`[makeUpdateSwbFeedIx] Calling PullFeed.fetchUpdateManyIx...`);
+    const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
+      feeds: pullFeedInstances,
+      numSignatures: 1,
+      crossbarClient,
+    });
+
+    console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+
+    return { instructions: pullIx, luts };
+  } catch (err: any) {
+    console.error(`[makeUpdateSwbFeedIx] fetchUpdateManyIx FAILED:`, err?.message || err);
+    console.error(`[makeUpdateSwbFeedIx] Error name: ${err?.name}, code: ${err?.code}`);
+    if (err?.logs) {
+      console.error(`[makeUpdateSwbFeedIx] Error logs:`, err.logs);
+    }
+    if (err?.stack) {
+      console.error(`[makeUpdateSwbFeedIx] Stack:`, err.stack);
+    }
+    throw err;
   }
-
-  const gatewayUrl = gatewayUrls[0];
-  if (!gatewayUrl) {
-    throw new Error(`Invalid gateway URL received formainnet`);
-  }
-
-  const gateway = new Gateway(swbProgram, gatewayUrl);
-
-  const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
-    feeds: pullFeedInstances,
-    gateway: gateway.gatewayUrl,
-    numSignatures: 1,
-    payer: props.feePayer,
-    crossbarClient,
-  });
-
-  console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
-
-  return { instructions: pullIx, luts };
 }
