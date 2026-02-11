@@ -170,33 +170,43 @@ export async function makeUpdateSwbFeedIx(props: {
 
   // latest swb intergation
   const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
+  console.log(`[DIAG][p0] swbProgram.programId: ${swbProgram.programId.toBase58()}`);
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
-    // if (oracle.price?.switchboardData) {
-    //   const swbData = oracle.price?.switchboardData;
-
-    //   pullFeed.data = {
-    //     queue: new PublicKey(swbData.queue),
-    //     feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
-    //     maxVariance: new BN(swbData.maxVariance),
-    //     minResponses: swbData.minResponses,
-    //   } as PullFeedAccountData;
-    // }
     return pullFeed;
   });
+  console.log(`[DIAG][p0] ${pullFeedInstances.length} PullFeed instances after filtering`);
 
   // No crank needed
   if (pullFeedInstances.length === 0) {
-    console.log(`[makeUpdateSwbFeedIx] No pull feed instances, returning early`);
+    console.log(`[DIAG][p0] No pull feed instances, returning early`);
     return { instructions: [], luts: [] };
   }
 
-  const crossbarClient = new CrossbarClient(
-    process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
-  );
+  const crossbarUrl =
+    process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API ||
+    "https://integrator-crossbar.prod.mrgn.app";
+  console.log(`[DIAG][p0] crossbarUrl: ${crossbarUrl}`);
+  const crossbarClient = new CrossbarClient(crossbarUrl);
 
   const gateway = await pullFeedInstances[0].fetchGatewayUrl(crossbarClient);
+  console.log(`[DIAG][p0] gateway: ${gateway}`);
+
+  // Load on-chain feed data for comparison
+  for (const feed of pullFeedInstances) {
+    try {
+      const data = await feed.loadData();
+      const feedHashHex = Buffer.from(data.feedHash).toString("hex");
+      console.log(`[DIAG][p0] feed ${feed.pubkey.toBase58()} on-chain feedHash: ${feedHashHex}`);
+      console.log(`[DIAG][p0] feed ${feed.pubkey.toBase58()} queue: ${data.queue.toBase58()}`);
+      console.log(
+        `[DIAG][p0] feed ${feed.pubkey.toBase58()} maxVariance: ${data.maxVariance}, minResponses: ${data.minResponses}`
+      );
+    } catch (e: any) {
+      console.log(`[DIAG][p0] feed ${feed.pubkey.toBase58()} loadData failed: ${e.message}`);
+    }
+  }
 
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
@@ -206,7 +216,17 @@ export async function makeUpdateSwbFeedIx(props: {
     crossbarClient,
   });
 
-  console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+  console.log(`[DIAG][p0] fetchUpdateManyIx returned ${pullIx.length} ixs, ${luts.length} LUTs`);
+  pullIx.forEach((ix, i) => {
+    console.log(
+      `[DIAG][p0] ix[${i}] programId: ${ix.programId.toBase58()}, keys: ${ix.keys.length}, data.length: ${ix.data.length}`
+    );
+    ix.keys.forEach((k, j) =>
+      console.log(
+        `[DIAG][p0]   key[${j}]: ${k.pubkey.toBase58()} (signer=${k.isSigner}, writable=${k.isWritable})`
+      )
+    );
+  });
 
   return { instructions: pullIx, luts };
 }
