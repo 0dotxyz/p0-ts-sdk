@@ -4,9 +4,8 @@ import {
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, Gateway, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { AnchorUtils, PullFeed } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -197,21 +196,11 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
-  const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
-  if (!gatewayUrls || gatewayUrls.length === 0) {
-    throw new Error(`No gateways available for mainnet`);
-  }
-
-  const gatewayUrl = gatewayUrls[0];
-  if (!gatewayUrl) {
-    throw new Error(`Invalid gateway URL received formainnet`);
-  }
-
-  const gateway = new Gateway(swbProgram, gatewayUrl);
+  const gateway = await pullFeedInstances[0].fetchGatewayUrl(crossbarClient);
 
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
-    gateway: gateway.gatewayUrl,
+    gateway,
     numSignatures: 1,
     payer: props.feePayer,
     crossbarClient,
