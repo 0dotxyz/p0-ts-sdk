@@ -170,10 +170,17 @@ export async function makeUpdateSwbFeedIx(props: {
   );
 
   // latest swb intergation
+  console.log(`[makeUpdateSwbFeedIx] Loading SWB program from connection...`);
   const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
+  console.log(
+    `[makeUpdateSwbFeedIx] SWB program loaded - programId: ${swbProgram.programId.toBase58()}`
+  );
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
+    console.log(
+      `[makeUpdateSwbFeedIx] Created PullFeed for ${oracle.key.toBase58()} - no switchboardData set (commented out)`
+    );
     // if (oracle.price?.switchboardData) {
     //   const swbData = oracle.price?.switchboardData;
 
@@ -187,6 +194,11 @@ export async function makeUpdateSwbFeedIx(props: {
     return pullFeed;
   });
 
+  console.log(
+    `[makeUpdateSwbFeedIx] pullFeedInstances:`,
+    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasConfigs: !!f.configs }))
+  );
+
   // No crank needed
   if (pullFeedInstances.length === 0) {
     console.log(`[makeUpdateSwbFeedIx] No pull feed instances, returning early`);
@@ -197,27 +209,72 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
+  console.log(
+    `[makeUpdateSwbFeedIx] crossbarClient URL: ${process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"}`
+  );
+  console.log(
+    `[makeUpdateSwbFeedIx] SWB on-demand version: 2.14.4, common version: 4.1.0 (alpha.1)`
+  );
+
+  console.log(`[makeUpdateSwbFeedIx] Fetching gateways for mainnet...`);
   const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
+  console.log(`[makeUpdateSwbFeedIx] Gateway URLs received:`, gatewayUrls);
   if (!gatewayUrls || gatewayUrls.length === 0) {
     throw new Error(`No gateways available for mainnet`);
   }
 
   const gatewayUrl = gatewayUrls[0];
   if (!gatewayUrl) {
-    throw new Error(`Invalid gateway URL received formainnet`);
+    throw new Error(`Invalid gateway URL received for mainnet`);
   }
 
+  console.log(`[makeUpdateSwbFeedIx] Using gateway: ${gatewayUrl}`);
   const gateway = new Gateway(swbProgram, gatewayUrl);
+  console.log(`[makeUpdateSwbFeedIx] Gateway gatewayUrl: ${gateway.gatewayUrl}`);
 
-  const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
-    feeds: pullFeedInstances,
-    gateway: gateway.gatewayUrl,
-    numSignatures: 1,
-    payer: props.feePayer,
-    crossbarClient,
-  });
+  try {
+    // Verify feed accounts exist before calling fetchUpdateManyIx
+    for (const feed of pullFeedInstances) {
+      try {
+        const accountInfo = await props.connection.getAccountInfo(feed.pubkey);
+        console.log(
+          `[makeUpdateSwbFeedIx] Feed account ${feed.pubkey.toBase58()}: exists=${!!accountInfo}, owner=${accountInfo?.owner?.toBase58() ?? "N/A"}, dataLen=${accountInfo?.data?.length ?? 0}`
+        );
+        if (accountInfo?.data) {
+          const discriminator = accountInfo.data.slice(0, 8);
+          console.log(
+            `[makeUpdateSwbFeedIx] Feed account ${feed.pubkey.toBase58()} discriminator: [${Array.from(discriminator).join(", ")}]`
+          );
+        }
+      } catch (accErr) {
+        console.error(
+          `[makeUpdateSwbFeedIx] Failed to fetch account info for ${feed.pubkey.toBase58()}:`,
+          accErr
+        );
+      }
+    }
 
-  console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+    console.log(`[makeUpdateSwbFeedIx] Calling PullFeed.fetchUpdateManyIx...`);
+    const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
+      feeds: pullFeedInstances,
+      gateway: gateway.gatewayUrl,
+      numSignatures: 1,
+      payer: props.feePayer,
+      crossbarClient,
+    });
 
-  return { instructions: pullIx, luts };
+    console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+
+    return { instructions: pullIx, luts };
+  } catch (err: any) {
+    console.error(`[makeUpdateSwbFeedIx] fetchUpdateManyIx FAILED:`, err?.message || err);
+    console.error(`[makeUpdateSwbFeedIx] Error name: ${err?.name}, code: ${err?.code}`);
+    if (err?.logs) {
+      console.error(`[makeUpdateSwbFeedIx] Error logs:`, err.logs);
+    }
+    if (err?.stack) {
+      console.error(`[makeUpdateSwbFeedIx] Stack:`, err.stack);
+    }
+    throw err;
+  }
 }
