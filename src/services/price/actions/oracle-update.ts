@@ -182,13 +182,12 @@ export async function makeUpdateSwbFeedIx(props: {
     // if (oracle.price?.switchboardData) {
     //   const swbData = oracle.price?.switchboardData;
 
-    //   pullFeed.configs = {
+    //   pullFeed.data = {
     //     queue: new PublicKey(swbData.queue),
-    //     feedHash: Buffer.from(swbData.feedHash, "hex"),
-    //     maxVariance: Number(swbData.maxVariance),
+    //     feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
+    //     maxVariance: new BN(swbData.maxVariance),
     //     minResponses: swbData.minResponses,
-    //     minSampleSize: swbData.minResponses,
-    //   };
+    //   } as PullFeedAccountData;
     // }
     return pullFeed;
   });
