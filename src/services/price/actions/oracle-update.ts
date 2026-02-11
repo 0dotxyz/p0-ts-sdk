@@ -32,7 +32,9 @@ export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxPar
   instructions: TransactionInstruction[];
   luts: AddressLookupTableAccount[];
 }> {
+  console.log("[makeSmartCrankSwbFeedIx] Called");
   const crankResult = await computeSmartCrank(params);
+  console.log("[makeSmartCrankSwbFeedIx] Crank result:", crankResult);
 
   if (crankResult.uncrankableLiabilities.length > 0) {
     console.log(
@@ -72,6 +74,7 @@ export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxPar
 
   const oraclesToCrank = crankResult.requiredOracles;
 
+  console.log("[makeSmartCrankSwbFeedIx] Oracles to crank:", oraclesToCrank);
   const { instructions, luts } = await makeUpdateSwbFeedIx({
     swbPullOracles: oraclesToCrank,
     feePayer: params.marginfiAccount.authority,
@@ -144,6 +147,10 @@ export async function makeUpdateSwbFeedIx(props: {
   instructions: TransactionInstruction[];
   luts: AddressLookupTableAccount[];
 }> {
+  console.log(
+    `[makeUpdateSwbFeedIx] Called with ${props.swbPullOracles.length} oracles, feePayer: ${props.feePayer.toBase58()}`
+  );
+
   // Deduplicate oracles by address
   const seen = new Set<string>();
   const uniqueOracles = props.swbPullOracles.filter((oracle) => {
@@ -152,6 +159,15 @@ export async function makeUpdateSwbFeedIx(props: {
     seen.add(key);
     return true;
   });
+
+  console.log(
+    `[makeUpdateSwbFeedIx] ${uniqueOracles.length} unique oracles after dedup (removed ${props.swbPullOracles.length - uniqueOracles.length})`
+  );
+  uniqueOracles.forEach((o) =>
+    console.log(
+      `[makeUpdateSwbFeedIx]   - ${o.key.toBase58()} (hasSwitchboardData: ${!!o.price?.switchboardData})`
+    )
+  );
 
   // latest swb intergation
   const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
@@ -173,6 +189,7 @@ export async function makeUpdateSwbFeedIx(props: {
 
   // No crank needed
   if (pullFeedInstances.length === 0) {
+    console.log(`[makeUpdateSwbFeedIx] No pull feed instances, returning early`);
     return { instructions: [], luts: [] };
   }
 
@@ -185,6 +202,7 @@ export async function makeUpdateSwbFeedIx(props: {
     throw new Error(`No gateways available for mainnet`);
   }
 
+  console.log(`[makeUpdateSwbFeedIx] Fetched ${gatewayUrls.length} gateways`);
   const gatewayUrl = gatewayUrls[0];
   if (!gatewayUrl) {
     throw new Error(`Invalid gateway URL received formainnet`);
@@ -192,6 +210,9 @@ export async function makeUpdateSwbFeedIx(props: {
 
   const gateway = new Gateway(swbProgram, gatewayUrl);
 
+  console.log(
+    `[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds via gateway: ${gateway.gatewayUrl}`
+  );
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
     gateway: gateway.gatewayUrl,
@@ -200,5 +221,6 @@ export async function makeUpdateSwbFeedIx(props: {
     crossbarClient,
   });
 
+  console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
   return { instructions: pullIx, luts };
 }
