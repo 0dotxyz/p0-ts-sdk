@@ -260,6 +260,34 @@ export async function makeUpdateSwbFeedIx(props: {
 
     console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
 
+    // Diagnostic: inspect the pullFeedSubmitResponseConsensus instruction accounts
+    const DEFAULT_KEY = "11111111111111111111111111111111";
+    for (let ixIdx = 0; ixIdx < pullIx.length; ixIdx++) {
+      const ix = pullIx[ixIdx];
+      console.log(
+        `[makeUpdateSwbFeedIx] Instruction ${ixIdx}: programId=${ix.programId.toBase58()}, keys=${ix.keys.length}, dataLen=${ix.data.length}`
+      );
+
+      // The second instruction (idx=1) is pullFeedSubmitResponseConsensus
+      if (ixIdx === 1) {
+        console.log(
+          `[makeUpdateSwbFeedIx] === pullFeedSubmitResponseConsensus account inspection ===`
+        );
+        const hasDefault = ix.keys.some((k) => k.pubkey.toBase58() === DEFAULT_KEY);
+        console.log(
+          `[makeUpdateSwbFeedIx] Contains PublicKey.default (System Program)? ${hasDefault}`
+        );
+
+        ix.keys.forEach((k, keyIdx) => {
+          const addr = k.pubkey.toBase58();
+          const flag = addr === DEFAULT_KEY ? " ⚠️ DEFAULT KEY" : "";
+          console.log(
+            `[makeUpdateSwbFeedIx]   key[${keyIdx}]: ${addr} (signer=${k.isSigner}, writable=${k.isWritable})${flag}`
+          );
+        });
+      }
+    }
+
     return { instructions: pullIx, luts };
   } catch (err: any) {
     console.error(`[makeUpdateSwbFeedIx] fetchUpdateManyIx FAILED:`, err?.message || err);
