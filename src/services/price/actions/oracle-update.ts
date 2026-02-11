@@ -4,9 +4,8 @@ import {
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { AnchorUtils, PullFeed } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -136,6 +135,86 @@ export async function makeCrankSwbFeedIx(
   }
 }
 
+/**
+ * Patches the Switchboard SDK feed hash mismatch bug.
+ *
+ * The crossbar sometimes re-derives a different feed hash from job definitions than what's
+ * stored on-chain. When fetchUpdateManyIx matches crossbar responses to feeds by hash and
+ * can't find a match, it puts PublicKey.default (11111111...) in the remaining accounts.
+ *
+ * PublicKey.default is the same value as SystemProgram.programId which legitimately appears
+ * in the fixed accounts section of the instruction. This function ONLY replaces defaults in
+ * the feed section of remaining accounts (after fixed accounts), preserving SystemProgram.
+ *
+ * Instruction layout: [9 fixed accounts, ...feedPubkeys (writable), ...oraclePubkeys (readonly), ...oracleStats (writable)]
+ */
+function patchSwbFeedHashMismatch(
+  pullIx: TransactionInstruction[],
+  expectedFeedPubkeys: PublicKey[]
+): void {
+  const DEFAULT_KEY = PublicKey.default.toBase58();
+  const expectedSet = new Set(expectedFeedPubkeys.map((pk) => pk.toBase58()));
+  const numExpectedFeeds = expectedFeedPubkeys.length;
+
+  for (const ix of pullIx) {
+    // 1. Find where the feed section starts by locating the first known feed pubkey.
+    let feedSectionStart = -1;
+    for (let i = 0; i < ix.keys.length; i++) {
+      if (expectedSet.has(ix.keys[i].pubkey.toBase58())) {
+        feedSectionStart = i;
+        break;
+      }
+    }
+
+    // Fallback: if ALL feeds got default keys (no known feed found in instruction),
+    // find the first writable PublicKey.default — feed slots are writable while the
+    // legitimate SystemProgram in fixed accounts is not.
+    if (feedSectionStart === -1) {
+      for (let i = 0; i < ix.keys.length; i++) {
+        if (ix.keys[i].pubkey.toBase58() === DEFAULT_KEY && ix.keys[i].isWritable) {
+          feedSectionStart = i;
+          break;
+        }
+      }
+    }
+
+    if (feedSectionStart === -1) continue;
+
+    // 2. Feed section spans numExpectedFeeds positions starting at feedSectionStart.
+    const feedSectionEnd = Math.min(feedSectionStart + numExpectedFeeds, ix.keys.length);
+
+    // 3. Find which expected feeds are present vs missing in the feed section.
+    const presentFeeds = new Set<string>();
+    for (let i = feedSectionStart; i < feedSectionEnd; i++) {
+      const key = ix.keys[i].pubkey.toBase58();
+      if (expectedSet.has(key)) {
+        presentFeeds.add(key);
+      }
+    }
+
+    const missingFeeds = expectedFeedPubkeys.filter((pk) => !presentFeeds.has(pk.toBase58()));
+    if (missingFeeds.length === 0) continue;
+
+    // 4. Replace PublicKey.default entries ONLY within the feed section.
+    let missingIdx = 0;
+    for (let i = feedSectionStart; i < feedSectionEnd; i++) {
+      if (ix.keys[i].pubkey.toBase58() === DEFAULT_KEY && missingIdx < missingFeeds.length) {
+        console.log(
+          `[patchSwbFeedHashMismatch] ix.keys[${i}]: replacing PublicKey.default → ${missingFeeds[missingIdx].toBase58()}`
+        );
+        ix.keys[i].pubkey = missingFeeds[missingIdx];
+        missingIdx++;
+      }
+    }
+
+    if (missingIdx > 0) {
+      console.log(
+        `[patchSwbFeedHashMismatch] Patched ${missingIdx}/${numExpectedFeeds} feed key(s)`
+      );
+    }
+  }
+}
+
 export async function makeUpdateSwbFeedIx(props: {
   swbPullOracles: {
     key: PublicKey;
@@ -162,11 +241,6 @@ export async function makeUpdateSwbFeedIx(props: {
 
   console.log(
     `[makeUpdateSwbFeedIx] ${uniqueOracles.length} unique oracles after dedup (removed ${props.swbPullOracles.length - uniqueOracles.length})`
-  );
-  uniqueOracles.forEach((o) =>
-    console.log(
-      `[makeUpdateSwbFeedIx]   - ${o.key.toBase58()} (hasSwitchboardData: ${!!o.price?.switchboardData})`
-    )
   );
 
   // latest swb integration
@@ -195,7 +269,6 @@ export async function makeUpdateSwbFeedIx(props: {
 
   // No crank needed
   if (pullFeedInstances.length === 0) {
-    console.log(`[makeUpdateSwbFeedIx] No pull feed instances, returning early`);
     return { instructions: [], luts: [] };
   }
 
@@ -203,27 +276,6 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
-  // Manually load on-chain feed data to diagnose feedHash mismatch
-  const onChainDatas = await PullFeed.loadMany(swbProgram, pullFeedInstances);
-  for (let i = 0; i < pullFeedInstances.length; i++) {
-    const feed = pullFeedInstances[i];
-    const onChainData = onChainDatas[i];
-    const configHash = feed.configs?.feedHash
-      ? Buffer.from(feed.configs.feedHash).toString("hex")
-      : "none";
-    const onChainHash = onChainData?.feedHash
-      ? Buffer.from(onChainData.feedHash).toString("hex")
-      : "none";
-    console.log(
-      `[makeUpdateSwbFeedIx] Feed ${feed.pubkey.toBase58()} | configs.feedHash: ${configHash} | onChain.feedHash: ${onChainHash} | loaded: ${!!onChainData}`
-    );
-  }
-
-  console.log(`[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds`);
-  console.log(
-    `[makeUpdateSwbFeedIx] pullFeedInstances:`,
-    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasConfigs: !!f.configs }))
-  );
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
     numSignatures: 1,
@@ -233,35 +285,9 @@ export async function makeUpdateSwbFeedIx(props: {
 
   console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
 
-  // Fix SDK bug: crossbar re-computes feed_hash from jobs which may differ from on-chain feedHash.
-  // This causes PublicKey.default to appear in remaining accounts. Replace with correct feed pubkey.
-  const feedPubkeySet = new Set(pullFeedInstances.map((f) => f.pubkey.toBase58()));
-  if (pullIx.length >= 2) {
-    const submitIx = pullIx[1];
-    const defaultKey = PublicKey.default.toBase58();
-
-    // Find feed pubkeys missing from the instruction's remaining accounts
-    const presentFeedKeys = new Set(
-      submitIx.keys
-        .filter((k) => feedPubkeySet.has(k.pubkey.toBase58()))
-        .map((k) => k.pubkey.toBase58())
-    );
-    const missingFeedKeys = pullFeedInstances
-      .map((f) => f.pubkey)
-      .filter((pk) => !presentFeedKeys.has(pk.toBase58()));
-
-    // Replace PublicKey.default entries with missing feed pubkeys
-    let missingIdx = 0;
-    for (const key of submitIx.keys) {
-      if (key.pubkey.toBase58() === defaultKey && missingIdx < missingFeedKeys.length) {
-        console.log(
-          `[makeUpdateSwbFeedIx] Replacing PublicKey.default with ${missingFeedKeys[missingIdx].toBase58()}`
-        );
-        key.pubkey = missingFeedKeys[missingIdx];
-        missingIdx++;
-      }
-    }
-  }
+  // Patch the SDK bug where crossbar feed hash mismatch causes PublicKey.default in remaining accounts
+  const expectedFeedPubkeys = pullFeedInstances.map((f) => f.pubkey);
+  patchSwbFeedHashMismatch(pullIx, expectedFeedPubkeys);
 
   return { instructions: pullIx, luts };
 }
