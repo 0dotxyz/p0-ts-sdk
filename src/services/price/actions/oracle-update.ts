@@ -141,10 +141,15 @@ export async function makeCrankSwbFeedIx(
  * The crossbar sometimes re-derives a different feed hash from job definitions than what's
  * stored on-chain. When fetchUpdateManyIx matches crossbar responses to feeds by hash and
  * can't find a match, it puts PublicKey.default (11111111...) in the remaining accounts.
+ * When the wrong hash collides with a different feed's hash, it produces a DUPLICATE feed
+ * pubkey in the remaining accounts, causing AccountAlreadyInUse errors.
  *
- * PublicKey.default is the same value as SystemProgram.programId which legitimately appears
- * in the fixed accounts section of the instruction. This function ONLY replaces defaults in
- * the feed section of remaining accounts (after fixed accounts), preserving SystemProgram.
+ * This function handles BOTH failure modes:
+ * 1. PublicKey.default entries (no hash match → default substituted)
+ * 2. Duplicate feed pubkeys (wrong hash matched a different feed)
+ *
+ * It ONLY operates on the feed section of remaining accounts (after fixed accounts),
+ * preserving the legitimate SystemProgram.programId in fixed accounts.
  *
  * Instruction layout: [9 fixed accounts, ...feedPubkeys (writable), ...oraclePubkeys (readonly), ...oracleStats (writable)]
  */
@@ -183,35 +188,47 @@ function patchSwbFeedHashMismatch(
     // 2. Feed section spans numExpectedFeeds positions starting at feedSectionStart.
     const feedSectionEnd = Math.min(feedSectionStart + numExpectedFeeds, ix.keys.length);
 
-    // 3. Find which expected feeds are present vs missing in the feed section.
-    const presentFeeds = new Set<string>();
+    // 3. Walk the feed section: claim the first occurrence of each expected feed,
+    //    mark positions with defaults or duplicates as "needs replacement".
+    const claimedFeeds = new Set<string>();
+    const badPositions: number[] = [];
+
     for (let i = feedSectionStart; i < feedSectionEnd; i++) {
       const key = ix.keys[i].pubkey.toBase58();
-      if (expectedSet.has(key)) {
-        presentFeeds.add(key);
+      if (key === DEFAULT_KEY) {
+        // Case 1: PublicKey.default (no hash match)
+        badPositions.push(i);
+      } else if (expectedSet.has(key) && claimedFeeds.has(key)) {
+        // Case 2: Duplicate feed pubkey (wrong hash matched another feed)
+        badPositions.push(i);
+      } else if (expectedSet.has(key)) {
+        claimedFeeds.add(key);
+      } else {
+        // Unknown key in feed section — shouldn't happen but mark it
+        badPositions.push(i);
       }
     }
 
-    const missingFeeds = expectedFeedPubkeys.filter((pk) => !presentFeeds.has(pk.toBase58()));
-    if (missingFeeds.length === 0) continue;
+    // 4. Find which expected feeds are missing (not claimed).
+    const missingFeeds = expectedFeedPubkeys.filter((pk) => !claimedFeeds.has(pk.toBase58()));
+    if (missingFeeds.length === 0 || badPositions.length === 0) continue;
 
-    // 4. Replace PublicKey.default entries ONLY within the feed section.
-    let missingIdx = 0;
-    for (let i = feedSectionStart; i < feedSectionEnd; i++) {
-      if (ix.keys[i].pubkey.toBase58() === DEFAULT_KEY && missingIdx < missingFeeds.length) {
-        console.log(
-          `[patchSwbFeedHashMismatch] ix.keys[${i}]: replacing PublicKey.default → ${missingFeeds[missingIdx].toBase58()}`
-        );
-        ix.keys[i].pubkey = missingFeeds[missingIdx];
-        missingIdx++;
-      }
-    }
-
-    if (missingIdx > 0) {
+    // 5. Replace bad positions with missing feeds.
+    const replacements = Math.min(missingFeeds.length, badPositions.length);
+    for (let j = 0; j < replacements; j++) {
+      const i = badPositions[j];
+      const oldKey = ix.keys[i].pubkey.toBase58();
+      const reason =
+        oldKey === DEFAULT_KEY ? "PublicKey.default" : `duplicate(${oldKey.slice(0, 8)}...)`;
       console.log(
-        `[patchSwbFeedHashMismatch] Patched ${missingIdx}/${numExpectedFeeds} feed key(s)`
+        `[patchSwbFeedHashMismatch] ix.keys[${i}]: replacing ${reason} → ${missingFeeds[j].toBase58()}`
       );
+      ix.keys[i].pubkey = missingFeeds[j];
     }
+
+    console.log(
+      `[patchSwbFeedHashMismatch] Patched ${replacements}/${numExpectedFeeds} feed key(s)`
+    );
   }
 }
 
