@@ -183,27 +183,27 @@ export async function makeUpdateSwbFeedIx(props: {
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
-    if (oracle.price?.switchboardData) {
-      const swbData = oracle.price?.switchboardData;
-      console.log(`[makeUpdateSwbFeedIx] Setting configs for ${oracle.key.toBase58()}:`, {
-        queue: swbData.queue,
-        feedHash: swbData.feedHash,
-        maxVariance: swbData.maxVariance,
-        minResponses: swbData.minResponses,
-      });
+    // if (oracle.price?.switchboardData) {
+    //   const swbData = oracle.price?.switchboardData;
+    //   console.log(`[makeUpdateSwbFeedIx] Setting configs for ${oracle.key.toBase58()}:`, {
+    //     queue: swbData.queue,
+    //     feedHash: swbData.feedHash,
+    //     maxVariance: swbData.maxVariance,
+    //     minResponses: swbData.minResponses,
+    //   });
 
-      pullFeed.configs = {
-        queue: new PublicKey(swbData.queue),
-        feedHash: Buffer.from(swbData.feedHash, "hex"),
-        maxVariance: Number(swbData.maxVariance),
-        minResponses: swbData.minResponses,
-        minSampleSize: swbData.minResponses,
-      };
-    } else {
-      console.log(
-        `[makeUpdateSwbFeedIx] No switchboardData for ${oracle.key.toBase58()} - feed will need on-chain fetch`
-      );
-    }
+    //   pullFeed.configs = {
+    //     queue: new PublicKey(swbData.queue),
+    //     feedHash: Buffer.from(swbData.feedHash, "hex"),
+    //     maxVariance: Number(swbData.maxVariance),
+    //     minResponses: swbData.minResponses,
+    //     minSampleSize: swbData.minResponses,
+    //   };
+    // } else {
+    //   console.log(
+    //     `[makeUpdateSwbFeedIx] No switchboardData for ${oracle.key.toBase58()} - feed will need on-chain fetch`
+    //   );
+    // }
     return pullFeed;
   });
 
