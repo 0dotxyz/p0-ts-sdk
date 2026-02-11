@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, Gateway, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -169,20 +169,26 @@ export async function makeUpdateSwbFeedIx(props: {
     )
   );
 
-  // latest swb intergation
-  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection);
+  // latest swb integration
+  const dummyWallet = {
+    publicKey: props.feePayer,
+    signTransaction: async (tx: any) => tx,
+    signAllTransactions: async (txs: any[]) => txs,
+  } as any;
+  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection, dummyWallet);
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);
     if (oracle.price?.switchboardData) {
       const swbData = oracle.price?.switchboardData;
 
-      pullFeed.data = {
+      pullFeed.configs = {
         queue: new PublicKey(swbData.queue),
-        feedHash: new Uint8Array(Buffer.from(swbData.feedHash, "hex")),
-        maxVariance: new BN(swbData.maxVariance),
+        feedHash: Buffer.from(swbData.feedHash, "hex"),
+        maxVariance: Number(swbData.maxVariance),
         minResponses: swbData.minResponses,
-      } as PullFeedAccountData;
+        minSampleSize: swbData.minResponses,
+      };
     }
     return pullFeed;
   });
@@ -197,34 +203,18 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
-  const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
-  if (!gatewayUrls || gatewayUrls.length === 0) {
-    throw new Error(`No gateways available for mainnet`);
-  }
-
-  console.log(`[makeUpdateSwbFeedIx] Fetched ${gatewayUrls.length} gateways`);
-  const gatewayUrl = gatewayUrls[0];
-  if (!gatewayUrl) {
-    throw new Error(`Invalid gateway URL received formainnet`);
-  }
-
-  const gateway = new Gateway(swbProgram, gatewayUrl);
-
-  console.log(
-    `[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds via gateway: ${gateway.gatewayUrl}`
-  );
+  console.log(`[makeUpdateSwbFeedIx] Fetching update ix for ${pullFeedInstances.length} feeds`);
   console.log(
     `[makeUpdateSwbFeedIx] pullFeedInstances:`,
-    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasData: !!f.data }))
+    pullFeedInstances.map((f) => ({ key: f.pubkey.toBase58(), hasConfigs: !!f.configs }))
   );
   const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
     feeds: pullFeedInstances,
-    gateway: gateway.gatewayUrl,
     numSignatures: 1,
-    payer: props.feePayer,
     crossbarClient,
   });
 
   console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+
   return { instructions: pullIx, luts };
 }
