@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import { BN } from "bn.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, Gateway, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
 
 import { MarginfiAccountType } from "~/services/account";
@@ -216,21 +216,11 @@ export async function makeUpdateSwbFeedIx(props: {
     `[makeUpdateSwbFeedIx] SWB on-demand version: 2.14.4, common version: 4.1.0 (alpha.1)`
   );
 
-  console.log(`[makeUpdateSwbFeedIx] Fetching gateways for mainnet...`);
-  const gatewayUrls = await crossbarClient.fetchGateways("mainnet");
-  console.log(`[makeUpdateSwbFeedIx] Gateway URLs received:`, gatewayUrls);
-  if (!gatewayUrls || gatewayUrls.length === 0) {
-    throw new Error(`No gateways available for mainnet`);
-  }
-
-  const gatewayUrl = gatewayUrls[0];
-  if (!gatewayUrl) {
-    throw new Error(`Invalid gateway URL received for mainnet`);
-  }
-
-  console.log(`[makeUpdateSwbFeedIx] Using gateway: ${gatewayUrl}`);
-  const gateway = new Gateway(swbProgram, gatewayUrl);
-  console.log(`[makeUpdateSwbFeedIx] Gateway gatewayUrl: ${gateway.gatewayUrl}`);
+  console.log(`[makeUpdateSwbFeedIx] Resolving gateway from feed's on-chain queue...`);
+  const queue = await pullFeedInstances[0].fetchQueue();
+  const gw = await queue.fetchGateway();
+  const gateway = gw.gatewayUrl;
+  console.log(`[makeUpdateSwbFeedIx] Resolved gateway: ${gateway}`);
 
   try {
     // Verify feed accounts exist before calling fetchUpdateManyIx
@@ -257,7 +247,7 @@ export async function makeUpdateSwbFeedIx(props: {
     console.log(`[makeUpdateSwbFeedIx] Calling PullFeed.fetchUpdateManyIx...`);
     const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
       feeds: pullFeedInstances,
-      gateway: gateway.gatewayUrl,
+      gateway,
       numSignatures: 1,
       payer: props.feePayer,
       crossbarClient,
