@@ -293,18 +293,43 @@ export async function makeUpdateSwbFeedIx(props: {
     process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
   );
 
-  const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
-    feeds: pullFeedInstances,
-    numSignatures: 1,
-    crossbarClient,
-    payer: props.feePayer,
-  });
+  // Update feeds individually to avoid the cross-feed hash matching bug in fetchUpdateManyIx.
+  // When crossbar re-derives a different feed hash, fetchUpdateManyIx attributes oracle responses
+  // to the wrong feed (or none), corrupting both remaining accounts AND instruction data.
+  // Individual calls bypass this since there's only 1 feed per call — no cross-matching needed.
+  const allIxs: TransactionInstruction[] = [];
+  const allLuts: AddressLookupTableAccount[] = [];
 
-  console.log(`[makeUpdateSwbFeedIx] Got ${pullIx.length} instructions, ${luts.length} LUTs`);
+  for (const feed of pullFeedInstances) {
+    try {
+      const [ixs, _responses, numSuccesses, luts] = await feed.fetchUpdateIx({
+        numSignatures: 1,
+        crossbarClient,
+        payer: props.feePayer,
+      });
 
-  // Patch the SDK bug where crossbar feed hash mismatch causes PublicKey.default in remaining accounts
-  const expectedFeedPubkeys = pullFeedInstances.map((f) => f.pubkey);
-  patchSwbFeedHashMismatch(pullIx, expectedFeedPubkeys);
+      if (ixs && ixs.length > 0) {
+        console.log(
+          `[makeUpdateSwbFeedIx] Feed ${feed.pubkey.toBase58().slice(0, 8)}... got ${ixs.length} ix, ${numSuccesses} successes`
+        );
+        allIxs.push(...ixs);
+        allLuts.push(...luts);
+      } else {
+        console.warn(
+          `[makeUpdateSwbFeedIx] Feed ${feed.pubkey.toBase58().slice(0, 8)}... returned no instructions`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[makeUpdateSwbFeedIx] Feed ${feed.pubkey.toBase58().slice(0, 8)}... fetchUpdateIx failed:`,
+        err
+      );
+    }
+  }
 
-  return { instructions: pullIx, luts };
+  console.log(
+    `[makeUpdateSwbFeedIx] Got ${allIxs.length} instructions, ${allLuts.length} LUTs total`
+  );
+
+  return { instructions: allIxs, luts: allLuts };
 }
