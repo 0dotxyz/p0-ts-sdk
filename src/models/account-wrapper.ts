@@ -21,6 +21,8 @@ import {
   MakeWithdrawIxOpts,
   MarginRequirementType,
   TransactionBuilderResult,
+  computeLowestEmodeWeights,
+  createActiveEmodePairFromPairs,
 } from "~/services/account";
 import { fetchProgramForMints } from "~/services/misc";
 import {
@@ -840,6 +842,37 @@ export class MarginfiAccountWrapper {
   }
 
   // ----------------------------------------------------------------------------
+  // E-mode state — derived from client.emodePairs + account balances
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Returns the active emode pairs for this account based on current positions.
+   */
+  getActiveEmodePairs(): EmodePair[] {
+    return this.account.computeActiveEmodePairs(this.client.emodePairs);
+  }
+
+  /**
+   * Returns the lowest emode weights per collateral bank for currently active pairs.
+   * Keyed by bank address string → { assetWeightInit, assetWeightMaint }.
+   */
+  getActiveEmodeWeightsByBank(): Map<
+    string,
+    { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }
+  > {
+    const activePairs = this.getActiveEmodePairs();
+    return computeLowestEmodeWeights(activePairs);
+  }
+
+  /**
+   * Computes emode impacts for all banks using the client's emode pairs.
+   */
+  getEmodeImpacts(): Record<string, ActionEmodeImpact> {
+    const bankAddresses = this.client.banks.map((b) => b.address);
+    return this.account.computeEmodeImpacts(this.client.emodePairs, bankAddresses);
+  }
+
+  // ----------------------------------------------------------------------------
   // Computation methods with auto-injected client data
   // ----------------------------------------------------------------------------
 
@@ -853,7 +886,7 @@ export class MarginfiAccountWrapper {
       oraclePricesByBank: this.client.oraclePriceByBank,
       bankIntegrationMap: this.client.bankIntegrationMap,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      activeEmodeWeightsByBank: new Map(), // TODO
+      activeEmodeWeightsByBank: this.getActiveEmodeWeightsByBank(),
     });
   }
 
@@ -865,7 +898,7 @@ export class MarginfiAccountWrapper {
       banksMap: this.client.bankMap,
       oraclePricesByBank: this.client.oraclePriceByBank,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      activeEmodeWeightsByBank: new Map(), // TODO
+      activeEmodeWeightsByBank: this.getActiveEmodeWeightsByBank(),
     });
   }
 
@@ -909,13 +942,18 @@ export class MarginfiAccountWrapper {
       volatilityFactor?: number;
     }
   ): BigNumber {
+    const bankKey = bankAddress.toBase58();
+    const emodeImpacts = this.getEmodeImpacts();
+    const bankImpact = emodeImpacts[bankKey];
+    const borrowImpact = bankImpact?.borrowImpact;
+
     return this.account.computeMaxBorrowForBank({
       banksMap: this.client.bankMap,
       oraclePricesByBank: this.client.oraclePriceByBank,
       bankAddress,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      emodeImpactStatus: undefined, // TODO
-      activePair: undefined, // TODO
+      emodeImpactStatus: borrowImpact?.status,
+      activePair: borrowImpact?.activePair,
       volatilityFactor: opts?.volatilityFactor,
     });
   }
@@ -932,18 +970,23 @@ export class MarginfiAccountWrapper {
       volatilityFactor?: number;
     }
   ): BigNumber {
+    const activePairs = this.getActiveEmodePairs();
+    const activePair =
+      activePairs.length > 0 ? createActiveEmodePairFromPairs(activePairs) : undefined;
+
     return this.account.computeMaxWithdrawForBank({
       banksMap: this.client.bankMap,
       oraclePricesByBank: this.client.oraclePriceByBank,
       bankAddress,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      activePair: undefined, // TODO
+      activePair,
       volatilityFactor: opts?.volatilityFactor,
     });
   }
 
   /**
-   * Computes active emode pairs.
+   * Computes active emode pairs for custom emode pair sets.
+   * For typical usage, prefer `getActiveEmodePairs()` which uses client data.
    *
    * @param emodePairs - All available emode pairs
    */
@@ -952,7 +995,8 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Computes emode impacts.
+   * Computes emode impacts for custom emode pair sets.
+   * For typical usage, prefer `getEmodeImpacts()` which uses client data.
    *
    * @param emodePairs - All available emode pairs
    * @param banks - Array of bank addresses to analyze

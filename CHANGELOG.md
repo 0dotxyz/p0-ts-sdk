@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - 2026-02-12
+
+### Added
+
+- **E-mode State in SDK** - Full emode lifecycle support in the SDK class structure
+  - `getEmodePairs(banks)` — generates `EmodePair[]` from bank emode configurations
+  - `computeLowestEmodeWeights(emodePairs)` — computes lowest weight per collateral bank across active pairs
+  - `Project0Client` now stores `emodePairs` and generates them during `initialize()`
+  - `MarginfiAccountWrapper` new emode state getters:
+    - `getActiveEmodePairs()` — active pairs derived from account balances + client emode pairs
+    - `getActiveEmodeWeightsByBank()` — lowest emode weights Map for active pairs
+    - `getEmodeImpacts()` — per-bank action impact analysis using client emode pairs
+
+### Fixed
+
+- **Emode TODOs resolved** — All placeholder emode values in `MarginfiAccountWrapper` now use real data:
+  - `simulateHealthCache()` and `computeNetApy()` pass active emode weights instead of empty Map
+  - `computeMaxBorrowForBank()` passes real `emodeImpactStatus` and `activePair` from impact analysis
+  - `computeMaxWithdrawForBank()` passes real `activePair` from active emode pairs
+  - `fetchAccount()` computes and passes emode weights + asset share multipliers to health cache simulation
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
 ## [2.0.0-alpha.0] - 2026-02-10
 
 ### Changed

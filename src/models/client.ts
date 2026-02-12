@@ -18,7 +18,10 @@ import {
   makeCreateAccountIxWithProjection,
   fetchMarginfiAccountAddresses,
   MarginfiAccountRaw,
+  getEmodePairs,
+  computeLowestEmodeWeights,
 } from "~/services/account";
+import { EmodePair } from "~/services/bank";
 
 import { MarginfiGroup } from "./group";
 import { Bank } from "./bank";
@@ -36,7 +39,8 @@ export class Project0Client {
     public readonly assetShareValueMultiplierByBank: Map<string, BigNumber>,
     public readonly oraclePriceByBank: Map<string, OraclePrice>,
     public readonly mintDataByBank: Map<string, MintData>,
-    public readonly addressLookupTables: AddressLookupTableAccount[]
+    public readonly addressLookupTables: AddressLookupTableAccount[],
+    public readonly emodePairs: EmodePair[]
   ) {}
 
   /**
@@ -179,12 +183,18 @@ export class Project0Client {
 
     if (!skipHealthCache) {
       const bankMap = new Map(this.banks.map((b) => [b.address.toBase58(), b]));
-      // TODO emode
+
+      // Compute active emode weights for this account
+      const activePairs = marginfiAccountParsed.computeActiveEmodePairs(this.emodePairs);
+      const activeEmodeWeightsByBank = computeLowestEmodeWeights(activePairs);
+
       const { account: simulatedAccount } = await marginfiAccountParsed.simulateHealthCache({
         program: this.program,
         banksMap: bankMap,
         oraclePricesByBank: this.oraclePriceByBank,
         bankIntegrationMap: this.bankIntegrationMap,
+        assetShareValueMultiplierByBank: this.assetShareValueMultiplierByBank,
+        activeEmodeWeightsByBank,
       });
       marginfiAccountParsed = simulatedAccount;
     }
@@ -313,6 +323,9 @@ export class Project0Client {
       }
     });
 
+    // Generate emode pairs from bank configurations
+    const emodePairs = getEmodePairs(banksArray);
+
     return new Project0Client(
       program,
       group,
@@ -321,7 +334,8 @@ export class Project0Client {
       assetShareMultiplierByBank,
       bankOraclePriceMap,
       mintDataByBank,
-      addressLookupTables
+      addressLookupTables,
+      emodePairs
     );
   }
 }
