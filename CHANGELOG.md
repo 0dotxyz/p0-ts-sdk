@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.2] - 2026-02-16
+
+### Added
+
+- **TypedAmount Support** - New `TypedAmount` type and `resolveAmount()` utility to distinguish between UI token amounts and cToken amounts
+  - `AmountType` union type: `"uiToken" | "cToken"`
+  - `TypedAmount` interface with `value` and `type` fields
+  - `resolveAmount()` helper that accepts both `Amount` and `TypedAmount`, defaulting to `"uiToken"`
+
+### Fixed
+
+- **cToken Amount Calculation** - Improved cToken conversion accuracy across withdraw, repay, and swap-collateral actions
+  - `makeKaminoWithdrawIx` now accepts explicit `cTokenAmount` parameter instead of ambiguous `amount`
+  - `makeKaminoWithdrawTx` uses `assetShareValueMultiplierByBank` and `resolveAmount()` for correct cToken/UI token handling
+  - Repay and swap-collateral flashloan builders now use `assetShareValueMultiplierByBank` for accurate cToken conversion instead of `bank.assetShareValue`
+  - `computeMaxBorrowForBank` now passes `assetShareValueMultiplier` to `computeQuantityUi` for correct asset calculations
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
 ## [2.0.0-alpha.1] - 2026-02-12
 
 ### Added
