@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-02-16
+
+### Changed
+
+- **Disable Switchboard Feed Data Override** - Commented out `pullFeed.data` assignment restored in v1.2.6, relying entirely on on-chain feed data for oracle updates
+
+### Added
+
+- **Oracle Update Logging** - Debug logging across Switchboard oracle update flow for easier troubleshooting
+
+## [1.2.6] - 2026-02-13
+
+### Changed
+
+- **Switchboard Revert to v2 Pattern** - Reverted oracle update logic back to pre-v3 Switchboard SDK pattern
+  - Restored `pullFeed.data` with `PullFeedAccountData` instead of `pullFeed.configs`
+  - Restored manual gateway resolution via `CrossbarClient.fetchGateways`
+  - Restored dummy wallet passthrough to `AnchorUtils.loadProgramFromConnection`
+  - Downgraded `@switchboard-xyz/on-demand` back to `2.14.4` and `@switchboard-xyz/common` back to `4.1.0`
+
+## [1.2.5] - 2026-02-12
+
+### Changed
+
+- **Switchboard Feed Config** - Commented out `pullFeed.configs` assignment to use on-chain feed data instead of local overrides
+
 ## [1.2.4] - 2026-02-11
 
 ### Fixed
