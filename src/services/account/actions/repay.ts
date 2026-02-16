@@ -317,6 +317,7 @@ async function buildRepayWithCollatFlashloanTx({
   withdrawOpts,
   repayOpts,
   bankMetadataMap,
+  assetShareValueMultiplierByBank,
   addressLookupTableAccounts,
   connection,
   swapOpts,
@@ -414,8 +415,11 @@ async function buildRepayWithCollatFlashloanTx({
       }
 
       // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
+      const multiplier =
+        assetShareValueMultiplierByBank.get(withdrawOpts.withdrawBank.address.toBase58()) ??
+        new BigNumber(1);
       const adjustedAmount = new BigNumber(withdrawOpts.withdrawAmount)
-        .div(withdrawOpts.withdrawBank.assetShareValue)
+        .div(multiplier)
         .times(1.0001)
         .toNumber();
 
@@ -424,7 +428,7 @@ async function buildRepayWithCollatFlashloanTx({
         bank: withdrawOpts.withdrawBank,
         bankMap,
         tokenProgram: withdrawOpts.tokenProgram,
-        amount: adjustedAmount,
+        cTokenAmount: adjustedAmount,
         marginfiAccount,
         authority: marginfiAccount.authority,
         reserve,

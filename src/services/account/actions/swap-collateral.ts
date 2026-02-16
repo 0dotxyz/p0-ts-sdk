@@ -208,6 +208,7 @@ async function buildSwapCollateralFlashloanTx({
   depositOpts,
   swapOpts,
   bankMetadataMap,
+  assetShareValueMultiplierByBank,
   addressLookupTableAccounts,
   connection,
   overrideInferAccounts,
@@ -265,8 +266,11 @@ async function buildSwapCollateralFlashloanTx({
       }
 
       // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
+      const multiplier =
+        assetShareValueMultiplierByBank.get(withdrawOpts.withdrawBank.address.toBase58()) ??
+        new BigNumber(1);
       const adjustedAmount = new BigNumber(actualWithdrawAmount)
-        .div(withdrawOpts.withdrawBank.assetShareValue)
+        .div(multiplier)
         .times(1.0001)
         .toNumber();
 
@@ -275,7 +279,7 @@ async function buildSwapCollateralFlashloanTx({
         bank: withdrawBank,
         bankMap,
         tokenProgram: withdrawTokenProgram,
-        amount: adjustedAmount,
+        cTokenAmount: adjustedAmount,
         marginfiAccount,
         authority: marginfiAccount.authority,
         reserve,

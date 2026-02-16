@@ -197,7 +197,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
   const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Initial);
 
   if (assetWeight.eq(0)) {
-    return computeQuantityUi(balance, bank).assets.plus(
+    return computeQuantityUi(balance, bank, assetShareValueMultiplier).assets.plus(
       freeCollateral.minus(untiedCollateralForBank).div(priceHighestBias.times(liabWeight))
     );
   } else {
