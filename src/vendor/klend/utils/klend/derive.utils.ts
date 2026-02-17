@@ -12,20 +12,15 @@ export const SEED_BASE_REFERRER_STATE = "ref_state";
 export const SEED_BASE_SHORT_URL = "short_url";
 export const SEED_USER_STATE = "user";
 
+/** @deprecated Kamino changed derivation logic. Do not use. */
 export function getAllDerivedKaminoAccounts(
   lendingMarket: PublicKey,
   reserveLiquidityMint: PublicKey
 ) {
   return {
     lendingMarketAuthority: deriveLendingMarketAuthority(lendingMarket)[0],
-    reserveLiquiditySupply: deriveReserveLiquiditySupply(
-      lendingMarket,
-      reserveLiquidityMint
-    )[0],
-    reserveCollateralMint: deriveReserveCollateralMint(
-      lendingMarket,
-      reserveLiquidityMint
-    )[0],
+    reserveLiquiditySupply: deriveReserveLiquiditySupply(lendingMarket, reserveLiquidityMint)[0],
+    reserveCollateralMint: deriveReserveCollateralMint(lendingMarket, reserveLiquidityMint)[0],
     reserveDestinationDepositCollateral: deriveReserveCollateralSupply(
       lendingMarket,
       reserveLiquidityMint
@@ -33,9 +28,7 @@ export function getAllDerivedKaminoAccounts(
   };
 }
 
-export function deriveLendingMarketAuthority(
-  lendingMarket: PublicKey
-): [PublicKey, number] {
+export function deriveLendingMarketAuthority(lendingMarket: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from(SEED_LENDING_MARKET_AUTH), lendingMarket.toBuffer()],
     KLEND_PROGRAM_ID
@@ -61,11 +54,7 @@ export function deriveFeeReceiver(
   reserveLiquidityMint: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from(SEED_FEE_RECEIVER),
-      lendingMarket.toBuffer(),
-      reserveLiquidityMint.toBuffer(),
-    ],
+    [Buffer.from(SEED_FEE_RECEIVER), lendingMarket.toBuffer(), reserveLiquidityMint.toBuffer()],
     KLEND_PROGRAM_ID
   );
 }
@@ -98,9 +87,7 @@ export function deriveReserveCollateralSupply(
   );
 }
 
-export function deriveReferrerTokenState(
-  referrer: PublicKey
-): [PublicKey, number] {
+export function deriveReferrerTokenState(referrer: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from(SEED_BASE_REFERRER_TOKEN_STATE), referrer.toBuffer()],
     KLEND_PROGRAM_ID

@@ -327,12 +327,11 @@ export async function makeKaminoWithdrawIx({
 
   const lendingMarket = reserve.lendingMarket;
 
-  const {
-    lendingMarketAuthority,
-    reserveLiquiditySupply,
-    reserveCollateralMint,
-    reserveDestinationDepositCollateral,
-  } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
+  const reserveLiquiditySupply = reserve.liquidity.supplyVault;
+  const reserveCollateralMint = reserve.collateral.mintPubkey;
+  const reserveDestinationDepositCollateral = reserve.collateral.supplyVault;
+
+  const { lendingMarketAuthority } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
   if (!bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");

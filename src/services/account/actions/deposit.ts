@@ -269,12 +269,11 @@ export async function makeKaminoDepositIx({
 
   const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
 
-  const {
-    lendingMarketAuthority,
-    reserveLiquiditySupply,
-    reserveCollateralMint,
-    reserveDestinationDepositCollateral,
-  } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
+  const reserveLiquiditySupply = reserve.liquidity.supplyVault;
+  const reserveCollateralMint = reserve.collateral.mintPubkey;
+  const reserveDestinationDepositCollateral = reserve.collateral.supplyVault;
+
+  const { lendingMarketAuthority } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
   if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
     depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
