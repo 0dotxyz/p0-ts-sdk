@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.3] - 2026-02-18
+
+### Fixed
+
+- **Kamino Account Derivation** - Use on-chain reserve account addresses instead of PDA derivation for Kamino deposit and withdraw instructions
+  - `reserveLiquiditySupply`, `reserveCollateralMint`, and `reserveDestinationDepositCollateral` now read directly from the reserve state (`reserve.liquidity.supplyVault`, `reserve.collateral.mintPubkey`, `reserve.collateral.supplyVault`)
+  - Removed unused derived accounts from `getAllDerivedKaminoAccounts` calls (only `lendingMarketAuthority` is still derived)
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
 ## [2.0.0-alpha.2] - 2026-02-16
 
 ### Added
