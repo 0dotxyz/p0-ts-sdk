@@ -6,3 +6,4 @@ export * from "./switchboard_pull";
 export * from "./klend";
 export * from "./spl";
 export * from "./drift";
+export * from "./jup-lend";

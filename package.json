@@ -72,6 +72,8 @@
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
     "@coral-xyz/borsh": "0.30.1",
+    "@jup-ag/api": "6.0.47",
+    "@jup-ag/lend": "^0.1.7",
     "@solana/buffer-layout": "^4.0.1",
     "@solana/buffer-layout-utils": "^0.3.0",
     "@solana/web3.js": "1.98.4",
@@ -82,7 +84,6 @@
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
     "decimal.js": "^10.5.0",
-    "@jup-ag/api": "6.0.47",
     "superstruct": "^1.0.4"
   },
   "devDependencies": {
