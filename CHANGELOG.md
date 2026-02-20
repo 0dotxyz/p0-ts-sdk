@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.4] - 2026-02-20
+
+### Added
+
+- **LST_PT E-mode Tag Support** - Added support for the `LST_PT` emode tag (`15787`) in SDK emode parsing
+  - Updated `parseEmodeTag` to correctly classify and expose the new tag
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
 ## [2.0.0-alpha.3] - 2026-02-18
 
 ### Fixed
