@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-20
+
+### 🎉 Stable Release
+
+Graduates the 2.0.0 alpha series to stable, including emode lifecycle support and action/accounting fixes.
+
+### Added
+
+- **E-mode Lifecycle Support** - Full emode state support across client and account wrapper flows
+  - Added emode pair generation, active pair/weight resolution, and per-bank impact analysis
+- **Typed Amount Handling** - Added `TypedAmount` and `resolveAmount()` for explicit UI token vs cToken amount inputs
+- **LST_PT E-mode Tag Support** - Added support for the `LST_PT` emode tag (`15787`) in SDK emode parsing
+
+### Fixed
+
+- **Kamino Account Derivation** - Uses reserve accounts directly from on-chain state instead of derived addresses
+- **cToken Amount Conversion** - Improved cToken conversion accuracy across withdraw, repay, and swap-collateral flows
+- **E-mode Health Inputs** - Replaced placeholder emode values with active-pair derived values in health and max-amount computations
+
 ## [2.0.0-alpha.4] - 2026-02-20
 
 ### Added
