@@ -20,7 +20,7 @@ import {
   MarginfiAccount,
   AssetTag,
   simulateBundle,
-} from "p0-ts-sdk";
+} from "../src";
 import {
   getConnection,
   getMarginfiConfig,
