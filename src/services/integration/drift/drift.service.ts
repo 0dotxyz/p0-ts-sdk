@@ -23,9 +23,9 @@ import { DriftStateJsonByBank } from "./drift.types";
 
 export interface DriftMetadata {
   driftStates: {
-    driftSpotMarketState: DriftSpotMarket;
-    driftUserState: DriftUser;
-    driftUserRewards: DriftRewards[];
+    spotMarketState: DriftSpotMarket;
+    userState: DriftUser;
+    userRewards: DriftRewards[];
   };
 }
 
@@ -93,9 +93,9 @@ export async function getDriftMetadata(
   for (const [bankAddress, state] of Object.entries(driftStates)) {
     driftMetadataMap.set(bankAddress, {
       driftStates: {
-        driftSpotMarketState: dtoToDriftSpotMarketRaw(state.driftSpotMarketState),
-        driftUserState: dtoToDriftUserRaw(state.driftUserState),
-        driftUserRewards: state.driftUserRewards.map((r) => dtoToDriftRewardsRaw(r)),
+        spotMarketState: dtoToDriftSpotMarketRaw(state.driftSpotMarketState),
+        userState: dtoToDriftUserRaw(state.driftUserState),
+        userRewards: state.driftUserRewards.map((r) => dtoToDriftRewardsRaw(r)),
       },
     });
   }
