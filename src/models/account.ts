@@ -829,6 +829,11 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeLoopTx({
       ...params,
       marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
     });
   }
 
@@ -870,6 +875,11 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeRepayWithCollatTx({
       ...params,
       marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
     });
   }
 
@@ -910,6 +920,11 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeSwapCollateralTx({
       ...params,
       marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
     });
   }
 
@@ -949,6 +964,11 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeSwapDebtTx({
       ...params,
       marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
     });
   }
 
@@ -1023,6 +1043,13 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeBorrowTx({
       ...params,
       marginfiAccount: this,
+      opts: {
+        ...params.opts,
+        overrideInferAccounts: {
+          authority: this.authority,
+          ...params.opts?.overrideInferAccounts,
+        },
+      },
     });
   }
 
@@ -1058,6 +1085,14 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeWithdrawTx({
       ...params,
       marginfiAccount: this,
+      opts: {
+        ...params.opts,
+        overrideInferAccounts: {
+          authority: this.authority,
+          group: this.group,
+          ...params.opts?.overrideInferAccounts,
+        },
+      },
     });
   }
 
@@ -1075,6 +1110,14 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeDriftWithdrawTx({
       ...params,
       marginfiAccount: this,
+      opts: {
+        ...params.opts,
+        overrideInferAccounts: {
+          authority: this.authority,
+          group: this.group,
+          ...params.opts?.overrideInferAccounts,
+        },
+      },
     });
   }
 
@@ -1092,6 +1135,14 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeKaminoWithdrawTx({
       ...params,
       marginfiAccount: this,
+      opts: {
+        ...params.opts,
+        overrideInferAccounts: {
+          authority: this.authority,
+          group: this.group,
+          ...params.opts?.overrideInferAccounts,
+        },
+      },
     });
   }
 
