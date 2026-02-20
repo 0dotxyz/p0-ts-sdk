@@ -1,9 +1,10 @@
 import { Connection } from "@solana/web3.js";
 import { Bank } from "~/models/bank";
 import { BankIntegrationMetadataMap } from "~/types";
-import { fetchKaminoMetadata, KaminoMetadata } from "./kamino/kamino.service";
+import { getKaminoMetadata, KaminoMetadata } from "./kamino";
+import { getDriftMetadata, DriftMetadata } from "./drift";
 
-export type IntegrationType = "kamino"; // Future: | "drift" | "solend"
+export type IntegrationType = "kamino" | "drift"; // Future: | "solend"
 
 export interface FetchBankIntegrationMetadataOptions {
   connection: Connection;
@@ -37,36 +38,34 @@ export interface FetchBankIntegrationMetadataOptions {
 export async function fetchBankIntegrationMetadata(
   options: FetchBankIntegrationMetadataOptions
 ): Promise<BankIntegrationMetadataMap> {
-  const { connection, banks, integrations = ["kamino"] } = options;
+  const { connection, banks, integrations = ["kamino", "drift"] } = options;
   const bankIntegrationMap: BankIntegrationMetadataMap = {};
 
   // Fetch from each integration in parallel
   const fetchPromises: Promise<{
     type: IntegrationType;
-    data: Map<string, KaminoMetadata>; // Future: union type for all integration metadata
+    data: Map<string, KaminoMetadata | DriftMetadata>;
   }>[] = [];
 
   if (integrations.includes("kamino")) {
     fetchPromises.push(
-      fetchKaminoMetadata({ connection, banks }).then(
-        (kaminoMap: Map<string, KaminoMetadata>) => ({
-          type: "kamino" as const,
-          data: kaminoMap,
-        })
-      )
+      getKaminoMetadata({ connection, banks }).then((kaminoMap: Map<string, KaminoMetadata>) => ({
+        type: "kamino" as const,
+        data: kaminoMap,
+      }))
+    );
+  }
+
+  if (integrations.includes("drift")) {
+    fetchPromises.push(
+      getDriftMetadata({ connection, banks }).then((driftMap: Map<string, DriftMetadata>) => ({
+        type: "drift" as const,
+        data: driftMap,
+      }))
     );
   }
 
   // Future integrations:
-  // if (integrations.includes("drift")) {
-  //   fetchPromises.push(
-  //     fetchDriftMetadata({ connection, banks }).then((driftMap) => ({
-  //       type: "drift" as const,
-  //       data: driftMap,
-  //     }))
-  //   );
-  // }
-  //
   // if (integrations.includes("solend")) {
   //   fetchPromises.push(
   //     fetchSolendMetadata({ connection, banks }).then((solendMap) => ({

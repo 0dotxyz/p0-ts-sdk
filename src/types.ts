@@ -124,3 +124,17 @@ export interface WrappedI80F48 {
 }
 
 export type Amount = BigNumber | number | string;
+
+export type AmountType = "uiToken" | "cToken";
+
+export type TypedAmount = {
+  value: Amount;
+  type: AmountType;
+};
+
+export function resolveAmount(amount: Amount | TypedAmount): { value: Amount; type: AmountType } {
+  if (typeof amount === "object" && amount !== null && "type" in amount && "value" in amount) {
+    return amount as TypedAmount;
+  }
+  return { value: amount as Amount, type: "uiToken" };
+}

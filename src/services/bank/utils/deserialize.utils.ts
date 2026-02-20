@@ -615,6 +615,18 @@ export function parseEmodeTag(emodeTagRaw: number): EmodeTag {
       return EmodeTag.LST_T1;
     case 1572:
       return EmodeTag.LST_T2;
+    case 15787:
+      return EmodeTag.LST_PT;
+    case 619:
+      return EmodeTag.JLP;
+    case 57481:
+      return EmodeTag.STABLE_T1;
+    case 57482:
+      return EmodeTag.STABLE_T2;
+    case 871:
+      return EmodeTag.BTC_T1;
+    case 872:
+      return EmodeTag.BTC_T2;
     case 0:
     default:
       return EmodeTag.UNSET;

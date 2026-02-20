@@ -4,6 +4,7 @@ import BigNumber from "bignumber.js";
 import {
   ActionEmodeImpact,
   ActiveEmodePair,
+  BankType,
   EmodeImpact,
   EmodeImpactStatus,
   EmodePair,
@@ -11,12 +12,76 @@ import {
 } from "~/services/bank/types";
 
 /**
+ * Generates emode pairs from an array of banks by analyzing their emode configurations.
+ * @param banks - Array of banks to analyze for emode relationships
+ * @returns Array of emode pairs defining relationships between liability and collateral banks
+ */
+export function getEmodePairs(banks: BankType[]): EmodePair[] {
+  const emodePairs: EmodePair[] = [];
+
+  banks.forEach((bank) => {
+    const emodeTag = bank.emode.emodeTag;
+
+    if (emodeTag === EmodeTag.UNSET) {
+      return;
+    }
+
+    bank.emode.emodeEntries.forEach((emodeEntry) => {
+      emodePairs.push({
+        collateralBanks: banks
+          .filter((b) => b.emode.emodeTag === emodeEntry.collateralBankEmodeTag)
+          .map((b) => b.address),
+        collateralBankTag: emodeEntry.collateralBankEmodeTag,
+        liabilityBank: bank.address,
+        liabilityBankTag: emodeTag,
+        assetWeightMaint: emodeEntry.assetWeightMaint,
+        assetWeightInit: emodeEntry.assetWeightInit,
+      });
+    });
+  });
+
+  return emodePairs;
+}
+
+/**
+ * Computes the lowest emode weights for each collateral bank across all active emode pairs.
+ * Returns a Map keyed by bank address string for consistency with other SDK maps.
+ *
+ * @param emodePairs - Array of emode pairs to analyze
+ * @returns Map of bank address → lowest { assetWeightInit, assetWeightMaint }
+ */
+export function computeLowestEmodeWeights(
+  emodePairs: EmodePair[]
+): Map<string, { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }> {
+  const result = new Map<string, { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }>();
+
+  emodePairs.forEach((emodePair) => {
+    emodePair.collateralBanks.forEach((collateralBankPk) => {
+      const bankPkStr = collateralBankPk.toBase58();
+      const existing = result.get(bankPkStr);
+
+      if (!existing) {
+        result.set(bankPkStr, {
+          assetWeightInit: emodePair.assetWeightInit,
+          assetWeightMaint: emodePair.assetWeightMaint,
+        });
+      } else {
+        result.set(bankPkStr, {
+          assetWeightInit: BigNumber.min(existing.assetWeightInit, emodePair.assetWeightInit),
+          assetWeightMaint: BigNumber.min(existing.assetWeightMaint, emodePair.assetWeightMaint),
+        });
+      }
+    });
+  });
+
+  return result;
+}
+
+/**
  * Creates an ActiveEmodePair from a list of active EmodePairs.
  * Selects the pair with the lowest assetWeightInit and aggregates all banks and tags.
  */
-export function createActiveEmodePairFromPairs(
-  pairs: EmodePair[]
-): ActiveEmodePair | undefined {
+export function createActiveEmodePairFromPairs(pairs: EmodePair[]): ActiveEmodePair | undefined {
   if (pairs.length === 0) {
     return undefined;
   }
@@ -39,9 +104,7 @@ export function createActiveEmodePairFromPairs(
           .map((bank) => [bank.toBase58(), bank])
       ).values()
     ),
-    collateralBankTags: Array.from(
-      new Set(pairs.map((p) => p.collateralBankTag).flat())
-    ),
+    collateralBankTags: Array.from(new Set(pairs.map((p) => p.collateralBankTag).flat())),
     liabilityBanks: Array.from(
       new Map(
         pairs
@@ -50,9 +113,7 @@ export function createActiveEmodePairFromPairs(
           .map((bank) => [bank.toBase58(), bank])
       ).values()
     ),
-    liabilityBankTags: Array.from(
-      new Set(pairs.map((p) => p.liabilityBankTag).flat())
-    ),
+    liabilityBankTags: Array.from(new Set(pairs.map((p) => p.liabilityBankTag).flat())),
     assetWeightMaint: bestPair.assetWeightMaint,
     assetWeightInit: bestPair.assetWeightInit,
   };
@@ -67,11 +128,7 @@ export function computeEmodeImpacts(
   const toKey = (k: PublicKey) => k.toBase58();
 
   // Baseline state
-  const basePairs = computeActiveEmodePairs(
-    emodePairs,
-    activeLiabilities,
-    activeCollateral
-  );
+  const basePairs = computeActiveEmodePairs(emodePairs, activeLiabilities, activeCollateral);
   const baseOn = basePairs.length > 0;
 
   // Liability tag map & existing tags
@@ -80,9 +137,7 @@ export function computeEmodeImpacts(
     liabTagMap.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
   }
   const existingTags = new Set<string>(
-    activeLiabilities
-      .map((l) => liabTagMap.get(l.toBase58()))
-      .filter((t): t is string => !!t)
+    activeLiabilities.map((l) => liabTagMap.get(l.toBase58())).filter((t): t is string => !!t)
   );
 
   // Helper for min initial weight (used in diffState only)
@@ -94,10 +149,7 @@ export function computeEmodeImpacts(
   }
 
   // Determine status transitions
-  function diffState(
-    before: EmodePair[],
-    after: EmodePair[]
-  ): EmodeImpactStatus {
+  function diffState(before: EmodePair[], after: EmodePair[]): EmodeImpactStatus {
     const was = before.length > 0,
       isOn = after.length > 0;
     if (!was && !isOn) return EmodeImpactStatus.InactiveEmode;
@@ -116,9 +168,7 @@ export function computeEmodeImpacts(
     bank: PublicKey,
     action: "borrow" | "repay" | "supply" | "withdraw"
   ): EmodeImpact {
-    const isSolBank = bank.equals(
-      new PublicKey("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh")
-    );
+    const isSolBank = bank.equals(new PublicKey("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh"));
 
     let L = [...activeLiabilities],
       C = [...activeCollateral];
@@ -146,9 +196,7 @@ export function computeEmodeImpacts(
 
       // Borrowing an unconfigured bank => EMODE off / inactive
       if (!tag) {
-        status = baseOn
-          ? EmodeImpactStatus.RemoveEmode
-          : EmodeImpactStatus.InactiveEmode;
+        status = baseOn ? EmodeImpactStatus.RemoveEmode : EmodeImpactStatus.InactiveEmode;
 
         // EMODE was ON; keep the diffState result unless EMODE really turns OFF
       } else if (baseOn) {
@@ -209,9 +257,7 @@ export function computeEmodeImpacts(
     }
 
     // Only supply for collateral-configured banks not in play
-    const collSet = new Set(
-      emodePairs.flatMap((p) => p.collateralBanks.map((c) => c.toBase58()))
-    );
+    const collSet = new Set(emodePairs.flatMap((p) => p.collateralBanks.map((c) => c.toBase58())));
     if (
       collSet.has(key) &&
       !activeCollateral.some((x) => x.equals(bank)) &&
@@ -240,19 +286,14 @@ export function computeActiveEmodePairs(
 ): EmodePair[] {
   // 1) Drop any pairs with an “unset” tag (0)
   const configured = emodePairs.filter(
-    (p) =>
-      p.collateralBankTag !== EmodeTag.UNSET &&
-      p.liabilityBankTag !== EmodeTag.UNSET
+    (p) => p.collateralBankTag !== EmodeTag.UNSET && p.liabilityBankTag !== EmodeTag.UNSET
   );
 
   // 2) Build the set of required liability‐tags from _all_ active liabilities
   //    If any liability has no configured entry at all, EMODE is off.
   const liabTagByBank = new Map<string, string>();
   for (const p of configured) {
-    liabTagByBank.set(
-      p.liabilityBank.toBase58(),
-      p.liabilityBankTag.toString()
-    );
+    liabTagByBank.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
   }
   const requiredTags = new Set<string>();
   for (const liab of activeLiabilities) {

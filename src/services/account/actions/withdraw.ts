@@ -30,6 +30,7 @@ import {
   makeUpdateDriftMarketIxs,
 } from "~/services/price";
 import { uiToNative } from "~/utils";
+import { resolveAmount } from "~/types";
 
 import {
   MakeKaminoWithdrawIxParams,
@@ -217,6 +218,7 @@ export async function makeDriftWithdrawTx(
       marginfiAccount: params.marginfiAccount,
       bankMap: params.bankMap,
       oraclePrices: params.oraclePrices,
+      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
       instructions: withdrawIxs.instructions,
       program: params.program,
       connection: params.connection,
@@ -293,7 +295,7 @@ export async function makeKaminoWithdrawIx({
   bank,
   bankMap,
   tokenProgram,
-  amount,
+  cTokenAmount,
   marginfiAccount,
   reserve,
   authority,
@@ -325,12 +327,11 @@ export async function makeKaminoWithdrawIx({
 
   const lendingMarket = reserve.lendingMarket;
 
-  const {
-    lendingMarketAuthority,
-    reserveLiquiditySupply,
-    reserveCollateralMint,
-    reserveDestinationDepositCollateral,
-  } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
+  const reserveLiquiditySupply = reserve.liquidity.supplyVault;
+  const reserveCollateralMint = reserve.collateral.mintPubkey;
+  const reserveDestinationDepositCollateral = reserve.collateral.supplyVault;
+
+  const { lendingMarketAuthority } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
 
   if (!bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
@@ -382,7 +383,7 @@ export async function makeKaminoWithdrawIx({
           reserveFarmState: reserveFarm,
         },
         {
-          amount: uiToNative(amount, bank.mintDecimals),
+          amount: uiToNative(cTokenAmount, bank.mintDecimals),
           isFinalWithdrawal: withdrawAll,
         },
         remainingAccounts.map((account) => ({
@@ -414,7 +415,7 @@ export async function makeKaminoWithdrawIx({
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
         },
         {
-          amount: uiToNative(amount, bank.mintDecimals),
+          amount: uiToNative(cTokenAmount, bank.mintDecimals),
           isFinalWithdrawal: withdrawAll,
         },
         remainingAccounts.map((account) => ({
@@ -549,6 +550,7 @@ export async function makeWithdrawTx(
       marginfiAccount: params.marginfiAccount,
       bankMap: params.bankMap,
       oraclePrices: params.oraclePrices,
+      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
       instructions: withdrawIxs.instructions,
       program: params.program,
       connection: params.connection,
@@ -623,15 +625,20 @@ export async function makeWithdrawTx(
 export async function makeKaminoWithdrawTx(
   params: MakeKaminoWithdrawTxParams
 ): Promise<TransactionBuilderResult> {
-  const { luts, connection, amount, ...withdrawIxParams } = params;
+  const { luts, connection, amount, assetShareValueMultiplierByBank, ...withdrawIxParams } = params;
 
   if (!withdrawIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
   }
 
-  const adjustedAmount = new BigNumber(amount)
-    .div(withdrawIxParams.bank.assetShareValue)
-    .toNumber();
+  const { value: amountValue, type: amountType } = resolveAmount(amount);
+  const multiplier =
+    assetShareValueMultiplierByBank.get(withdrawIxParams.bank.address.toBase58()) ??
+    new BigNumber(1);
+  const adjustedAmount =
+    amountType === "cToken"
+      ? new BigNumber(amountValue).toNumber()
+      : new BigNumber(amountValue).div(multiplier).toNumber();
 
   const refreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
@@ -648,7 +655,7 @@ export async function makeKaminoWithdrawTx(
   );
 
   const withdrawIxs = await makeKaminoWithdrawIx({
-    amount: adjustedAmount,
+    cTokenAmount: adjustedAmount,
     ...withdrawIxParams,
   });
 
@@ -657,6 +664,7 @@ export async function makeKaminoWithdrawTx(
     bankMap: params.bankMap,
     oraclePrices: params.oraclePrices,
     instructions: withdrawIxs.instructions,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     program: params.program,
     connection: params.connection,
     crossbarUrl: params.crossbarUrl,

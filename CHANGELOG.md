@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.4] - 2026-02-20
+
+### Added
+
+- **LST_PT E-mode Tag Support** - Added support for the `LST_PT` emode tag (`15787`) in SDK emode parsing
+  - Updated `parseEmodeTag` to correctly classify and expose the new tag
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
+## [2.0.0-alpha.3] - 2026-02-18
+
+### Fixed
+
+- **Kamino Account Derivation** - Use on-chain reserve account addresses instead of PDA derivation for Kamino deposit and withdraw instructions
+  - `reserveLiquiditySupply`, `reserveCollateralMint`, and `reserveDestinationDepositCollateral` now read directly from the reserve state (`reserve.liquidity.supplyVault`, `reserve.collateral.mintPubkey`, `reserve.collateral.supplyVault`)
+  - Removed unused derived accounts from `getAllDerivedKaminoAccounts` calls (only `lendingMarketAuthority` is still derived)
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
+## [2.0.0-alpha.2] - 2026-02-16
+
+### Added
+
+- **TypedAmount Support** - New `TypedAmount` type and `resolveAmount()` utility to distinguish between UI token amounts and cToken amounts
+  - `AmountType` union type: `"uiToken" | "cToken"`
+  - `TypedAmount` interface with `value` and `type` fields
+  - `resolveAmount()` helper that accepts both `Amount` and `TypedAmount`, defaulting to `"uiToken"`
+
+### Fixed
+
+- **cToken Amount Calculation** - Improved cToken conversion accuracy across withdraw, repay, and swap-collateral actions
+  - `makeKaminoWithdrawIx` now accepts explicit `cTokenAmount` parameter instead of ambiguous `amount`
+  - `makeKaminoWithdrawTx` uses `assetShareValueMultiplierByBank` and `resolveAmount()` for correct cToken/UI token handling
+  - Repay and swap-collateral flashloan builders now use `assetShareValueMultiplierByBank` for accurate cToken conversion instead of `bank.assetShareValue`
+  - `computeMaxBorrowForBank` now passes `assetShareValueMultiplier` to `computeQuantityUi` for correct asset calculations
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
+## [2.0.0-alpha.1] - 2026-02-12
+
+### Added
+
+- **E-mode State in SDK** - Full emode lifecycle support in the SDK class structure
+  - `getEmodePairs(banks)` — generates `EmodePair[]` from bank emode configurations
+  - `computeLowestEmodeWeights(emodePairs)` — computes lowest weight per collateral bank across active pairs
+  - `Project0Client` now stores `emodePairs` and generates them during `initialize()`
+  - `MarginfiAccountWrapper` new emode state getters:
+    - `getActiveEmodePairs()` — active pairs derived from account balances + client emode pairs
+    - `getActiveEmodeWeightsByBank()` — lowest emode weights Map for active pairs
+    - `getEmodeImpacts()` — per-bank action impact analysis using client emode pairs
+
+### Fixed
+
+- **Emode TODOs resolved** — All placeholder emode values in `MarginfiAccountWrapper` now use real data:
+  - `simulateHealthCache()` and `computeNetApy()` pass active emode weights instead of empty Map
+  - `computeMaxBorrowForBank()` passes real `emodeImpactStatus` and `activePair` from impact analysis
+  - `computeMaxWithdrawForBank()` passes real `activePair` from active emode pairs
+  - `fetchAccount()` computes and passes emode weights + asset share multipliers to health cache simulation
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
+## [2.0.0-alpha.0] - 2026-02-10
+
+### Changed
+
+- **Emode & Asset Weight Multiplier Refactor** - Refactored emode and asset weight multiplier logic
+- **Unified Health Functions** - Reworked health functions to have a more unified structure
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
+
 ## [1.2.7] - 2026-02-16
 
 ### Changed

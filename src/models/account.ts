@@ -3,22 +3,28 @@ import BigNumber from "bignumber.js";
 import { QuoteResponse } from "@jup-ag/api";
 
 import instructions from "~/instructions";
-import { Amount, BankIntegrationMetadataMap, MarginfiProgram, MintData, Program } from "~/types";
+import { Amount, MarginfiProgram, MintData } from "~/types";
 import { MarginfiIdlType } from "~/idl";
 import {
   AccountFlags,
   computeAccountValue,
   computeActiveEmodePairs,
   computeEmodeImpacts,
-  computeFreeCollateral,
-  computeFreeCollateralLegacy,
+  computeFreeCollateralFromCache,
+  computeFreeCollateralFromBalances,
+  ComputeFreeCollateralFromBalancesParams,
   computeHealthCheckAccounts,
-  computeHealthComponents,
-  computeHealthComponentsLegacy,
-  computeHealthComponentsWithoutBiasLegacy,
+  computeHealthComponentsFromCache,
+  computeHealthComponentsFromBalances,
+  ComputeHealthComponentsFromBalancesParams,
+  computeHealthComponentsWithoutBiasFromBalances,
+  ComputeHealthComponentsWithoutBiasParams,
   computeMaxBorrowForBank,
+  ComputeMaxBorrowForBankParams,
   computeMaxWithdrawForBank,
+  ComputeMaxWithdrawForBankParams,
   computeNetApy,
+  ComputeNetApyParams,
   computeProjectedActiveBalancesNoCpi,
   computeProjectedActiveBanksNoCpi,
   decodeAccountRaw,
@@ -62,6 +68,7 @@ import {
   MakeLoopTxParams,
   parseMarginfiAccountRaw,
   simulateAccountHealthCacheWithFallback,
+  SimulateAccountHealthCacheWithFallbackParams,
   TransactionBuilderResult,
   MakeDriftDepositTxParams,
   makeDriftDepositTx,
@@ -159,25 +166,15 @@ class MarginfiAccount implements MarginfiAccountType {
    * Fetches current oracle prices and computes fresh health values. Returns a new
    * account instance with updated health cache (does not mutate this instance).
    *
-   * @param program - The Marginfi program instance
-   * @param bankMap - Map of all available banks
-   * @param oraclePrices - Map of current oracle prices
-   * @param bankMetadataMap - Bank integration metadata
-   *
+   * @param params - Configuration for health cache simulation (excluding marginfiAccount)
    * @returns Object containing the updated account and any errors
    */
   async simulateHealthCache(
-    program: Program<MarginfiIdlType>,
-    bankMap: Map<string, Bank>,
-    oraclePrices: Map<string, OraclePrice>,
-    bankMetadataMap: BankIntegrationMetadataMap
+    params: Omit<SimulateAccountHealthCacheWithFallbackParams, "marginfiAccount">
   ) {
     const accountWithHealthCache = await simulateAccountHealthCacheWithFallback({
-      program,
-      bankMap,
-      oraclePrices,
       marginfiAccount: this,
-      bankMetadataMap: bankMetadataMap,
+      ...params,
     });
 
     return {
@@ -263,16 +260,26 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @returns The free collateral amount in USD
    */
-  computeFreeCollateral(opts?: { clamped?: boolean }): BigNumber {
-    return computeFreeCollateral(this, opts);
+  computeFreeCollateralFromCache(opts?: { clamped?: boolean }): BigNumber {
+    return computeFreeCollateralFromCache(this, opts);
   }
 
-  computeFreeCollateralLegacy(
-    banks: Map<string, BankType>,
-    oraclePrices: Map<string, OraclePrice>,
-    opts?: { clamped?: boolean }
+  /**
+   * Computes free collateral from balances using Initial margin requirements.
+   *
+   * Free collateral represents the amount of value available for new borrows or withdrawals.
+   * By default, negative values are clamped to zero.
+   *
+   * @param params - Configuration for free collateral computation (excluding activeBalances)
+   * @returns Free collateral value in USD (clamped to zero by default)
+   */
+  computeFreeCollateralFromBalances(
+    params: Omit<ComputeFreeCollateralFromBalancesParams, "activeBalances">
   ): BigNumber {
-    return computeFreeCollateralLegacy(this.activeBalances, banks, oraclePrices, opts);
+    return computeFreeCollateralFromBalances({
+      activeBalances: this.activeBalances,
+      ...params,
+    });
   }
 
   /**
@@ -284,45 +291,53 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @returns Object containing assets and liabilities values in USD
    */
-  computeHealthComponents(marginReqType: MarginRequirementType): {
+  computeHealthComponentsFromCache(marginRequirement: MarginRequirementType): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return computeHealthComponents(this, marginReqType);
+    return computeHealthComponentsFromCache(this, marginRequirement);
   }
 
-  computeHealthComponentsLegacy(
-    banks: Map<string, Bank>,
-    oraclePrices: Map<string, OraclePrice>,
-    marginReqType: MarginRequirementType,
-    excludedBanks: PublicKey[] = []
+  /**
+   * Computes health components from balances with price bias.
+   *
+   * Returns weighted asset and liability values using conservative pricing
+   * (Lowest for assets, Highest for liabilities).
+   *
+   * @param params - Configuration for health computation (excluding activeBalances)
+   * @returns Object containing assets and liabilities values in USD
+   */
+  computeHealthComponentsFromBalances(
+    params: Omit<ComputeHealthComponentsFromBalancesParams, "activeBalances">
   ): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return computeHealthComponentsLegacy(
-      this.activeBalances,
-      banks,
-      oraclePrices,
-      marginReqType,
-      excludedBanks
-    );
+    return computeHealthComponentsFromBalances({
+      activeBalances: this.activeBalances,
+      ...params,
+    });
   }
 
-  computeHealthComponentsWithoutBiasLegacy(
-    banks: Map<string, Bank>,
-    oraclePrices: Map<string, OraclePrice>,
-    marginReqType: MarginRequirementType
+  /**
+   * Computes health components from balances without price bias.
+   *
+   * Returns weighted asset and liability values using neutral pricing
+   * (no conservative adjustments).
+   *
+   * @param params - Configuration for health computation (excluding activeBalances)
+   * @returns Object containing assets and liabilities values in USD
+   */
+  computeHealthComponentsWithoutBiasFromBalances(
+    params: Omit<ComputeHealthComponentsWithoutBiasParams, "activeBalances">
   ): {
     assets: BigNumber;
     liabilities: BigNumber;
   } {
-    return computeHealthComponentsWithoutBiasLegacy(
-      this.activeBalances,
-      banks,
-      oraclePrices,
-      marginReqType
-    );
+    return computeHealthComponentsWithoutBiasFromBalances({
+      activeBalances: this.activeBalances,
+      ...params,
+    });
   }
 
   /**
@@ -339,15 +354,18 @@ class MarginfiAccount implements MarginfiAccountType {
   /**
    * Computes the net APY (Annual Percentage Yield) for this account.
    *
-   * Takes into account all active positions and their respective interest rates.
+   * The net APY represents the combined annualized return from all lending and borrowing
+   * positions, weighted by their USD values.
    *
-   * @param banks - Map of all available banks
-   * @param oraclePrices - Map of oracle prices for all assets
-   *
+   * @param params - Configuration for net APY computation (excluding marginfiAccount and activeBalances)
    * @returns The net APY as a decimal (e.g., 0.05 = 5%)
    */
-  computeNetApy(banks: Map<string, BankType>, oraclePrices: Map<string, OraclePrice>): number {
-    return computeNetApy(this, this.activeBalances, banks, oraclePrices);
+  computeNetApy(params: Omit<ComputeNetApyParams, "marginfiAccount" | "activeBalances">): number {
+    return computeNetApy({
+      marginfiAccount: this,
+      activeBalances: this.activeBalances,
+      ...params,
+    });
   }
 
   /**
@@ -359,15 +377,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * - Risk weights and oracle prices
    * - E-mode configurations if applicable
    *
-   * Formula:
-   * q = (min(fc, ucb) / (price_lowest_bias * deposit_weight)) + (fc - min(fc, ucb)) / (price_highest_bias * liab_weight)
-   * where fc = free collateral, ucb = untied collateral for bank
-   *
-   * @param banks - Map of all available banks
-   * @param oraclePrices - Map of oracle prices
-   * @param bankAddress - The bank to borrow from
-   * @param opts - Optional configuration for e-mode and volatility
-   *
+   * @param params - Configuration for max borrow computation (excluding account)
    * @returns Maximum borrowable amount in UI units
    *
    * @remarks
@@ -375,17 +385,11 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @see {@link computeMaxBorrowForBank} for implementation details
    */
-  computeMaxBorrowForBank(
-    banks: Map<string, BankType>,
-    oraclePrices: Map<string, OraclePrice>,
-    bankAddress: PublicKey,
-    opts?: {
-      emodeImpactStatus?: EmodeImpactStatus;
-      volatilityFactor?: number;
-      activePair?: ActiveEmodePair;
-    }
-  ): BigNumber {
-    return computeMaxBorrowForBank(this, banks, oraclePrices, bankAddress, opts);
+  computeMaxBorrowForBank(params: Omit<ComputeMaxBorrowForBankParams, "account">): BigNumber {
+    return computeMaxBorrowForBank({
+      account: this,
+      ...params,
+    });
   }
 
   /**
@@ -393,25 +397,16 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * Ensures the account remains healthy after withdrawal by checking collateral requirements.
    *
-   * @param banks - Map of all available banks
-   * @param oraclePrices - Map of oracle prices
-   * @param bankAddress - The bank to withdraw from
-   * @param opts - Optional configuration for e-mode and volatility
-   *
+   * @param params - Configuration for max withdraw computation (excluding account)
    * @returns Maximum withdrawable amount in UI units
    *
    * @see {@link computeMaxWithdrawForBank} for implementation details
    */
-  computeMaxWithdrawForBank(
-    banks: Map<string, BankType>,
-    oraclePrices: Map<string, OraclePrice>,
-    bankAddress: PublicKey,
-    opts?: {
-      volatilityFactor?: number;
-      activePair?: ActiveEmodePair;
-    }
-  ): BigNumber {
-    return computeMaxWithdrawForBank(this, banks, oraclePrices, bankAddress, opts);
+  computeMaxWithdrawForBank(params: Omit<ComputeMaxWithdrawForBankParams, "account">): BigNumber {
+    return computeMaxWithdrawForBank({
+      account: this,
+      ...params,
+    });
   }
 
   /**
@@ -753,7 +748,8 @@ class MarginfiAccount implements MarginfiAccountType {
   computeProjectedActiveBalancesNoCpi(
     program: MarginfiProgram,
     instructions: TransactionInstruction[],
-    bankMap: Map<string, BankType>
+    banksMap: Map<string, BankType>,
+    assetShareValueMultiplierByBank: Map<string, BigNumber>
   ): {
     projectedBalances: Balance[];
     impactedAssetsBanks: string[];
@@ -763,7 +759,8 @@ class MarginfiAccount implements MarginfiAccountType {
       this.balances,
       instructions,
       program,
-      bankMap
+      banksMap,
+      assetShareValueMultiplierByBank
     );
 
     return {

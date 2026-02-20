@@ -221,6 +221,7 @@ export enum EmodeTag {
   SOL = 501,
   LST_T1 = 1571,
   LST_T2 = 1572,
+  LST_PT = 15787,
   JLP = 619,
   STABLE_T1 = 57481,
   STABLE_T2 = 57482,

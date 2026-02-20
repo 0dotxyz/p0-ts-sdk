@@ -12,7 +12,7 @@ import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { SolanaTransaction } from "~/services/transaction";
-import { Amount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
 
@@ -139,7 +139,7 @@ export interface MakeKaminoWithdrawIxParams {
   bank: BankType;
   bankMap: Map<string, BankType>;
   tokenProgram: PublicKey;
-  amount: Amount;
+  cTokenAmount: Amount;
   marginfiAccount: MarginfiAccountType;
   authority: PublicKey;
   reserve: ReserveRaw;
@@ -166,13 +166,19 @@ export interface MakeWithdrawIxParams {
 export interface MakeWithdrawTxParams extends MakeWithdrawIxParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }
 
-export interface MakeKaminoWithdrawTxParams extends MakeKaminoWithdrawIxParams {
+export interface MakeKaminoWithdrawTxParams extends Omit<
+  MakeKaminoWithdrawIxParams,
+  "cTokenAmount"
+> {
+  amount: Amount | TypedAmount;
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }
@@ -202,6 +208,7 @@ export interface MakeBorrowIxParams {
 export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
@@ -210,6 +217,7 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
 export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }
@@ -252,6 +260,7 @@ export interface MakeLoopTxParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   depositOpts: {
     // if deposit looping, this principal amount will be added
     inputDepositAmount: number;
@@ -293,6 +302,7 @@ export interface MakeRepayWithCollatTxParams {
   connection: Connection;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
   withdrawOpts: {
     // Amount of the total position
@@ -340,6 +350,7 @@ export interface MakeSwapCollateralTxParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   withdrawOpts: {
     // Amount of the total position (used for withdrawAll case)
     totalPositionAmount: number;
@@ -377,6 +388,7 @@ export interface MakeSwapDebtTxParams {
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   // Source debt (what we're repaying)
   repayOpts: {
     // Amount of the total debt position (used for repayAll case)
