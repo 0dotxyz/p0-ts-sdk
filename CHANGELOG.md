@@ -1,9 +1,12 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [2.0.0-alpha.5] - 2026-02-23
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Added
+
+- **Lookup Table Address** - Added new lookup table address `qmH8NYYdHkbLYwAdAwnrqiPdBvayjn3DQwRUi9MoXX4` to main pool
+
+⚠️ **Alpha Release** - This is an unstable pre-release version. Not recommended for production use.
 
 ## [2.0.0-alpha.4] - 2026-02-20
 
@@ -322,7 +325,6 @@ This stable release graduates from alpha and includes comprehensive Drift Protoc
   - Renamed `calculateLendingAPY` → `calculateDriftLendingAPY`
   - Renamed `calculateBorrowAPR` → `calculateDriftBorrowAPR`
   - Renamed `calculateBorrowAPY` → `calculateDriftBorrowAPY`
-  
 - **Klend Function Naming** - Improved naming consistency with `Kamino` or `Klend` prefix
   - Renamed `InterestRateCurvePoint` → `KlendInterestRateCurvePoint`
   - Renamed `getBorrowRate` → `getKaminoBorrowRate`
@@ -337,7 +339,6 @@ This stable release graduates from alpha and includes comprehensive Drift Protoc
 
 - **Sync Instructions** - Fixed `isWritable` flag misconfiguration
   - Set `group` account to `isWritable: true` in Drift withdraw sync instruction (was incorrectly set to `false`)
-  
 - **Repay Actions** - Changed to use async instructions for better transaction reliability
   - Updated `buildRepayWithCollatFlashloanTx`: Changed withdraw instructions from `isSync: true` to `isSync: false` (3 instances)
   - Updated `buildRepayTxn`: Changed borrow and repay instructions from `isSync: true` to `isSync: false` (2 instances)
@@ -463,12 +464,14 @@ Official v1.0.0 release of the **@0dotxyz/p0-ts-sdk** - A production-ready TypeS
 ### Features
 
 #### Core SDK
+
 - ✅ **Type-safe client** - `Project0Client` with full TypeScript support
 - ✅ **Account management** - `MarginfiAccountWrapper` for clean account operations
 - ✅ **Modern build tooling** - tsup with optimized ESM + CJS bundles
 - ✅ **Tree-shakeable exports** - Separate vendor entry point for oracle integrations
 
 #### Protocol Operations
+
 - ✅ **Deposits & Withdrawals** - Full support for lending operations
 - ✅ **Borrows & Repayments** - Leverage and debt management
 - ✅ **Multi-bank support** - Handle main + Kamino banks seamlessly
@@ -476,6 +479,7 @@ Official v1.0.0 release of the **@0dotxyz/p0-ts-sdk** - A production-ready TypeS
 - ✅ **Max amount calculations** - Safe borrow/withdraw limits
 
 #### Developer Experience
+
 - ✅ **7+ runnable examples** - Covering all core features
 - ✅ **Comprehensive tests** - Unit + integration test suites with Vitest
 - ✅ **Full documentation** - Complete SDK docs and migration guides
@@ -493,6 +497,7 @@ Official v1.0.0 release of the **@0dotxyz/p0-ts-sdk** - A production-ready TypeS
 ### Migration from Alpha
 
 If migrating from previous alpha versions or `p0-ts-sdk`:
+
 - Update package name to `@0dotxyz/p0-ts-sdk`
 - Update all imports to use the scoped package name
 - No API breaking changes from alpha.3
