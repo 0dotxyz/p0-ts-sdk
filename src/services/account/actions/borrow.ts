@@ -17,6 +17,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import syncInstructions from "~/sync-instructions";
 import {
@@ -128,6 +129,13 @@ export async function makeBorrowIx({
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<TransactionBuilderResult> {
   const { luts, connection, ...borrowIxParams } = params;
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [borrowIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -185,6 +193,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
         instructions: [
           ...kaminoRefreshIxs.instructions,
           ...updateDriftMarketIxs.instructions,
+          ...updateJupLendRateIxs.instructions,
           ...borrowIxs.instructions,
         ],
         payerKey: params.authority,

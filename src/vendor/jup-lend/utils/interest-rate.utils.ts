@@ -1,5 +1,5 @@
 import BN from "bn.js";
-import { JupLendingStateRaw, JupLendingRewardsRateModelRaw, JupTokenReserveRaw } from "../types";
+import { JupLendingState, JupLendingRewardsRateModel, JupTokenReserve } from "../types";
 
 /**
  * Jup-Lend Interest Rate & Exchange Price Utilities
@@ -29,12 +29,10 @@ export const JUP_MAX_REWARDS_RATE = new BN("50000000000000"); // 50 * 1e12 = 50%
  * @returns Total assets as BN in underlying token lamports
  */
 export function calculateJupLendTotalAssets(
-  lendingState: JupLendingStateRaw,
+  lendingState: JupLendingState,
   fTokenTotalSupply: BN
 ): BN {
-  return lendingState.tokenExchangePrice
-    .mul(fTokenTotalSupply)
-    .div(JUP_EXCHANGE_PRICES_PRECISION);
+  return lendingState.tokenExchangePrice.mul(fTokenTotalSupply).div(JUP_EXCHANGE_PRICES_PRECISION);
 }
 
 // ============================================================================
@@ -57,7 +55,7 @@ export interface JupLendRewardsResult {
  * @returns Rewards rate, whether rewards ended, and start time
  */
 export function calculateJupLendRewardsRate(
-  rewardsModel: JupLendingRewardsRateModelRaw,
+  rewardsModel: JupLendingRewardsRateModel,
   totalAssets: BN,
   currentTimestamp: BN
 ): JupLendRewardsResult {
@@ -79,9 +77,7 @@ export function calculateJupLendRewardsRate(
     return defaultResult;
   }
 
-  let rewardsRate = rewardsModel.yearlyReward
-    .mul(new BN(1e4))
-    .div(totalAssets);
+  let rewardsRate = rewardsModel.yearlyReward.mul(new BN(1e4)).div(totalAssets);
 
   if (rewardsRate.gt(JUP_MAX_REWARDS_RATE)) {
     rewardsRate = JUP_MAX_REWARDS_RATE;
@@ -95,53 +91,116 @@ export function calculateJupLendRewardsRate(
 }
 
 // ============================================================================
+// REWARDS RATE FOR EXCHANGE PRICE (1e12 precision)
+// ============================================================================
+
+/**
+ * Calculate the rewards rate at 1e12 precision for use in exchange price projection.
+ * Mirrors SDK's `getRewardsRate` (earn/index.mjs line 261), NOT `calculateRewardsRate`.
+ *
+ * This is distinct from `calculateJupLendRewardsRate` which uses 1e4 precision for APR display.
+ *
+ * @param rewardsModel - The on-chain LendingRewardsRateModel account
+ * @param totalAssets - Total assets in the market (from calculateJupLendTotalAssets)
+ * @param currentTimestamp - Current unix timestamp (seconds)
+ * @returns Rate at 1e12 precision and rewards start time
+ */
+export function calculateJupLendRewardsRateForExchangePrice(
+  rewardsModel: JupLendingRewardsRateModel,
+  totalAssets: BN,
+  currentTimestamp: BN
+): { rate: BN; rewardsStartTime: BN } {
+  const defaultResult = { rate: new BN(0), rewardsStartTime: rewardsModel.startTime };
+
+  if (rewardsModel.startTime.isZero() || rewardsModel.duration.isZero()) {
+    return defaultResult;
+  }
+
+  if (currentTimestamp.gt(rewardsModel.startTime.add(rewardsModel.duration))) {
+    return defaultResult;
+  }
+
+  if (totalAssets.lt(rewardsModel.startTvl)) {
+    return defaultResult;
+  }
+
+  let rate = rewardsModel.yearlyReward.mul(JUP_EXCHANGE_PRICES_PRECISION).div(totalAssets);
+
+  if (rate.gt(JUP_MAX_REWARDS_RATE)) {
+    rate = JUP_MAX_REWARDS_RATE;
+  }
+
+  return { rate, rewardsStartTime: rewardsModel.startTime };
+}
+
+// ============================================================================
 // EXCHANGE PRICE PROJECTION
 // ============================================================================
 
 /**
  * Project the new token exchange price offline (no RPC calls).
- * Extracted from compiled SDK's `getNewExchangePrice`.
+ * Extracted from compiled SDK's `getNewExchangePrice` (earn/index.mjs line 316).
  *
  * This combines:
- * 1. Rewards rate contribution (time-weighted)
- * 2. Liquidity exchange price delta
+ * 1. Rewards rate contribution (time-weighted, 1e12 precision via getRewardsRate)
+ * 2. Liquidity exchange price delta (scaled to 1e14)
+ *
+ * Both components are accumulated in 1e14 space before being applied.
  *
  * @param lendingState - The on-chain Lending account
- * @param currentLiquidityExchangePrice - Current supply exchange price from TokenReserve
- * @param rewardsRate - From calculateJupLendRewardsRate
- * @param rewardsStartTime - From calculateJupLendRewardsRate
+ * @param tokenReserve - The on-chain TokenReserve account (provides current supplyExchangePrice)
+ * @param rewardsModel - The on-chain LendingRewardsRateModel (or null if no rewards)
+ * @param fTokenTotalSupply - Total supply of the fToken (for totalAssets calculation)
  * @param currentTimestamp - Current unix timestamp (seconds)
- * @returns Projected token exchange price as BN
+ * @returns Projected token exchange price as BN (1e12 precision)
  */
 export function calculateJupLendNewExchangePrice(
-  lendingState: JupLendingStateRaw,
-  currentLiquidityExchangePrice: BN,
-  rewardsRate: BN,
-  rewardsStartTime: BN,
+  lendingState: JupLendingState,
+  tokenReserve: JupTokenReserve,
+  rewardsModel: JupLendingRewardsRateModel | null,
+  fTokenTotalSupply: BN,
   currentTimestamp: BN
 ): BN {
   const oldTokenExchangePrice = lendingState.tokenExchangePrice;
   const oldLiquidityExchangePrice = lendingState.liquidityExchangePrice;
+  const currentLiquidityExchangePrice = tokenReserve.supplyExchangePrice;
+
+  // Rewards component — must use 1e12-precision rate (mirrors SDK getRewardsRate, not calculateRewardsRate)
+  let rewardsRate = new BN(0);
+  let rewardsStartTime = lendingState.lastUpdateTimestamp;
+
+  if (rewardsModel) {
+    const totalAssets = calculateJupLendTotalAssets(lendingState, fTokenTotalSupply);
+    const result = calculateJupLendRewardsRateForExchangePrice(
+      rewardsModel,
+      totalAssets,
+      currentTimestamp
+    );
+    rewardsRate = result.rate;
+    rewardsStartTime = result.rewardsStartTime;
+  }
 
   let lastUpdateTime = lendingState.lastUpdateTimestamp;
   if (lastUpdateTime.lt(rewardsStartTime)) {
     lastUpdateTime = rewardsStartTime;
   }
 
-  // Rewards contribution: rate * timeDelta / SECONDS_PER_YEAR
-  let totalReturnPercent = rewardsRate
-    .mul(currentTimestamp.sub(lastUpdateTime))
-    .div(JUP_SECONDS_PER_YEAR);
+  const secondsElapsed = currentTimestamp.sub(lastUpdateTime);
 
-  // Liquidity exchange price delta contribution
+  // Rewards contribution: rate (1e12) * secondsElapsed / SECONDS_PER_YEAR → ~1e12 scale
+  // Scaled up to 1e14 to match the liquidity delta component
+  let totalReturnPercent = rewardsRate
+    .mul(secondsElapsed)
+    .div(JUP_SECONDS_PER_YEAR)
+    .mul(new BN(100)); // 1e12 → 1e14
+
+  // Liquidity exchange price delta contribution (1e14 precision)
   const delta = currentLiquidityExchangePrice.sub(oldLiquidityExchangePrice);
   totalReturnPercent = totalReturnPercent.add(
     delta.mul(new BN(1e14)).div(oldLiquidityExchangePrice)
   );
 
-  return oldTokenExchangePrice.add(
-    oldTokenExchangePrice.mul(totalReturnPercent).div(new BN(1e14))
-  );
+  return oldTokenExchangePrice.add(oldTokenExchangePrice.mul(totalReturnPercent).div(new BN(1e14)));
 }
 
 // ============================================================================
@@ -157,9 +216,7 @@ export function calculateJupLendNewExchangePrice(
  * @param tokenReserve - The on-chain TokenReserve account
  * @returns Supply rate as BN (in bps-like precision from the liquidity layer)
  */
-export function calculateJupLendLiquiditySupplyRate(
-  tokenReserve: JupTokenReserveRaw
-): BN {
+export function calculateJupLendLiquiditySupplyRate(tokenReserve: JupTokenReserve): BN {
   const borrowRate = new BN(tokenReserve.borrowRate);
   const fee = new BN(tokenReserve.feeOnInterest);
 
@@ -202,9 +259,9 @@ export function calculateJupLendLiquiditySupplyRate(
  * @returns Supply rate as decimal number
  */
 export function calculateJupLendSupplyRate(
-  lendingState: JupLendingStateRaw,
-  tokenReserve: JupTokenReserveRaw,
-  rewardsModel: JupLendingRewardsRateModelRaw | null,
+  lendingState: JupLendingState,
+  tokenReserve: JupTokenReserve,
+  rewardsModel: JupLendingRewardsRateModel | null,
   fTokenTotalSupply: BN
 ): number {
   const supplyRate = calculateJupLendLiquiditySupplyRate(tokenReserve);

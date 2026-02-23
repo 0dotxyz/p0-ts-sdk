@@ -56,6 +56,7 @@ export const fetchPythOracleData = async (
     pythPushKaminosBanks,
     driftPythPullBanks,
     solendPythPullBanks,
+    juplendPythPullBanks,
   } = categorizePythBanks(banks);
 
   if (
@@ -100,6 +101,7 @@ export const fetchPythOracleData = async (
     ...pythPushKaminosBanks,
     ...driftPythPullBanks,
     ...solendPythPullBanks,
+    ...juplendPythPullBanks,
   ];
   const pythOracleKeys = extractPythOracleKeys(combinedPythBanks);
 

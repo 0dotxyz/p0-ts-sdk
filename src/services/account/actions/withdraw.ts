@@ -15,6 +15,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
 import { getAllDerivedDriftAccounts } from "~/vendor/drift";
+import { JUP_LIQUIDITY_PROGRAM_ID, getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
 import {
@@ -28,6 +29,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { uiToNative } from "~/utils";
 import { resolveAmount } from "~/types";
@@ -40,6 +42,8 @@ import {
   MakeKaminoWithdrawTxParams,
   MakeDriftWithdrawTxParams,
   MakeDriftWithdrawIxParams,
+  MakeJuplendWithdrawIxParams,
+  MakeJuplendWithdrawTxParams,
 } from "../types";
 import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
 
@@ -228,6 +232,13 @@ export async function makeDriftWithdrawTx(
     feedLuts = _feedLuts;
   }
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -235,7 +246,7 @@ export async function makeDriftWithdrawTx(
     params.bankMetadataMap
   );
 
-  const refreshIxs = makeRefreshKaminoBanksIxs(
+  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -270,8 +281,9 @@ export async function makeDriftWithdrawTx(
     new VersionedTransaction(
       new TransactionMessage({
         instructions: [
-          ...refreshIxs.instructions,
+          ...kaminoRefreshIxs.instructions,
           ...updateDriftMarketIxs.instructions,
+          ...updateJupLendRateIxs.instructions,
           ...withdrawIxs.instructions,
         ],
         payerKey: params.authority,
@@ -279,7 +291,12 @@ export async function makeDriftWithdrawTx(
       }).compileToV0Message(luts)
     ),
     {
-      signers: [...refreshIxs.keys, ...withdrawIxs.keys],
+      signers: [
+        ...kaminoRefreshIxs.keys,
+        ...updateDriftMarketIxs.keys,
+        ...updateJupLendRateIxs.keys,
+        ...withdrawIxs.keys,
+      ],
       addressLookupTables: luts,
       type: TransactionType.WITHDRAW,
     }
@@ -560,6 +577,13 @@ export async function makeWithdrawTx(
     feedLuts = _feedLuts;
   }
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -604,6 +628,7 @@ export async function makeWithdrawTx(
         instructions: [
           ...refreshIxs.instructions,
           ...updateDriftMarketIxs.instructions,
+          ...updateJupLendRateIxs.instructions,
           ...withdrawIxs.instructions,
         ],
         payerKey: params.authority,
@@ -611,7 +636,12 @@ export async function makeWithdrawTx(
       }).compileToV0Message(luts)
     ),
     {
-      signers: [...refreshIxs.keys, ...withdrawIxs.keys],
+      signers: [
+        ...refreshIxs.keys,
+        ...updateDriftMarketIxs.keys,
+        ...updateJupLendRateIxs.keys,
+        ...withdrawIxs.keys,
+      ],
       addressLookupTables: luts,
       type: TransactionType.WITHDRAW,
     }
@@ -639,6 +669,13 @@ export async function makeKaminoWithdrawTx(
     amountType === "cToken"
       ? new BigNumber(amountValue).toNumber()
       : new BigNumber(amountValue).div(multiplier).toNumber();
+
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
 
   const refreshIxs = makeRefreshKaminoBanksIxs(
     params.marginfiAccount,
@@ -700,6 +737,209 @@ export async function makeKaminoWithdrawTx(
         instructions: [
           ...refreshIxs.instructions,
           ...updateDriftMarketIxs.instructions,
+          ...updateJupLendRateIxs.instructions,
+          ...withdrawIxs.instructions,
+        ],
+        payerKey: params.authority,
+        recentBlockhash: blockhash,
+      }).compileToV0Message(luts)
+    ),
+    {
+      signers: [
+        ...refreshIxs.keys,
+        ...updateDriftMarketIxs.keys,
+        ...updateJupLendRateIxs.keys,
+        ...withdrawIxs.keys,
+      ],
+      addressLookupTables: luts,
+      type: TransactionType.WITHDRAW,
+    }
+  );
+
+  const transactions = [...feedCrankTxs, withdrawTx];
+
+  return { transactions, actionTxIndex: transactions.length - 1 };
+}
+
+export async function makeJuplendWithdrawIx({
+  program,
+  bank,
+  bankMap,
+  tokenProgram,
+  amount,
+  marginfiAccount,
+  jupLendingState,
+  authority,
+  withdrawAll = false,
+  opts = {},
+}: MakeJuplendWithdrawIxParams): Promise<InstructionsWrapper> {
+  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
+  const createAtas = opts.createAtas ?? true;
+  const withdrawIxs: TransactionInstruction[] = [];
+  const remainingAccounts: PublicKey[] = [];
+
+  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram);
+
+  if (createAtas) {
+    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
+      authority,
+      userTokenAtaPk,
+      authority,
+      bank.mint,
+      tokenProgram
+    );
+    withdrawIxs.push(createAtaIdempotentIx);
+  }
+
+  const healthAccounts = withdrawAll
+    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
+    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+
+  if (!bank.jupLendIntegrationAccounts) {
+    throw new Error("Bank has no JupLend integration accounts");
+  }
+  const {
+    lendingAdmin,
+    supplyTokenReservesLiquidity,
+    lendingSupplyPositionOnLiquidity,
+    rateModel,
+    vault,
+    liquidity,
+    rewardsRateModel,
+  } = getAllDerivedJupLendAccounts(bank.mint);
+
+  if (opts.observationBanksOverride) {
+    remainingAccounts.push(...opts.observationBanksOverride);
+  } else {
+    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    remainingAccounts.push(...accountMetas);
+  }
+
+  const withdrawIx = await instructions.makeJuplendWithdrawIx(
+    program,
+    {
+      marginfiAccount: marginfiAccount.address,
+      bank: bank.address,
+      destinationTokenAccount: userTokenAtaPk,
+
+      lendingAdmin,
+      supplyTokenReservesLiquidity: jupLendingState.tokenReservesLiquidity,
+      lendingSupplyPositionOnLiquidity: jupLendingState.supplyPositionOnLiquidity,
+      rateModel,
+      vault: vault,
+      claimAccount: bank.jupLendIntegrationAccounts.jupFTokenAta,
+      liquidity,
+      liquidityProgram: JUP_LIQUIDITY_PROGRAM_ID,
+      rewardsRateModel: jupLendingState.rewardsRateModel,
+      tokenProgram,
+
+      authority: opts.overrideInferAccounts?.authority,
+      group: opts.overrideInferAccounts?.group,
+    },
+    {
+      amount: uiToNative(amount, bank.mintDecimals),
+      withdrawAll,
+    },
+    remainingAccounts.map((account) => ({
+      pubkey: account,
+      isSigner: false,
+      isWritable: false,
+    }))
+  );
+
+  withdrawIxs.push(withdrawIx);
+
+  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
+    withdrawIxs.push(makeUnwrapSolIx(authority));
+  }
+
+  return {
+    instructions: withdrawIxs,
+    keys: [],
+  };
+}
+
+export async function makeJuplendWithdrawTx(
+  params: MakeJuplendWithdrawTxParams
+): Promise<TransactionBuilderResult> {
+  const { luts, connection, ...withdrawIxParams } = params;
+
+  const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
+    return balance.liabilityShares.gt(0);
+  });
+
+  let updateFeedIxs: TransactionInstruction[] = [];
+  let feedLuts: AddressLookupTableAccount[] = [];
+
+  const withdrawIxs = await makeJuplendWithdrawIx(withdrawIxParams);
+
+  if (hasLiabilities) {
+    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
+      marginfiAccount: params.marginfiAccount,
+      bankMap: params.bankMap,
+      oraclePrices: params.oraclePrices,
+      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+      instructions: withdrawIxs.instructions,
+      program: params.program,
+      connection: params.connection,
+      crossbarUrl: params.crossbarUrl,
+    });
+    updateFeedIxs = _updateFeedIxs;
+    feedLuts = _feedLuts;
+  }
+
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const refreshIxs = makeRefreshKaminoBanksIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [withdrawIxParams.bank.address],
+    params.bankMetadataMap
+  );
+
+  const {
+    value: { blockhash },
+  } = await connection.getLatestBlockhashAndContext("confirmed");
+
+  let feedCrankTxs: ExtendedV0Transaction[] = [];
+
+  if (updateFeedIxs.length > 0) {
+    feedCrankTxs.push(
+      addTransactionMetadata(
+        new VersionedTransaction(
+          new TransactionMessage({
+            instructions: [...updateFeedIxs],
+            payerKey: params.authority,
+            recentBlockhash: blockhash,
+          }).compileToV0Message(feedLuts)
+        ),
+        {
+          addressLookupTables: feedLuts,
+          type: TransactionType.CRANK,
+        }
+      )
+    );
+  }
+
+  const withdrawTx = addTransactionMetadata(
+    new VersionedTransaction(
+      new TransactionMessage({
+        instructions: [
+          ...refreshIxs.instructions,
+          ...updateDriftMarketIxs.instructions,
+          ...updateJupLendRateIxs.instructions,
           ...withdrawIxs.instructions,
         ],
         payerKey: params.authority,

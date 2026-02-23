@@ -14,5 +14,5 @@ export interface JupLendingStateJSON {
   lastUpdateTimestamp: string;
   tokenReservesLiquidity: string;
   supplyPositionOnLiquidity: string;
-  bump: number;
+  bump?: number;
 }

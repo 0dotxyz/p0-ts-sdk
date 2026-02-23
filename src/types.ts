@@ -15,6 +15,12 @@ import {
   DriftUserStatsJSON,
   FarmStateJSON,
   FarmStateRaw,
+  JupLendingRewardsRateModel,
+  JupLendingRewardsRateModelJSON,
+  JupLendingState,
+  JupLendingStateJSON,
+  JupTokenReserve,
+  JupTokenReserveJSON,
   ObligationJSON,
   ObligationRaw,
   ReserveJSON,
@@ -93,6 +99,11 @@ export type BankIntegrationMetadata = {
     userRewards: DriftRewards[];
     userStatsState?: DriftUserStats;
   };
+  jupLendStates?: {
+    jupLendingState: JupLendingState;
+    jupTokenReserveState: JupTokenReserve;
+    jupRewardsRateModel: JupLendingRewardsRateModel | null;
+  };
 };
 
 export type BankIntegrationMetadataDto = {
@@ -106,6 +117,11 @@ export type BankIntegrationMetadataDto = {
     userState: DriftUserJSON;
     userRewards: DriftRewardsJSON[];
     userStatsState?: DriftUserStatsJSON;
+  };
+  jupLendStates?: {
+    jupLendingState: JupLendingStateJSON;
+    jupTokenReserveState: JupTokenReserveJSON;
+    jupRewardsRateModel: JupLendingRewardsRateModelJSON | null;
   };
 };
 

@@ -41,6 +41,118 @@ async function makeInitMarginfiAccountPdaIx(
     .instruction();
 }
 
+async function makeJuplendDepositIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    marginfiAccount: PublicKey;
+    bank: PublicKey;
+    signerTokenAccount: PublicKey;
+
+    lendingAdmin: PublicKey;
+    supplyTokenReservesLiquidity: PublicKey;
+    lendingSupplyPositionOnLiquidity: PublicKey;
+    rateModel: PublicKey;
+    vault: PublicKey;
+    liquidity: PublicKey;
+    liquidityProgram: PublicKey;
+    rewardsRateModel: PublicKey;
+    tokenProgram: PublicKey;
+
+    // Optional accounts - to override inference
+    group?: PublicKey;
+    authority?: PublicKey;
+    liquidityVault?: PublicKey;
+    fTokenMint?: PublicKey;
+    integrationAcc1?: PublicKey;
+    integrationAcc2?: PublicKey;
+    mint?: PublicKey;
+  },
+  args: {
+    amount: BN;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const {
+    marginfiAccount,
+    bank,
+    signerTokenAccount,
+    lendingAdmin,
+    supplyTokenReservesLiquidity,
+    lendingSupplyPositionOnLiquidity,
+    rateModel,
+    vault,
+    liquidity,
+    liquidityProgram,
+    rewardsRateModel,
+    tokenProgram,
+    ...optionalAccounts
+  } = accounts;
+
+  return mfProgram.methods
+    .juplendDeposit(args.amount)
+    .accounts(accounts)
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
+async function makeJuplendWithdrawIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    marginfiAccount: PublicKey;
+    bank: PublicKey;
+    destinationTokenAccount: PublicKey;
+    lendingAdmin: PublicKey;
+    supplyTokenReservesLiquidity: PublicKey;
+    lendingSupplyPositionOnLiquidity: PublicKey;
+    rateModel: PublicKey;
+    vault: PublicKey;
+    claimAccount: PublicKey;
+    liquidity: PublicKey;
+    liquidityProgram: PublicKey;
+    rewardsRateModel: PublicKey;
+    tokenProgram: PublicKey;
+
+    // Optional accounts - to override inference
+    group?: PublicKey;
+    authority?: PublicKey;
+    mint?: PublicKey;
+    integrationAcc1?: PublicKey;
+    fTokenMint?: PublicKey;
+    integrationAcc2?: PublicKey;
+    integrationAcc3?: PublicKey;
+  },
+  args: {
+    amount: BN;
+    withdrawAll?: boolean | null;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const {
+    marginfiAccount,
+    bank,
+    destinationTokenAccount,
+    lendingAdmin,
+    supplyTokenReservesLiquidity,
+    lendingSupplyPositionOnLiquidity,
+    rateModel,
+    vault,
+    claimAccount,
+    liquidity,
+    liquidityProgram,
+    rewardsRateModel,
+    tokenProgram,
+    ...optionalAccounts
+  } = accounts;
+
+  return mfProgram.methods
+    .juplendWithdraw(args.amount, args.withdrawAll ?? null)
+    .accounts(accounts)
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
 async function makeKaminoDepositIx(
   mfProgram: MarginfiProgram,
   accounts: {
@@ -62,8 +174,8 @@ async function makeKaminoDepositIx(
     group?: PublicKey;
     authority?: PublicKey;
     liquidityVault?: PublicKey;
-    kaminoObligation?: PublicKey;
-    kaminoReserve?: PublicKey;
+    integrationAcc1?: PublicKey;
+    integrationAcc2?: PublicKey;
     mint?: PublicKey;
   },
   args: {
@@ -820,10 +932,12 @@ async function makePulseHealthIx(
 
 const instructions = {
   makeDepositIx,
+  makeJuplendDepositIx,
   makeDriftDepositIx,
   makeKaminoDepositIx,
   makeRepayIx,
   makeWithdrawIx,
+  makeJuplendWithdrawIx,
   makeDriftWithdrawIx,
   makeKaminoWithdrawIx,
   makeBorrowIx,

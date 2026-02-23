@@ -17,6 +17,7 @@ import { TransactionBuildingError } from "~/errors";
 import { OraclePrice } from "../types";
 import { computeSmartCrank } from "../utils";
 import { ZERO_ORACLE_KEY } from "~/constants";
+import { getOracleSourceFromOracleSetup } from "../utils/detection.utils";
 
 type MakeSmartCrankSwbFeedIxParams = {
   marginfiAccount: MarginfiAccountType;
@@ -104,11 +105,7 @@ export async function makeCrankSwbFeedIx(
   ].map((pk) => bankMap.get(pk)!);
 
   const swbPullBanks = allActiveBanks.filter(
-    (bank) =>
-      bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
+    (bank) => getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "switchboard"
   );
 
   if (swbPullBanks.length > 0) {

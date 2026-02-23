@@ -11,5 +11,5 @@ export interface JupLendingRewardsRateModelJSON {
   yearlyReward: string;
   nextDuration: string;
   nextRewardAmount: string;
-  bump: number;
+  bump?: number;
 }

@@ -34,6 +34,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -206,6 +207,13 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     ],
   });
 
+  const updateJuplendMarketIxs = makeUpdateJupLendRateIxs(
+    marginfiAccount,
+    bankMap,
+    [withdrawOpts.withdrawBank.address],
+    bankMetadataMap
+  );
+
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     marginfiAccount,
     bankMap,
@@ -267,12 +275,14 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
   if (
     setupIxs.length > 0 ||
     kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0
+    updateDriftMarketIxs.instructions.length > 0 ||
+    updateJuplendMarketIxs.instructions.length > 0
   ) {
     const ixs = [
       ...setupIxs,
       ...kaminoRefreshIxs.instructions,
       ...updateDriftMarketIxs.instructions,
+      ...updateJuplendMarketIxs.instructions,
     ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,

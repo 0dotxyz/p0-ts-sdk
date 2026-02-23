@@ -3,8 +3,9 @@ import { Bank } from "~/models/bank";
 import { BankIntegrationMetadataMap } from "~/types";
 import { getKaminoMetadata, KaminoMetadata } from "./kamino";
 import { getDriftMetadata, DriftMetadata } from "./drift";
+import { getJupLendMetadata, JupLendMetadata } from "./juplend";
 
-export type IntegrationType = "kamino" | "drift"; // Future: | "solend"
+export type IntegrationType = "kamino" | "drift" | "juplend";
 
 export interface FetchBankIntegrationMetadataOptions {
   connection: Connection;
@@ -38,13 +39,13 @@ export interface FetchBankIntegrationMetadataOptions {
 export async function fetchBankIntegrationMetadata(
   options: FetchBankIntegrationMetadataOptions
 ): Promise<BankIntegrationMetadataMap> {
-  const { connection, banks, integrations = ["kamino", "drift"] } = options;
+  const { connection, banks, integrations = ["kamino", "drift", "juplend"] } = options;
   const bankIntegrationMap: BankIntegrationMetadataMap = {};
 
   // Fetch from each integration in parallel
   const fetchPromises: Promise<{
     type: IntegrationType;
-    data: Map<string, KaminoMetadata | DriftMetadata>;
+    data: Map<string, KaminoMetadata | DriftMetadata | JupLendMetadata>;
   }>[] = [];
 
   if (integrations.includes("kamino")) {
@@ -65,15 +66,16 @@ export async function fetchBankIntegrationMetadata(
     );
   }
 
-  // Future integrations:
-  // if (integrations.includes("solend")) {
-  //   fetchPromises.push(
-  //     fetchSolendMetadata({ connection, banks }).then((solendMap) => ({
-  //       type: "solend" as const,
-  //       data: solendMap,
-  //     }))
-  //   );
-  // }
+  if (integrations.includes("juplend")) {
+    fetchPromises.push(
+      getJupLendMetadata({ connection, banks }).then(
+        (jupLendMap: Map<string, JupLendMetadata>) => ({
+          type: "juplend" as const,
+          data: jupLendMap,
+        })
+      )
+    );
+  }
 
   const results = await Promise.all(fetchPromises);
 

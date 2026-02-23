@@ -12,7 +12,13 @@ import BigNumber from "bignumber.js";
 
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
-import { makeCrankSwbFeedIx, makeUpdateSwbFeedIx, OraclePrice } from "~/services/price";
+import {
+  getOracleSourceFromOracleSetup,
+  makeCrankSwbFeedIx,
+  makeUpdateSwbFeedIx,
+  makeUpdateJupLendRateIxs,
+  OraclePrice,
+} from "~/services/price";
 import klendInstructions from "~/vendor/klend/instructions";
 import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
 import {
@@ -216,14 +222,7 @@ export async function simulateAccountHealthCache(params: {
   const driftBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
 
   const staleSwbOracles = activeBanks
-    .filter(
-      (bank) =>
-        bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-        bank.config.oracleSetup === OracleSetup.SwitchboardV2 ||
-        bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
-        bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
-        bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
-    )
+    .filter((bank) => getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "switchboard")
     .filter((bank) => !bank.oracleKey.equals(new PublicKey(ZERO_ORACLE_KEY)));
 
   const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -295,6 +294,13 @@ export async function simulateAccountHealthCache(params: {
     }),
   }));
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    marginfiAccount,
+    banksMap,
+    [],
+    bankIntegrationMap ?? {}
+  );
+
   const healthPulseIxs = await makePulseHealthIx(
     program,
     marginfiAccount.address,
@@ -315,6 +321,7 @@ export async function simulateAccountHealthCache(params: {
         fundAccountIx,
         ...refreshReservesIxs,
         ...updateDriftMarketIxs.map((ix) => ix.ix),
+        ...updateJupLendRateIxs.instructions,
       ],
     }).compileToV0Message()
   );
@@ -542,6 +549,13 @@ export async function getHealthSimulationTransactions({
     }),
   }));
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    marginfiAccount,
+    bankMap,
+    [],
+    bankMetadataMap
+  );
+
   const healthPulseIx = await makePulseHealthIx(
     program,
     marginfiAccount.address,
@@ -553,7 +567,12 @@ export async function getHealthSimulationTransactions({
 
   const refreshReservesTx = new VersionedTransaction(
     new TransactionMessage({
-      instructions: [computeIx, ...refreshReservesIx, ...updateDriftMarketIxs.map((ix) => ix.ix)],
+      instructions: [
+        computeIx,
+        ...refreshReservesIx,
+        ...updateDriftMarketIxs.map((ix) => ix.ix),
+        ...updateJupLendRateIxs.instructions,
+      ],
       payerKey: authority,
       recentBlockhash: blockhash,
     }).compileToV0Message([...luts])

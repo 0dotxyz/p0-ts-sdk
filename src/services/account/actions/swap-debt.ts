@@ -20,6 +20,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE } from "~/constants";
@@ -88,10 +89,17 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     ],
   });
 
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [],
+    params.bankMetadataMap
+  );
+
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     marginfiAccount,
     bankMap,
-    [], // debt can be in a drift bank
+    [],
     bankMetadataMap
   );
 
@@ -150,13 +158,15 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   if (
     setupIxs.length > 0 ||
     kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0
+    updateDriftMarketIxs.instructions.length > 0 ||
+    updateJupLendRateIxs.instructions.length > 0
   ) {
     const ixs = [
       ...additionalIxs,
       ...setupIxs,
       ...kaminoRefreshIxs.instructions,
       ...updateDriftMarketIxs.instructions,
+      ...updateJupLendRateIxs.instructions,
     ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,

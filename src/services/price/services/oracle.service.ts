@@ -6,11 +6,9 @@ import { ZERO_ORACLE_KEY } from "~/constants";
 
 import { OraclePrice } from "../types";
 
-import {
-  fetchPythOracleData,
-  PythOracleServiceOpts,
-} from "./pyth-oracle.service";
+import { fetchPythOracleData, PythOracleServiceOpts } from "./pyth-oracle.service";
 import { fetchSwbOracleData, SwbOracleServiceOpts } from "./swb-oracle.service";
+import { getOracleSourceFromOracleSetup } from "../utils";
 
 /**
  * Fetches comprehensive oracle data from multiple providers (Pyth and Switchboard)
@@ -37,31 +35,21 @@ export const fetchOracleData = async (
   bankOraclePriceMap: Map<string, OraclePrice>;
   mintOraclePriceMap: Map<string, OraclePrice>;
 }> => {
-  const {
-    zeroOracleBanks,
-    isolatedAssetBanks,
-    collateralAssetBanks,
-    fixedAssetBanks,
-  } = classifyBanksForOracleStrategy(banks);
+  const { zeroOracleBanks, isolatedAssetBanks, collateralAssetBanks, fixedAssetBanks } =
+    classifyBanksForOracleStrategy(banks);
 
   // we don't fetch oracle data for zero oracle banks and use the enriched bank price for isolated assets
   const zeroResults = handleZeroOracleBanks(zeroOracleBanks);
 
   const fetchIsolatedPrice = opts?.isolatedBanksOpts?.fetchPrices ?? false;
   const isolatedResults = fetchIsolatedPrice
-    ? handleIsolatedAssetBanks(
-        isolatedAssetBanks,
-        opts?.isolatedBanksOpts?.staticPricesByBank
-      )
+    ? handleIsolatedAssetBanks(isolatedAssetBanks, opts?.isolatedBanksOpts?.staticPricesByBank)
     : new Map();
 
   // handle fixed price assets
   const fixedResults = handleFixedOracleBanks(fixedAssetBanks);
 
-  const assetBanks = [
-    ...collateralAssetBanks,
-    ...(fetchIsolatedPrice ? isolatedAssetBanks : []),
-  ];
+  const assetBanks = [...collateralAssetBanks, ...(fetchIsolatedPrice ? isolatedAssetBanks : [])];
 
   // fetch oracle for asset banks
   const assetResults = await handleAssetBanks(assetBanks, {
@@ -69,10 +57,7 @@ export const fetchOracleData = async (
     swbOpts: opts.swbOpts,
   });
 
-  return mergeOracleResults(
-    [zeroResults, isolatedResults, assetResults, fixedResults],
-    banks
-  );
+  return mergeOracleResults([zeroResults, isolatedResults, assetResults, fixedResults], banks);
 };
 
 /**
@@ -102,7 +87,7 @@ function classifyBanksForOracleStrategy(banks: BankType[]): {
     }
 
     const isIsolatedAsset = bank.config.riskTier === RiskTier.Isolated;
-    const isFixedAsset = bank.config.oracleSetup === OracleSetup.Fixed;
+    const isFixedAsset = getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "fixed";
 
     if (isFixedAsset) {
       fixedAssetBanks.push(bank);

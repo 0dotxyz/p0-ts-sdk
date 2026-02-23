@@ -104,6 +104,11 @@ class Bank implements BankType {
       solendReserve: PublicKey;
       solendObligation: PublicKey;
     },
+    public readonly jupLendIntegrationAccounts?: {
+      jupLendingState: PublicKey;
+      jupFTokenMint: PublicKey;
+      jupFTokenAta: PublicKey;
+    },
     public readonly feesDestinationAccount?: PublicKey,
     public readonly lendingPositionCount?: BigNumber,
     public readonly borrowingPositionCount?: BigNumber,
@@ -182,6 +187,7 @@ class Bank implements BankType {
       bankType.kaminoIntegrationAccounts,
       bankType.driftIntegrationAccounts,
       bankType.solendIntegrationAccounts,
+      bankType.jupLendIntegrationAccounts,
       bankType.feesDestinationAccount,
       bankType.lendingPositionCount,
       bankType.borrowingPositionCount,
@@ -229,6 +235,7 @@ class Bank implements BankType {
       props.kaminoIntegrationAccounts,
       props.driftIntegrationAccounts,
       props.solendIntegrationAccounts,
+      props.jupLendIntegrationAccounts,
       props.feesDestinationAccount,
       props.lendingPositionCount,
       props.borrowingPositionCount,

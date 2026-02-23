@@ -8,7 +8,7 @@ export type Marginfi = {
   address: string;
   metadata: {
     name: "marginfi";
-    version: "0.1.7";
+    version: "0.1.8";
     spec: "0.1.0";
     description: "Borrow Lending Prime Broker";
   };
@@ -52,6 +52,44 @@ export type Marginfi = {
       ];
     },
     {
+      name: "configureBankRateLimits";
+      docs: [
+        "(admin only) Configure bank-level rate limits for withdraw/borrow.",
+        "Rate limits track net outflow in native tokens. Deposits offset withdraws.",
+        "Set to 0 to disable. Hourly and daily windows are independent.",
+      ];
+      discriminator: [175, 84, 85, 221, 206, 220, 110, 174];
+      accounts: [
+        {
+          name: "group";
+          relations: ["bank"];
+        },
+        {
+          name: "admin";
+          signer: true;
+          relations: ["group"];
+        },
+        {
+          name: "bank";
+          writable: true;
+        },
+      ];
+      args: [
+        {
+          name: "hourlyMaxOutflow";
+          type: {
+            option: "u64";
+          };
+        },
+        {
+          name: "dailyMaxOutflow";
+          type: {
+            option: "u64";
+          };
+        },
+      ];
+    },
+    {
       name: "configureDeleverageWithdrawalLimit";
       docs: ["(group admin only) Set the daily withdrawal limit for deleverages per group."];
       discriminator: [28, 132, 205, 158, 67, 77, 177, 63];
@@ -74,6 +112,40 @@ export type Marginfi = {
       ];
     },
     {
+      name: "configureGroupRateLimits";
+      docs: [
+        "(admin only) Configure group-level rate limits for withdraw/borrow.",
+        "Rate limits track aggregate net outflow in USD.",
+        "Example: $10M = 10_000_000. Set to 0 to disable.",
+      ];
+      discriminator: [111, 47, 213, 142, 158, 51, 226, 102];
+      accounts: [
+        {
+          name: "marginfiGroup";
+          writable: true;
+        },
+        {
+          name: "admin";
+          signer: true;
+          relations: ["marginfiGroup"];
+        },
+      ];
+      args: [
+        {
+          name: "hourlyMaxOutflowUsd";
+          type: {
+            option: "u64";
+          };
+        },
+        {
+          name: "dailyMaxOutflowUsd";
+          type: {
+            option: "u64";
+          };
+        },
+      ];
+    },
+    {
       name: "driftDeposit";
       docs: [
         "(user) Deposit into a Drift spot market through a marginfi account",
@@ -83,6 +155,7 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -204,8 +277,9 @@ export type Marginfi = {
     {
       name: "driftHarvestReward";
       docs: [
-        "(fee admin only) Harvest rewards from admin deposits in Drift spot markets",
-        "The harvest spot market must be different from the bank's main drift spot market",
+        "(permissionless) Harvest rewards from admin deposits in Drift spot markets.",
+        "Rewards are always sent to the global fee wallet's canonical ATA.",
+        "The harvest spot market must be different from the bank's main drift spot market.",
       ];
       discriminator: [167, 161, 240, 194, 138, 54, 87, 189];
       accounts: [
@@ -870,6 +944,10 @@ export type Marginfi = {
           type: "u32";
         },
         {
+          name: "orderInitFlatSolFee";
+          type: "u32";
+        },
+        {
           name: "programFeeFixed";
           type: {
             defined: {
@@ -893,10 +971,19 @@ export type Marginfi = {
             };
           };
         },
+        {
+          name: "orderExecutionMaxFee";
+          type: {
+            defined: {
+              name: "wrappedI80f48";
+            };
+          };
+        },
       ];
     },
     {
       name: "editStakedSettings";
+      docs: ["(admin only) Edit the staked collateral settings for the group."];
       discriminator: [11, 108, 215, 87, 240, 9, 66, 241];
       accounts: [
         {
@@ -926,6 +1013,7 @@ export type Marginfi = {
     },
     {
       name: "endDeleverage";
+      docs: ["(risk_admin only) End forced deleverage. Validates health did not worsen."];
       discriminator: [114, 14, 250, 143, 252, 104, 214, 209];
       accounts: [
         {
@@ -951,6 +1039,10 @@ export type Marginfi = {
     },
     {
       name: "endLiquidation";
+      docs: [
+        "(liquidation_receiver, set in start_liquidation) End receivership liquidation. Validates",
+        "health improved and seized assets are within fee limits. Charges a flat SOL fee.",
+      ];
       discriminator: [110, 11, 244, 54, 229, 181, 22, 184];
       accounts: [
         {
@@ -1080,6 +1172,10 @@ export type Marginfi = {
           type: "u32";
         },
         {
+          name: "orderInitFlatSolFee";
+          type: "u32";
+        },
+        {
           name: "programFeeFixed";
           type: {
             defined: {
@@ -1097,6 +1193,14 @@ export type Marginfi = {
         },
         {
           name: "liquidationMaxFee";
+          type: {
+            defined: {
+              name: "wrappedI80f48";
+            };
+          };
+        },
+        {
+          name: "orderExecutionMaxFee";
           type: {
             defined: {
               name: "wrappedI80f48";
@@ -1162,6 +1266,479 @@ export type Marginfi = {
       ];
     },
     {
+      name: "juplendDeposit";
+      docs: [
+        "(user) Deposit into a JupLend lending pool through a marginfi account.",
+        "* amount - in the underlying token (e.g., USDC), in native decimals",
+      ];
+      discriminator: [114, 11, 218, 81, 183, 165, 143, 255];
+      accounts: [
+        {
+          name: "group";
+          relations: ["marginfiAccount", "bank"];
+        },
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "authority";
+          signer: true;
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "bank";
+          writable: true;
+        },
+        {
+          name: "signerTokenAccount";
+          docs: ["Owned by authority, the source account for the token deposit."];
+          writable: true;
+        },
+        {
+          name: "liquidityVaultAuthority";
+          docs: [
+            "The bank's liquidity vault authority PDA (acts as signer for JupLend CPIs).",
+            "NOTE: JupLend marks the signer as writable in their deposit instruction.",
+          ];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                ];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "liquidityVault";
+          docs: [
+            "Bank liquidity vault (holds underlying mint and is used as depositor_token_account).",
+          ];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "mint";
+          docs: ["Underlying mint."];
+          relations: ["bank"];
+        },
+        {
+          name: "integrationAcc1";
+          docs: ["JupLend lending state account."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "fTokenMint";
+          docs: ["JupLend fToken mint."];
+          writable: true;
+          relations: ["integrationAcc1"];
+        },
+        {
+          name: "integrationAcc2";
+          docs: ["Bank's fToken vault (validated via has_one on bank)."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "lendingAdmin";
+        },
+        {
+          name: "supplyTokenReservesLiquidity";
+          writable: true;
+        },
+        {
+          name: "lendingSupplyPositionOnLiquidity";
+          writable: true;
+        },
+        {
+          name: "rateModel";
+        },
+        {
+          name: "vault";
+          writable: true;
+        },
+        {
+          name: "liquidity";
+          writable: true;
+        },
+        {
+          name: "liquidityProgram";
+        },
+        {
+          name: "rewardsRateModel";
+        },
+        {
+          name: "juplendProgram";
+          address: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9";
+        },
+        {
+          name: "tokenProgram";
+        },
+        {
+          name: "associatedTokenProgram";
+          address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "amount";
+          type: "u64";
+        },
+      ];
+    },
+    {
+      name: "juplendInitPosition";
+      docs: [
+        "(permissionless) Initialize the bank-level JupLend position.",
+        "",
+        "This creates the bank's fToken ATA (owned by the bank liquidity vault authority) and",
+        "performs a nominal seed deposit into JupLend, then flips the bank from `Paused` to",
+        "`Operational`.",
+      ];
+      discriminator: [176, 255, 151, 106, 5, 207, 74, 215];
+      accounts: [
+        {
+          name: "feePayer";
+          docs: ["Provides a nominal deposit amount."];
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "signerTokenAccount";
+          docs: ["Token account owned by the fee payer holding the underlying mint."];
+          writable: true;
+        },
+        {
+          name: "bank";
+          writable: true;
+        },
+        {
+          name: "liquidityVaultAuthority";
+          docs: ["The bank's liquidity vault authority PDA (acts as signer for JupLend CPIs)."];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                ];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "liquidityVault";
+          docs: [
+            "Bank liquidity vault (holds underlying mint and is used as depositor_token_account).",
+          ];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "mint";
+          docs: ["Underlying mint (must match bank mint and JupLend lending state mint)."];
+          relations: ["bank"];
+        },
+        {
+          name: "integrationAcc1";
+          docs: ["JupLend lending state account."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "fTokenMint";
+          docs: ["JupLend fToken mint."];
+          writable: true;
+          relations: ["integrationAcc1"];
+        },
+        {
+          name: "integrationAcc2";
+          docs: ["Bank's fToken vault (validated via has_one on bank)."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "lendingAdmin";
+        },
+        {
+          name: "supplyTokenReservesLiquidity";
+          writable: true;
+        },
+        {
+          name: "lendingSupplyPositionOnLiquidity";
+          writable: true;
+        },
+        {
+          name: "rateModel";
+        },
+        {
+          name: "vault";
+          writable: true;
+        },
+        {
+          name: "liquidity";
+          writable: true;
+        },
+        {
+          name: "liquidityProgram";
+        },
+        {
+          name: "rewardsRateModel";
+        },
+        {
+          name: "juplendProgram";
+          address: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9";
+        },
+        {
+          name: "tokenProgram";
+        },
+        {
+          name: "associatedTokenProgram";
+          address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "amount";
+          type: "u64";
+        },
+      ];
+    },
+    {
+      name: "juplendWithdraw";
+      docs: [
+        "(user) Withdraw from a JupLend lending pool through a marginfi account.",
+        "* amount - in the underlying token (e.g., USDC), in native decimals",
+      ];
+      discriminator: [245, 164, 253, 202, 53, 77, 251, 221];
+      accounts: [
+        {
+          name: "group";
+          writable: true;
+          relations: ["marginfiAccount", "bank"];
+        },
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "authority";
+          signer: true;
+        },
+        {
+          name: "bank";
+          writable: true;
+        },
+        {
+          name: "destinationTokenAccount";
+          docs: [
+            "Token account that will receive the underlying withdrawal.",
+            "WARN: Completely unchecked!",
+          ];
+          writable: true;
+        },
+        {
+          name: "liquidityVaultAuthority";
+          docs: [
+            "The bank's liquidity vault authority PDA (acts as signer for JupLend CPIs).",
+            "NOTE: JupLend marks the signer as writable in their withdraw instruction.",
+          ];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                ];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "mint";
+          docs: ["Underlying mint."];
+          relations: ["bank"];
+        },
+        {
+          name: "integrationAcc1";
+          docs: ["JupLend lending state account."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "fTokenMint";
+          docs: ["JupLend fToken mint."];
+          writable: true;
+          relations: ["integrationAcc1"];
+        },
+        {
+          name: "integrationAcc2";
+          docs: ["Bank's fToken vault (validated via has_one on bank)."];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "integrationAcc3";
+          docs: [
+            "Withdraw intermediary ATA (authority = liquidity_vault_authority).",
+            "This must be an ATA to satisfy JupLend's withdraw constraints.",
+          ];
+          writable: true;
+          relations: ["bank"];
+        },
+        {
+          name: "lendingAdmin";
+        },
+        {
+          name: "supplyTokenReservesLiquidity";
+          writable: true;
+        },
+        {
+          name: "lendingSupplyPositionOnLiquidity";
+          writable: true;
+        },
+        {
+          name: "rateModel";
+        },
+        {
+          name: "vault";
+          writable: true;
+        },
+        {
+          name: "claimAccount";
+          docs: [
+            "JupLend claim account for liquidity_vault_authority.",
+            "TEMPORARY: Mainnet currently requires this account (passing None causes ConstraintMut errors),",
+            "but an upcoming upgrade is expected to make it truly optional. The account is never actually",
+            "validated or used - you can pass any mutable account. We create the canonical PDA for consistency.",
+            'Seeds: ["user_claim", liquidity_vault_authority, mint] on Liquidity program.',
+          ];
+          writable: true;
+        },
+        {
+          name: "liquidity";
+          writable: true;
+        },
+        {
+          name: "liquidityProgram";
+        },
+        {
+          name: "rewardsRateModel";
+        },
+        {
+          name: "juplendProgram";
+          address: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9";
+        },
+        {
+          name: "tokenProgram";
+        },
+        {
+          name: "associatedTokenProgram";
+          address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "amount";
+          type: "u64";
+        },
+        {
+          name: "withdrawAll";
+          type: {
+            option: "bool";
+          };
+        },
+      ];
+    },
+    {
       name: "kaminoDeposit";
       docs: [
         "(user) Deposit into a Kamino pool through a marginfi account",
@@ -1172,6 +1749,7 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -1322,7 +1900,8 @@ export type Marginfi = {
     {
       name: "kaminoHarvestReward";
       docs: [
-        "(fee admin only) Harvest the specified reward index from the Kamino Farm attached to this bank.",
+        "(permissionless) Harvest the specified reward index from the Kamino Farm attached to this",
+        "bank. Rewards are always sent to the global fee wallet's canonical ATA.",
         "",
         "* `reward_index` — index of the reward token in the Kamino Farm's reward list",
       ];
@@ -1716,7 +2295,10 @@ export type Marginfi = {
         },
         {
           name: "destinationTokenAccount";
-          docs: ["Token account that will get tokens back", "WARN: Completely unchecked!"];
+          docs: [
+            "Token account that will receive the withdrawn tokens. Mint/owner are validated by the",
+            "SPL transfer; the caller controls the destination.",
+          ];
           writable: true;
         },
         {
@@ -1865,10 +2447,15 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountBorrow";
+      docs: [
+        "(account authority) Borrow assets from a bank. Accrues interest, records liability, applies",
+        "origination fee, transfers tokens, and runs a health check.",
+      ];
       discriminator: [4, 126, 116, 53, 48, 5, 212, 31];
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -1941,6 +2528,10 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountCloseBalance";
+      docs: [
+        "(account authority) Close a balance position with dust-level amounts. Claims outstanding",
+        "emissions before closing.",
+      ];
       discriminator: [245, 54, 41, 4, 243, 202, 31, 17];
       accounts: [
         {
@@ -1964,10 +2555,15 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountDeposit";
+      docs: [
+        "(account authority) Deposit assets into a bank. Accrues interest, records deposit, and",
+        "transfers tokens from the signer's token account to the bank's liquidity vault.",
+      ];
       discriminator: [171, 94, 235, 103, 82, 64, 212, 140];
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2010,6 +2606,7 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountEndFlashloan";
+      docs: ["(account authority) End a flash loan and run the health check."];
       discriminator: [105, 124, 201, 106, 153, 2, 8, 156];
       accounts: [
         {
@@ -2026,7 +2623,14 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountLiquidate";
-      docs: ["Liquidate a lending account balance of an unhealthy marginfi account"];
+      docs: [
+        "(permissionless) Liquidate a lending account balance of an unhealthy marginfi account.",
+        "The liquidator takes on the liability and receives discounted collateral (2.5% liquidator",
+        "fee + 2.5% insurance fee).",
+        "* `asset_amount` - amount of collateral to liquidate",
+        "* `liquidatee_accounts` - number of remaining accounts for the liquidatee",
+        "* `liquidator_accounts` - number of remaining accounts for the liquidator",
+      ];
       discriminator: [214, 169, 151, 213, 251, 167, 86, 219];
       accounts: [
         {
@@ -2165,10 +2769,15 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountRepay";
+      docs: [
+        "(account authority, or any signer during receivership) Repay borrowed assets. Accrues",
+        "interest, records repayment, and transfers tokens to the bank's liquidity vault.",
+      ];
       discriminator: [79, 209, 172, 177, 222, 51, 173, 151];
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2178,10 +2787,10 @@ export type Marginfi = {
         {
           name: "authority";
           docs: [
-            "Must be marginfi_account's authority, unless in liquidation/deleverage receivership",
+            "Must be marginfi_account's authority, unless in liquidation/deleverage receivership or order execution",
             "",
-            "Note: during receivership, there are no signer checks whatsoever: any key can repay as",
-            "long as the invariants checked at the end of receivership are met.",
+            "Note: during receivership and order execution, there are no signer checks whatsoever: any key can repay as",
+            "long as the invariants checked at the end of execution are met.",
           ];
           signer: true;
         },
@@ -2217,6 +2826,9 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountSettleEmissions";
+      docs: [
+        "(permissionless) Settle unclaimed emissions into a user's balance without withdrawing.",
+      ];
       discriminator: [161, 58, 136, 174, 242, 223, 156, 176];
       accounts: [
         {
@@ -2232,6 +2844,10 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountStartFlashloan";
+      docs: [
+        "(account authority) Start a flash loan. Must have a corresponding `end_flashloan` ix in the",
+        "same tx. Health checks are skipped until the flash loan ends.",
+      ];
       discriminator: [14, 131, 33, 220, 81, 186, 180, 107];
       accounts: [
         {
@@ -2257,6 +2873,11 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountWithdraw";
+      docs: [
+        "(account authority, or any signer during receivership) Withdraw assets from a bank. Accrues",
+        "interest, records withdrawal, transfers tokens, and runs a health check (skipped during",
+        "receivership).",
+      ];
       discriminator: [36, 72, 74, 19, 210, 210, 192, 192];
       accounts: [
         {
@@ -2271,10 +2892,10 @@ export type Marginfi = {
         {
           name: "authority";
           docs: [
-            "Must be marginfi_account's authority, unless in liquidation/deleverage receivership",
+            "Must be marginfi_account's authority, unless in liquidation/deleverage receivership or order execution",
             "",
-            "Note: during receivership, there are no signer checks whatsoever: any key can repay as",
-            "long as the invariants checked at the end of receivership are met.",
+            "Note: during receivership and order execution, there are no signer checks whatsoever: any key can repay as",
+            "long as the invariants checked at the end of execution are met.",
           ];
           signer: true;
         },
@@ -2346,6 +2967,9 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountWithdrawEmissions";
+      docs: [
+        "(account authority) Settle and withdraw emissions rewards to a destination token account.",
+      ];
       discriminator: [234, 22, 84, 214, 118, 176, 140, 170];
       accounts: [
         {
@@ -2468,6 +3092,9 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountWithdrawEmissionsPermissionless";
+      docs: [
+        "(permissionless) Withdraw emissions to the user's pre-configured emissions destination ATA.",
+      ];
       discriminator: [4, 174, 124, 203, 44, 49, 145, 150];
       accounts: [
         {
@@ -2587,6 +3214,9 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolAccrueBankInterest";
+      docs: [
+        "(permissionless) Accrue interest on a bank, updating share values and collecting fees.",
+      ];
       discriminator: [108, 201, 30, 87, 47, 65, 97, 188];
       accounts: [
         {
@@ -2602,6 +3232,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolAddBank";
+      docs: ["(admin only) Add a new bank to the lending pool"];
       discriminator: [215, 68, 72, 78, 208, 218, 103, 182];
       accounts: [
         {
@@ -3131,6 +3762,254 @@ export type Marginfi = {
       ];
     },
     {
+      name: "lendingPoolAddBankJuplend";
+      docs: [
+        "(admin) Add a JupLend bank to the marginfi group.",
+        "",
+        "Remaining accounts (for oracle validation):",
+        "0. underlying oracle feed (pyth push or switchboard pull)",
+        "1. JupLend `Lending` state",
+      ];
+      discriminator: [18, 208, 117, 90, 53, 111, 195, 41];
+      accounts: [
+        {
+          name: "group";
+          writable: true;
+        },
+        {
+          name: "admin";
+          signer: true;
+          relations: ["group"];
+        },
+        {
+          name: "feePayer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "bankMint";
+          docs: ["Must match the mint used by the JupLend lending state."];
+        },
+        {
+          name: "bank";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "group";
+              },
+              {
+                kind: "account";
+                path: "bankMint";
+              },
+              {
+                kind: "arg";
+                path: "bankSeed";
+              },
+            ];
+          };
+        },
+        {
+          name: "integrationAcc1";
+          docs: ["JupLend lending state account that must match the bank mint."];
+        },
+        {
+          name: "liquidityVaultAuthority";
+          docs: [
+            "Will be authority of the bank's liquidity vault. Used as intermediary for deposits/withdraws.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                ];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "liquidityVault";
+          docs: [
+            "For JupLend banks, the `liquidity_vault` is used as an intermediary when depositing/",
+            "withdrawing, e.g., withdrawn funds move from JupLend -> here -> the user's token account.",
+          ];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [108, 105, 113, 117, 105, 100, 105, 116, 121, 95, 118, 97, 117, 108, 116];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "insuranceVaultAuthority";
+          docs: ["Note: Currently does nothing."];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  105,
+                  110,
+                  115,
+                  117,
+                  114,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                ];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "insuranceVault";
+          docs: ["Note: Currently does nothing."];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [105, 110, 115, 117, 114, 97, 110, 99, 101, 95, 118, 97, 117, 108, 116];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "feeVaultAuthority";
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 101, 101, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "feeVault";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 101, 101, 95, 118, 97, 117, 108, 116];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "fTokenMint";
+          relations: ["integrationAcc1"];
+        },
+        {
+          name: "integrationAcc2";
+          docs: [
+            "The bank's fToken vault holds the fTokens received when depositing into JupLend.",
+            "",
+          ];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 95, 116, 111, 107, 101, 110, 95, 118, 97, 117, 108, 116];
+              },
+              {
+                kind: "account";
+                path: "bank";
+              },
+            ];
+          };
+        },
+        {
+          name: "tokenProgram";
+          docs: [
+            "Token program for both underlying mint and fToken mint (SPL Token or Token-2022).",
+            "JupLend creates fToken mints using the same token program as the underlying.",
+          ];
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "bankConfig";
+          type: {
+            defined: {
+              name: "juplendConfigCompact";
+            };
+          };
+        },
+        {
+          name: "bankSeed";
+          type: "u64";
+        },
+      ];
+    },
+    {
       name: "lendingPoolAddBankKamino";
       docs: [
         "(group admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining",
@@ -3362,6 +4241,9 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolAddBankPermissionless";
+      docs: [
+        "(permissionless) Add a staked collateral bank. Requires a valid SPL single-pool LST mint.",
+      ];
       discriminator: [127, 187, 121, 34, 187, 167, 238, 102];
       accounts: [
         {
@@ -3827,7 +4709,7 @@ export type Marginfi = {
     {
       name: "lendingPoolAddBankWithSeed";
       docs: [
-        "A copy of lending_pool_add_bank with an additional bank seed.",
+        "(admin only) A copy of lending_pool_add_bank with an additional bank seed.",
         "This seed is used to create a PDA for the bank's signature.",
         "lending_pool_add_bank is preserved for backwards compatibility.",
       ];
@@ -4049,7 +4931,10 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolCloneBank";
-      docs: ["Staging or localnet only, panics on mainnet"];
+      docs: [
+        "(admin only) Staging or localnet only, panics on mainnet",
+        "This instruction is used to clone a bank to a new PDA.",
+      ];
       discriminator: [214, 93, 17, 236, 177, 228, 78, 17];
       accounts: [
         {
@@ -4272,6 +5157,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolCloseBank";
+      docs: ["(admin only) Close a bank. Requires CLOSE_ENABLED_FLAG and zero positions/shares."];
       discriminator: [22, 115, 7, 130, 227, 85, 0, 47];
       accounts: [
         {
@@ -4294,6 +5180,10 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolCollectBankFees";
+      docs: [
+        "(permissionless) Transfer accrued fees from the liquidity vault to insurance/fee/program",
+        "vaults.",
+      ];
       discriminator: [201, 5, 215, 116, 230, 92, 75, 150];
       accounts: [
         {
@@ -4415,7 +5305,10 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolConfigureBank";
-      docs: ["(admin only)"];
+      docs: [
+        "(admin only) Configure bank parameters. If the bank has `FREEZE_SETTINGS`, only",
+        "deposit/borrow limits are updated and all other config changes are silently ignored.",
+      ];
       discriminator: [121, 173, 156, 40, 93, 148, 56, 237];
       accounts: [
         {
@@ -4484,7 +5377,10 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolConfigureBankInterestOnly";
-      docs: ["(delegate_curve_admin only)"];
+      docs: [
+        "(delegate_curve_admin only) Update interest rate config. Does nothing if bank has",
+        "`FREEZE_SETTINGS`.",
+      ];
       discriminator: [245, 107, 83, 38, 103, 219, 163, 241];
       accounts: [
         {
@@ -4514,7 +5410,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolConfigureBankLimitsOnly";
-      docs: ["(delegate_limits_admin only)"];
+      docs: ["(delegate_limit_admin only) Update deposit/borrow/init limits only."];
       discriminator: [157, 196, 221, 200, 202, 62, 84, 21];
       accounts: [
         {
@@ -4609,7 +5505,11 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolHandleBankruptcy";
-      docs: ["Handle bad debt of a bankrupt marginfi account for a given bank."];
+      docs: [
+        "(risk_admin or admin, unless `PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG` is set on the bank)",
+        "Handle bad debt of a bankrupt marginfi account for a given bank. Covers bad debt from the",
+        "insurance fund and socializes any remainder among depositors.",
+      ];
       discriminator: [162, 11, 56, 139, 90, 128, 70, 173];
       accounts: [
         {
@@ -4618,7 +5518,10 @@ export type Marginfi = {
         },
         {
           name: "signer";
-          docs: ["PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG is not set"];
+          docs: [
+            "Must be risk_admin or admin, unless the bank has PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG",
+            "set, in which case any signer is accepted.",
+          ];
           signer: true;
         },
         {
@@ -4710,6 +5613,7 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["bank"];
         },
         {
@@ -4989,6 +5893,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolUpdateFeesDestinationAccount";
+      docs: ["(admin only) Set the destination wallet for permissionless fee withdrawals."];
       discriminator: [102, 4, 121, 243, 237, 110, 95, 13];
       accounts: [
         {
@@ -5013,6 +5918,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolWithdrawFees";
+      docs: ["(admin only) Withdraw collected group fees from the fee vault."];
       discriminator: [92, 140, 215, 254, 170, 0, 83, 174];
       accounts: [
         {
@@ -5075,6 +5981,9 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolWithdrawFeesPermissionless";
+      docs: [
+        "(permissionless) Withdraw group fees to the pre-configured `fees_destination_account`.",
+      ];
       discriminator: [57, 245, 1, 208, 130, 18, 145, 113];
       accounts: [
         {
@@ -5133,6 +6042,7 @@ export type Marginfi = {
     },
     {
       name: "lendingPoolWithdrawInsurance";
+      docs: ["(admin only) Withdraw from the insurance vault."];
       discriminator: [108, 60, 60, 246, 104, 79, 159, 243];
       accounts: [
         {
@@ -5216,6 +6126,10 @@ export type Marginfi = {
     },
     {
       name: "marginfiAccountClose";
+      docs: [
+        "(account authority) Close a marginfi account. Requires all balances to be empty and no",
+        "active flags (disabled, flashloan, receivership).",
+      ];
       discriminator: [186, 221, 93, 34, 50, 97, 194, 241];
       accounts: [
         {
@@ -5236,7 +6150,100 @@ export type Marginfi = {
       args: [];
     },
     {
+      name: "marginfiAccountCloseOrder";
+      docs: ["(user) Close an existing Order, returning rent to the user"];
+      discriminator: [212, 223, 79, 182, 172, 183, 205, 237];
+      accounts: [
+        {
+          name: "marginfiAccount";
+          writable: true;
+          relations: ["order"];
+        },
+        {
+          name: "authority";
+          signer: true;
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "order";
+          writable: true;
+        },
+        {
+          name: "feeRecipient";
+          writable: true;
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "marginfiAccountEndExecuteOrder";
+      docs: [
+        "(permissionless keeper) End Order execution",
+        "* Closes the Order (keeper keeps the rent)",
+        "* Closes the borrow position involved in the Order, the lending position remains open",
+        '* User health must be "unchanged" (within Order requirements i.e. minus slippage). Keeper',
+        "may keep any slippage in excess of what was needed to complete the Order as profit.",
+        "* `StartExecuteOrder` must appear earlier in the tx",
+        "* Must appear last in the tx",
+        "* CPI is forbidden",
+        "* Returns rent for ephemeral accounts created during `StartExecuteOrder`",
+      ];
+      discriminator: [115, 42, 20, 93, 121, 84, 178, 83];
+      accounts: [
+        {
+          name: "group";
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "marginfiAccount";
+          docs: ["The account owning the order"];
+          writable: true;
+          relations: ["order"];
+        },
+        {
+          name: "executor";
+          docs: ["The executioner ☠️"];
+          signer: true;
+          relations: ["executeRecord"];
+        },
+        {
+          name: "feeRecipient";
+          writable: true;
+        },
+        {
+          name: "order";
+          writable: true;
+          relations: ["executeRecord"];
+        },
+        {
+          name: "executeRecord";
+          docs: ["This keeps track of the relevant state to be checked at the end of execution."];
+          writable: true;
+        },
+        {
+          name: "feeState";
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 101, 101, 115, 116, 97, 116, 101];
+              },
+            ];
+          };
+        },
+      ];
+      args: [];
+    },
+    {
       name: "marginfiAccountInitLiqRecord";
+      docs: [
+        "(permissionless) Initialize a liquidation record PDA for a marginfi account. The fee_payer",
+        "pays rent; the record is required for receivership liquidation.",
+      ];
       discriminator: [236, 213, 238, 126, 147, 251, 164, 8];
       accounts: [
         {
@@ -5384,7 +6391,110 @@ export type Marginfi = {
       ];
     },
     {
+      name: "marginfiAccountKeeperCloseOrder";
+      docs: [
+        "(permissionless keeper) Close an existing Order after the user account was closed, or it no",
+        "longer as the associated positions, or the user has executed",
+        "`marginfi_account_set_keeper_close_flags`. Keeper keeps the rent.",
+      ];
+      discriminator: [128, 114, 71, 46, 194, 71, 186, 106];
+      accounts: [
+        {
+          name: "marginfiAccount";
+          docs: [
+            "marginfi account was closed.",
+            "The ownership check is checked in the handler or/and type checks are made in the handler.",
+          ];
+          relations: ["order"];
+        },
+        {
+          name: "feeRecipient";
+          writable: true;
+        },
+        {
+          name: "order";
+          writable: true;
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "marginfiAccountPlaceOrder";
+      docs: [
+        "(user) Create a new Order.",
+        "* bank_keys - Currently only two keys: the lending position and borrowing position in the",
+        "users's Balances for which the order is being placed",
+        "* trigger - the type of order (stop loss, take profit, or both), and the threshold at which",
+        "to trigger the order, in dollars",
+      ];
+      discriminator: [244, 112, 75, 138, 143, 108, 7, 186];
+      accounts: [
+        {
+          name: "group";
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "feePayer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "authority";
+          signer: true;
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "order";
+          writable: true;
+        },
+        {
+          name: "feeState";
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 101, 101, 115, 116, 97, 116, 101];
+              },
+            ];
+          };
+        },
+        {
+          name: "globalFeeWallet";
+          writable: true;
+          relations: ["feeState"];
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "bankKeys";
+          type: {
+            vec: "pubkey";
+          };
+        },
+        {
+          name: "trigger";
+          type: {
+            defined: {
+              name: "orderTrigger";
+            };
+          };
+        },
+      ];
+    },
+    {
       name: "marginfiAccountSetFreeze";
+      docs: [
+        "(admin only) Freeze or unfreeze a marginfi account. Frozen accounts can only be operated on",
+        "by the group admin.",
+      ];
       discriminator: [199, 179, 231, 30, 138, 247, 110, 227];
       accounts: [
         {
@@ -5408,7 +6518,111 @@ export type Marginfi = {
       ];
     },
     {
+      name: "marginfiAccountSetKeeperCloseFlags";
+      docs: [
+        "(user) Purge flags from some balances, enabling a Keeper to call",
+        "`marginfi_account_keeper_close_order` on associated Orders. Typically, use",
+        "`marginfi_account_close_order` instead if trying to close an Order.",
+      ];
+      discriminator: [82, 163, 165, 222, 212, 255, 33, 210];
+      accounts: [
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "authority";
+          signer: true;
+          relations: ["marginfiAccount"];
+        },
+      ];
+      args: [
+        {
+          name: "bankKeysOpt";
+          type: {
+            option: {
+              vec: "pubkey";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "marginfiAccountStartExecuteOrder";
+      docs: [
+        "(permissionless keeper) Begin Order execution",
+        "* Enables the Keeper to withdraw/repay associated positions until the end of the tx",
+        "* Only one `StartExecuteOrder` is allowed per tx",
+        "* Must appear before `EndExecuteOrder` in the tx, and before any instructions except certain",
+        "allowed ones (compute budget, kamino refresh, etc)",
+        "* `EndExecuteOrder` must also appear in the tx",
+        "* CPI is forbidden",
+        "* Costs a small amount of rent, which is returned at the end of the tx, make sure you have",
+        "enough SOL to start the tx.",
+      ];
+      discriminator: [1, 70, 140, 134, 183, 29, 208, 224];
+      accounts: [
+        {
+          name: "group";
+          relations: ["marginfiAccount"];
+        },
+        {
+          name: "marginfiAccount";
+          docs: ["The account owning the order"];
+          writable: true;
+          relations: ["order"];
+        },
+        {
+          name: "feePayer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "executor";
+          docs: [
+            "This account will have the authority to withdraw/repay as if they are the user authority",
+            "until the end of the tx.",
+            "",
+          ];
+        },
+        {
+          name: "order";
+          writable: true;
+        },
+        {
+          name: "executeRecord";
+          docs: ["This keeps track of the relevant state to be checked at the end of execution."];
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [101, 120, 101, 99, 117, 116, 101, 95, 111, 114, 100, 101, 114];
+              },
+              {
+                kind: "account";
+                path: "order";
+              },
+            ];
+          };
+        },
+        {
+          name: "instructionSysvar";
+          address: "Sysvar1nstructions1111111111111111111111111";
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
+    },
+    {
       name: "marginfiAccountUpdateEmissionsDestinationAccount";
+      docs: [
+        "(account authority) Set the wallet whose canonical ATA will receive permissionless emissions",
+        "withdrawals.",
+      ];
       discriminator: [73, 185, 162, 201, 111, 24, 116, 185];
       accounts: [
         {
@@ -5429,6 +6643,11 @@ export type Marginfi = {
     },
     {
       name: "marginfiGroupConfigure";
+      docs: [
+        "(admin only) Configure group admin keys and emode leverage caps. All admin keys must be",
+        "provided on every call. Emode leverage caps are set if provided, otherwise the existing",
+        "(non-zero) values are kept. Pass `Some(value)` to update, `None` to leave unchanged.",
+      ];
       discriminator: [62, 199, 81, 78, 33, 13, 236, 61];
       accounts: [
         {
@@ -5444,31 +6663,45 @@ export type Marginfi = {
       args: [
         {
           name: "newAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newEmodeAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newCurveAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newLimitAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newEmissionsAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newMetadataAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "newRiskAdmin";
-          type: "pubkey";
+          type: {
+            option: "pubkey";
+          };
         },
         {
           name: "emodeMaxInitLeverage";
@@ -5494,6 +6727,7 @@ export type Marginfi = {
     },
     {
       name: "marginfiGroupInitialize";
+      docs: ["(admin only) Initialize a new marginfi group. The signer becomes the group admin."];
       discriminator: [255, 67, 67, 26, 94, 31, 34, 20];
       accounts: [
         {
@@ -5541,6 +6775,10 @@ export type Marginfi = {
     },
     {
       name: "panicPause";
+      docs: [
+        "(global_fee_admin only) Pause the protocol. Auto-expires after 30 minutes. Limited to 3",
+        "pauses per day and 2 consecutive pauses.",
+      ];
       discriminator: [76, 164, 123, 25, 4, 43, 79, 165];
       accounts: [
         {
@@ -5567,6 +6805,7 @@ export type Marginfi = {
     },
     {
       name: "panicUnpause";
+      docs: ["(global_fee_admin only) Unpause the protocol before the auto-expiry."];
       discriminator: [236, 107, 194, 242, 99, 51, 121, 128];
       accounts: [
         {
@@ -5637,6 +6876,7 @@ export type Marginfi = {
     },
     {
       name: "propagateStakedSettings";
+      docs: ["(permissionless) Propagate updated staked settings to a staked collateral bank."];
       discriminator: [210, 30, 152, 69, 130, 99, 222, 170];
       accounts: [
         {
@@ -5693,6 +6933,7 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -6031,7 +7272,10 @@ export type Marginfi = {
         },
         {
           name: "destinationTokenAccount";
-          docs: ["Token account that will get tokens back", "WARN: Completely unchecked!"];
+          docs: [
+            "Token account that will receive the withdrawn tokens. Mint/owner are validated by the",
+            "SPL transfer; the caller controls the destination.",
+          ];
           writable: true;
         },
         {
@@ -6147,6 +7391,10 @@ export type Marginfi = {
     },
     {
       name: "startDeleverage";
+      docs: [
+        "(risk_admin only) Begin forced deleverage on an account. Similar to start_liquidation but",
+        "does not require the account to be unhealthy.",
+      ];
       discriminator: [10, 138, 10, 57, 40, 232, 182, 193];
       accounts: [
         {
@@ -6182,6 +7430,10 @@ export type Marginfi = {
     },
     {
       name: "startLiquidation";
+      docs: [
+        "(permissionless) Begin receivership liquidation on an unhealthy account. Snapshots health",
+        "and marks the account in receivership. Must have `end_liquidation` as the last ix in the tx.",
+      ];
       discriminator: [244, 93, 90, 214, 192, 166, 191, 21];
       accounts: [
         {
@@ -6212,6 +7464,10 @@ export type Marginfi = {
     },
     {
       name: "transferToNewAccount";
+      docs: [
+        "(account authority) Transfer all positions to a new account under a new authority. The old",
+        "account is disabled. Pays a flat SOL fee to the protocol.",
+      ];
       discriminator: [28, 79, 129, 231, 169, 69, 69, 65];
       accounts: [
         {
@@ -6253,13 +7509,13 @@ export type Marginfi = {
     {
       name: "transferToNewAccountPda";
       docs: [
-        "Same as `transfer_to_new_account` except the resulting account is a PDA",
+        "(account authority) Same as `transfer_to_new_account` except the resulting account is a PDA",
         "",
         "seeds:",
         "- marginfi_group",
         "- authority: The account authority (owner)",
-        "- account_index: A u32 value to allow multiple accounts per authority",
-        "- third_party_id: Optional u32 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be",
+        "- account_index: A u16 value to allow multiple accounts per authority",
+        "- third_party_id: Optional u16 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be",
         "used freely. For a dedicated seed used by just your program (via CPI), contact us.",
       ];
       discriminator: [172, 210, 224, 220, 146, 212, 253, 49];
@@ -6342,8 +7598,8 @@ export type Marginfi = {
     {
       name: "writeBankMetadata";
       docs: [
-        "(metadata admin only) Write ticker/descrption information for a bank on-chain. Optional, not",
-        "all Banks are guranteed to have metadata.",
+        "(metadata admin only) Write ticker/description information for a bank on-chain. Optional, not",
+        "all Banks are guaranteed to have metadata.",
       ];
       discriminator: [147, 78, 81, 133, 129, 138, 233, 59];
       accounts: [
@@ -6392,8 +7648,16 @@ export type Marginfi = {
       discriminator: [49, 207, 31, 34, 67, 225, 169, 186];
     },
     {
+      name: "executeOrderRecord";
+      discriminator: [6, 100, 107, 60, 164, 226, 56, 97];
+    },
+    {
       name: "feeState";
       discriminator: [63, 224, 16, 85, 193, 36, 235, 220];
+    },
+    {
+      name: "lending";
+      discriminator: [135, 199, 82, 16, 249, 131, 182, 241];
     },
     {
       name: "liquidationRecord";
@@ -6424,6 +7688,10 @@ export type Marginfi = {
       discriminator: [159, 117, 95, 227, 239, 151, 58, 236];
     },
     {
+      name: "order";
+      discriminator: [134, 173, 223, 185, 77, 86, 28, 51];
+    },
+    {
       name: "solendMinimalReserve";
       discriminator: [1];
     },
@@ -6444,6 +7712,10 @@ export type Marginfi = {
     {
       name: "healthPulseEvent";
       discriminator: [183, 159, 218, 110, 61, 220, 65, 1];
+    },
+    {
+      name: "keeperCloseOrderEvent";
+      discriminator: [46, 152, 11, 174, 92, 157, 77, 64];
     },
     {
       name: "lendingAccountBorrowEvent";
@@ -6502,12 +7774,20 @@ export type Marginfi = {
       discriminator: [40, 131, 224, 220, 151, 83, 24, 230];
     },
     {
+      name: "marginfiAccountCloseOrderEvent";
+      discriminator: [158, 34, 122, 98, 23, 146, 229, 212];
+    },
+    {
       name: "marginfiAccountCreateEvent";
       discriminator: [183, 5, 117, 104, 122, 199, 68, 51];
     },
     {
       name: "marginfiAccountFreezeEvent";
       discriminator: [219, 219, 57, 178, 75, 86, 146, 122];
+    },
+    {
+      name: "marginfiAccountPlaceOrderEvent";
+      discriminator: [1, 105, 79, 28, 142, 242, 99, 145];
     },
     {
       name: "marginfiAccountTransferToNewAccount";
@@ -6520,6 +7800,10 @@ export type Marginfi = {
     {
       name: "marginfiGroupCreateEvent";
       discriminator: [233, 125, 61, 14, 98, 240, 136, 253];
+    },
+    {
+      name: "setKeeperCloseFlagsEvent";
+      discriminator: [193, 230, 93, 128, 117, 87, 96, 21];
     },
   ];
   errors: [
@@ -6790,13 +8074,13 @@ export type Marginfi = {
     },
     {
       code: 6053;
-      name: "pythPushWrongAccountOwner";
-      msg: "Pyth Push oracle: wrong account owner";
+      name: "vacated2";
+      msg: "vacated2";
     },
     {
       code: 6054;
-      name: "stakedPythPushWrongAccountOwner";
-      msg: "Staked Pyth Push oracle: wrong account owner";
+      name: "vacated3";
+      msg: "vacated3";
     },
     {
       code: 6055;
@@ -6890,13 +8174,13 @@ export type Marginfi = {
     },
     {
       code: 6073;
-      name: "vacated0";
-      msg: "vacated0";
+      name: "integrationPositionLimitExceeded";
+      msg: "Exceeded the maximum allowed integration positions";
     },
     {
       code: 6074;
-      name: "vacated1";
-      msg: "vacated1";
+      name: "maxInitLeverageExceeded";
+      msg: "Maximum initial leverage exceeded";
     },
     {
       code: 6075;
@@ -7044,6 +8328,86 @@ export type Marginfi = {
       msg: "Account is frozen by the group admin";
     },
     {
+      code: 6104;
+      name: "duplicateBalance";
+      msg: "Cannot reference duplicate balances";
+    },
+    {
+      code: 6105;
+      name: "invalidBalanceCount";
+      msg: "Invalid amount of balances referenced";
+    },
+    {
+      code: 6106;
+      name: "liquidatorOrderCloseNotAllowed";
+      msg: "Liquidator not allowed to close order";
+    },
+    {
+      code: 6107;
+      name: "orderTriggerNotMet";
+      msg: "Order trigger is yet to be met";
+    },
+    {
+      code: 6108;
+      name: "unexpectedOrderExecutionState";
+      msg: "Order execution state issue. Check the necessary invariants i.e not in flashloan or disabled e.t.c";
+    },
+    {
+      code: 6109;
+      name: "orderLiabilityNotClosed";
+      msg: "Order liability not closed";
+    },
+    {
+      code: 6110;
+      name: "invalidAssetOrLiabilitiesCount";
+      msg: "Invalid asset or liabilities count";
+    },
+    {
+      code: 6111;
+      name: "worseHealthPostExecution";
+      msg: "Account health can only worsen if account is healthy";
+    },
+    {
+      code: 6112;
+      name: "invalidOrderTakeProfitOrStopLoss";
+      msg: "TP must be > 0, SL must be > 0 and TP > SL if both are set";
+    },
+    {
+      code: 6113;
+      name: "invalidSlippage";
+      msg: "Max slippage must be less than 100%";
+    },
+    {
+      code: 6114;
+      name: "orderExecutionOverWithdrawal";
+      msg: "Executor withdrew too much: slippage or max fee constraint violated";
+    },
+    {
+      code: 6115;
+      name: "bankHourlyRateLimitExceeded";
+      msg: "Bank hourly rate limit exceeded: try again later";
+    },
+    {
+      code: 6116;
+      name: "bankDailyRateLimitExceeded";
+      msg: "Bank daily rate limit exceeded: try again later";
+    },
+    {
+      code: 6117;
+      name: "groupHourlyRateLimitExceeded";
+      msg: "Group hourly rate limit exceeded: try again later";
+    },
+    {
+      code: 6118;
+      name: "groupDailyRateLimitExceeded";
+      msg: "Group daily rate limit exceeded: try again later";
+    },
+    {
+      code: 6119;
+      name: "invalidRateLimitPrice";
+      msg: "Invalid rate limit price: pass oracle or pre-crank cache";
+    },
+    {
       code: 6200;
       name: "wrongAssetTagForStandardInstructions";
       msg: "Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag";
@@ -7105,8 +8469,8 @@ export type Marginfi = {
     },
     {
       code: 6212;
-      name: "integrationPositionLimitExceeded";
-      msg: "Maximum integration positions limit exceeded (max 8 Kamino/Drift/Solend positions per account)";
+      name: "maxMaintLeverageExceeded";
+      msg: "Maximum Maintenance leverage exceeded";
     },
     {
       code: 6213;
@@ -7338,6 +8702,71 @@ export type Marginfi = {
       name: "invalidSolendObligation";
       msg: "Invalid Solend obligation: account constraint violated";
     },
+    {
+      code: 6500;
+      name: "juplendInvalidOracleSetup";
+      msg: "Invalid oracle setup: only JuplendPythPull and JuplendSwitchboardPull are supported";
+    },
+    {
+      code: 6501;
+      name: "juplendLendingValidationFailed";
+      msg: "Juplend lending state validation failed";
+    },
+    {
+      code: 6502;
+      name: "wrongBankAssetTagForJuplendOperation";
+      msg: "Wrong bank asset tag for Juplend operation";
+    },
+    {
+      code: 6503;
+      name: "cantUseStandardOperationsOnJuplendAssets";
+      msg: "Cannot use standard operations on Juplend assets";
+    },
+    {
+      code: 6504;
+      name: "juplendLendingStale";
+      msg: "Juplend lending state is stale";
+    },
+    {
+      code: 6505;
+      name: "invalidJuplendLending";
+      msg: "Invalid Juplend lending: account constraint violated";
+    },
+    {
+      code: 6506;
+      name: "juplendLendingMintMismatch";
+      msg: "Juplend lending mint mismatch";
+    },
+    {
+      code: 6507;
+      name: "juplendBankAlreadyActivated";
+      msg: "Juplend bank is already activated";
+    },
+    {
+      code: 6508;
+      name: "invalidJuplendFTokenVault";
+      msg: "Invalid Juplend fToken vault";
+    },
+    {
+      code: 6509;
+      name: "juplendDepositFailed";
+      msg: "Juplend deposit failed";
+    },
+    {
+      code: 6510;
+      name: "juplendWithdrawFailed";
+      msg: "Juplend withdraw failed";
+    },
+    {
+      code: 6511;
+      name: "juplendInitPositionDepositInsufficient";
+      msg: "Juplend init position deposit insufficient";
+    },
+    {
+      code: 6512;
+      name: "invalidJuplendWithdrawIntermediaryAta";
+      msg: "Invalid Juplend withdraw intermediary ATA";
+    },
   ];
   types: [
     {
@@ -7376,10 +8805,12 @@ export type Marginfi = {
         fields: [
           {
             name: "active";
+            docs: ["Whether this balance slot is in use (nonzero = active)"];
             type: "u8";
           },
           {
             name: "bankPk";
+            docs: ["The bank this balance corresponds to"];
             type: "pubkey";
           },
           {
@@ -7391,13 +8822,25 @@ export type Marginfi = {
             type: "u8";
           },
           {
+            name: "tag";
+            docs: [
+              "Tag used by orders to reference this balance (0 means unused/unassigned).",
+              "A tag may also have a non-zero value while having no orders.",
+            ];
+            type: "u16";
+          },
+          {
             name: "pad0";
             type: {
-              array: ["u8", 6];
+              array: ["u8", 4];
             };
           },
           {
             name: "assetShares";
+            docs: [
+              "The user's asset (deposit) shares in the bank. Multiply by `bank.asset_share_value` for",
+              "the token amount.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7406,6 +8849,10 @@ export type Marginfi = {
           },
           {
             name: "liabilityShares";
+            docs: [
+              "The user's liability (borrow) shares in the bank. Multiply by `bank.liability_share_value`",
+              "for the token amount.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7414,6 +8861,7 @@ export type Marginfi = {
           },
           {
             name: "emissionsOutstanding";
+            docs: ["Unclaimed emissions rewards for this position"];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7422,10 +8870,12 @@ export type Marginfi = {
           },
           {
             name: "lastUpdate";
+            docs: ["Unix timestamp (u64) of the last emissions calculation for this position"];
             type: "u64";
           },
           {
             name: "padding";
+            docs: ["Reserved for future use"];
             type: {
               array: ["u64", 1];
             };
@@ -7444,14 +8894,17 @@ export type Marginfi = {
         fields: [
           {
             name: "mint";
+            docs: ["The SPL token mint this bank manages"];
             type: "pubkey";
           },
           {
             name: "mintDecimals";
+            docs: ["Number of decimals of the `mint`. Must be < 24."];
             type: "u8";
           },
           {
             name: "group";
+            docs: ["The `MarginfiGroup` this bank belongs to"];
             type: "pubkey";
           },
           {
@@ -7490,26 +8943,32 @@ export type Marginfi = {
           },
           {
             name: "liquidityVault";
+            docs: ["The SPL token account holding deposited liquidity"];
             type: "pubkey";
           },
           {
             name: "liquidityVaultBump";
+            docs: ["PDA bump for the liquidity vault"];
             type: "u8";
           },
           {
             name: "liquidityVaultAuthorityBump";
+            docs: ["PDA bump for the liquidity vault authority"];
             type: "u8";
           },
           {
             name: "insuranceVault";
+            docs: ["The SPL token account holding insurance fund tokens"];
             type: "pubkey";
           },
           {
             name: "insuranceVaultBump";
+            docs: ["PDA bump for the insurance vault"];
             type: "u8";
           },
           {
             name: "insuranceVaultAuthorityBump";
+            docs: ["PDA bump for the insurance vault authority"];
             type: "u8";
           },
           {
@@ -7529,14 +8988,17 @@ export type Marginfi = {
           },
           {
             name: "feeVault";
+            docs: ["The SPL token account holding collected group fees"];
             type: "pubkey";
           },
           {
             name: "feeVaultBump";
+            docs: ["PDA bump for the fee vault"];
             type: "u8";
           },
           {
             name: "feeVaultAuthorityBump";
+            docs: ["PDA bump for the fee vault authority"];
             type: "u8";
           },
           {
@@ -7558,7 +9020,7 @@ export type Marginfi = {
             name: "totalLiabilityShares";
             docs: [
               "Sum of all liability shares held by all borrowers in this bank.",
-              "* Uses `mint_decimals`",
+              "Multiply by `liability_share_value` to get the total liability amount in native token units.",
             ];
             type: {
               defined: {
@@ -7570,7 +9032,7 @@ export type Marginfi = {
             name: "totalAssetShares";
             docs: [
               "Sum of all asset shares held by all depositors in this bank.",
-              "* Uses `mint_decimals`",
+              "Multiply by `asset_share_value` to get the total asset amount in native token units.",
               "* For Kamino banks, this is the quantity of collateral tokens (NOT liquidity tokens) in the",
               "bank, and also uses `mint_decimals`, though the mint itself will always show (6) decimals",
               "exactly (i.e Kamino ignores this and treats it as if it was using `mint_decimals`)",
@@ -7583,10 +9045,14 @@ export type Marginfi = {
           },
           {
             name: "lastUpdate";
+            docs: ["Unix timestamp (i64) of the last interest accrual"];
             type: "i64";
           },
           {
             name: "config";
+            docs: [
+              "The bank's configuration parameters (weights, limits, oracle setup, interest rate config)",
+            ];
             type: {
               defined: {
                 name: "bankConfig";
@@ -7596,15 +9062,15 @@ export type Marginfi = {
           {
             name: "flags";
             docs: [
-              "Bank Config Flags",
+              "Bank flags bitfield (u64).",
               "",
-              "- EMISSIONS_FLAG_BORROW_ACTIVE: 1",
-              "- EMISSIONS_FLAG_LENDING_ACTIVE: 2",
-              "- PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4",
-              "- FREEZE_SETTINGS: 8",
-              "- CLOSE_ENABLED_FLAG: 16",
-              "- TOKENLESS_REPAYMENTS_ACTIVE: 32",
-              "",
+              "- Bit 0 (1): `EMISSIONS_FLAG_BORROW_ACTIVE` — borrow-side emissions are active",
+              "- Bit 1 (2): `EMISSIONS_FLAG_LENDING_ACTIVE` — lending-side emissions are active",
+              "- Bit 2 (4): `PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG` — anyone can settle bad debt",
+              "- Bit 3 (8): `FREEZE_SETTINGS` — bank configuration is frozen (only limits can change)",
+              "- Bit 4 (16): `CLOSE_ENABLED_FLAG` — bank can be closed (set at creation for banks >= 0.1.4)",
+              "- Bit 5 (32): `TOKENLESS_REPAYMENTS_ALLOWED` — risk admin can repay debt without tokens",
+              "- Bit 6 (64): `TOKENLESS_REPAYMENTS_COMPLETE` — all debt cleared, lender purge enabled",
             ];
             type: "u64";
           },
@@ -7618,6 +9084,7 @@ export type Marginfi = {
           },
           {
             name: "emissionsRemaining";
+            docs: ["Remaining emissions tokens available for distribution"];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7626,6 +9093,7 @@ export type Marginfi = {
           },
           {
             name: "emissionsMint";
+            docs: ["The SPL token mint used for emissions rewards"];
             type: "pubkey";
           },
           {
@@ -7662,6 +9130,7 @@ export type Marginfi = {
           },
           {
             name: "cache";
+            docs: ["Cached bank metrics (interest rates, oracle price, etc.)"];
             type: {
               defined: {
                 name: "bankCache";
@@ -7692,6 +9161,7 @@ export type Marginfi = {
           },
           {
             name: "padding0";
+            docs: ["Reserved for future use"];
             type: {
               array: ["u8", 16];
             };
@@ -7703,6 +9173,7 @@ export type Marginfi = {
               "- Kamino: reserve",
               "- Drift: spot market",
               "- Solend: reserve",
+              "- JupLend: lending state",
             ];
             type: "pubkey";
           },
@@ -7713,6 +9184,7 @@ export type Marginfi = {
               "- Kamino: obligation",
               "- Drift: user",
               "- Solend: obligation",
+              "- JupLend: fToken vault",
             ];
             type: "pubkey";
           },
@@ -7721,8 +9193,27 @@ export type Marginfi = {
             docs: [
               "Integration account slot 3 (default Pubkey for non-integrations).",
               "- Drift: user stats",
+              "- JupLend: withdraw intermediary ATA (ATA of liquidity_vault_authority for bank mint)",
             ];
             type: "pubkey";
+          },
+          {
+            name: "rateLimiter";
+            docs: [
+              "Rate limiter for controlling withdraw/borrow outflow.",
+              "Tracks net outflow (outflows - inflows) in native tokens.",
+            ];
+            type: {
+              defined: {
+                name: "bankRateLimiter";
+              };
+            };
+          },
+          {
+            name: "pad0";
+            type: {
+              array: ["u8", 8];
+            };
           },
           {
             name: "padding1";
@@ -7731,7 +9222,7 @@ export type Marginfi = {
                 {
                   array: ["u64", 2];
                 },
-                13,
+                7,
               ];
             };
           },
@@ -7752,7 +9243,7 @@ export type Marginfi = {
             docs: [
               "Actual (spot) interest/fee rates of the bank, based on utilization",
               "* APR (annual percentage rate) values",
-              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u:32::MAX/2 = 500%, etc",
+              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u32::MAX/2 = 500%, etc",
             ];
             type: "u32";
           },
@@ -7760,7 +9251,7 @@ export type Marginfi = {
             name: "lendingRate";
             docs: [
               "Equivalent to `base_rate` * utilization",
-              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u:32::MAX/2 = 500%, etc",
+              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u32::MAX/2 = 500%, etc",
             ];
             type: "u32";
           },
@@ -7768,7 +9259,7 @@ export type Marginfi = {
             name: "borrowingRate";
             docs: [
               "Equivalent to `base_rate` * (1 + ir_fees) + fixed_fees",
-              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u:32::MAX/2 = 500%, etc",
+              "* From 0-1000%, as u32, e.g. u32::MAX = 1000%, u32::MAX/2 = 500%, etc",
             ];
             type: "u32";
           },
@@ -7832,15 +9323,58 @@ export type Marginfi = {
             };
           },
           {
+            name: "liqCacheFlags";
+            docs: [
+              "Liquidation cache flags, set during receivership flow.",
+              '* 1 (LIQ_CACHE_LOCKED_FLAG) - We "lock" the liquidation cache when writing to it in Start',
+              "Liquidate as an additional safeguard, if the liquidation prices stored here were to be",
+              "edited between start and end, it would completely break the risk engine. End validates that",
+              "the lock is set, panics if not, and removes it - which prevents footguns if the cache was",
+              "e.g. accidently set to default. The lock is also removed when a Balance is closed with",
+              "repay_all or withdraw_all, since those Balances can be omitted from the risk check at End.",
+            ];
+            type: "u8";
+          },
+          {
             name: "padding";
             type: {
-              array: ["u8", 24];
+              array: ["u8", 23];
             };
           },
           {
-            name: "reserved0";
+            name: "liquidationPriceRt";
+            docs: ["Cached real-time price for receivership liquidation."];
             type: {
-              array: ["u8", 64];
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "liquidationPriceRtConfidence";
+            docs: ["Cached real-time price confidence for receivership liquidation."];
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "liquidationPriceTwap";
+            docs: ["Cached TWAP price for receivership liquidation."];
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "liquidationPriceTwapConfidence";
+            docs: ["Cached TWAP price confidence for receivership liquidation."];
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
             };
           },
         ];
@@ -7856,7 +9390,10 @@ export type Marginfi = {
         fields: [
           {
             name: "assetWeightInit";
-            docs: ["TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)"];
+            docs: [
+              "Discount factor for asset values in initial margin calculation (0 to 1).",
+              "E.g., 0.8 means assets count as 80% of their value for borrowing purposes.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7865,6 +9402,10 @@ export type Marginfi = {
           },
           {
             name: "assetWeightMaint";
+            docs: [
+              "Discount factor for asset values in maintenance margin calculation (0 to 2).",
+              "Used for liquidation eligibility. Generally >= asset_weight_init.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7873,6 +9414,10 @@ export type Marginfi = {
           },
           {
             name: "liabilityWeightInit";
+            docs: [
+              "Premium factor for liability values in initial margin calculation (>= 1).",
+              "E.g., 1.2 means liabilities count as 120% of their value for borrowing purposes.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7881,6 +9426,10 @@ export type Marginfi = {
           },
           {
             name: "liabilityWeightMaint";
+            docs: [
+              "Premium factor for liability values in maintenance margin calculation (>= 1).",
+              "Used for liquidation eligibility. Generally <= liability_weight_init.",
+            ];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -7889,10 +9438,14 @@ export type Marginfi = {
           },
           {
             name: "depositLimit";
+            docs: [
+              "Maximum total deposits allowed in this bank, in native token units (0 = no limit)",
+            ];
             type: "u64";
           },
           {
             name: "interestRateConfig";
+            docs: ["Interest rate model configuration"];
             type: {
               defined: {
                 name: "interestRateConfig";
@@ -7901,6 +9454,9 @@ export type Marginfi = {
           },
           {
             name: "operationalState";
+            docs: [
+              "Current operational state of the bank (Paused, Operational, ReduceOnly, KilledByBankruptcy)",
+            ];
             type: {
               defined: {
                 name: "bankOperationalState";
@@ -7909,6 +9465,7 @@ export type Marginfi = {
           },
           {
             name: "oracleSetup";
+            docs: ["Oracle type used for price feeds"];
             type: {
               defined: {
                 name: "oracleSetup";
@@ -7917,6 +9474,7 @@ export type Marginfi = {
           },
           {
             name: "oracleKeys";
+            docs: ["Oracle account keys (usage depends on oracle_setup type)"];
             type: {
               array: ["pubkey", 5];
             };
@@ -7929,10 +9487,14 @@ export type Marginfi = {
           },
           {
             name: "borrowLimit";
+            docs: [
+              "Maximum total borrows allowed in this bank, in native token units (0 = no limit)",
+            ];
             type: "u64";
           },
           {
             name: "riskTier";
+            docs: ["Risk tier for this bank (Collateral or Isolated)"];
             type: {
               defined: {
                 name: "riskTier";
@@ -7942,14 +9504,16 @@ export type Marginfi = {
           {
             name: "assetTag";
             docs: [
-              "Determines what kinds of assets users of this bank can interact with.",
-              "Options:",
-              "* ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset",
-              "or with `ASSET_TAG_SOL`",
-              "* ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**",
+              "Determines what kinds of assets users of this bank can interact with. Options:",
+              "* `ASSET_TAG_DEFAULT` (0) - A regular asset that can be comingled with any other regular",
+              "asset or with `ASSET_TAG_SOL`",
+              "* `ASSET_TAG_SOL` (1) - Accounts with a SOL position can comingle with **either**",
               "`ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both",
-              "* ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit",
-              "other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL",
+              "* `ASSET_TAG_STAKED` (2) - Staked SOL assets. Accounts with a STAKED position can only",
+              "deposit other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL",
+              "* `ASSET_TAG_KAMINO` (3) - Treated the same as `ASSET_TAG_DEFAULT`",
+              "* `ASSET_TAG_DRIFT` (4) - Treated the same as `ASSET_TAG_DEFAULT`",
+              "* `ASSET_TAG_SOLEND` (5) - Treated the same as `ASSET_TAG_DEFAULT`",
             ];
             type: "u8";
           },
@@ -7957,9 +9521,9 @@ export type Marginfi = {
             name: "configFlags";
             docs: [
               "Flags for various config options",
-              "* 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new pyth",
-              "oracle setup from a prior version. Not set in 0.1.3 or earlier banks using pyth that have",
-              "not yet migrated. Does nothing for banks that use switchboard.",
+              "* 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new pyth oracle",
+              "setup from a prior version. Not set in 0.1.3 or earlier banks using pyth that have not yet",
+              "migrated. Does nothing for banks that use switchboard.",
               "* 2, 4, 8, 16, etc - reserved for future use.",
             ];
             type: "u8";
@@ -7974,11 +9538,11 @@ export type Marginfi = {
             name: "totalAssetValueInitLimit";
             docs: [
               "USD denominated limit for calculating asset value for initialization margin requirements.",
-              "Example, if total SOL deposits are equal to $1M and the limit it set to $500K,",
-              "then SOL assets will be discounted by 50%.",
+              "Example, if total SOL deposits are equal to $1M and the limit it set to $500K, then SOL",
+              "assets will be discounted by 50%.",
               "",
-              "In other words the max value of liabilities that can be backed by the asset is $500K.",
-              "This is useful for limiting the damage of orcale attacks.",
+              "In other words the max value of liabilities that can be backed by the asset is $500K. This",
+              "is useful for limiting the damage of oracle attacks.",
               "",
               "Value is UI USD value, for example value 100 -> $100",
             ];
@@ -8025,7 +9589,6 @@ export type Marginfi = {
     },
     {
       name: "bankConfigCompact";
-      docs: ["TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)"];
       repr: {
         kind: "c";
       };
@@ -8099,14 +9662,16 @@ export type Marginfi = {
           {
             name: "assetTag";
             docs: [
-              "Determines what kinds of assets users of this bank can interact with.",
-              "Options:",
-              "* ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset",
-              "or with `ASSET_TAG_SOL`",
-              "* ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**",
+              "Determines what kinds of assets users of this bank can interact with. Options:",
+              "* `ASSET_TAG_DEFAULT` (0) - A regular asset that can be comingled with any other regular",
+              "asset or with `ASSET_TAG_SOL`",
+              "* `ASSET_TAG_SOL` (1) - Accounts with a SOL position can comingle with **either**",
               "`ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both",
-              "* ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit",
-              "other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL",
+              "* `ASSET_TAG_STAKED` (2) - Staked SOL assets. Accounts with a STAKED position can only",
+              "deposit other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL",
+              "* `ASSET_TAG_KAMINO` (3) - Treated the same as `ASSET_TAG_DEFAULT`",
+              "* `ASSET_TAG_DRIFT` (4) - Treated the same as `ASSET_TAG_DEFAULT`",
+              "* `ASSET_TAG_SOLEND` (5) - Treated the same as `ASSET_TAG_DEFAULT`",
             ];
             type: "u8";
           },
@@ -8114,8 +9679,8 @@ export type Marginfi = {
             name: "configFlags";
             docs: [
               "Flags for various config options",
-              "* 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new oracle",
-              "setup from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.",
+              "* 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new oracle setup",
+              "from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.",
               "* 2, 4, 8, 16, etc - reserved for future use.",
             ];
             type: "u8";
@@ -8130,11 +9695,11 @@ export type Marginfi = {
             name: "totalAssetValueInitLimit";
             docs: [
               "USD denominated limit for calculating asset value for initialization margin requirements.",
-              "Example, if total SOL deposits are equal to $1M and the limit it set to $500K,",
-              "then SOL assets will be discounted by 50%.",
+              "Example, if total SOL deposits are equal to $1M and the limit it set to $500K, then SOL",
+              "assets will be discounted by 50%.",
               "",
-              "In other words the max value of liabilities that can be backed by the asset is $500K.",
-              "This is useful for limiting the damage of orcale attacks.",
+              "In other words the max value of liabilities that can be backed by the asset is $500K. This",
+              "is useful for limiting the damage of oracle attacks.",
               "",
               "Value is UI USD value, for example value 100 -> $100",
             ];
@@ -8317,7 +9882,7 @@ export type Marginfi = {
           },
           {
             name: "description";
-            docs: ["The token's plain english descripion, e.g US Dollar Coin", "* utf-8"];
+            docs: ["The token's plain english description, e.g US Dollar Coin", "* utf-8"];
             type: {
               array: ["u8", 128];
             };
@@ -8376,6 +9941,49 @@ export type Marginfi = {
           },
           {
             name: "killedByBankruptcy";
+          },
+        ];
+      };
+    },
+    {
+      name: "bankRateLimiter";
+      docs: [
+        "Per-bank rate limiting configuration and state.",
+        "Tracks net outflow in native tokens.",
+      ];
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "hourly";
+            docs: ["Hourly window rate limiter (native tokens)."];
+            type: {
+              defined: {
+                name: "rateLimitWindow";
+              };
+            };
+          },
+          {
+            name: "daily";
+            docs: ["Daily window rate limiter (native tokens)."];
+            type: {
+              defined: {
+                name: "rateLimitWindow";
+              };
+            };
+          },
+          {
+            name: "untrackedInflow";
+            docs: [
+              "Native token inflows pending USD conversion for group rate limiter.",
+              "When deposits/repays occur without a valid oracle price, the amount is",
+              "recorded here and later applied to the group rate limiter when a valid",
+              "price becomes available (e.g., during pulse_bank_price_cache or outflow operations).",
+            ];
+            type: "i64";
           },
         ];
       };
@@ -8644,6 +10252,98 @@ export type Marginfi = {
       };
     },
     {
+      name: "executeOrderBalanceRecord";
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bank";
+            type: "pubkey";
+          },
+          {
+            name: "isAsset";
+            type: "u8";
+          },
+          {
+            name: "pad0";
+            type: {
+              array: ["u8", 5];
+            };
+          },
+          {
+            name: "tag";
+            type: "u16";
+          },
+          {
+            name: "shares";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "executeOrderRecord";
+      serialization: "bytemuck";
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "order";
+            type: "pubkey";
+          },
+          {
+            name: "executor";
+            type: "pubkey";
+          },
+          {
+            name: "balanceStates";
+            type: {
+              array: [
+                {
+                  defined: {
+                    name: "executeOrderBalanceRecord";
+                  };
+                },
+                14,
+              ];
+            };
+          },
+          {
+            name: "activeBalanceCount";
+            type: "u8";
+          },
+          {
+            name: "inactiveBalanceCount";
+            type: "u8";
+          },
+          {
+            name: "reserved0";
+            type: {
+              array: ["u8", 6];
+            };
+          },
+          {
+            name: "orderStartHealth";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
       name: "feeState";
       docs: [
         "Unique per-program. The Program Owner uses this account to administrate fees collected by the protocol",
@@ -8699,7 +10399,7 @@ export type Marginfi = {
             name: "liquidationMaxFee";
             docs: [
               "Liquidators can claim at this premium, when liquidating an asset in receivership",
-              "liquidation, e.g. (1 + this) * amount repaid <= asset seized",
+              "liquidation, e.g. (1 + this) * amount repaid >= asset seized",
               "* A percentage",
             ];
             type: {
@@ -8751,9 +10451,24 @@ export type Marginfi = {
             type: "u32";
           },
           {
-            name: "reserved0";
+            name: "orderInitFlatSolFee";
+            docs: [
+              "Flat fee assessed for preventing spam use when creating an order",
+              "* In SOL, in native decimals.",
+            ];
+            type: "u32";
+          },
+          {
+            name: "orderExecutionMaxFee";
+            docs: [
+              "Take-profit Orders can be executed at this premium, which Keepers are allowed to keep (no",
+              "pun intended) e.g. (1 + this) * amount repaid >= asset seized",
+              "* A percentage",
+            ];
             type: {
-              array: ["u8", 20];
+              defined: {
+                name: "wrappedI80f48";
+              };
             };
           },
           {
@@ -8767,6 +10482,7 @@ export type Marginfi = {
     },
     {
       name: "feeStateCache";
+      docs: ["Cached fee configuration propagated from the global FeeState"];
       repr: {
         kind: "c";
       };
@@ -8775,10 +10491,12 @@ export type Marginfi = {
         fields: [
           {
             name: "globalFeeWallet";
+            docs: ["The wallet that receives program-level fees"];
             type: "pubkey";
           },
           {
             name: "programFeeFixed";
+            docs: ["Fixed fee APR charged to borrowers (program-level)"];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -8787,6 +10505,7 @@ export type Marginfi = {
           },
           {
             name: "programFeeRate";
+            docs: ["Proportional fee rate on interest (program-level)"];
             type: {
               defined: {
                 name: "wrappedI80f48";
@@ -8795,6 +10514,7 @@ export type Marginfi = {
           },
           {
             name: "lastUpdate";
+            docs: ["Unix timestamp of the last fee state propagation"];
             type: "i64";
           },
         ];
@@ -8814,6 +10534,39 @@ export type Marginfi = {
           {
             name: "marginfiGroup";
             type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "groupRateLimiter";
+      docs: [
+        "Per-group rate limiting configuration and state.",
+        "Tracks aggregate net outflow in USD.",
+      ];
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "hourly";
+            docs: ["Hourly window rate limiter (USD)."];
+            type: {
+              defined: {
+                name: "rateLimitWindow";
+              };
+            };
+          },
+          {
+            name: "daily";
+            docs: ["Daily window rate limiter (USD)."];
+            type: {
+              defined: {
+                name: "rateLimitWindow";
+              };
+            };
           },
         ];
       };
@@ -8927,7 +10680,7 @@ export type Marginfi = {
           {
             name: "flags";
             docs: [
-              "The flags that indicate the state of the health cache. This is a u64 bitfield, where each",
+              "The flags that indicate the state of the health cache. This is a u32 bitfield, where each",
               "bit represents a flag.",
               "",
               "* HEALTHY = 1 - If set, the account cannot be liquidated. If 0, the account is unhealthy and",
@@ -8995,10 +10748,14 @@ export type Marginfi = {
           },
           {
             name: "internalLiqErr";
+            docs: [
+              "Error code from the liquidation health check during the last health pulse (0 if none)",
+            ];
             type: "u32";
           },
           {
             name: "internalBankruptcyErr";
+            docs: ["Error code from the bankruptcy check during the last health pulse (0 if none)"];
             type: "u32";
           },
           {
@@ -9371,6 +11128,83 @@ export type Marginfi = {
       };
     },
     {
+      name: "juplendConfigCompact";
+      docs: [
+        "Used to configure JupLend banks. A simplified version of `BankConfigCompact` which omits most",
+        "values related to interest since JupLend banks cannot earn interest or be borrowed against.",
+        "",
+        "Note: JupLend banks do not take an Operational State, they always start in `Paused` state and",
+        "are set to `Operational` via `juplend_init_position` (seed deposit + protocol fToken vault).",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "oracle";
+            type: "pubkey";
+          },
+          {
+            name: "assetWeightInit";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "assetWeightMaint";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "depositLimit";
+            type: "u64";
+          },
+          {
+            name: "oracleSetup";
+            docs: ["Either `JuplendPythPull` or `JuplendSwitchboardPull`"];
+            type: {
+              defined: {
+                name: "oracleSetup";
+              };
+            };
+          },
+          {
+            name: "riskTier";
+            docs: ["Isolated or Collateral"];
+            type: {
+              defined: {
+                name: "riskTier";
+              };
+            };
+          },
+          {
+            name: "configFlags";
+            docs: ["Config flags for future-proofing, currently ignored"];
+            type: "u8";
+          },
+          {
+            name: "totalAssetValueInitLimit";
+            docs: ["In $"];
+            type: "u64";
+          },
+          {
+            name: "oracleMaxAge";
+            docs: ["In seconds"];
+            type: "u16";
+          },
+          {
+            name: "oracleMaxConfidence";
+            docs: ["Oracle confidence threshold (0 = use default 10%)"];
+            type: "u32";
+          },
+        ];
+      };
+    },
+    {
       name: "kaminoConfigCompact";
       docs: [
         "Used to configure Kamino banks. A simplified version of `BankConfigCompact` which omits most",
@@ -9453,7 +11287,100 @@ export type Marginfi = {
       };
     },
     {
+      name: "keeperCloseOrderEvent";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "header";
+            type: {
+              defined: {
+                name: "accountEventHeader";
+              };
+            };
+          },
+          {
+            name: "order";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "lending";
+      docs: [
+        "Minimal representation of the on-chain JupLend `Lending` account.",
+        "",
+        "Notes:",
+        "- We intentionally use a **zero-copy** layout here to match how other integrations load large",
+        "external accounts (and to avoid paying Borsh (de)serialization cost on every access).",
+        "- `repr(C, packed)` keeps the byte layout identical to a field-by-field serialization",
+        "(i.e. no implicit padding). This is important because `Pubkey` has alignment=1 while `u64`",
+        "has alignment=8; using plain `repr(C)` would insert padding before the first `u64`.",
+      ];
+      serialization: "bytemuckunsafe";
+      repr: {
+        kind: "c";
+        packed: true;
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "mint";
+            type: "pubkey";
+          },
+          {
+            name: "fTokenMint";
+            type: "pubkey";
+          },
+          {
+            name: "lendingId";
+            type: "u16";
+          },
+          {
+            name: "decimals";
+            docs: ["number of decimals for the fToken, same as underlying mint"];
+            type: "u8";
+          },
+          {
+            name: "rewardsRateModel";
+            docs: ["PDA of rewards rate model (LRRM)"];
+            type: "pubkey";
+          },
+          {
+            name: "liquidityExchangePrice";
+            docs: ["exchange price in the liquidity layer (no rewards)"];
+            type: "u64";
+          },
+          {
+            name: "tokenExchangePrice";
+            docs: ["exchange price between fToken and underlying (with rewards)"];
+            type: "u64";
+          },
+          {
+            name: "lastUpdateTimestamp";
+            docs: ["unix timestamp when exchange prices were updated last"];
+            type: "u64";
+          },
+          {
+            name: "tokenReservesLiquidity";
+            type: "pubkey";
+          },
+          {
+            name: "supplyPositionOnLiquidity";
+            type: "pubkey";
+          },
+          {
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
+    },
+    {
       name: "lendingAccount";
+      docs: ["The lending account holds up to 16 balance positions for a user."];
       repr: {
         kind: "c";
       };
@@ -9462,6 +11389,7 @@ export type Marginfi = {
         fields: [
           {
             name: "balances";
+            docs: ["Array of balance positions (max 16). Sorted in descending order by bank_pk."];
             type: {
               array: [
                 {
@@ -9474,9 +11402,22 @@ export type Marginfi = {
             };
           },
           {
-            name: "padding";
+            name: "lastTagUsed";
+            docs: ["Last allocated balance tag (u16), used to find the next unused tag."];
+            type: "u16";
+          },
+          {
+            name: "pad1";
+            docs: ["Reserved for future use"];
             type: {
-              array: ["u64", 8];
+              array: ["u8", 6];
+            };
+          },
+          {
+            name: "padding";
+            docs: ["Reserved for future use"];
+            type: {
+              array: ["u64", 7];
             };
           },
         ];
@@ -10226,7 +12167,7 @@ export type Marginfi = {
             name: "emissionsDestinationAccount";
             docs: [
               "Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the",
-              "cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).",
+              "canonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).",
               "If pubkey default, the user has not opted into this feature, and must claim emissions",
               "manually (withdraw_emissions).",
             ];
@@ -10254,6 +12195,9 @@ export type Marginfi = {
           },
           {
             name: "lastUpdate";
+            docs: [
+              "Unix timestamp (u64) of the last account interaction. Note: Bank.last_update uses i64.",
+            ];
             type: "u64";
           },
           {
@@ -10311,6 +12255,26 @@ export type Marginfi = {
       };
     },
     {
+      name: "marginfiAccountCloseOrderEvent";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "header";
+            type: {
+              defined: {
+                name: "accountEventHeader";
+              };
+            };
+          },
+          {
+            name: "order";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
       name: "marginfiAccountCreateEvent";
       type: {
         kind: "struct";
@@ -10342,6 +12306,56 @@ export type Marginfi = {
           {
             name: "frozen";
             type: "bool";
+          },
+        ];
+      };
+    },
+    {
+      name: "marginfiAccountPlaceOrderEvent";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "header";
+            type: {
+              defined: {
+                name: "accountEventHeader";
+              };
+            };
+          },
+          {
+            name: "order";
+            type: "pubkey";
+          },
+          {
+            name: "trigger";
+            type: {
+              defined: {
+                name: "orderTriggerType";
+              };
+            };
+          },
+          {
+            name: "stopLoss";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "takeProfit";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "tags";
+            type: {
+              array: ["u16", 2];
+            };
           },
         ];
       };
@@ -10392,8 +12406,7 @@ export type Marginfi = {
             name: "groupFlags";
             docs: [
               "Bitmask for group settings flags.",
-              "* 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.",
-              "* 1: `ARENA_GROUP` Deprecated, available for future use.",
+              "* Bit 0 (1): `PROGRAM_FEES_ENABLED` — If set, program-level fees are enabled.",
               "* Bits 1-63: Reserved for future use.",
             ];
             type: "u64";
@@ -10411,6 +12424,11 @@ export type Marginfi = {
           },
           {
             name: "banks";
+            docs: [
+              "For groups initialized in versions 0.1.2 or greater, this is an authoritative count",
+              "of the number of banks under this group. For groups initialized prior to 0.1.2,",
+              "a non-authoritative count of the number of banks initiated after 0.1.2 went live.",
+            ];
             type: "u16";
           },
           {
@@ -10430,6 +12448,10 @@ export type Marginfi = {
           },
           {
             name: "delegateCurveAdmin";
+            docs: [
+              "Can modify the fields in `config.interest_rate_config` but nothing else, for every bank",
+              "under this group",
+            ];
             type: "pubkey";
           },
           {
@@ -10487,16 +12509,37 @@ export type Marginfi = {
           },
           {
             name: "emodeMaxInitLeverage";
+            docs: [
+              "Maximum leverage allowed for emode positions (initial margin), stored as u32 basis.",
+              "Use `u32_to_basis` to convert to I80F48. Range: 1-100.",
+            ];
             type: "u32";
           },
           {
             name: "emodeMaxMaintLeverage";
+            docs: [
+              "Maximum leverage allowed for emode positions (maintenance margin), stored as u32 basis.",
+              "Must be > emode_max_init_leverage. Range: 1-100.",
+            ];
             type: "u32";
           },
           {
             name: "padding";
+            docs: ["Reserved for future use"];
             type: {
               array: ["u8", 8];
+            };
+          },
+          {
+            name: "rateLimiter";
+            docs: [
+              "Rate limiter for controlling aggregate withdraw/borrow outflow across all banks.",
+              "Tracks net outflow in USD.",
+            ];
+            type: {
+              defined: {
+                name: "groupRateLimiter";
+              };
             };
           },
           {
@@ -10506,7 +12549,7 @@ export type Marginfi = {
                 {
                   array: ["u64", 2];
                 },
-                11,
+                6,
               ];
             };
           },
@@ -10539,7 +12582,9 @@ export type Marginfi = {
           },
           {
             name: "admin";
-            type: "pubkey";
+            type: {
+              option: "pubkey";
+            };
           },
           {
             name: "flags";
@@ -11319,6 +13364,213 @@ export type Marginfi = {
           {
             name: "solendSwitchboardPull";
           },
+          {
+            name: "fixedKamino";
+          },
+          {
+            name: "fixedDrift";
+          },
+          {
+            name: "juplendPythPull";
+          },
+          {
+            name: "juplendSwitchboardPull";
+          },
+          {
+            name: "fixedJuplend";
+          },
+        ];
+      };
+    },
+    {
+      name: "order";
+      serialization: "bytemuck";
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "marginfiAccount";
+            type: "pubkey";
+          },
+          {
+            name: "stopLoss";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "takeProfit";
+            type: {
+              defined: {
+                name: "wrappedI80f48";
+              };
+            };
+          },
+          {
+            name: "placeholder";
+            docs: ["Reserved for future use"];
+            type: "u64";
+          },
+          {
+            name: "maxSlippage";
+            docs: ["* a %, as u32, out of 100%, e.g. 50% = .5 * u32::MAX"];
+            type: "u32";
+          },
+          {
+            name: "pad0";
+            type: {
+              array: ["u8", 4];
+            };
+          },
+          {
+            name: "tags";
+            docs: [
+              "Active tags (currently 2). Remaining capacity is stored in padding for layout compatibility.",
+              "Padding byte `ORDER_TAG_PADDING - 1` stores the tag count for forward compatibility. (u16 *",
+              "2 = 4 bytes)",
+            ];
+            type: {
+              array: ["u16", 2];
+            };
+          },
+          {
+            name: "pad1";
+            type: {
+              array: ["u8", 4];
+            };
+          },
+          {
+            name: "tagsPadding";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "trigger";
+            docs: ["Stop Loss (0), Take Profit (1), or Both (2)"];
+            type: {
+              defined: {
+                name: "orderTriggerType";
+              };
+            };
+          },
+          {
+            name: "bump";
+            docs: ["Bump to derive this pda"];
+            type: "u8";
+          },
+          {
+            name: "pad2";
+            type: {
+              array: ["u8", 6];
+            };
+          },
+          {
+            name: "reserved1";
+            type: {
+              array: [
+                {
+                  array: ["u8", 32];
+                },
+                4,
+              ];
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "orderTrigger";
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "enum";
+        variants: [
+          {
+            name: "stopLoss";
+            fields: [
+              {
+                name: "threshold";
+                type: {
+                  defined: {
+                    name: "wrappedI80f48";
+                  };
+                };
+              },
+              {
+                name: "maxSlippage";
+                type: "u32";
+              },
+            ];
+          },
+          {
+            name: "takeProfit";
+            fields: [
+              {
+                name: "threshold";
+                type: {
+                  defined: {
+                    name: "wrappedI80f48";
+                  };
+                };
+              },
+              {
+                name: "maxSlippage";
+                type: "u32";
+              },
+            ];
+          },
+          {
+            name: "both";
+            fields: [
+              {
+                name: "stopLoss";
+                type: {
+                  defined: {
+                    name: "wrappedI80f48";
+                  };
+                };
+              },
+              {
+                name: "takeProfit";
+                type: {
+                  defined: {
+                    name: "wrappedI80f48";
+                  };
+                };
+              },
+              {
+                name: "maxSlippage";
+                type: "u32";
+              },
+            ];
+          },
+        ];
+      };
+    },
+    {
+      name: "orderTriggerType";
+      repr: {
+        kind: "rust";
+      };
+      type: {
+        kind: "enum";
+        variants: [
+          {
+            name: "stopLoss";
+          },
+          {
+            name: "takeProfit";
+          },
+          {
+            name: "both";
+          },
         ];
       };
     },
@@ -11409,6 +13661,59 @@ export type Marginfi = {
       };
     },
     {
+      name: "rateLimitWindow";
+      docs: [
+        "A sliding window rate limiter that tracks net outflow over a time window.",
+        "Uses weighted blend of previous and current windows for smooth transitions.",
+        "",
+        "Net outflow = (withdraws + borrows) - (deposits + repays).",
+        "A negative net outflow increases remaining capacity for subsequent outflows.",
+      ];
+      repr: {
+        kind: "c";
+      };
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "maxOutflow";
+            docs: [
+              "Maximum net outflow allowed per window (0 = disabled).",
+              "For bank-level: denominated in native tokens.",
+              "For group-level: denominated in USD.",
+            ];
+            type: "u64";
+          },
+          {
+            name: "windowDuration";
+            docs: ["Window duration in seconds (e.g., 3600 for hourly, 86400 for daily)."];
+            type: "u64";
+          },
+          {
+            name: "windowStart";
+            docs: ["Unix timestamp when the current window started."];
+            type: "i64";
+          },
+          {
+            name: "prevWindowOutflow";
+            docs: [
+              "Net outflow accumulated in the previous window.",
+              "Signed to allow tracking when inflows exceed outflows.",
+            ];
+            type: "i64";
+          },
+          {
+            name: "curWindowOutflow";
+            docs: [
+              "Net outflow accumulated in the current window.",
+              "Signed to allow tracking when inflows exceed outflows.",
+            ];
+            type: "i64";
+          },
+        ];
+      };
+    },
+    {
       name: "ratePoint";
       repr: {
         kind: "c";
@@ -11448,6 +13753,30 @@ export type Marginfi = {
           },
           {
             name: "isolated";
+          },
+        ];
+      };
+    },
+    {
+      name: "setKeeperCloseFlagsEvent";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "header";
+            type: {
+              defined: {
+                name: "accountEventHeader";
+              };
+            };
+          },
+          {
+            name: "bankKeys";
+            type: {
+              option: {
+                vec: "pubkey";
+              };
+            };
           },
         ];
       };
@@ -11757,7 +14086,7 @@ export type Marginfi = {
       docs: [
         "Unique per-group. Staked Collateral banks created under a group automatically use these",
         "settings. Groups that have not created this struct cannot create staked collateral banks. When",
-        "this struct updates, changes must be permissionlessly propogated to staked collateral banks.",
+        "this struct updates, changes must be permissionlessly propagated to staked collateral banks.",
         "Administrators can also edit the bank manually, i.e. with configure_bank, to temporarily make",
         "changes such as raising the deposit limit for a single bank.",
       ];
@@ -12003,6 +14332,7 @@ export type Marginfi = {
     },
     {
       name: "withdrawWindowCache";
+      docs: ["Tracks deleverage withdrawal limits to protect against compromised risk admin"];
       repr: {
         kind: "c";
       };
@@ -12011,14 +14341,17 @@ export type Marginfi = {
         fields: [
           {
             name: "dailyLimit";
+            docs: ["Maximum USD value that can be withdrawn per day via deleverage (0 = no limit)"];
             type: "u32";
           },
           {
             name: "withdrawnToday";
+            docs: ["USD value withdrawn today via deleverage (approximate, rounded)"];
             type: "u32";
           },
           {
             name: "lastDailyResetTimestamp";
+            docs: ["Unix timestamp of the last daily counter reset"];
             type: "i64";
           },
         ];

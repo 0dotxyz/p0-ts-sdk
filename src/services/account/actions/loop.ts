@@ -23,6 +23,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
@@ -74,6 +75,13 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
       },
     ],
   });
+
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [depositOpts.depositBank.address],
+    params.bankMetadataMap
+  );
 
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
@@ -143,13 +151,15 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     setupIxs.length > 0 ||
     additionalIxs.length > 0 ||
     kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0
+    updateDriftMarketIxs.instructions.length > 0 ||
+    updateJupLendRateIxs.instructions.length > 0
   ) {
     const ixs = [
       ...additionalIxs,
       ...setupIxs,
       ...kaminoRefreshIxs.instructions,
       ...updateDriftMarketIxs.instructions,
+      ...updateJupLendRateIxs.instructions,
     ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,

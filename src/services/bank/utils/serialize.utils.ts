@@ -143,6 +143,16 @@ function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
       return 11;
     case OracleSetup.SolendSwitchboardPull:
       return 12;
+    case OracleSetup.FixedKamino:
+      return 13;
+    case OracleSetup.FixedDrift:
+      return 14;
+    case OracleSetup.JuplendPythPull:
+      return 15;
+    case OracleSetup.JuplendSwitchboardPull:
+      return 16;
+    case OracleSetup.FixedJuplend:
+      return 17;
     default:
       return 0;
   }
@@ -176,6 +186,16 @@ function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
       return { solendPythPull: {} };
     case OracleSetup.SolendSwitchboardPull:
       return { solendSwitchboardPull: {} };
+    case OracleSetup.FixedKamino:
+      return { fixedKamino: {} };
+    case OracleSetup.FixedDrift:
+      return { fixedDrift: {} };
+    case OracleSetup.JuplendPythPull:
+      return { juplendPythPull: {} };
+    case OracleSetup.JuplendSwitchboardPull:
+      return { juplendSwitchboardPull: {} };
+    case OracleSetup.FixedJuplend:
+      return { fixedJuplend: {} };
     default:
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);
   }
@@ -232,6 +252,13 @@ function toBankDto(bank: BankType): BankTypeDto {
       ? {
           solendReserve: bank.solendIntegrationAccounts.solendReserve.toBase58(),
           solendObligation: bank.solendIntegrationAccounts.solendObligation.toBase58(),
+        }
+      : undefined,
+    jupLendIntegrationAccounts: bank.jupLendIntegrationAccounts
+      ? {
+          jupLendingState: bank.jupLendIntegrationAccounts.jupLendingState.toBase58(),
+          jupFTokenMint: bank.jupLendIntegrationAccounts.jupFTokenMint.toBase58(),
+          jupFTokenAta: bank.jupLendIntegrationAccounts.jupFTokenAta.toBase58(),
         }
       : undefined,
   };

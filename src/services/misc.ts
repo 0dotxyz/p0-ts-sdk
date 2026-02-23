@@ -28,9 +28,15 @@ import {
   dtoToDriftUserRaw,
   dtoToDriftUserStatsRaw,
   dtoToFarmRaw,
+  dtoToJupLendingRewardsRateModelRaw,
+  dtoToJupLendingStateRaw,
+  dtoToJupTokenReserveRaw,
   dtoToObligationRaw,
   dtoToReserveRaw,
   farmRawToDto,
+  jupLendingRewardsRateModelRawToDto,
+  jupLendingStateRawToDto,
+  jupTokenReserveRawToDto,
   obligationRawToDto,
   reserveRawToDto,
 } from "../vendor";
@@ -81,6 +87,17 @@ export function dtoToBankMetadata(
             : undefined,
         }
       : undefined,
+    jupLendStates: bankMetadataDto.jupLendStates
+      ? {
+          jupLendingState: dtoToJupLendingStateRaw(bankMetadataDto.jupLendStates.jupLendingState),
+          jupTokenReserveState: dtoToJupTokenReserveRaw(
+            bankMetadataDto.jupLendStates.jupTokenReserveState
+          ),
+          jupRewardsRateModel: bankMetadataDto.jupLendStates.jupRewardsRateModel
+            ? dtoToJupLendingRewardsRateModelRaw(bankMetadataDto.jupLendStates.jupRewardsRateModel)
+            : null,
+        }
+      : undefined,
   };
 }
 
@@ -105,6 +122,17 @@ export function bankMetadataToDto(
           userStatsState: bankMetadata.driftStates.userStatsState
             ? driftUserStatsRawToDto(bankMetadata.driftStates.userStatsState)
             : undefined,
+        }
+      : undefined,
+    jupLendStates: bankMetadata.jupLendStates
+      ? {
+          jupLendingState: jupLendingStateRawToDto(bankMetadata.jupLendStates.jupLendingState),
+          jupTokenReserveState: jupTokenReserveRawToDto(
+            bankMetadata.jupLendStates.jupTokenReserveState
+          ),
+          jupRewardsRateModel: bankMetadata.jupLendStates.jupRewardsRateModel
+            ? jupLendingRewardsRateModelRawToDto(bankMetadata.jupLendStates.jupRewardsRateModel)
+            : null,
         }
       : undefined,
   };

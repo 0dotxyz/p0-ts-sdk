@@ -200,7 +200,8 @@ export function computeProjectedActiveBanksNoCpi(
       case "kaminoDeposit":
       case "driftDeposit":
       case "solendDeposit":
-      case "lendingAccountDeposit": {
+      case "lendingAccountDeposit":
+      case "juplendDeposit": {
         const targetBank = new PublicKey(ix?.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
@@ -218,7 +219,8 @@ export function computeProjectedActiveBanksNoCpi(
       case "kaminoWithdraw":
       case "driftWithdraw":
       case "solendWithdraw":
-      case "lendingAccountWithdraw": {
+      case "lendingAccountWithdraw":
+      case "juplendWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
@@ -321,7 +323,8 @@ export function computeProjectedActiveBalancesNoCpi(
       case "lendingAccountDeposit":
       case "driftDeposit":
       case "solendDeposit":
-      case "kaminoDeposit": {
+      case "kaminoDeposit":
+      case "juplendDeposit": {
         // Bank is at index 3 for these instructions (group, account, authority, bank, ...)
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
@@ -444,7 +447,8 @@ export function computeProjectedActiveBalancesNoCpi(
       case "lendingAccountWithdraw":
       case "driftWithdraw":
       case "solendWithdraw":
-      case "kaminoWithdraw": {
+      case "kaminoWithdraw":
+      case "juplendWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
 

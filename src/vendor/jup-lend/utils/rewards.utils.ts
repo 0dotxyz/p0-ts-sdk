@@ -1,6 +1,6 @@
 import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
-import { JupLendingStateRaw, JupLendingRewardsRateModelRaw } from "../types";
+import { JupLendingState, JupLendingRewardsRateModel } from "../types";
 import {
   calculateJupLendTotalAssets,
   calculateJupLendRewardsRate,
@@ -16,8 +16,8 @@ import {
  * @returns Rewards result with rate, ended flag, and start time
  */
 export function getJupLendRewards(
-  lendingState: JupLendingStateRaw,
-  rewardsModel: JupLendingRewardsRateModelRaw,
+  lendingState: JupLendingState,
+  rewardsModel: JupLendingRewardsRateModel,
   fTokenTotalSupply: BN
 ): JupLendRewardsResult {
   if (lendingState.rewardsRateModel.equals(PublicKey.default)) {

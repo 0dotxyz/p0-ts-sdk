@@ -15,6 +15,7 @@ import {
   checkMultipleOraclesCrankability,
   partitionBanksByCrankability,
 } from "./crankability.utils";
+import { getOracleSourceFromBank } from "./detection.utils";
 
 /**
  * A combination of banks that need to be cranked
@@ -100,11 +101,7 @@ export async function computeSmartCrank({
   }
 
   // Helper to check if bank is Switchboard
-  const isSwitchboard = (bank: BankType) =>
-    bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-    bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
-    bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
-    bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull;
+  const isSwitchboard = (bank: BankType) => getOracleSourceFromBank(bank).key === "switchboard";
 
   // Get banks from balances
   const getBanks = (balances: typeof projectedBalances) =>

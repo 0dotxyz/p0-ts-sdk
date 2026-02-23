@@ -1,19 +1,17 @@
 import {
-  JupLendingStateRaw,
+  JupLendingState,
   JupLendingStateJSON,
-  JupLendingAdminRaw,
-  JupLendingAdminJSON,
-  JupLendingRewardsRateModelRaw,
+  JupLendingRewardsRateModel,
   JupLendingRewardsRateModelJSON,
+  JupTokenReserve,
+  JupTokenReserveJSON,
 } from "../types";
 
 // ============================================================================
 // RAW → DTO CONVERTERS
 // ============================================================================
 
-export function jupLendingStateRawToDto(
-  raw: JupLendingStateRaw
-): JupLendingStateJSON {
+export function jupLendingStateRawToDto(raw: JupLendingState): JupLendingStateJSON {
   return {
     pubkey: raw.pubkey.toBase58(),
     mint: raw.mint.toBase58(),
@@ -26,26 +24,34 @@ export function jupLendingStateRawToDto(
     lastUpdateTimestamp: raw.lastUpdateTimestamp.toString(),
     tokenReservesLiquidity: raw.tokenReservesLiquidity.toBase58(),
     supplyPositionOnLiquidity: raw.supplyPositionOnLiquidity.toBase58(),
-    bump: raw.bump,
   };
 }
 
-export function jupLendingAdminRawToDto(
-  raw: JupLendingAdminRaw
-): JupLendingAdminJSON {
+export function jupTokenReserveRawToDto(raw: JupTokenReserve): JupTokenReserveJSON {
   return {
     pubkey: raw.pubkey.toBase58(),
-    authority: raw.authority.toBase58(),
-    liquidityProgram: raw.liquidityProgram.toBase58(),
-    rebalancer: raw.rebalancer.toBase58(),
-    nextLendingId: raw.nextLendingId,
-    auths: raw.auths.map((a) => a.toBase58()),
-    bump: raw.bump,
+    mint: raw.mint.toBase58(),
+    vault: raw.vault.toBase58(),
+    borrowRate: raw.borrowRate,
+    feeOnInterest: raw.feeOnInterest,
+    lastUtilization: raw.lastUtilization,
+    lastUpdateTimestamp: raw.lastUpdateTimestamp.toString(),
+    supplyExchangePrice: raw.supplyExchangePrice.toString(),
+    borrowExchangePrice: raw.borrowExchangePrice.toString(),
+    maxUtilization: raw.maxUtilization,
+    totalSupplyWithInterest: raw.totalSupplyWithInterest.toString(),
+    totalSupplyInterestFree: raw.totalSupplyInterestFree.toString(),
+    totalBorrowWithInterest: raw.totalBorrowWithInterest.toString(),
+    totalBorrowInterestFree: raw.totalBorrowInterestFree.toString(),
+    totalClaimAmount: raw.totalClaimAmount.toString(),
+    interactingProtocol: raw.interactingProtocol.toBase58(),
+    interactingTimestamp: raw.interactingTimestamp.toString(),
+    interactingBalance: raw.interactingBalance.toString(),
   };
 }
 
 export function jupLendingRewardsRateModelRawToDto(
-  raw: JupLendingRewardsRateModelRaw
+  raw: JupLendingRewardsRateModel
 ): JupLendingRewardsRateModelJSON {
   return {
     pubkey: raw.pubkey.toBase58(),
@@ -56,6 +62,5 @@ export function jupLendingRewardsRateModelRawToDto(
     yearlyReward: raw.yearlyReward.toString(),
     nextDuration: raw.nextDuration.toString(),
     nextRewardAmount: raw.nextRewardAmount.toString(),
-    bump: raw.bump,
   };
 }
