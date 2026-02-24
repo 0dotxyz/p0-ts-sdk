@@ -5,6 +5,8 @@ import {
   JupLendingRewardsRateModelJSON,
   JupTokenReserve,
   JupTokenReserveJSON,
+  JupRateModel,
+  JupRateModelJSON,
 } from "../types";
 
 // ============================================================================
@@ -62,5 +64,19 @@ export function jupLendingRewardsRateModelRawToDto(
     yearlyReward: raw.yearlyReward.toString(),
     nextDuration: raw.nextDuration.toString(),
     nextRewardAmount: raw.nextRewardAmount.toString(),
+  };
+}
+
+export function jupRateModelRawToDto(raw: JupRateModel): JupRateModelJSON {
+  return {
+    pubkey: raw.pubkey.toBase58(),
+    mint: raw.mint.toBase58(),
+    version: raw.version,
+    rateAtZero: raw.rateAtZero,
+    kink1Utilization: raw.kink1Utilization,
+    rateAtKink1: raw.rateAtKink1,
+    rateAtMax: raw.rateAtMax,
+    kink2Utilization: raw.kink2Utilization,
+    rateAtKink2: raw.rateAtKink2,
   };
 }

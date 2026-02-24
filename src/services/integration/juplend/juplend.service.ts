@@ -1,22 +1,29 @@
 import { Connection, PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
 
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { MintLayout } from "~/vendor/spl";
 import {
   JupLendingState,
   JupLendingStateRaw,
   JupLendingRewardsRateModel,
+  JupRateModel,
   JupTokenReserve,
   decodeJupLendingStateData,
   decodeJupLendingRewardsRateModelData,
   decodeJupTokenReserveData,
+  decodeJupRateModelData,
   jupLendingStateRawToDto,
   jupLendingRewardsRateModelRawToDto,
   jupTokenReserveRawToDto,
+  jupRateModelRawToDto,
   dtoToJupLendingStateRaw,
   dtoToJupLendingRewardsRateModelRaw,
   dtoToJupTokenReserveRaw,
+  dtoToJupRateModelRaw,
+  deriveJupLendRateModel,
 } from "~/vendor/jup-lend";
 
 import { JupLendStateJsonByBank } from "./juplend.types";
@@ -26,6 +33,8 @@ export interface JupLendMetadata {
     jupLendingState: JupLendingState;
     jupTokenReserveState: JupTokenReserve;
     jupRewardsRateModel: JupLendingRewardsRateModel | null;
+    jupRateModel: JupRateModel | null;
+    fTokenTotalSupply: BN;
   };
 }
 
@@ -86,6 +95,8 @@ export async function getJupLendMetadata(
         jupRewardsRateModel: state.jupRewardsRateModel
           ? dtoToJupLendingRewardsRateModelRaw(state.jupRewardsRateModel)
           : null,
+        jupRateModel: state.jupRateModel ? dtoToJupRateModelRaw(state.jupRateModel) : null,
+        fTokenTotalSupply: new BN(state.fTokenTotalSupply),
       },
     });
   }
@@ -135,7 +146,7 @@ export async function getJupLendStatesDto(
     return {};
   }
 
-  // ── Pass 2: fetch TokenReserve + RewardsRateModel from addresses on Lending state ──
+  // ── Pass 2: fetch TokenReserve + RewardsRateModel + fToken mint + RateModel from addresses on Lending state ──
   const bankAddresses = Object.keys(rawLendingStatesMap);
   const secondPassKeys: string[] = [];
 
@@ -143,6 +154,9 @@ export async function getJupLendStatesDto(
     const lendingState = rawLendingStatesMap[bankAddress]!;
     secondPassKeys.push(lendingState.tokenReservesLiquidity.toBase58());
     secondPassKeys.push(lendingState.rewardsRateModel.toBase58());
+    secondPassKeys.push(lendingState.fTokenMint.toBase58());
+    const [rateModelPda] = deriveJupLendRateModel(lendingState.mint);
+    secondPassKeys.push(rateModelPda.toBase58());
   }
 
   const secondPassResults = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
@@ -154,11 +168,18 @@ export async function getJupLendStatesDto(
 
   for (const [i, bankAddress] of bankAddresses.entries()) {
     const lendingState = rawLendingStatesMap[bankAddress]!;
-    const tokenReserveAccount = secondPassResults[i * 2];
-    const rewardsRateModelAccount = secondPassResults[i * 2 + 1];
+    const tokenReserveAccount = secondPassResults[i * 4];
+    const rewardsRateModelAccount = secondPassResults[i * 4 + 1];
+    const fTokenMintAccount = secondPassResults[i * 4 + 2];
+    const rateModelAccount = secondPassResults[i * 4 + 3];
 
     if (!tokenReserveAccount) {
       console.warn("JupLend TokenReserve account not found for bank:", bankAddress);
+      continue;
+    }
+
+    if (!fTokenMintAccount) {
+      console.warn("JupLend fToken mint account not found for bank:", bankAddress);
       continue;
     }
 
@@ -170,6 +191,15 @@ export async function getJupLendStatesDto(
       );
     } catch (e) {
       console.warn("Failed to decode JupLend TokenReserve for bank:", bankAddress, e);
+      continue;
+    }
+
+    let fTokenTotalSupply: bigint;
+    try {
+      const rawMint = MintLayout.decode(fTokenMintAccount.data);
+      fTokenTotalSupply = rawMint.supply;
+    } catch (e) {
+      console.warn("Failed to decode JupLend fToken mint for bank:", bankAddress, e);
       continue;
     }
 
@@ -185,12 +215,24 @@ export async function getJupLendStatesDto(
       }
     }
 
+    let rateModel: JupRateModel | null = null;
+    if (rateModelAccount) {
+      try {
+        const [rateModelPda] = deriveJupLendRateModel(lendingState.mint);
+        rateModel = decodeJupRateModelData(rateModelAccount.data, rateModelPda);
+      } catch (e) {
+        console.warn("Failed to decode JupLend RateModel for bank:", bankAddress, e);
+      }
+    }
+
     jupLendStatesMap[bankAddress] = {
       jupLendingState: jupLendingStateRawToDto(lendingState),
       jupTokenReserveState: jupTokenReserveRawToDto(tokenReserveState),
       jupRewardsRateModel: rewardsRateModel
         ? jupLendingRewardsRateModelRawToDto(rewardsRateModel)
         : null,
+      jupRateModel: rateModel ? jupRateModelRawToDto(rateModel) : null,
+      fTokenTotalSupply: fTokenTotalSupply.toString(),
     };
   }
 

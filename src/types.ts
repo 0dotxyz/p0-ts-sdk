@@ -1,5 +1,6 @@
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { Program as AnchorProgram, AnchorProvider, Idl } from "@coral-xyz/anchor";
+import BN from "bn.js";
 
 import { MarginfiIdlType } from "./idl";
 import { Bank } from "./models/bank";
@@ -19,6 +20,8 @@ import {
   JupLendingRewardsRateModelJSON,
   JupLendingState,
   JupLendingStateJSON,
+  JupRateModel,
+  JupRateModelJSON,
   JupTokenReserve,
   JupTokenReserveJSON,
   ObligationJSON,
@@ -103,6 +106,8 @@ export type BankIntegrationMetadata = {
     jupLendingState: JupLendingState;
     jupTokenReserveState: JupTokenReserve;
     jupRewardsRateModel: JupLendingRewardsRateModel | null;
+    jupRateModel: JupRateModel | null;
+    fTokenTotalSupply: BN;
   };
 };
 
@@ -122,6 +127,8 @@ export type BankIntegrationMetadataDto = {
     jupLendingState: JupLendingStateJSON;
     jupTokenReserveState: JupTokenReserveJSON;
     jupRewardsRateModel: JupLendingRewardsRateModelJSON | null;
+    jupRateModel: JupRateModelJSON | null;
+    fTokenTotalSupply: string;
   };
 };
 

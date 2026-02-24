@@ -10,6 +10,7 @@
  */
 
 import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
 
 import {
   BankIntegrationMetadata,
@@ -30,12 +31,14 @@ import {
   dtoToFarmRaw,
   dtoToJupLendingRewardsRateModelRaw,
   dtoToJupLendingStateRaw,
+  dtoToJupRateModelRaw,
   dtoToJupTokenReserveRaw,
   dtoToObligationRaw,
   dtoToReserveRaw,
   farmRawToDto,
   jupLendingRewardsRateModelRawToDto,
   jupLendingStateRawToDto,
+  jupRateModelRawToDto,
   jupTokenReserveRawToDto,
   obligationRawToDto,
   reserveRawToDto,
@@ -96,6 +99,10 @@ export function dtoToBankMetadata(
           jupRewardsRateModel: bankMetadataDto.jupLendStates.jupRewardsRateModel
             ? dtoToJupLendingRewardsRateModelRaw(bankMetadataDto.jupLendStates.jupRewardsRateModel)
             : null,
+          jupRateModel: bankMetadataDto.jupLendStates.jupRateModel
+            ? dtoToJupRateModelRaw(bankMetadataDto.jupLendStates.jupRateModel)
+            : null,
+          fTokenTotalSupply: new BN(bankMetadataDto.jupLendStates.fTokenTotalSupply),
         }
       : undefined,
   };
@@ -133,6 +140,10 @@ export function bankMetadataToDto(
           jupRewardsRateModel: bankMetadata.jupLendStates.jupRewardsRateModel
             ? jupLendingRewardsRateModelRawToDto(bankMetadata.jupLendStates.jupRewardsRateModel)
             : null,
+          jupRateModel: bankMetadata.jupLendStates.jupRateModel
+            ? jupRateModelRawToDto(bankMetadata.jupLendStates.jupRateModel)
+            : null,
+          fTokenTotalSupply: bankMetadata.jupLendStates.fTokenTotalSupply.toString(),
         }
       : undefined,
   };

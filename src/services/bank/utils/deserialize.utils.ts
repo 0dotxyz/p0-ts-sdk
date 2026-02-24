@@ -566,6 +566,16 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.SolendPythPull;
     case "solendswitchboardpull":
       return OracleSetup.SolendSwitchboardPull;
+    case "FixedKamino":
+      return OracleSetup.FixedKamino;
+    case "FixedDrift":
+      return OracleSetup.FixedDrift;
+    case "juplendpythpull":
+      return OracleSetup.JuplendPythPull;
+    case "juplendswitchboardpull":
+      return OracleSetup.JuplendSwitchboardPull;
+    case "FixedJuplend":
+      return OracleSetup.FixedJuplend;
     default:
       return OracleSetup.None;
   }

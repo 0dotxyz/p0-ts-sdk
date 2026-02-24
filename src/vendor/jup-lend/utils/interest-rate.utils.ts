@@ -1,5 +1,11 @@
 import BN from "bn.js";
-import { JupLendingState, JupLendingRewardsRateModel, JupTokenReserve } from "../types";
+import { aprToApy } from "~/utils";
+import {
+  JupLendingState,
+  JupLendingRewardsRateModel,
+  JupTokenReserve,
+  JupRateModel,
+} from "../types";
 
 /**
  * Jup-Lend Interest Rate & Exchange Price Utilities
@@ -282,4 +288,152 @@ export function calculateJupLendSupplyRate(
   }
 
   return totalRateBps / 10_000;
+}
+
+// ============================================================================
+// SUPPLY APY
+// ============================================================================
+
+/**
+ * Calculate the supply APY for a jup-lend market (base rate only, no rewards).
+ *
+ * Uses hourly compounding: (1 + apr/HOURS_PER_YEAR)^HOURS_PER_YEAR - 1
+ *
+ * @param tokenReserve - The on-chain TokenReserve account
+ * @returns Supply APY as decimal (e.g. 0.0512 = 5.12% APY)
+ */
+export function calculateJupLendSupplyAPY(tokenReserve: JupTokenReserve): number {
+  const supplyRateBps = calculateJupLendLiquiditySupplyRate(tokenReserve);
+  const apr = supplyRateBps.toNumber() / 1e4;
+  return aprToApy(apr);
+}
+
+// ============================================================================
+// BORROW RATE FROM RATE MODEL (PIECEWISE LINEAR)
+// ============================================================================
+
+/**
+ * Calculate the borrow rate at a given utilization using the on-chain RateModel.
+ *
+ * V1 (version=1, single kink):
+ *   [0, kink1] → linear rateAtZero → rateAtKink1
+ *   [kink1, 10000] → linear rateAtKink1 → rateAtMax
+ *
+ * V2 (version=2, dual kink):
+ *   [0, kink1] → linear rateAtZero → rateAtKink1
+ *   [kink1, kink2] → linear rateAtKink1 → rateAtKink2
+ *   [kink2, 10000] → linear rateAtKink2 → rateAtMax
+ *
+ * @param rateModel - The on-chain RateModel account
+ * @param utilizationBps - Utilization in bps (0–10000)
+ * @returns Borrow rate in bps
+ */
+export function calculateJupLendBorrowRate(
+  rateModel: JupRateModel,
+  utilizationBps: number
+): number {
+  const u = Math.max(0, Math.min(10000, utilizationBps));
+
+  if (rateModel.version === 2) {
+    // V2: dual kink
+    if (u <= rateModel.kink1Utilization) {
+      return linearInterpolate(
+        0,
+        rateModel.rateAtZero,
+        rateModel.kink1Utilization,
+        rateModel.rateAtKink1,
+        u
+      );
+    } else if (u <= rateModel.kink2Utilization) {
+      return linearInterpolate(
+        rateModel.kink1Utilization,
+        rateModel.rateAtKink1,
+        rateModel.kink2Utilization,
+        rateModel.rateAtKink2,
+        u
+      );
+    } else {
+      return linearInterpolate(
+        rateModel.kink2Utilization,
+        rateModel.rateAtKink2,
+        10000,
+        rateModel.rateAtMax,
+        u
+      );
+    }
+  } else {
+    // V1: single kink
+    if (u <= rateModel.kink1Utilization) {
+      return linearInterpolate(
+        0,
+        rateModel.rateAtZero,
+        rateModel.kink1Utilization,
+        rateModel.rateAtKink1,
+        u
+      );
+    } else {
+      return linearInterpolate(
+        rateModel.kink1Utilization,
+        rateModel.rateAtKink1,
+        10000,
+        rateModel.rateAtMax,
+        u
+      );
+    }
+  }
+}
+
+/**
+ * Linear interpolation between two points.
+ */
+function linearInterpolate(x0: number, y0: number, x1: number, y1: number, x: number): number {
+  if (x1 === x0) return y0;
+  return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+}
+
+// ============================================================================
+// SUPPLY INTEREST RATE CURVE
+// ============================================================================
+
+/**
+ * Interest rate curve point for visualization (supply only).
+ */
+export interface JupLendInterestRateCurvePoint {
+  utilization: number; // 0-100 percentage
+  supplyAPY: number; // percentage
+}
+
+/**
+ * Generate a supply interest rate curve for a JupLend reserve using the on-chain RateModel.
+ *
+ * Uses the piecewise linear borrow rate curve from the RateModel account:
+ *   borrowAPR(U) = calculateJupLendBorrowRate(rateModel, U * 10000)
+ *   supplyAPR(U) = borrowAPR(U) * (1 - feeOnInterest / 1e4) * U
+ *   supplyAPY(U) = aprToApy(supplyAPR(U))
+ *
+ * @param rateModel - The on-chain RateModel account (from liquidity program)
+ * @param feeOnInterest - Fee on interest in bps (from TokenReserve.feeOnInterest)
+ * @returns 101 curve points (utilization 0–100%)
+ */
+export function generateJupLendSupplyCurve(
+  rateModel: JupRateModel,
+  feeOnInterest: number
+): JupLendInterestRateCurvePoint[] {
+  const feeMultiplier = 1 - feeOnInterest / 1e4;
+
+  return Array.from({ length: 101 }, (_, i) => {
+    const utilizationFraction = i / 100; // 0.00 to 1.00
+    const utilizationBps = i * 100; // 0 to 10000
+
+    const borrowRateBps = calculateJupLendBorrowRate(rateModel, utilizationBps);
+    const borrowRateDecimal = borrowRateBps / 1e4;
+
+    const supplyAPR = borrowRateDecimal * feeMultiplier * utilizationFraction;
+    const supplyAPY = aprToApy(supplyAPR);
+
+    return {
+      utilization: i, // 0-100
+      supplyAPY: supplyAPY * 100, // Convert to percentage
+    };
+  });
 }

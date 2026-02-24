@@ -11,6 +11,9 @@ import {
   JupTokenReserve,
   JupTokenReserveRaw,
   JupTokenReserveJSON,
+  JupRateModel,
+  JupRateModelRaw,
+  JupRateModelJSON,
 } from "../types";
 import { JUP_LEND_IDL } from "../idl";
 
@@ -18,6 +21,7 @@ const JUP_LEND_ACCOUNTS_CODER = new BorshAccountsCoder(JUP_LEND_IDL);
 
 const lendingDiscriminator = Buffer.from([135, 199, 82, 16, 249, 131, 182, 241]);
 const lendingRewardsRateModelDiscriminator = Buffer.from([166, 72, 71, 131, 172, 74, 166, 181]);
+const rateModelDiscriminator = Buffer.from([94, 3, 203, 219, 107, 137, 4, 162]);
 
 // ============================================================================
 // BUFFER → RAW DECODERS
@@ -139,6 +143,49 @@ export function decodeJupTokenReserveData(data: Buffer, pubkey: PublicKey): JupT
   };
 }
 
+/**
+ * Decode a RateModel account from raw buffer data.
+ * RateModel uses bytemuck (packed C repr) — manual fixed-offset reads.
+ * Layout (after 8-byte discriminator):
+ *   mint[32] version[1] rate_at_zero[2] kink1_utilization[2]
+ *   rate_at_kink1[2] rate_at_max[2] kink2_utilization[2] rate_at_kink2[2]
+ */
+export function decodeJupRateModelData(data: Buffer, pubkey: PublicKey): JupRateModelRaw {
+  if (!data.slice(0, 8).equals(rateModelDiscriminator)) {
+    throw new Error("invalid RateModel account discriminator");
+  }
+
+  let offset = 8; // skip 8-byte discriminator
+
+  const mint = new PublicKey(data.slice(offset, offset + 32));
+  offset += 32;
+  const version = data.readUInt8(offset);
+  offset += 1;
+  const rateAtZero = data.readUInt16LE(offset);
+  offset += 2;
+  const kink1Utilization = data.readUInt16LE(offset);
+  offset += 2;
+  const rateAtKink1 = data.readUInt16LE(offset);
+  offset += 2;
+  const rateAtMax = data.readUInt16LE(offset);
+  offset += 2;
+  const kink2Utilization = data.readUInt16LE(offset);
+  offset += 2;
+  const rateAtKink2 = data.readUInt16LE(offset);
+
+  return {
+    pubkey,
+    mint,
+    version,
+    rateAtZero,
+    kink1Utilization,
+    rateAtKink1,
+    rateAtMax,
+    kink2Utilization,
+    rateAtKink2,
+  };
+}
+
 // ============================================================================
 // DTO → RAW CONVERTERS
 // ============================================================================
@@ -194,5 +241,19 @@ export function dtoToJupLendingRewardsRateModelRaw(
     yearlyReward: new BN(dto.yearlyReward),
     nextDuration: new BN(dto.nextDuration),
     nextRewardAmount: new BN(dto.nextRewardAmount),
+  };
+}
+
+export function dtoToJupRateModelRaw(dto: JupRateModelJSON): JupRateModel {
+  return {
+    pubkey: new PublicKey(dto.pubkey),
+    mint: new PublicKey(dto.mint),
+    version: dto.version,
+    rateAtZero: dto.rateAtZero,
+    kink1Utilization: dto.kink1Utilization,
+    rateAtKink1: dto.rateAtKink1,
+    rateAtMax: dto.rateAtMax,
+    kink2Utilization: dto.kink2Utilization,
+    rateAtKink2: dto.rateAtKink2,
   };
 }
