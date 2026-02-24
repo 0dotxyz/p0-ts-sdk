@@ -799,6 +799,7 @@ export async function makeJuplendWithdrawIx({
     throw new Error("Bank has no JupLend integration accounts");
   }
   const {
+    fTokenMint,
     lendingAdmin,
     supplyTokenReservesLiquidity,
     lendingSupplyPositionOnLiquidity,
@@ -833,8 +834,13 @@ export async function makeJuplendWithdrawIx({
       rewardsRateModel: jupLendingState.rewardsRateModel,
       tokenProgram,
 
-      authority: opts.overrideInferAccounts?.authority,
+      authority: opts.overrideInferAccounts?.authority ?? authority,
       group: opts.overrideInferAccounts?.group,
+      mint: bank.mint,
+      fTokenMint: bank.jupLendIntegrationAccounts.jupFTokenMint,
+      integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
+      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenMint,
+      integrationAcc3: bank.jupLendIntegrationAccounts.jupFTokenAta,
     },
     {
       amount: uiToNative(amount, bank.mintDecimals),

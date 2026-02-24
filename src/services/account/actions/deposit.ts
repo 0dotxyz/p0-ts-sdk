@@ -628,7 +628,9 @@ export async function makeJuplendDepositIx({
     throw new Error("Bank has no JupLend integration accounts");
   }
 
+  const derivedAccounts = getAllDerivedJupLendAccounts(bank.mint);
   const {
+    fTokenMint,
     lendingAdmin,
     supplyTokenReservesLiquidity,
     lendingSupplyPositionOnLiquidity,
@@ -636,7 +638,7 @@ export async function makeJuplendDepositIx({
     vault,
     liquidity,
     rewardsRateModel,
-  } = getAllDerivedJupLendAccounts(bank.mint);
+  } = derivedAccounts;
 
   const depositIx = await instructions.makeJuplendDepositIx(
     program,
@@ -657,7 +659,11 @@ export async function makeJuplendDepositIx({
 
       authority: opts.overrideInferAccounts?.authority ?? authority,
       group: opts.overrideInferAccounts?.group ?? group,
-      liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+      liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
+      fTokenMint,
+      integrationAcc1: bank.jupLendIntegrationAccounts!.jupLendingState,
+      integrationAcc2: bank.jupLendIntegrationAccounts!.jupFTokenMint,
+      mint: bank.mint,
     },
     { amount: uiToNative(amount, bank.mintDecimals) }
   );

@@ -31,6 +31,7 @@ export function getAllDerivedJupLendAccounts(mint: PublicKey) {
   const [liquidity] = deriveJupLendLiquidity();
 
   return {
+    fTokenMint,
     lendingAdmin: deriveJupLendLendingAdmin()[0],
     supplyTokenReservesLiquidity: deriveJupLendTokenReserve(mint)[0],
     lendingSupplyPositionOnLiquidity: deriveJupLendLiquiditySupplyPositionPda(mint, lending)[0],
