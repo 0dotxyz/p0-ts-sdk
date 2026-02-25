@@ -761,6 +761,34 @@ export async function makeKaminoWithdrawTx(
   return { transactions, actionTxIndex: transactions.length - 1 };
 }
 
+/**
+ * Creates a JupLend withdraw instruction for withdrawing assets from a JupLend lending pool.
+ *
+ * This function handles:
+ * - Creating the destination ATA if needed (idempotent)
+ * - Computing health check accounts for the withdrawal
+ * - Deriving JupLend protocol accounts via `getAllDerivedJupLendAccounts` (fTokenMint, rateModel, vault, liquidity, lendingAdmin)
+ * - Using on-chain `jupLendingState` values for supplyTokenReservesLiquidity, lendingSupplyPositionOnLiquidity, and rewardsRateModel
+ * - Unwrapping wSOL back to native SOL if needed
+ *
+ * @param params - The parameters for creating the withdraw instruction
+ * @param params.program - The Marginfi program instance
+ * @param params.bank - The bank to withdraw from (must have JupLend integration configured)
+ * @param params.bankMap - Map of all banks for health check computation
+ * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
+ * @param params.amount - The amount to withdraw in UI units
+ * @param params.marginfiAccount - The Marginfi account to withdraw from
+ * @param params.authority - The authority/signer public key
+ * @param params.jupLendingState - The on-chain JupLend lending state (provides token reserve and rewards accounts)
+ * @param params.withdrawAll - Whether to withdraw the full balance (default: false)
+ * @param params.opts - Optional configuration
+ * @param params.opts.wrapAndUnwrapSol - Whether to unwrap wSOL to native SOL (default: true)
+ * @param params.opts.createAtas - Whether to create the destination ATA if missing (default: true)
+ * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
+ * @param params.opts.observationBanksOverride - Optional override for health check remaining accounts
+ *
+ * @returns Promise resolving to InstructionsWrapper containing the withdraw instructions
+ */
 export async function makeJuplendWithdrawIx({
   program,
   bank,
@@ -837,9 +865,9 @@ export async function makeJuplendWithdrawIx({
       authority: opts.overrideInferAccounts?.authority ?? authority,
       group: opts.overrideInferAccounts?.group,
       mint: bank.mint,
-      fTokenMint: bank.jupLendIntegrationAccounts.jupFTokenMint,
+      fTokenMint,
       integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
-      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenMint,
+      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
       integrationAcc3: bank.jupLendIntegrationAccounts.jupFTokenAta,
     },
     {

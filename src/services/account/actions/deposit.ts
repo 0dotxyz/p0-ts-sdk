@@ -661,8 +661,8 @@ export async function makeJuplendDepositIx({
       group: opts.overrideInferAccounts?.group ?? group,
       liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
       fTokenMint,
-      integrationAcc1: bank.jupLendIntegrationAccounts!.jupLendingState,
-      integrationAcc2: bank.jupLendIntegrationAccounts!.jupFTokenMint,
+      integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
+      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
       mint: bank.mint,
     },
     { amount: uiToNative(amount, bank.mintDecimals) }

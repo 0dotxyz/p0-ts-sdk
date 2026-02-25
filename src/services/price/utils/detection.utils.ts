@@ -34,27 +34,27 @@ export function getOracleSourceFromOracleSetup(oracleSetup: OracleSetup) {
   let oracleSourceKey: OracleSourceKey;
 
   switch (oracleSetup) {
-    case OracleSetup.SwitchboardPull ||
-      OracleSetup.DriftSwitchboardPull ||
-      OracleSetup.KaminoSwitchboardPull ||
-      OracleSetup.JuplendSwitchboardPull ||
-      OracleSetup.SolendSwitchboardPull:
+    case OracleSetup.SwitchboardPull:
+    case OracleSetup.SwitchboardV2:
+    case OracleSetup.DriftSwitchboardPull:
+    case OracleSetup.KaminoSwitchboardPull:
+    case OracleSetup.JuplendSwitchboardPull:
+    case OracleSetup.SolendSwitchboardPull:
       oracleSourceKey = "switchboard";
       break;
-    case OracleSetup.PythPushOracle ||
-      OracleSetup.StakedWithPythPush ||
-      OracleSetup.KaminoPythPush ||
-      OracleSetup.DriftPythPull ||
-      OracleSetup.SolendPythPull ||
-      OracleSetup.JuplendPythPull:
+    case OracleSetup.PythPushOracle:
+    case OracleSetup.PythLegacy:
+    case OracleSetup.StakedWithPythPush:
+    case OracleSetup.KaminoPythPush:
+    case OracleSetup.DriftPythPull:
+    case OracleSetup.SolendPythPull:
+    case OracleSetup.JuplendPythPull:
       oracleSourceKey = "pyth";
       break;
-    case OracleSetup.Fixed ||
-      OracleSetup.FixedKamino ||
-      OracleSetup.FixedDrift ||
-      OracleSetup.FixedJuplend ||
-      OracleSetup.DriftPythPull ||
-      OracleSetup.JuplendPythPull:
+    case OracleSetup.Fixed:
+    case OracleSetup.FixedKamino:
+    case OracleSetup.FixedDrift:
+    case OracleSetup.FixedJuplend:
       oracleSourceKey = "fixed";
       break;
     default:

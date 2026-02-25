@@ -185,7 +185,7 @@ export interface BankType {
   };
   jupLendIntegrationAccounts?: {
     jupLendingState: PublicKey;
-    jupFTokenMint: PublicKey;
+    jupFTokenVault: PublicKey;
     jupFTokenAta: PublicKey;
   };
 }

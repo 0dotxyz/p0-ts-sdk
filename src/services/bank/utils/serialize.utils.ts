@@ -257,7 +257,7 @@ function toBankDto(bank: BankType): BankTypeDto {
     jupLendIntegrationAccounts: bank.jupLendIntegrationAccounts
       ? {
           jupLendingState: bank.jupLendIntegrationAccounts.jupLendingState.toBase58(),
-          jupFTokenMint: bank.jupLendIntegrationAccounts.jupFTokenMint.toBase58(),
+          jupFTokenVault: bank.jupLendIntegrationAccounts.jupFTokenVault.toBase58(),
           jupFTokenAta: bank.jupLendIntegrationAccounts.jupFTokenAta.toBase58(),
         }
       : undefined,

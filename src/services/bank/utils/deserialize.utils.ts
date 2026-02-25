@@ -172,7 +172,7 @@ export function parseBankRaw(
     case AssetTag.JUPLEND:
       jupLendIntegrationAccounts = {
         jupLendingState: accountParsed.integrationAcc1,
-        jupFTokenMint: accountParsed.integrationAcc2,
+        jupFTokenVault: accountParsed.integrationAcc2,
         jupFTokenAta: accountParsed.integrationAcc3,
       };
       break;
@@ -290,7 +290,7 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     jupLendIntegrationAccounts: bankDto.jupLendIntegrationAccounts
       ? {
           jupLendingState: new PublicKey(bankDto.jupLendIntegrationAccounts.jupLendingState),
-          jupFTokenMint: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenMint),
+          jupFTokenVault: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenVault),
           jupFTokenAta: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenAta),
         }
       : undefined,

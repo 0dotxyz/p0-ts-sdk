@@ -142,7 +142,7 @@ export interface BankTypeDto {
   };
   jupLendIntegrationAccounts?: {
     jupLendingState: string;
-    jupFTokenMint: string;
+    jupFTokenVault: string;
     jupFTokenAta: string;
   };
 }

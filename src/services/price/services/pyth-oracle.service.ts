@@ -64,7 +64,8 @@ export const fetchPythOracleData = async (
     !pythStakedCollateralBanks.length &&
     !pythPushKaminosBanks.length &&
     !driftPythPullBanks.length &&
-    !solendPythPullBanks.length
+    !solendPythPullBanks.length &&
+    !juplendPythPullBanks.length
   ) {
     // Return empty structures when there are no banks to process
     return {

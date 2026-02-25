@@ -106,7 +106,7 @@ class Bank implements BankType {
     },
     public readonly jupLendIntegrationAccounts?: {
       jupLendingState: PublicKey;
-      jupFTokenMint: PublicKey;
+      jupFTokenVault: PublicKey;
       jupFTokenAta: PublicKey;
     },
     public readonly feesDestinationAccount?: PublicKey,
