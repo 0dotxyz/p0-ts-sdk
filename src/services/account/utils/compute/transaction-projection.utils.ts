@@ -122,21 +122,17 @@ export function computeHealthAccountMetas(
         keys = [bank.address, bank.oracleKey];
       }
 
-      // for kamino banks, include kamino reserve
-      if (bank.config.assetTag === AssetTag.KAMINO) {
-        if (!bank.kaminoIntegrationAccounts) {
-          console.warn("Reserve for kamino bank not found ", bank.address.toBase58());
-        } else {
-          keys.push(bank.kaminoIntegrationAccounts.kaminoReserve);
-        }
+      if (
+        bank.config.assetTag === AssetTag.KAMINO ||
+        bank.config.assetTag === AssetTag.DRIFT ||
+        bank.config.assetTag === AssetTag.SOLEND ||
+        bank.config.assetTag === AssetTag.JUPLEND
+      ) {
+        keys.push(bank.config.oracleKeys[1]);
       }
 
-      if (bank.config.assetTag === AssetTag.DRIFT) {
-        if (!bank.driftIntegrationAccounts) {
-          console.warn("Drift spot market for drift bank not found ", bank.address.toBase58());
-        } else {
-          keys.push(bank.driftIntegrationAccounts.driftSpotMarket);
-        }
+      if (bank.config.assetTag === AssetTag.STAKED) {
+        keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
       }
 
       return keys;
