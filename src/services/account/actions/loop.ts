@@ -33,7 +33,12 @@ import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl
 import { getJupiterSwapIxsForFlashloan } from "../utils";
 import { MakeLoopTxParams } from "../types";
 
-import { makeDepositIx, makeDriftDepositIx, makeKaminoDepositIx } from "./deposit";
+import {
+  makeDepositIx,
+  makeDriftDepositIx,
+  makeJuplendDepositIx,
+  makeKaminoDepositIx,
+} from "./deposit";
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
@@ -365,6 +370,23 @@ async function buildLoopFlashloanTx({
           group: marginfiAccount.group,
           driftMarketIndex,
           driftOracle,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
+
+      case AssetTag.JUPLEND: {
+        depositIxs = await makeJuplendDepositIx({
+          program,
+          bank: depositOpts.depositBank,
+          tokenProgram: depositOpts.tokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
           opts: {
             wrapAndUnwrapSol: false,
             overrideInferAccounts,

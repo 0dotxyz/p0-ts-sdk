@@ -532,6 +532,10 @@ export async function getHealthSimulationTransactions({
       case AssetTag.SOLEND:
         break;
 
+      case AssetTag.JUPLEND:
+        // JupLend rate updates handled by makeUpdateJupLendRateIxs below
+        break;
+
       default:
         break;
     }

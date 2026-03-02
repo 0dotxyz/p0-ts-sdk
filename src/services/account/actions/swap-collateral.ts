@@ -37,8 +37,18 @@ import { getJupiterSwapIxsForFlashloan, isWholePosition } from "../utils";
 import { MakeSwapCollateralTxParams } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
-import { makeDriftWithdrawIx, makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
-import { makeDepositIx, makeDriftDepositIx, makeKaminoDepositIx } from "./deposit";
+import {
+  makeDriftWithdrawIx,
+  makeJuplendWithdrawIx,
+  makeKaminoWithdrawIx,
+  makeWithdrawIx,
+} from "./withdraw";
+import {
+  makeDepositIx,
+  makeDriftDepositIx,
+  makeJuplendDepositIx,
+  makeKaminoDepositIx,
+} from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 
 /**
@@ -337,6 +347,39 @@ async function buildSwapCollateralFlashloanTx({
       break;
     }
 
+    case AssetTag.JUPLEND: {
+      const jupLendState =
+        bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.jupLendStates;
+
+      if (!jupLendState) {
+        throw TransactionBuildingError.jupLendStateNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      withdrawIxs = await makeJuplendWithdrawIx({
+        program,
+        bank: withdrawBank,
+        bankMap,
+        tokenProgram: withdrawTokenProgram,
+        amount: actualWithdrawAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        jupLendingState: jupLendState.jupLendingState,
+        bankMetadataMap,
+        withdrawAll: isFullWithdraw,
+        isSync: true,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
+    }
+
     default: {
       withdrawIxs = await makeWithdrawIx({
         program,
@@ -483,6 +526,22 @@ async function buildSwapCollateralFlashloanTx({
           group: marginfiAccount.group,
           driftMarketIndex,
           driftOracle,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
+      case AssetTag.JUPLEND: {
+        depositIxs = await makeJuplendDepositIx({
+          program,
+          bank: depositBank,
+          tokenProgram: depositTokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
           opts: {
             wrapAndUnwrapSol: false,
             overrideInferAccounts,

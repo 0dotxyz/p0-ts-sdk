@@ -43,7 +43,12 @@ import syncInstructions from "~/sync-instructions";
 import { MakeRepayIxParams, MakeRepayTxParams, MakeRepayWithCollatTxParams } from "../types";
 import { isWholePosition, getJupiterSwapIxsForFlashloan } from "../utils";
 
-import { makeDriftWithdrawIx, makeKaminoWithdrawIx, makeWithdrawIx } from "./withdraw";
+import {
+  makeDriftWithdrawIx,
+  makeJuplendWithdrawIx,
+  makeKaminoWithdrawIx,
+  makeWithdrawIx,
+} from "./withdraw";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSetupIx } from "./account-lifecycle";
 
@@ -491,6 +496,46 @@ async function buildRepayWithCollatFlashloanTx({
           withdrawOpts.withdrawBank.mintDecimals
         ),
         bankMetadataMap,
+        isSync: false,
+        opts: {
+          createAtas: false,
+          wrapAndUnwrapSol: false,
+          overrideInferAccounts,
+        },
+      });
+      break;
+    }
+
+    case AssetTag.JUPLEND: {
+      const jupLendState =
+        bankMetadataMap[withdrawOpts.withdrawBank.address.toBase58()]?.jupLendStates;
+
+      if (!jupLendState) {
+        throw TransactionBuildingError.jupLendStateNotFound(
+          withdrawOpts.withdrawBank.address.toBase58(),
+          withdrawOpts.withdrawBank.mint.toBase58(),
+          withdrawOpts.withdrawBank.tokenSymbol
+        );
+      }
+
+      withdrawIxs = await makeJuplendWithdrawIx({
+        program,
+        bank: withdrawOpts.withdrawBank,
+        bankMap,
+        tokenProgram: withdrawOpts.tokenProgram,
+        amount: withdrawOpts.withdrawAmount,
+        marginfiAccount,
+        authority: marginfiAccount.authority,
+        jupLendingState: jupLendState.jupLendingState,
+        bankMetadataMap,
+        withdrawAll: isWholePosition(
+          {
+            amount: withdrawOpts.totalPositionAmount,
+            isLending: true,
+          },
+          withdrawOpts.withdrawAmount,
+          withdrawOpts.withdrawBank.mintDecimals
+        ),
         isSync: false,
         opts: {
           createAtas: false,
