@@ -10,6 +10,9 @@ export const ADDRESS_LOOKUP_TABLE_FOR_GROUP: { [key: string]: PublicKey[] } = {
   FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo: [
     new PublicKey("9p1CwvXMYNEY9CqSwuWySVXsG37NGb36nua94ea5KsiQ"),
   ], // staging
+  Diu1q9gniR1qR4Daaej3rcHd6949HMmxLGsnQ94Z3rLz: [
+    new PublicKey("5ggm1hB8yPF5dKWJ3W7n1txztDrU4zf2RQk3TLrFvvRn"),
+  ], // staging
 };
 
 export const ADDRESS_LOOKUP_TABLE_FOR_SWAP = new PublicKey(
