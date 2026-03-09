@@ -7,6 +7,7 @@ export enum TransactionBuildingErrorCode {
   ORACLE_CRANK_FAILED = "ORACLE_CRANK_FAILED",
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
   DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
+  JUPLEND_STATE_NOT_FOUND = "JUPLEND_STATE_NOT_FOUND",
 }
 
 /**
@@ -41,6 +42,11 @@ export interface TransactionBuildingErrorDetails {
     bankSymbol?: string;
   };
   [TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND]: {
+    bankAddress: string;
+    bankMint: string;
+    bankSymbol?: string;
+  };
+  [TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND]: {
     bankAddress: string;
     bankMint: string;
     bankSymbol?: string;
@@ -148,6 +154,21 @@ export class TransactionBuildingError<
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND,
       `Drift state not found for ${bankSymbol ?? bankMint}`,
+      { bankAddress, bankMint, bankSymbol }
+    );
+  }
+
+  /**
+   * Failed to find JupLend state for a bank
+   */
+  static jupLendStateNotFound(
+    bankAddress: string,
+    bankMint: string,
+    bankSymbol?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND,
+      `JupLend state not found for ${bankSymbol ?? bankMint}`,
       { bankAddress, bankMint, bankSymbol }
     );
   }

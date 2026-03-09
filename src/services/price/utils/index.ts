@@ -7,3 +7,4 @@ export * from "./pyth-data.utils";
 export * from "./swb-data.utils";
 export * from "./birdeye.utils";
 export * from "./smart-crank.utils";
+export * from "./detection.utils";

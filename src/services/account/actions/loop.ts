@@ -23,6 +23,7 @@ import {
   makeRefreshKaminoBanksIxs,
   makeSmartCrankSwbFeedIx,
   makeUpdateDriftMarketIxs,
+  makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
@@ -32,7 +33,12 @@ import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl
 import { getJupiterSwapIxsForFlashloan } from "../utils";
 import { MakeLoopTxParams } from "../types";
 
-import { makeDepositIx, makeDriftDepositIx, makeKaminoDepositIx } from "./deposit";
+import {
+  makeDepositIx,
+  makeDriftDepositIx,
+  makeJuplendDepositIx,
+  makeKaminoDepositIx,
+} from "./deposit";
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
@@ -74,6 +80,13 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
       },
     ],
   });
+
+  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+    params.marginfiAccount,
+    params.bankMap,
+    [depositOpts.depositBank.address],
+    params.bankMetadataMap
+  );
 
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
@@ -143,13 +156,15 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     setupIxs.length > 0 ||
     additionalIxs.length > 0 ||
     kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0
+    updateDriftMarketIxs.instructions.length > 0 ||
+    updateJupLendRateIxs.instructions.length > 0
   ) {
     const ixs = [
       ...additionalIxs,
       ...setupIxs,
       ...kaminoRefreshIxs.instructions,
       ...updateDriftMarketIxs.instructions,
+      ...updateJupLendRateIxs.instructions,
     ];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
@@ -355,6 +370,23 @@ async function buildLoopFlashloanTx({
           group: marginfiAccount.group,
           driftMarketIndex,
           driftOracle,
+          opts: {
+            wrapAndUnwrapSol: false,
+            overrideInferAccounts,
+          },
+        });
+        break;
+      }
+
+      case AssetTag.JUPLEND: {
+        depositIxs = await makeJuplendDepositIx({
+          program,
+          bank: depositOpts.depositBank,
+          tokenProgram: depositOpts.tokenProgram,
+          amount: amountToDeposit,
+          accountAddress: marginfiAccount.address,
+          authority: marginfiAccount.authority,
+          group: marginfiAccount.group,
           opts: {
             wrapAndUnwrapSol: false,
             overrideInferAccounts,

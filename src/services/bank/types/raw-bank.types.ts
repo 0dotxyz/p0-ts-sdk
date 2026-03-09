@@ -183,7 +183,12 @@ type OracleSetupRaw =
   | { driftPythPull: {} }
   | { driftSwitchboardPull: {} }
   | { solendPythPull: {} }
-  | { solendSwitchboardPull: {} };
+  | { solendSwitchboardPull: {} }
+  | { fixedKamino: {} }
+  | { fixedDrift: {} }
+  | { juplendPythPull: {} }
+  | { juplendSwitchboardPull: {} }
+  | { fixedJuplend: {} };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;

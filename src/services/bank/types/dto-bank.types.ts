@@ -140,6 +140,11 @@ export interface BankTypeDto {
     solendReserve: string;
     solendObligation: string;
   };
+  jupLendIntegrationAccounts?: {
+    jupLendingState: string;
+    jupFTokenVault: string;
+    jupFTokenAta: string;
+  };
 }
 
 /*

@@ -13,7 +13,11 @@ import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP } from "~/constants";
 import { fetchOracleData, OraclePrice } from "~/services/price";
 import { fetchProgramForMints } from "~/services/misc";
-import { fetchBankIntegrationMetadata, getKaminoCTokenMultiplier } from "~/services/integration";
+import {
+  fetchBankIntegrationMetadata,
+  getKaminoCTokenMultiplier,
+  getJupLendFTokenMultiplier,
+} from "~/services/integration";
 import {
   makeCreateMarginfiAccountTx,
   makeCreateAccountIxWithProjection,
@@ -302,6 +306,25 @@ export class Project0Client {
           assetShareMultiplierByBank.set(
             bank.address.toBase58(),
             getDriftCTokenMultiplier(spotMarket)
+          );
+          break;
+
+        case AssetTag.JUPLEND:
+          const jupLendStates = bankIntegrationMap[bank.address.toBase58()]?.jupLendStates;
+          if (!jupLendStates) {
+            console.error(`No JupLend state found for bank ${bank.address.toBase58()}`);
+            assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+            break;
+          }
+          assetShareMultiplierByBank.set(
+            bank.address.toBase58(),
+            getJupLendFTokenMultiplier(
+              jupLendStates.jupLendingState,
+              jupLendStates.jupTokenReserveState,
+              jupLendStates.jupRewardsRateModel,
+              jupLendStates.fTokenTotalSupply,
+              Math.floor(Date.now() / 1000)
+            )
           );
           break;
 

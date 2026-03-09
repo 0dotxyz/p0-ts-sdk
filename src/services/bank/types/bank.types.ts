@@ -56,6 +56,11 @@ export enum OracleSetup {
   DriftSwitchboardPull = "DriftSwitchboardPull",
   SolendPythPull = "SolendPythPull",
   SolendSwitchboardPull = "SolendSwitchboardPull",
+  FixedKamino = "FixedKamino",
+  FixedDrift = "FixedDrift",
+  JuplendPythPull = "JuplendPythPull",
+  JuplendSwitchboardPull = "JuplendSwitchboardPull",
+  FixedJuplend = "FixedJuplend",
 }
 export enum AssetTag {
   DEFAULT = 0,
@@ -64,6 +69,7 @@ export enum AssetTag {
   KAMINO = 3,
   DRIFT = 4,
   SOLEND = 5,
+  JUPLEND = 6,
 }
 
 export enum BankConfigFlag {
@@ -176,6 +182,11 @@ export interface BankType {
   solendIntegrationAccounts?: {
     solendReserve: PublicKey;
     solendObligation: PublicKey;
+  };
+  jupLendIntegrationAccounts?: {
+    jupLendingState: PublicKey;
+    jupFTokenVault: PublicKey;
+    jupFTokenAta: PublicKey;
   };
 }
 

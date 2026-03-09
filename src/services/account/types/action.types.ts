@@ -9,6 +9,7 @@ import { ConfigurationParameters } from "@jup-ag/api";
 
 import { ReserveRaw } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
+import { JupLendingState } from "~/vendor/jup-lend";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { SolanaTransaction } from "~/services/transaction";
@@ -27,6 +28,18 @@ export interface MakeDepositIxOpts {
 }
 
 export interface MakeDepositIxParams {
+  program: MarginfiProgram;
+  bank: BankType;
+  tokenProgram: PublicKey;
+  amount: Amount;
+  accountAddress: PublicKey;
+  authority: PublicKey;
+  group: PublicKey;
+  isSync?: boolean;
+  opts?: MakeDepositIxOpts;
+}
+
+export interface MakeJuplendDepositIxParams {
   program: MarginfiProgram;
   bank: BankType;
   tokenProgram: PublicKey;
@@ -67,6 +80,12 @@ export interface MakeKaminoDepositIxParams {
 
 export interface MakeDepositTxParams extends MakeDepositIxParams {
   luts: AddressLookupTableAccount[];
+  blockhash?: string;
+}
+
+export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams {
+  luts: AddressLookupTableAccount[];
+  connection: Connection;
   blockhash?: string;
 }
 
@@ -149,6 +168,21 @@ export interface MakeKaminoWithdrawIxParams {
   opts?: MakeWithdrawIxOpts;
 }
 
+export interface MakeJuplendWithdrawIxParams {
+  program: MarginfiProgram;
+  bank: BankType;
+  bankMap: Map<string, BankType>;
+  tokenProgram: PublicKey;
+  amount: Amount;
+  marginfiAccount: MarginfiAccountType;
+  authority: PublicKey;
+  jupLendingState: JupLendingState;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  isSync?: boolean;
+  withdrawAll?: boolean;
+  opts?: MakeWithdrawIxOpts;
+}
+
 export interface MakeWithdrawIxParams {
   program: MarginfiProgram;
   bank: BankType;
@@ -210,6 +244,14 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
+  luts: AddressLookupTableAccount[];
+  crossbarUrl?: string;
+}
+
+export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams {
+  connection: Connection;
+  oraclePrices: Map<string, OraclePrice>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
 }

@@ -6,7 +6,7 @@ import {
   decodeSwitchboardPullFeedData,
   FeedResponse,
 } from "~/vendor/switchboard_pull";
-import { BankType, OracleSetup } from "~/services/bank";
+import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
@@ -14,6 +14,7 @@ import {
   getBirdeyeFallbackPricesByFeedId,
   mapBrokenFeedsToOraclePrices,
   mapSwbBanksToOraclePrices,
+  getOracleSourceFromOracleSetup,
 } from "../utils";
 
 type FetchSwbOracleOnChainOpts = {
@@ -58,12 +59,7 @@ export const fetchSwbOracleData = async (
 }> => {
   // Step 1: Fetch Switchboard oracle map
   const switchboardBanks = banks.filter(
-    (bank) =>
-      bank.config.oracleSetup === OracleSetup.SwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.SwitchboardV2 ||
-      bank.config.oracleSetup === OracleSetup.KaminoSwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.DriftSwitchboardPull ||
-      bank.config.oracleSetup === OracleSetup.SolendSwitchboardPull
+    (bank) => getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "switchboard"
   );
 
   if (switchboardBanks.length === 0) {

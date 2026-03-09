@@ -7,6 +7,7 @@ import { OraclePrice, PriceWithConfidence, PriceBias } from "../types";
 
 import { parseSwbOraclePriceData } from "./swb-data.utils";
 import { parseRpcPythPriceData } from "./pyth-data.utils";
+import { getOracleSourceFromOracleSetup } from "./detection.utils";
 
 export function getPriceWithConfidence(
   oraclePrice: OraclePrice,
@@ -42,18 +43,14 @@ export function capConfidenceInterval(
 }
 
 function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): OraclePrice {
-  switch (oracleSetup) {
-    case OracleSetup.PythPushOracle:
-    case OracleSetup.StakedWithPythPush:
-    case OracleSetup.KaminoPythPush:
-    case OracleSetup.DriftPythPull:
-    case OracleSetup.SolendPythPull: {
+  const oracleSourceKey = getOracleSourceFromOracleSetup(oracleSetup).key;
+  switch (oracleSourceKey) {
+    case "pyth": {
       return parseRpcPythPriceData(rawData);
     }
 
     // deprecated
-    case OracleSetup.PythLegacy:
-    case OracleSetup.SwitchboardV2: {
+    case "unknown": {
       return {
         priceRealtime: {
           price: new BigNumber(0),
@@ -70,10 +67,7 @@ function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): Oracle
         timestamp: new BigNumber(0),
       };
     }
-    case OracleSetup.SwitchboardPull:
-    case OracleSetup.KaminoSwitchboardPull:
-    case OracleSetup.DriftSwitchboardPull:
-    case OracleSetup.SolendSwitchboardPull: {
+    case "switchboard": {
       const pullFeedDAta = decodeSwitchboardPullFeedData(rawData);
 
       return parseSwbOraclePriceData(

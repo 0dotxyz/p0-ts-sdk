@@ -10,6 +10,7 @@
  */
 
 import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
 
 import {
   BankIntegrationMetadata,
@@ -28,9 +29,17 @@ import {
   dtoToDriftUserRaw,
   dtoToDriftUserStatsRaw,
   dtoToFarmRaw,
+  dtoToJupLendingRewardsRateModelRaw,
+  dtoToJupLendingStateRaw,
+  dtoToJupRateModelRaw,
+  dtoToJupTokenReserveRaw,
   dtoToObligationRaw,
   dtoToReserveRaw,
   farmRawToDto,
+  jupLendingRewardsRateModelRawToDto,
+  jupLendingStateRawToDto,
+  jupRateModelRawToDto,
+  jupTokenReserveRawToDto,
   obligationRawToDto,
   reserveRawToDto,
 } from "../vendor";
@@ -81,6 +90,21 @@ export function dtoToBankMetadata(
             : undefined,
         }
       : undefined,
+    jupLendStates: bankMetadataDto.jupLendStates
+      ? {
+          jupLendingState: dtoToJupLendingStateRaw(bankMetadataDto.jupLendStates.jupLendingState),
+          jupTokenReserveState: dtoToJupTokenReserveRaw(
+            bankMetadataDto.jupLendStates.jupTokenReserveState
+          ),
+          jupRewardsRateModel: bankMetadataDto.jupLendStates.jupRewardsRateModel
+            ? dtoToJupLendingRewardsRateModelRaw(bankMetadataDto.jupLendStates.jupRewardsRateModel)
+            : null,
+          jupRateModel: bankMetadataDto.jupLendStates.jupRateModel
+            ? dtoToJupRateModelRaw(bankMetadataDto.jupLendStates.jupRateModel)
+            : null,
+          fTokenTotalSupply: new BN(bankMetadataDto.jupLendStates.fTokenTotalSupply),
+        }
+      : undefined,
   };
 }
 
@@ -105,6 +129,21 @@ export function bankMetadataToDto(
           userStatsState: bankMetadata.driftStates.userStatsState
             ? driftUserStatsRawToDto(bankMetadata.driftStates.userStatsState)
             : undefined,
+        }
+      : undefined,
+    jupLendStates: bankMetadata.jupLendStates
+      ? {
+          jupLendingState: jupLendingStateRawToDto(bankMetadata.jupLendStates.jupLendingState),
+          jupTokenReserveState: jupTokenReserveRawToDto(
+            bankMetadata.jupLendStates.jupTokenReserveState
+          ),
+          jupRewardsRateModel: bankMetadata.jupLendStates.jupRewardsRateModel
+            ? jupLendingRewardsRateModelRawToDto(bankMetadata.jupLendStates.jupRewardsRateModel)
+            : null,
+          jupRateModel: bankMetadata.jupLendStates.jupRateModel
+            ? jupRateModelRawToDto(bankMetadata.jupLendStates.jupRateModel)
+            : null,
+          fTokenTotalSupply: bankMetadata.jupLendStates.fTokenTotalSupply.toString(),
         }
       : undefined,
   };

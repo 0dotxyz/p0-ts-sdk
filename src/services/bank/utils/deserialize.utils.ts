@@ -146,7 +146,8 @@ export function parseBankRaw(
 
   let kaminoIntegrationAccounts,
     driftIntegrationAccounts,
-    solendIntegrationAccounts = undefined;
+    solendIntegrationAccounts,
+    jupLendIntegrationAccounts = undefined;
 
   switch (config.assetTag) {
     case AssetTag.KAMINO:
@@ -167,7 +168,13 @@ export function parseBankRaw(
         solendReserve: accountParsed.integrationAcc1,
         solendObligation: accountParsed.integrationAcc2,
       };
-
+      break;
+    case AssetTag.JUPLEND:
+      jupLendIntegrationAccounts = {
+        jupLendingState: accountParsed.integrationAcc1,
+        jupFTokenVault: accountParsed.integrationAcc2,
+        jupFTokenAta: accountParsed.integrationAcc3,
+      };
       break;
     default:
       break;
@@ -211,6 +218,7 @@ export function parseBankRaw(
     kaminoIntegrationAccounts,
     driftIntegrationAccounts,
     solendIntegrationAccounts,
+    jupLendIntegrationAccounts,
   };
 }
 
@@ -277,6 +285,13 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
       ? {
           solendReserve: new PublicKey(bankDto.solendIntegrationAccounts.solendReserve),
           solendObligation: new PublicKey(bankDto.solendIntegrationAccounts.solendObligation),
+        }
+      : undefined,
+    jupLendIntegrationAccounts: bankDto.jupLendIntegrationAccounts
+      ? {
+          jupLendingState: new PublicKey(bankDto.jupLendIntegrationAccounts.jupLendingState),
+          jupFTokenVault: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenVault),
+          jupFTokenAta: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenAta),
         }
       : undefined,
   };
@@ -551,6 +566,16 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.SolendPythPull;
     case "solendswitchboardpull":
       return OracleSetup.SolendSwitchboardPull;
+    case "FixedKamino":
+      return OracleSetup.FixedKamino;
+    case "FixedDrift":
+      return OracleSetup.FixedDrift;
+    case "juplendpythpull":
+      return OracleSetup.JuplendPythPull;
+    case "juplendswitchboardpull":
+      return OracleSetup.JuplendSwitchboardPull;
+    case "FixedJuplend":
+      return OracleSetup.FixedJuplend;
     default:
       return OracleSetup.None;
   }

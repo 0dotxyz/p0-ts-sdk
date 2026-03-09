@@ -1,0 +1,90 @@
+[
+  {
+    "mint_address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "bank_address": "C8xW2QAizzCaxAacAEHxnQUa3rXnRdTHXuTRNwHjTi8e",
+    "mint_decimals": 6,
+    "name": "USDT",
+    "symbol": "USDT",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "bank_address": "4VruFgvunJcU1C23tAXWQbfuXT4P97vDm9fXzTvMrFLG",
+    "mint_decimals": 5,
+    "name": "Bonk",
+    "symbol": "Bonk",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "bank_address": "2mPDpFXRDXguzz29rhSsnAUd23ZU5MzqYXyU5dvLLx9q",
+    "mint_decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+    "bank_address": "ErdhJmhLRxwTG2uJVw5f22j7aTDtMkVefZ3iPWN6Knkq",
+    "mint_decimals": 6,
+    "name": "Global Dollar",
+    "symbol": "USDG",
+    "token_program_address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  },
+  {
+    "mint_address": "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+    "bank_address": "GeGesgruPoU5BpfDismYiZGYLiF2Mi194QpS76aSspbi",
+    "mint_decimals": 6,
+    "name": "PayPal USD",
+    "symbol": "PYUSD",
+    "token_program_address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  },
+  {
+    "mint_address": "BADo3D6nMtGnsAaTv3iEes8mMcq92TuFoBWebFe8kzeA",
+    "bank_address": "b87yGEB4998pV82LHruftbtbVSCaQABRfGbbaJhbs4S",
+    "mint_decimals": 9,
+    "name": "Unknown Token (BADo3D6n...)",
+    "symbol": "UNKNOWN",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA",
+    "bank_address": "GBFxM5tS6q32pk5NhWjMwyrfzNEzFFmXVf3L9995RNt8",
+    "mint_decimals": 6,
+    "name": "USDS",
+    "symbol": "USDS",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "So11111111111111111111111111111111111111112",
+    "bank_address": "EC1T1SWsT81MdrGWdrwesDs1vApJNtjDXibcBX4GFsEH",
+    "mint_decimals": 9,
+    "name": "Wrapped SOL",
+    "symbol": "SOL",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "bank_address": "GM98Qmzdoc7PSD64t7bG5Gqt4XEcZV9RKGcgsFCxTY4e",
+    "mint_decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+    "bank_address": "43UdT1HipqqC5DQoGKbKMzsCFQs6oUm12PFS1TYWZfJS",
+    "mint_decimals": 6,
+    "name": "Orca",
+    "symbol": "ORCA",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+    "mint_address": "So11111111111111111111111111111111111111112",
+    "bank_address": "9rhsPZVrya9aqdFRUi9RoSNZTqsmYuU1fdPWLreS4fNo",
+    "mint_decimals": 9,
+    "name": "Wrapped SOL",
+    "symbol": "SOL",
+    "token_program_address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  }
+]

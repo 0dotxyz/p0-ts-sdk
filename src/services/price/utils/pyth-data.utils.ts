@@ -49,6 +49,10 @@ export const categorizePythBanks = (banks: BankType[]) => {
     (bank) => bank.config.oracleSetup === OracleSetup.SolendPythPull
   );
 
+  const juplendPythPullBanks = banks.filter(
+    (bank) => bank.config.oracleSetup === OracleSetup.JuplendPythPull
+  );
+
   return {
     pythLegacyBanks,
     pythPushBanks,
@@ -56,6 +60,7 @@ export const categorizePythBanks = (banks: BankType[]) => {
     pythPushKaminosBanks,
     driftPythPullBanks,
     solendPythPullBanks,
+    juplendPythPullBanks,
   };
 };
 
