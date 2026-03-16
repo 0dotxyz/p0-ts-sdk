@@ -17,9 +17,6 @@ importers:
       '@jup-ag/api':
         specifier: 6.0.47
         version: 6.0.47
-      '@jup-ag/lend':
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/buffer-layout':
         specifier: ^4.0.1
         version: 4.0.1
@@ -30,11 +27,11 @@ importers:
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@switchboard-xyz/common':
-        specifier: 4.1.0
-        version: 4.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: 5.7.0
+        version: 5.7.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@switchboard-xyz/on-demand':
-        specifier: 2.14.4
-        version: 2.14.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: 3.9.0
+        version: 3.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       bignumber.js:
         specifier: ^9.1.2
         version: 9.3.1
@@ -53,6 +50,9 @@ importers:
       superstruct:
         specifier: ^1.0.4
         version: 1.0.4
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
     devDependencies:
       '@changesets/cli':
         specifier: ^2.29.8
@@ -465,9 +465,6 @@ packages:
   '@jup-ag/api@6.0.47':
     resolution: {integrity: sha512-ani+i7I4DKnCu55/CrZjlU/71xCwUBfR6lrDAZRx0S/zmiMTKQudNwMjAYnZV5CXPerYt5MDD9GWIAKQxp2Q/g==}
 
-  '@jup-ag/lend@0.1.7':
-    resolution: {integrity: sha512-dgVPjVT1XEOf/Syxv3r0jOFKVKBZTYon47K6hJ7qAtfXknhTMcnRBqFEZu5qFQKfvA/fxcSm9hGR6lbT7AvqXQ==}
-
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
 
@@ -775,12 +772,16 @@ packages:
   '@swc/helpers@0.5.18':
     resolution: {integrity: sha512-TXTnIcNJQEKwThMMqBXsZ4VGAza6bvN4pa41Rkqoio6QBKMvo+5lexeTMScGCIxtzgQJzElcvIltani+adC5PQ==}
 
-  '@switchboard-xyz/common@4.1.0':
-    resolution: {integrity: sha512-I9UoRIL+D4BdNHlSNA7bOBCWD29yhzMBNRktDAWNKSpTeMEMGo4aBAJowDrsIogJNInhtX4jI42sy9YeJBB8Uw==}
+  '@switchboard-xyz/common-legacy@1.1.0':
+    resolution: {integrity: sha512-8MWCkOK0ystMWY5Txlh1o+8ZJ4ksUrifWWpNJoyds7qtmTaY2nSK8gKG7AORTtktTOS9K9tdDR4RSYoLtZAJOA==}
     engines: {node: '>=20'}
 
-  '@switchboard-xyz/on-demand@2.14.4':
-    resolution: {integrity: sha512-+YL0+BUlJXEtX4MHS+1+0CpzS2z5z7moM58FqXixBu8Zm6L/KVZ4K29LHhRUW8sLZ4Lmet/JOLNMVCYDI+F8HQ==}
+  '@switchboard-xyz/common@5.7.0':
+    resolution: {integrity: sha512-bKrzYxv8NohgEJgbZTrHP479p+rINT7fYbRtwk0hFBBqJTZC4aStq6BP9fjBi4ww2REM4pD2+692Lqc5VtSdsg==}
+    engines: {node: '>=20'}
+
+  '@switchboard-xyz/on-demand@3.9.0':
+    resolution: {integrity: sha512-6rRGCiPoSaWgBL/ixnOKf/O42BXQdZFpQz81bAvdwCCvjmOTruZ5Ie+iJadDe3339vvPGRrJd4UTuHoU/scJ1Q==}
     engines: {node: '>= 18'}
 
   '@tsconfig/node10@1.0.12':
@@ -943,9 +944,6 @@ packages:
 
   '@vitest/utils@4.0.16':
     resolution: {integrity: sha512-h8z9yYhV3e1LEfaQ3zdypIrnAg/9hguReGZoS7Gl0aBG5xgA410zBqECqmaF/+RkTggRsfnzc1XaAHA6bmUufA==}
-
-  '@zod/core@0.11.6':
-    resolution: {integrity: sha512-03Bv82fFSfjDAvMfdHHdGSS6SOJs0iCcJlWJv1kJHRtoTT02hZpyip/2Lk6oo4l4FtjuwTrsEQTwg/LD8I7dJA==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -1468,6 +1466,10 @@ packages:
 
   eventemitter3@5.0.1:
     resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
+
+  events@3.3.0:
+    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
+    engines: {node: '>=0.8.x'}
 
   expect-type@1.3.0:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
@@ -2636,6 +2638,9 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
+  tweetnacl@1.0.3:
+    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -2884,9 +2889,6 @@ packages:
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.0.0-beta.20250505T195954:
-    resolution: {integrity: sha512-iB8WvxkobVIXMARvQu20fKvbS7mUTiYRpcD8OQV1xjRhxO0EEpYIRJBk6yfBzHAHEdOSDh3SxDITr5Eajr2vtg==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -3277,21 +3279,6 @@ snapshots:
 
   '@jup-ag/api@6.0.47': {}
 
-  '@jup-ag/lend@0.1.7(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coral-xyz/anchor': 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      axios: 1.13.2
-      bn.js: 5.2.2
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
   '@manypkg/find-root@1.1.0':
     dependencies:
       '@babel/runtime': 7.28.4
@@ -3625,7 +3612,19 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@switchboard-xyz/common@4.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@switchboard-xyz/common-legacy@1.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@switchboard-xyz/common': 5.7.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      axios: 1.13.2
+      bs58: 6.0.0
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - typescript
+      - utf-8-validate
+
+  '@switchboard-xyz/common@5.7.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       axios: 1.13.2
@@ -3636,8 +3635,6 @@ snapshots:
       decimal.js: 10.6.0
       js-sha256: 0.11.1
       protobufjs: 7.5.4
-      yaml: 2.8.2
-      zod: 4.0.0-beta.20250505T195954
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -3645,21 +3642,27 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@switchboard-xyz/on-demand@2.14.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@switchboard-xyz/on-demand@3.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@coral-xyz/anchor-31': '@coral-xyz/anchor@0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)'
       '@isaacs/ttlcache': 1.4.1
-      '@switchboard-xyz/common': 4.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@switchboard-xyz/common': 5.7.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@switchboard-xyz/common-legacy': 1.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       axios: 1.13.2
       bs58: 6.0.0
       buffer: 6.0.3
+      events: 3.3.0
       isomorphic-ws: 5.0.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       js-yaml: 4.1.1
+      tweetnacl: 1.0.3
       ws: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
       - debug
       - encoding
+      - fastestsmallesttextencoderdecoder
       - typescript
       - utf-8-validate
 
@@ -3868,8 +3871,6 @@ snapshots:
     dependencies:
       '@vitest/pretty-format': 4.0.16
       tinyrainbow: 3.0.3
-
-  '@zod/core@0.11.6': {}
 
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:
@@ -4491,6 +4492,8 @@ snapshots:
   eventemitter3@4.0.7: {}
 
   eventemitter3@5.0.1: {}
+
+  events@3.3.0: {}
 
   expect-type@1.3.0: {}
 
@@ -5752,6 +5755,8 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
+  tweetnacl@1.0.3: {}
+
   type-check@0.4.0:
     dependencies:
       prelude-ls: 1.2.1
@@ -6005,9 +6010,5 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   zod@3.25.76: {}
-
-  zod@4.0.0-beta.20250505T195954:
-    dependencies:
-      '@zod/core': 0.11.6
 
   zwitch@2.0.4: {}
