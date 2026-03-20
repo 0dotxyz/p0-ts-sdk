@@ -4,6 +4,8 @@
 export enum TransactionBuildingErrorCode {
   JUPITER_SWAP_SIZE_EXCEEDED_REPAY = "JUPITER_SWAP_SIZE_EXCEEDED_REPAY",
   JUPITER_SWAP_SIZE_EXCEEDED_LOOP = "JUPITER_SWAP_SIZE_EXCEEDED_LOOP",
+  SWAP_SIZE_EXCEEDED_LOOP = "SWAP_SIZE_EXCEEDED_LOOP",
+  SWAP_SIZE_EXCEEDED_REPAY = "SWAP_SIZE_EXCEEDED_REPAY",
   ORACLE_CRANK_FAILED = "ORACLE_CRANK_FAILED",
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
   DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
@@ -21,6 +23,16 @@ export interface TransactionBuildingErrorDetails {
   [TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_REPAY]: {
     bytes: number;
     accountKeys: number;
+  };
+  [TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP]: {
+    bytes: number;
+    accountKeys: number;
+    provider?: string;
+  };
+  [TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY]: {
+    bytes: number;
+    accountKeys: number;
+    provider?: string;
   };
   [TransactionBuildingErrorCode.ORACLE_CRANK_FAILED]: {
     uncrankableLiabilities: Array<{
@@ -97,6 +109,30 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_REPAY,
       "Jupiter swap instruction size exceeds available transaction size",
       { bytes, accountKeys }
+    );
+  }
+
+  static swapSizeExceededLoop(
+    bytes: number,
+    accountKeys: number,
+    provider?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP,
+      `${provider ?? "Swap"} instruction size exceeds available transaction size`,
+      { bytes, accountKeys, provider }
+    );
+  }
+
+  static swapSizeExceededRepay(
+    bytes: number,
+    accountKeys: number,
+    provider?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY,
+      `${provider ?? "Swap"} instruction size exceeds available transaction size`,
+      { bytes, accountKeys, provider }
     );
   }
 

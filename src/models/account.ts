@@ -1,6 +1,5 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { QuoteResponse } from "@jup-ag/api";
 
 import instructions from "~/instructions";
 import { Amount, MarginfiProgram, MintData } from "~/types";
@@ -74,6 +73,7 @@ import {
   makeDriftDepositTx,
   MakeDriftWithdrawTxParams,
   makeDriftWithdrawTx,
+  SwapQuoteResult,
 } from "~/services/account";
 import {
   BankType,
@@ -807,7 +807,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.oraclePrices - Map of current oracle prices
    * @param params.depositOpts - Deposit configuration (bank, amount, mode)
    * @param params.borrowOpts - Borrow configuration (bank, amount)
-   * @param params.swapOpts - Jupiter swap configuration (slippage, fees)
+   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
@@ -822,7 +822,7 @@ class MarginfiAccount implements MarginfiAccountType {
   async makeLoopTx(params: Omit<MakeLoopTxParams, "marginfiAccount">): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     return makeLoopTx({
       ...params,
@@ -850,7 +850,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.oraclePrices - Map of current oracle prices
    * @param params.withdrawOpts - Withdraw configuration (bank, amount)
    * @param params.repayOpts - Repay configuration (bank, optional amount)
-   * @param params.swapOpts - Jupiter swap configuration
+   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
@@ -867,7 +867,7 @@ class MarginfiAccount implements MarginfiAccountType {
     params: Omit<MakeRepayWithCollatTxParams, "marginfiAccount">
   ): Promise<{
     transactions: ExtendedV0Transaction[];
-    swapQuote: QuoteResponse | undefined;
+    swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
   }> {
     return makeRepayWithCollatTx({
@@ -897,7 +897,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.oraclePrices - Map of current oracle prices
    * @param params.withdrawOpts - Withdraw configuration (bank, amount, tokenProgram)
    * @param params.depositOpts - Deposit configuration (bank, tokenProgram)
-   * @param params.swapOpts - Jupiter swap configuration
+   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
@@ -913,7 +913,7 @@ class MarginfiAccount implements MarginfiAccountType {
   async makeSwapCollateralTx(params: Omit<MakeSwapCollateralTxParams, "marginfiAccount">): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     return makeSwapCollateralTx({
       ...params,
@@ -942,7 +942,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.oraclePrices - Map of current oracle prices
    * @param params.repayOpts - Repay configuration (bank, amount, tokenProgram)
    * @param params.borrowOpts - Borrow configuration (bank, tokenProgram)
-   * @param params.swapOpts - Jupiter swap configuration
+   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
@@ -957,7 +957,7 @@ class MarginfiAccount implements MarginfiAccountType {
   async makeSwapDebtTx(params: Omit<MakeSwapDebtTxParams, "marginfiAccount">): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     return makeSwapDebtTx({
       ...params,

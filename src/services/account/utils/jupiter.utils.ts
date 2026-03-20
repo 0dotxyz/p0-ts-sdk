@@ -2,11 +2,12 @@ import {
   createJupiterApiClient,
   QuoteGetRequest,
   Instruction as JupiterInstruction,
-  QuoteResponse,
   ConfigurationParameters,
   SwapApi,
   Configuration,
 } from "@jup-ag/api";
+
+import { SwapApiConfig, SwapIxsResult } from "../types";
 import {
   AddressLookupTableAccount,
   Connection,
@@ -14,20 +15,27 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { ADDRESS_LOOKUP_TABLE_FOR_SWAP, JUP_SWAP_LUT_PROGRAM_AUTHORITY_INDEX } from "~/constants";
+import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
+import { mapJupiterQuoteToSwapQuoteResult } from "./swap.utils";
 
 const REFERRAL_PROGRAM_ID = new PublicKey("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
 const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("Mm7HcujSK2JzPW4eX7g4oqTXbWYDuFxapNMHXe8yp1B");
 
-const getFeeAccount = (mint: PublicKey) => {
-  const referralProgramPubkey = REFERRAL_PROGRAM_ID;
-  const referralAccountPubkey = REFERRAL_ACCOUNT_PUBKEY;
-
+const getFeeAccount = (mint: PublicKey): string => {
   const [feeAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from("referral_ata"), referralAccountPubkey.toBuffer(), mint.toBuffer()],
-    referralProgramPubkey
+    [Buffer.from("referral_ata"), REFERRAL_ACCOUNT_PUBKEY.toBuffer(), mint.toBuffer()],
+    REFERRAL_PROGRAM_ID
   );
   return feeAccount.toBase58();
+};
+
+const checkFeeAccount = async (
+  connection: Connection,
+  mint: PublicKey
+): Promise<{ feeAccount: string; hasFeeAccount: boolean }> => {
+  const feeAccount = getFeeAccount(mint);
+  const hasFeeAccount = !!(await connection.getAccountInfo(new PublicKey(feeAccount)));
+  return { feeAccount, hasFeeAccount };
 };
 
 function deserializeJupiterInstruction(instruction: JupiterInstruction) {
@@ -42,12 +50,22 @@ function deserializeJupiterInstruction(instruction: JupiterInstruction) {
   });
 }
 
+export function toJupiterConfig(apiConfig?: SwapApiConfig): ConfigurationParameters | undefined {
+  if (!apiConfig) return undefined;
+  return {
+    basePath: apiConfig.basePath,
+    apiKey: apiConfig.apiKey ? () => apiConfig.apiKey! : undefined,
+    headers: apiConfig.headers,
+  };
+}
+
 type GetJupiterSwapIxsForFlashloanParams = {
   quoteParams: QuoteGetRequest;
   authority: PublicKey;
   connection: Connection;
   destinationTokenAccount: PublicKey;
-  configParams?: ConfigurationParameters;
+  apiConfig?: SwapApiConfig;
+  maxSwapAccounts?: number;
 };
 
 export const getJupiterSwapIxsForFlashloan = async ({
@@ -55,25 +73,19 @@ export const getJupiterSwapIxsForFlashloan = async ({
   authority,
   connection,
   destinationTokenAccount,
-  configParams,
-}: GetJupiterSwapIxsForFlashloanParams): Promise<
-  {
-    swapInstruction: TransactionInstruction;
-    addressLookupTableAddresses: AddressLookupTableAccount[];
-    quoteResponse: QuoteResponse;
-    setupInstructions: TransactionInstruction[];
-  }[]
-> => {
+  apiConfig,
+  maxSwapAccounts,
+}: GetJupiterSwapIxsForFlashloanParams): Promise<SwapIxsResult> => {
   // Create SwapApi directly to respect custom basePath
   // createJupiterApiClient ignores basePath and hardcodes it to jup.ag URLs
+  const configParams = toJupiterConfig(apiConfig);
   const jupiterApiClient = configParams?.basePath
     ? new SwapApi(new Configuration(configParams))
     : createJupiterApiClient(configParams);
 
   const feeMint =
     quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint;
-  const feeAccount = getFeeAccount(new PublicKey(feeMint));
-  const hasFeeAccount = !!(await connection.getAccountInfo(new PublicKey(feeAccount)));
+  const { feeAccount, hasFeeAccount } = await checkFeeAccount(connection, new PublicKey(feeMint));
   const project0JupiterLut = (await connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP))
     ?.value;
 
@@ -89,91 +101,55 @@ export const getJupiterSwapIxsForFlashloan = async ({
     };
   }
 
-  // fetch quotes for maxAccounts 40 and 30
-  const maxAccountsArr = [40, 30];
-  const swapQuotes = await Promise.all(
-    maxAccountsArr.map((maxAccounts) => {
-      return jupiterApiClient.quoteGet({
-        ...finalQuoteParams,
-        maxAccounts,
-      });
-    })
-  );
+  // Use computed maxSwapAccounts from the dummy TX budget, falling back to 40
+  const maxAccounts = maxSwapAccounts ?? 40;
 
-  // Only pass feeAccount if platformFeeBps is set and > 0, AND the fee account exists
-  const shouldUseFeeAccount =
-    hasFeeAccount && finalQuoteParams.platformFeeBps && finalQuoteParams.platformFeeBps > 0;
+  const swapQuote = await jupiterApiClient.quoteGet({
+    ...finalQuoteParams,
+    maxAccounts,
+  });
 
-  const swapInstructionResponses = await Promise.all(
-    swapQuotes.map((quote) =>
-      jupiterApiClient.swapInstructionsPost({
-        swapRequest: {
-          quoteResponse: quote,
-          userPublicKey: authority.toBase58(),
-          feeAccount: hasFeeAccount ? feeAccount : undefined,
-          wrapAndUnwrapSol: false,
-          destinationTokenAccount: destinationTokenAccount.toBase58(),
-        },
-      })
-    )
-  );
+  const swapInstructionResponse = await jupiterApiClient.swapInstructionsPost({
+    swapRequest: {
+      quoteResponse: swapQuote,
+      userPublicKey: authority.toBase58(),
+      feeAccount: hasFeeAccount ? feeAccount : undefined,
+      wrapAndUnwrapSol: false,
+      destinationTokenAccount: destinationTokenAccount.toBase58(),
+    },
+  });
 
-  const lutAddresses = swapInstructionResponses.map(
-    (swapInstructionResponse) => swapInstructionResponse.addressLookupTableAddresses
-  );
+  const lutAddresses = swapInstructionResponse.addressLookupTableAddresses;
 
   const lutAccountsRaw = await connection.getMultipleAccountsInfo(
-    lutAddresses.flat().map((address) => new PublicKey(address))
+    lutAddresses.map((address) => new PublicKey(address))
   );
 
-  let currentIndex = 0;
-  const jupiterSwapIxs: {
-    swapInstruction: TransactionInstruction;
-    setupInstructions: TransactionInstruction[];
-    addressLookupTableAddresses: AddressLookupTableAccount[];
-    quoteResponse: QuoteResponse;
-  }[] = [];
+  const addressLookupTableAccounts = lutAccountsRaw
+    .map((accountInfo, index) => {
+      const addressLookupTableAddress = lutAddresses[index];
 
-  for (let i = 0; i < swapInstructionResponses.length; i++) {
-    const response = swapInstructionResponses[i];
-    const quote = swapQuotes[i];
+      if (!accountInfo || !addressLookupTableAddress) {
+        return null;
+      }
 
-    if (!response || !quote) continue;
+      return new AddressLookupTableAccount({
+        key: new PublicKey(addressLookupTableAddress),
+        state: AddressLookupTableAccount.deserialize(accountInfo.data),
+      });
+    })
+    .filter((account) => account !== null)
+    .concat(project0JupiterLut ? [project0JupiterLut] : []);
 
-    const address = response.addressLookupTableAddresses;
-    const addressesLength = address.length;
-    const addressesStartIndex = currentIndex;
-    const addressesEndIndex = addressesStartIndex + addressesLength;
-    currentIndex = addressesEndIndex;
+  const instruction = deserializeJupiterInstruction(swapInstructionResponse.swapInstruction);
+  const setupInstructions = swapInstructionResponse.setupInstructions.map(
+    deserializeJupiterInstruction
+  );
 
-    const lutAccounts = lutAccountsRaw.slice(addressesStartIndex, addressesEndIndex);
-
-    const addressLookupTableAccounts = lutAccounts
-      .map((accountInfo, index) => {
-        const addressLookupTableAddress = address[index];
-
-        if (!accountInfo || !addressLookupTableAddress) {
-          return null;
-        }
-
-        return new AddressLookupTableAccount({
-          key: new PublicKey(addressLookupTableAddress),
-          state: AddressLookupTableAccount.deserialize(accountInfo.data),
-        });
-      })
-      .filter((account) => account !== null)
-      .concat(project0JupiterLut ? [project0JupiterLut] : []);
-
-    const instruction = deserializeJupiterInstruction(response.swapInstruction);
-    const setupInstructions = response.setupInstructions.map(deserializeJupiterInstruction);
-
-    jupiterSwapIxs.push({
-      swapInstruction: instruction,
-      setupInstructions,
-      addressLookupTableAddresses: addressLookupTableAccounts,
-      quoteResponse: quote,
-    });
-  }
-
-  return jupiterSwapIxs;
+  return {
+    swapInstructions: [instruction],
+    setupInstructions,
+    addressLookupTableAddresses: addressLookupTableAccounts,
+    quoteResponse: mapJupiterQuoteToSwapQuoteResult(swapQuote),
+  };
 };

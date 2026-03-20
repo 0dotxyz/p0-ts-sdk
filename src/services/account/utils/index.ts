@@ -5,4 +5,7 @@ export * from "./compute";
 export * from "./fetch.utils";
 export * from "./max-amounts.utils";
 export * from "./jupiter.utils";
+export * from "./titan.utils";
+export * from "./swap.utils";
 export * from "./misc.utils";
+export * from "./flashloan-size.utils";

@@ -8,7 +8,6 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
-import { QuoteResponse } from "@jup-ag/api";
 
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -40,8 +39,13 @@ import { MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
 
-import { MakeRepayIxParams, MakeRepayTxParams, MakeRepayWithCollatTxParams } from "../types";
-import { isWholePosition, getJupiterSwapIxsForFlashloan } from "../utils";
+import {
+  MakeRepayIxParams,
+  MakeRepayTxParams,
+  MakeRepayWithCollatTxParams,
+  SwapQuoteResult,
+} from "../types";
+import { isWholePosition, getSwapIxsForFlashloan } from "../utils";
 
 import {
   makeDriftWithdrawIx,
@@ -49,6 +53,7 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "./withdraw";
+import { computeFlashloanSwapConstraints } from "../utils";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSetupIx } from "./account-lifecycle";
 
@@ -339,27 +344,20 @@ async function buildRepayWithCollatFlashloanTx({
   overrideInferAccounts,
   blockhash,
 }: MakeRepayWithCollatTxParams & { blockhash: string }) {
-  const swapResult: {
-    amountToRepay: number;
-    swapInstructions: TransactionInstruction[];
-    setupInstructions: TransactionInstruction[];
-    swapLookupTables: AddressLookupTableAccount[];
-    quoteResponse?: QuoteResponse;
-  }[] = [];
-
   const cuRequestIxs = [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
   ];
 
+  let amountToRepay: number;
+  let swapInstructions: TransactionInstruction[] = [];
+  let setupInstructions: TransactionInstruction[] = [];
+  let swapLookupTables: AddressLookupTableAccount[] = [];
+  let swapQuote: SwapQuoteResult | undefined;
+
   if (repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint)) {
     // No swap needed, you just withdraw and repay the same mint
-    swapResult.push({
-      amountToRepay: withdrawOpts.withdrawAmount,
-      swapInstructions: [],
-      setupInstructions: [],
-      swapLookupTables: [],
-    });
+    amountToRepay = withdrawOpts.withdrawAmount;
   } else {
     const destinationTokenAccount = getAssociatedTokenAddressSync(
       new PublicKey(repayOpts.repayBank.mint),
@@ -368,50 +366,56 @@ async function buildRepayWithCollatFlashloanTx({
       repayOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
     );
 
-    // Get Jupiter swap instruction using calculated available TX size
-    const swapResponse = await getJupiterSwapIxsForFlashloan({
-      quoteParams: {
-        inputMint: withdrawOpts.withdrawBank.mint.toBase58(),
-        outputMint: repayOpts.repayBank.mint.toBase58(),
-        amount: uiToNative(
-          withdrawOpts.withdrawAmount,
-          withdrawOpts.withdrawBank.mintDecimals
-        ).toNumber(),
-        dynamicSlippage: swapOpts.jupiterOptions
-          ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
-          : true,
-        slippageBps: swapOpts.jupiterOptions?.slippageBps ?? undefined,
-        swapMode: "ExactIn",
-        platformFeeBps: swapOpts.jupiterOptions?.platformFeeBps ?? undefined,
-        onlyDirectRoutes: swapOpts.jupiterOptions?.directRoutesOnly ?? false,
+    const swapConstraints = await computeFlashloanSwapConstraints({
+      program,
+      marginfiAccount,
+      bankMap,
+      bankMetadataMap,
+      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+      primaryIx: {
+        type: "withdraw",
+        bank: withdrawOpts.withdrawBank,
+        tokenProgram: withdrawOpts.tokenProgram,
       },
+      secondaryIx: {
+        type: "repay",
+        bank: repayOpts.repayBank,
+        tokenProgram: repayOpts.tokenProgram,
+      },
+      overrideInferAccounts,
+    });
+
+    // Get swap instructions using provider router
+    const swapResponse = await getSwapIxsForFlashloan({
+      inputMint: withdrawOpts.withdrawBank.mint.toBase58(),
+      outputMint: repayOpts.repayBank.mint.toBase58(),
+      amount: uiToNative(
+        withdrawOpts.withdrawAmount,
+        withdrawOpts.withdrawBank.mintDecimals
+      ).toNumber(),
+      swapMode: "ExactIn",
       authority: marginfiAccount.authority,
       connection,
       destinationTokenAccount,
-      configParams: swapOpts.jupiterOptions?.configParams,
+      swapOpts,
+      sizeConstraint: swapConstraints.sizeConstraint,
+      maxSwapAccounts: swapConstraints.maxSwapAccounts,
     });
 
-    swapResponse.forEach((response) => {
-      const { swapInstruction, addressLookupTableAddresses, quoteResponse } = response;
-      const outAmount = nativeToUi(quoteResponse.outAmount, repayOpts.repayBank.mintDecimals);
-      const outAmountThreshold = nativeToUi(
-        quoteResponse.otherAmountThreshold,
-        repayOpts.repayBank.mintDecimals
-      );
+    const { quoteResponse } = swapResponse;
+    const outAmount = nativeToUi(quoteResponse.outAmount, repayOpts.repayBank.mintDecimals);
+    const outAmountThreshold = nativeToUi(
+      quoteResponse.otherAmountThreshold,
+      repayOpts.repayBank.mintDecimals
+    );
 
-      const amountToRepay =
-        outAmount > repayOpts.totalPositionAmount
-          ? repayOpts.totalPositionAmount
-          : outAmountThreshold;
-
-      swapResult.push({
-        amountToRepay,
-        swapInstructions: [swapInstruction],
-        setupInstructions: [],
-        swapLookupTables: addressLookupTableAddresses,
-        quoteResponse,
-      });
-    });
+    amountToRepay =
+      outAmount > repayOpts.totalPositionAmount
+        ? repayOpts.totalPositionAmount
+        : outAmountThreshold;
+    swapInstructions = swapResponse.swapInstructions;
+    swapLookupTables = swapResponse.addressLookupTableAddresses;
+    swapQuote = quoteResponse;
   }
 
   let withdrawIxs: InstructionsWrapper;
@@ -575,77 +579,66 @@ async function buildRepayWithCollatFlashloanTx({
     }
   }
 
-  for (const [index, item] of swapResult.entries()) {
-    const { amountToRepay, swapInstructions, setupInstructions, swapLookupTables, quoteResponse } =
-      item;
-
-    const repayIxs = await makeRepayIx({
-      program,
-      bank: repayOpts.repayBank,
-      tokenProgram: repayOpts.tokenProgram,
-      amount: amountToRepay,
-      accountAddress: marginfiAccount.address,
-      authority: marginfiAccount.authority,
-      repayAll: isWholePosition(
-        {
-          amount: repayOpts.totalPositionAmount,
-          isLending: true,
-        },
-        amountToRepay,
-        repayOpts.repayBank.mintDecimals
-      ),
-      isSync: false,
-      opts: {
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
+  const repayIxs = await makeRepayIx({
+    program,
+    bank: repayOpts.repayBank,
+    tokenProgram: repayOpts.tokenProgram,
+    amount: amountToRepay,
+    accountAddress: marginfiAccount.address,
+    authority: marginfiAccount.authority,
+    repayAll: isWholePosition(
+      {
+        amount: repayOpts.totalPositionAmount,
+        isLending: true,
       },
-    });
+      amountToRepay,
+      repayOpts.repayBank.mintDecimals
+    ),
+    isSync: false,
+    opts: {
+      wrapAndUnwrapSol: false,
+      overrideInferAccounts,
+    },
+  });
 
-    const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
+  const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
 
-    const flashloanParams = {
-      program,
-      marginfiAccount,
-      bankMap,
-      addressLookupTableAccounts: luts,
-      blockhash,
-    };
-    // if cuRequestIxs are not present, priority fee ix is needed
-    // wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-    // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-    // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
-    const flashloanTx = await makeFlashLoanTx({
-      ...flashloanParams,
-      ixs: [
-        ...cuRequestIxs,
-        ...withdrawIxs.instructions,
-        ...swapInstructions,
-        ...repayIxs.instructions,
-      ],
-      isSync: true,
-    });
+  // if cuRequestIxs are not present, priority fee ix is needed
+  // wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
+  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
+  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
+  const flashloanTx = await makeFlashLoanTx({
+    program,
+    marginfiAccount,
+    bankMap,
+    addressLookupTableAccounts: luts,
+    blockhash,
+    ixs: [
+      ...cuRequestIxs,
+      ...withdrawIxs.instructions,
+      ...swapInstructions,
+      ...repayIxs.instructions,
+    ],
+    isSync: true,
+  });
 
-    const txSize = getTxSize(flashloanTx);
-    const keySize = getAccountKeys(flashloanTx, luts);
-    const isLast = index === swapResult.length - 1;
+  const txSize = getTxSize(flashloanTx);
+  const keySize = getAccountKeys(flashloanTx, luts);
 
-    if (txSize > MAX_TX_SIZE || keySize > 64) {
-      if (isLast) {
-        throw TransactionBuildingError.jupiterSwapSizeExceededRepay(txSize, keySize);
-      } else {
-        continue;
-      }
-    } else {
-      return {
-        flashloanTx,
-        setupInstructions,
-        swapQuote: quoteResponse,
-        withdrawIxs,
-        repayIxs,
-        amountToRepay,
-      };
-    }
+  if (txSize > MAX_TX_SIZE || keySize > 64) {
+    throw TransactionBuildingError.swapSizeExceededRepay(
+      txSize,
+      keySize,
+      swapOpts.swapConfig?.provider
+    );
   }
 
-  throw new Error("Failed to build repay with collateral flashloan tx");
+  return {
+    flashloanTx,
+    setupInstructions,
+    swapQuote,
+    withdrawIxs,
+    repayIxs,
+    amountToRepay,
+  };
 }
