@@ -207,6 +207,50 @@ ts-node examples/09-loop-leverage.ts
 - Deposit → Borrow → Swap → Deposit loops
 - Maximize capital efficiency
 
+### Native Stake Operations
+
+#### 12. Mint Staked LST (`12-mint-staked-lst.ts`)
+
+Convert a native stake account into LST tokens via the single-validator pool.
+
+```bash
+pnpm exec tsx 12-mint-staked-lst.ts
+```
+
+**What you'll learn:**
+
+- Convert native stake to LST tokens
+- Handle partial vs full stake account conversion
+- Authorize pool as staker/withdrawer
+- Deposit stake into a single-validator pool
+
+#### 13. Redeem Staked LST (`13-redeem-staked-lst.ts`)
+
+Convert LST tokens back into a native stake account.
+
+```bash
+pnpm exec tsx 13-redeem-staked-lst.ts
+```
+
+**What you'll learn:**
+
+- Redeem LST tokens to a new stake account
+- Approve mint authority to burn LST
+- Withdraw stake from the pool
+
+#### 14. Merge Stake Accounts (`14-merge-stake-accounts.ts`)
+
+Merge two native stake accounts into one.
+
+```bash
+pnpm exec tsx 14-merge-stake-accounts.ts
+```
+
+**What you'll learn:**
+
+- Merge a source stake account into a destination
+- Requirements: same authority, same validator, both active
+
 ## 🏗️ Architecture
 
 ### Project0Client

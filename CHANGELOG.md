@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-alpha.0
+
+### Minor Changes
+
+- Add native stake bank support: mint LST from stake accounts, redeem LST back to stake accounts, merge stake accounts, asset share multiplier for staked banks, oracle simplification for staked collateral, and hardcoded staked bank metadata.
+
 ## 2.1.3
 
 ### Patch Changes

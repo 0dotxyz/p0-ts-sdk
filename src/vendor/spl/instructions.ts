@@ -52,10 +52,63 @@ export function createMemoInstruction(
 
 /** Instructions defined by the program */
 export enum TokenInstruction {
+  Approve = 4,
   InitializeAccount = 1,
   TransferChecked = 12,
   CloseAccount = 9,
   SyncNative = 17,
+}
+
+/** TODO: docs */
+export interface ApproveInstructionData {
+  instruction: TokenInstruction.Approve;
+  amount: bigint;
+}
+
+export const approveInstructionData = struct<ApproveInstructionData>([
+  u8("instruction"),
+  u64("amount"),
+]);
+
+/**
+ * Construct an Approve instruction
+ *
+ * @param account      Account to set the delegate for
+ * @param delegate     Account authorized to transfer tokens from the account
+ * @param owner        Owner of the account
+ * @param amount       Maximum number of tokens the delegate may transfer
+ * @param multiSigners Signing accounts if `owner` is a multisig
+ * @param programId    SPL Token program account
+ *
+ * @return Instruction to add to a transaction
+ */
+export function createApproveInstruction(
+  account: PublicKey,
+  delegate: PublicKey,
+  owner: PublicKey,
+  amount: number | bigint,
+  multiSigners: Signer[] = [],
+  programId = TOKEN_PROGRAM_ID
+): TransactionInstruction {
+  const keys = addSigners(
+    [
+      { pubkey: account, isSigner: false, isWritable: true },
+      { pubkey: delegate, isSigner: false, isWritable: false },
+    ],
+    owner,
+    multiSigners
+  );
+
+  const data = Buffer.alloc(approveInstructionData.span);
+  approveInstructionData.encode(
+    {
+      instruction: TokenInstruction.Approve,
+      amount: BigInt(amount),
+    },
+    data
+  );
+
+  return new TransactionInstruction({ keys, programId, data });
 }
 
 /** TODO: docs */
