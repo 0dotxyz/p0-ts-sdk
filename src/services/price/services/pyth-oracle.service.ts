@@ -73,43 +73,24 @@ export const fetchPythOracleData = async (
     };
   }
 
-  // Step 2: Prepare vote account mint tuples for staked collateral
-  const voteAccMintTuples: [string, string][] = pythStakedCollateralBanks.map((bank) => [
-    opts.validatorVoteAccountByBank?.[bank.address.toBase58()] ?? "",
-    bank.mint.toBase58(),
-  ]);
-
-  // Step 3: Fetch Pyth price coefficients
-  const priceCoeffByBank: Record<string, number> = {};
-
-  // Native stake not supported
-  // if (opts?.useApiEndpoint || !opts?.connection) {
-  //   const { priceCoeffByBank: voteAccCoeffs } =
-  //     await fetchPythStakedCollateralDataViaAPI(voteAccMintTuples);
-
-  //   priceCoeffByBank = convertVoteAccCoeffsToBankCoeffs(
-  //     pythStakedCollateralBanks,
-  //     validatorVoteAccountByBank ?? {},
-  //     voteAccCoeffs,
-  //   );
-  // } else {
-  //   priceCoeffByBank = {};
-  // }
-
-  // Step 4: Extract oracle keys for price fetching
+  // Step 2: Extract oracle keys for price fetching
+  // Staked collateral banks use the raw SOL oracle price — the LST→SOL conversion
+  // is handled via assetShareValueMultiplier in client.ts, not via price coefficients.
   const combinedPythBanks = [
     ...pythPushBanks,
+    ...pythStakedCollateralBanks,
     ...pythPushKaminosBanks,
     ...driftPythPullBanks,
     ...solendPythPullBanks,
     ...juplendPythPullBanks,
   ];
+  const priceCoeffByBank: Record<string, number> = {};
   const pythOracleKeys = extractPythOracleKeys(combinedPythBanks);
 
   // Filter for unique oracle keys to avoid duplicate fetches
   const uniquePythOracleKeys = Array.from(new Set(pythOracleKeys));
 
-  // Step 5: Fetch oracle prices
+  // Step 3: Fetch oracle prices
   let oraclePrices: Record<string, OraclePrice>;
   if (opts.mode === "api") {
     oraclePrices = await fetchPythOraclePricesFromAPI(
