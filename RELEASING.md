@@ -1,274 +1,218 @@
 # Release Process
 
-This project uses [Changesets](https://github.com/changesets/changesets) for version management and publishing to npm.
+This project uses [Changesets](https://github.com/changesets/changesets) for version management and publishing to npm as `@0dotxyz/p0-ts-sdk`.
 
-## 📋 Prerequisites
+## Prerequisites
 
-Before publishing, ensure you have:
+- npm account with publish access to `@0dotxyz/p0-ts-sdk`
+- Node >= 18, pnpm installed
 
-1. **npm account** with access to publish `p0-ts-sdk`
-2. **Logged into npm**: `npm login`
-3. **All tests passing**: `pnpm test`
-4. **Clean working directory**: All changes committed
+## Release Steps
 
-## 🚀 Release Workflow
+### 1. Prepare your branch
 
-### 1. Make Your Changes
+Push all changes to a separate branch. Make sure the working tree is clean — nothing uncommitted.
 
 ```bash
-# Make code changes
-vim src/models/client.ts
+git checkout -b release/vX.X.X
+git status  # should be clean
+```
 
-# Add tests
-vim tests/unit/models/client.test.ts
+### 2. Build, test, and verify locally
 
-# Build and test
+Build the SDK and make sure examples still run:
+
+```bash
 pnpm build
-pnpm test
+pnpm test:run
+cd examples && npx tsx 01-deposit.ts
 ```
 
-### 2. Create a Changeset
+**Local link test with the app** — in the app's `package.json`, temporarily point the SDK dependency to your local build:
 
-After making changes, document them with a changeset:
+```json
+"@repo/marginfi-client-v2": "file:../../../p0-ts-sdk"
+```
+
+Adjust the relative path if the app lives elsewhere. Run the app and verify things work end-to-end. **Revert this change before committing.**
+
+### 3. Create a changeset
 
 ```bash
 pnpm changeset
 ```
 
-This will prompt you for:
-- **Package to bump**: `p0-ts-sdk`
-- **Bump type**: 
-  - `patch` - Bug fixes (1.0.0 → 1.0.1)
-  - `minor` - New features, backwards compatible (1.0.0 → 1.1.0)
-  - `major` - Breaking changes (1.0.0 → 2.0.0)
-- **Summary**: Brief description of changes
+Select the bump type:
 
-Example:
-```
-🦋  Which packages would you like to include?
-› [x] p0-ts-sdk
+| Type    | When to use                          | Example            |
+|---------|--------------------------------------|--------------------|
+| `patch` | Bug fixes, docs, internal refactors  | 2.1.1 → 2.1.2     |
+| `minor` | New features, backwards compatible   | 2.1.1 → 2.2.0     |
+| `major` | Breaking API changes                 | 2.1.1 → 3.0.0     |
 
-🦋  Which type of change is this for p0-ts-sdk?
-› minor
+Write a descriptive summary when prompted, or edit the generated `.changeset/<random-name>.md` file afterwards to improve the description.
 
-🦋  Please enter a summary for this change:
-Add support for new oracle price feeds
-```
-
-This creates a markdown file in `.changeset/` describing your changes.
-
-### 3. Commit the Changeset
+### 4. Apply version changes
 
 ```bash
-git add .changeset/
-git commit -m "Add changeset for new oracle support"
-git push
+pnpm changeset version
 ```
 
-### 4. Version Bump (When Ready to Release)
+This updates `package.json` version, writes to `CHANGELOG.md`, and deletes consumed changeset files. Review the diff to make sure it looks correct.
 
-When you're ready to publish, consume all changesets and bump versions:
-
-```bash
-pnpm version
-```
-
-This will:
-- Update `package.json` version
-- Update `CHANGELOG.md`
-- Delete consumed changeset files
-- Create a version commit
+### 5. Commit the release
 
 ```bash
 git add .
-git commit -m "Version packages"
-git push
+git commit -m "chore: release v2.2.0"
 ```
 
-### 5. Publish to npm
+Use format: `chore: release vX.X.X` (or `chore: release vX.X.X-alpha.X — short description` for pre-releases).
+
+### 6. Tag the release
 
 ```bash
-# Ensure you're logged in
-npm whoami
-
-# Build and publish
-pnpm release
+git tag v2.2.0
 ```
 
-This will:
-1. Build the package (`pnpm build`)
-2. Publish to npm (`changeset publish`)
-3. Create git tags for the release
+Use the same version string: `vX.X.X` (or `vX.X.X-alpha.X` for pre-releases).
 
-### 6. Push Tags
-
-```bash
-git push --follow-tags
-```
-
-## 📝 Examples
-
-### Example: Bug Fix Release (Patch)
-
-```bash
-# Fix a bug
-vim src/utils/calculations.ts
-
-# Create changeset
-pnpm changeset
-# Select: patch
-# Summary: "Fix calculation overflow in computeHealthFactor"
-
-# Commit
-git add .
-git commit -m "Fix health factor calculation overflow"
-git push
-
-# When ready to release
-pnpm version
-git push
-
-pnpm release
-git push --follow-tags
-```
-
-### Example: New Feature (Minor)
-
-```bash
-# Add new feature
-vim src/services/new-feature.ts
-
-# Create changeset
-pnpm changeset
-# Select: minor
-# Summary: "Add support for Jupiter swap integration"
-
-# Commit and release as above
-```
-
-### Example: Breaking Change (Major)
-
-```bash
-# Make breaking change
-vim src/models/client.ts
-
-# Create changeset
-pnpm changeset
-# Select: major
-# Summary: "BREAKING: Rename MarginfiClient to Project0Client"
-
-# Commit and release as above
-```
-
-## 🔄 CI/CD Integration (Optional)
-
-For automated releases, you can set up GitHub Actions:
-
-### `.github/workflows/release.yml`
-
-```yaml
-name: Release
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-          registry-url: 'https://registry.npmjs.org'
-      
-      - run: pnpm install
-      - run: pnpm build
-      - run: pnpm test
-      
-      - name: Create Release Pull Request or Publish
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-```
-
-## 📊 Version Guidelines
-
-Follow [Semantic Versioning](https://semver.org/):
-
-- **MAJOR** (x.0.0): Breaking changes
-  - API changes that break existing code
-  - Removed functionality
-  - Changed behavior that breaks compatibility
-
-- **MINOR** (1.x.0): New features (backwards compatible)
-  - New functions/methods
-  - New exports
-  - New optional parameters
-  - Deprecations (but not removals)
-
-- **PATCH** (1.0.x): Bug fixes
-  - Bug fixes
-  - Performance improvements
-  - Documentation updates
-  - Internal refactoring (no API changes)
-
-## 🛡️ Pre-release Checklist
-
-Before running `pnpm release`, verify:
-
-- ✅ All tests pass: `pnpm test`
-- ✅ Builds successfully: `pnpm build`
-- ✅ Linting passes: `pnpm lint`
-- ✅ Type checking passes: `pnpm typecheck`
-- ✅ Examples work: `cd examples && tsx 01-deposit.ts`
-- ✅ CHANGELOG.md looks correct
-- ✅ Version number is correct in package.json
-- ✅ You're logged into npm: `npm whoami`
-
-## 🚨 Troubleshooting
-
-### "You need to be logged in to publish"
+### 7. Log in to npm
 
 ```bash
 npm login
+npm whoami  # verify you're the right user
 ```
 
-### "You do not have permission to publish"
-
-Ensure your npm account has access to the `p0-ts-sdk` package, or publish with scope:
-
-```json
-// package.json
-{
-  "name": "@your-org/p0-ts-sdk"
-}
-```
-
-### "Version already exists"
-
-You've already published this version. Bump the version:
+### 8. Publish
 
 ```bash
-pnpm version
+pnpm build
+npm publish
 ```
 
-### Accidental Publish
+For **stable releases**, this automatically tags as `latest` on npm.
+For **alpha/pre-releases**, use `--tag alpha` (see [Alpha Releases](#alpha--pre-releases) below).
 
-You can unpublish within 72 hours (but it's discouraged):
+### 9. Verify dist-tags
 
 ```bash
-npm unpublish p0-ts-sdk@1.2.3
+npm dist-tag ls @0dotxyz/p0-ts-sdk
 ```
 
-## 📚 Additional Resources
+Confirm `latest` (or `alpha`) points to the version you just published.
 
-- [Changesets Documentation](https://github.com/changesets/changesets/blob/main/docs/intro-to-using-changesets.md)
-- [Semantic Versioning](https://semver.org/)
-- [npm Publishing Guide](https://docs.npmjs.com/cli/v9/commands/npm-publish)
+### 10. Review on npm
+
+Check the package page: https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk
+
+Verify: correct version, correct files in the tarball, README renders properly.
+
+### 11. Push to remote
+
+```bash
+git push origin release/vX.X.X --follow-tags
+```
+
+Open a PR to merge into `main` if your workflow requires it.
+
+### 12. Optional: integrity hash check
+
+Generate a local tarball and compare its hash with what npm received:
+
+```bash
+# Generate local tarball
+npm pack
+
+# Hash it
+shasum -a 256 0dotxyz-p0-ts-sdk-*.tgz
+
+# Compare with npm's reported hash
+npm view @0dotxyz/p0-ts-sdk dist.integrity
+```
+
+The hashes should match (npm uses base64-encoded sha512 by default — use `shasum -a 512` and compare manually, or just verify the tarball contents look right with `tar -tzf *.tgz`).
+
+---
+
+## Alpha / Pre-releases
+
+Use alpha releases to test breaking changes or new features before promoting to stable.
+
+### How it differs from a stable release
+
+1. **Version format**: `X.X.X-alpha.N` (e.g. `2.2.0-alpha.0`, `2.2.0-alpha.1`)
+2. **Publish with `--tag alpha`** so it does NOT become `latest`
+3. **Consumers install with**: `npm install @0dotxyz/p0-ts-sdk@alpha`
+
+### Alpha release walkthrough
+
+```bash
+# 1. Create changeset as usual
+pnpm changeset  # select minor/major/patch as appropriate
+
+# 2. Enter pre-release mode (changesets feature)
+pnpm changeset pre enter alpha
+
+# 3. Apply version — this produces e.g. 2.2.0-alpha.0
+pnpm changeset version
+
+# 4. Commit and tag
+git add .
+git commit -m "chore: release v2.2.0-alpha.0 — new oracle integration"
+git tag v2.2.0-alpha.0
+
+# 5. Publish with alpha tag (IMPORTANT: --tag alpha)
+pnpm build
+npm publish --tag alpha
+
+# 6. Verify
+npm dist-tag ls @0dotxyz/p0-ts-sdk
+# Should show:  alpha: 2.2.0-alpha.0
+#               latest: 2.1.1  (unchanged)
+
+# 7. Push
+git push origin <branch> --follow-tags
+```
+
+### Iterating on alpha
+
+Repeat steps 1-7 — changesets will auto-increment the pre-release number (`alpha.0` → `alpha.1` → ...).
+
+### Promoting alpha to stable
+
+```bash
+# Exit pre-release mode
+pnpm changeset pre exit
+
+# Version as stable
+pnpm changeset version
+
+# Commit, tag, publish as a normal stable release (steps 5-11 above)
+git add .
+git commit -m "chore: release v2.2.0"
+git tag v2.2.0
+pnpm build
+npm publish
+git push origin <branch> --follow-tags
+```
+
+You can also manually move the `latest` tag if needed:
+
+```bash
+npm dist-tag add @0dotxyz/p0-ts-sdk@2.2.0 latest
+```
+
+---
+
+## Troubleshooting
+
+**"You need to be logged in to publish"** — Run `npm login`.
+
+**"You do not have permission to publish"** — Ensure your npm account has access to the `@0dotxyz` org.
+
+**"Version already exists"** — You already published this version. Bump again with `pnpm changeset version` or manually edit `package.json`.
+
+**Accidental publish** — You can unpublish within 72 hours: `npm unpublish @0dotxyz/p0-ts-sdk@X.X.X` (discouraged — prefer publishing a fix version instead).
+
+**Wrong dist-tag** — Fix with: `npm dist-tag add @0dotxyz/p0-ts-sdk@X.X.X <correct-tag>`
