@@ -57,7 +57,7 @@ import {
   MakeSwapCollateralTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
-  makeWithdrawEmissionsIx,
+  makeClearEmissionsIx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
   makeWithdrawTx,
@@ -560,20 +560,18 @@ class MarginfiAccount implements MarginfiAccountType {
    *
    * @param program - The Marginfi program instance
    * @param banks - Map of all available banks
-   * @param mintDatas - Map of mint data for token programs
-   * @param bankAddress - The bank to withdraw emissions from
+   * @param bankAddress - The bank to clear emissions for
    *
-   * @returns Promise resolving to InstructionsWrapper containing the withdraw emissions instructions
+   * @returns Promise resolving to InstructionsWrapper containing the clear emissions instructions
    *
-   * @see {@link makeWithdrawEmissionsIx} for implementation
+   * @see {@link makeClearEmissionsIx} for implementation
    */
-  async makeWithdrawEmissionsIx(
+  async makeClearEmissionsIx(
     program: MarginfiProgram,
     banks: Map<string, Bank>,
-    mintDatas: Map<string, MintData>,
     bankAddress: PublicKey
   ): Promise<InstructionsWrapper> {
-    return makeWithdrawEmissionsIx(program, this, banks, mintDatas, bankAddress);
+    return makeClearEmissionsIx(program, this, banks, bankAddress);
   }
 
   /**

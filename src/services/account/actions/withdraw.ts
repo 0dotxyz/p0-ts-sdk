@@ -389,7 +389,7 @@ export async function makeKaminoWithdrawIx({
           lendingMarket,
           lendingMarketAuthority,
           integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
-          reserveLiquidityMint: bank.mint,
+          mint: bank.mint,
           reserveLiquiditySupply,
           reserveCollateralMint,
 
@@ -416,7 +416,7 @@ export async function makeKaminoWithdrawIx({
           bank: bank.address,
           destinationTokenAccount: userTokenAtaPk,
           lendingMarket,
-          reserveLiquidityMint: bank.mint,
+          mint: bank.mint,
 
           lendingMarketAuthority,
           reserveLiquiditySupply,

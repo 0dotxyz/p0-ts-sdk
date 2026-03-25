@@ -300,17 +300,12 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Creates a withdraw emissions instruction with auto-injected client data.
+   * Creates a clear emissions instruction with auto-injected client data.
    *
-   * @param bankAddress - Bank address to withdraw emissions from
+   * @param bankAddress - Bank address to clear emissions for
    */
-  async makeWithdrawEmissionsIx(bankAddress: PublicKey): Promise<InstructionsWrapper> {
-    return this.account.makeWithdrawEmissionsIx(
-      this.client.program,
-      this.client.bankMap,
-      this.client.mintDataByBank,
-      bankAddress
-    );
+  async makeClearEmissionsIx(bankAddress: PublicKey): Promise<InstructionsWrapper> {
+    return this.account.makeClearEmissionsIx(this.client.program, this.client.bankMap, bankAddress);
   }
 
   /**

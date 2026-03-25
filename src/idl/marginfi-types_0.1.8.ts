@@ -54,7 +54,7 @@ export type Marginfi = {
     {
       name: "configureBankRateLimits";
       docs: [
-        "(admin only) Configure bank-level rate limits for withdraw/borrow.",
+        "(admin or delegate_limit_admin) Configure bank-level rate limits for withdraw/borrow.",
         "Rate limits track net outflow in native tokens. Deposits offset withdraws.",
         "Set to 0 to disable. Hourly and daily windows are independent.",
       ];
@@ -67,7 +67,6 @@ export type Marginfi = {
         {
           name: "admin";
           signer: true;
-          relations: ["group"];
         },
         {
           name: "bank";
@@ -91,7 +90,9 @@ export type Marginfi = {
     },
     {
       name: "configureDeleverageWithdrawalLimit";
-      docs: ["(group admin only) Set the daily withdrawal limit for deleverages per group."];
+      docs: [
+        "(admin or delegate_limit_admin) Set the daily withdrawal limit for deleverages per group.",
+      ];
       discriminator: [28, 132, 205, 158, 67, 77, 177, 63];
       accounts: [
         {
@@ -101,7 +102,6 @@ export type Marginfi = {
         {
           name: "admin";
           signer: true;
-          relations: ["marginfiGroup"];
         },
       ];
       args: [
@@ -114,7 +114,7 @@ export type Marginfi = {
     {
       name: "configureGroupRateLimits";
       docs: [
-        "(admin only) Configure group-level rate limits for withdraw/borrow.",
+        "(admin or delegate_limit_admin) Configure group-level rate limits for withdraw/borrow.",
         "Rate limits track aggregate net outflow in USD.",
         "Example: $10M = 10_000_000. Set to 0 to disable.",
       ];
@@ -127,7 +127,6 @@ export type Marginfi = {
         {
           name: "admin";
           signer: true;
-          relations: ["marginfiGroup"];
         },
       ];
       args: [
@@ -155,7 +154,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -743,7 +741,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -1275,6 +1272,7 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
+          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -1284,7 +1282,6 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "bank";
@@ -1574,7 +1571,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -1749,7 +1745,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2278,7 +2273,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2375,12 +2369,13 @@ export type Marginfi = {
           relations: ["bank"];
         },
         {
-          name: "reserveLiquidityMint";
+          name: "mint";
           docs: [
             "The liquidity token mint (e.g., USDC)",
             "Needs serde to get the mint decimals for transfer checked",
           ];
           writable: true;
+          relations: ["bank"];
         },
         {
           name: "reserveLiquiditySupply";
@@ -2455,7 +2450,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2527,11 +2521,26 @@ export type Marginfi = {
       ];
     },
     {
-      name: "lendingAccountCloseBalance";
+      name: "lendingAccountClearEmissions";
       docs: [
-        "(account authority) Close a balance position with dust-level amounts. Claims outstanding",
-        "emissions before closing.",
+        "(permissionless) Zero out `emissions_outstanding` on a balance after emissions are disabled",
+        "on the bank.",
       ];
+      discriminator: [239, 4, 221, 98, 45, 167, 201, 244];
+      accounts: [
+        {
+          name: "marginfiAccount";
+          writable: true;
+        },
+        {
+          name: "bank";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "lendingAccountCloseBalance";
+      docs: ["(account authority) Close a balance position with dust-level amounts."];
       discriminator: [245, 54, 41, 4, 243, 202, 31, 17];
       accounts: [
         {
@@ -2563,7 +2572,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2777,7 +2785,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2825,24 +2832,6 @@ export type Marginfi = {
       ];
     },
     {
-      name: "lendingAccountSettleEmissions";
-      docs: [
-        "(permissionless) Settle unclaimed emissions into a user's balance without withdrawing.",
-      ];
-      discriminator: [161, 58, 136, 174, 242, 223, 156, 176];
-      accounts: [
-        {
-          name: "marginfiAccount";
-          writable: true;
-        },
-        {
-          name: "bank";
-          writable: true;
-        },
-      ];
-      args: [];
-    },
-    {
       name: "lendingAccountStartFlashloan";
       docs: [
         "(account authority) Start a flash loan. Must have a corresponding `end_flashloan` ix in the",
@@ -2882,7 +2871,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -2964,253 +2952,6 @@ export type Marginfi = {
           };
         },
       ];
-    },
-    {
-      name: "lendingAccountWithdrawEmissions";
-      docs: [
-        "(account authority) Settle and withdraw emissions rewards to a destination token account.",
-      ];
-      discriminator: [234, 22, 84, 214, 118, 176, 140, 170];
-      accounts: [
-        {
-          name: "group";
-          relations: ["marginfiAccount", "bank"];
-        },
-        {
-          name: "marginfiAccount";
-          writable: true;
-        },
-        {
-          name: "authority";
-          signer: true;
-        },
-        {
-          name: "bank";
-          writable: true;
-        },
-        {
-          name: "emissionsMint";
-          relations: ["bank"];
-        },
-        {
-          name: "emissionsAuth";
-          pda: {
-            seeds: [
-              {
-                kind: "const";
-                value: [
-                  101,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  115,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100,
-                ];
-              },
-              {
-                kind: "account";
-                path: "bank";
-              },
-              {
-                kind: "account";
-                path: "emissionsMint";
-              },
-            ];
-          };
-        },
-        {
-          name: "emissionsVault";
-          writable: true;
-          pda: {
-            seeds: [
-              {
-                kind: "const";
-                value: [
-                  101,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  115,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100,
-                ];
-              },
-              {
-                kind: "account";
-                path: "bank";
-              },
-              {
-                kind: "account";
-                path: "emissionsMint";
-              },
-            ];
-          };
-        },
-        {
-          name: "destinationAccount";
-          writable: true;
-        },
-        {
-          name: "tokenProgram";
-        },
-      ];
-      args: [];
-    },
-    {
-      name: "lendingAccountWithdrawEmissionsPermissionless";
-      docs: [
-        "(permissionless) Withdraw emissions to the user's pre-configured emissions destination ATA.",
-      ];
-      discriminator: [4, 174, 124, 203, 44, 49, 145, 150];
-      accounts: [
-        {
-          name: "group";
-          relations: ["marginfiAccount", "bank"];
-        },
-        {
-          name: "marginfiAccount";
-          writable: true;
-        },
-        {
-          name: "bank";
-          writable: true;
-        },
-        {
-          name: "emissionsMint";
-          relations: ["bank"];
-        },
-        {
-          name: "emissionsAuth";
-          pda: {
-            seeds: [
-              {
-                kind: "const";
-                value: [
-                  101,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  115,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100,
-                ];
-              },
-              {
-                kind: "account";
-                path: "bank";
-              },
-              {
-                kind: "account";
-                path: "emissionsMint";
-              },
-            ];
-          };
-        },
-        {
-          name: "emissionsVault";
-          writable: true;
-          pda: {
-            seeds: [
-              {
-                kind: "const";
-                value: [
-                  101,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  115,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100,
-                ];
-              },
-              {
-                kind: "account";
-                path: "bank";
-              },
-              {
-                kind: "account";
-                path: "emissionsMint";
-              },
-            ];
-          };
-        },
-        {
-          name: "destinationAccount";
-          docs: ["registered on `marginfi_account`"];
-          writable: true;
-        },
-        {
-          name: "tokenProgram";
-        },
-      ];
-      args: [];
     },
     {
       name: "lendingPoolAccrueBankInterest";
@@ -5613,7 +5354,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["bank"];
         },
         {
@@ -5624,49 +5364,16 @@ export type Marginfi = {
       args: [];
     },
     {
-      name: "lendingPoolSetFixedOraclePrice";
-      docs: ["(admin only)"];
-      discriminator: [28, 126, 127, 127, 60, 37, 211, 125];
+      name: "lendingPoolReclaimEmissionsVault";
+      docs: [
+        "(permissionless) Reclaim all remaining tokens from the emissions vault",
+        "to the global fee wallet ATA, and disable emissions on the bank.",
+      ];
+      discriminator: [206, 67, 186, 225, 41, 30, 95, 216];
       accounts: [
         {
           name: "group";
           relations: ["bank"];
-        },
-        {
-          name: "admin";
-          signer: true;
-          relations: ["group"];
-        },
-        {
-          name: "bank";
-          writable: true;
-        },
-      ];
-      args: [
-        {
-          name: "price";
-          type: {
-            defined: {
-              name: "wrappedI80f48";
-            };
-          };
-        },
-      ];
-    },
-    {
-      name: "lendingPoolSetupEmissions";
-      docs: ["(delegate_emissions_admin only)"];
-      discriminator: [206, 97, 120, 172, 113, 204, 169, 70];
-      accounts: [
-        {
-          name: "group";
-          relations: ["bank"];
-        },
-        {
-          name: "delegateEmissionsAdmin";
-          writable: true;
-          signer: true;
-          relations: ["group"];
         },
         {
           name: "bank";
@@ -5715,7 +5422,7 @@ export type Marginfi = {
           };
         },
         {
-          name: "emissionsTokenAccount";
+          name: "emissionsVault";
           writable: true;
           pda: {
             seeds: [
@@ -5764,45 +5471,38 @@ export type Marginfi = {
           };
         },
         {
-          name: "emissionsFundingAccount";
-          docs: ["NOTE: This is a TokenAccount, spl transfer will validate it.", ""];
+          name: "feeState";
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [102, 101, 101, 115, 116, 97, 116, 101];
+              },
+            ];
+          };
+        },
+        {
+          name: "destinationAccount";
+          docs: ["emissions mint (validated in handler)."];
           writable: true;
         },
         {
           name: "tokenProgram";
         },
-        {
-          name: "systemProgram";
-          address: "11111111111111111111111111111111";
-        },
       ];
-      args: [
-        {
-          name: "flags";
-          type: "u64";
-        },
-        {
-          name: "rate";
-          type: "u64";
-        },
-        {
-          name: "totalEmissions";
-          type: "u64";
-        },
-      ];
+      args: [];
     },
     {
-      name: "lendingPoolUpdateEmissionsParameters";
-      docs: ["(delegate_emissions_admin only)"];
-      discriminator: [55, 213, 224, 168, 153, 53, 197, 40];
+      name: "lendingPoolSetFixedOraclePrice";
+      docs: ["(admin only)"];
+      discriminator: [28, 126, 127, 127, 60, 37, 211, 125];
       accounts: [
         {
           name: "group";
           relations: ["bank"];
         },
         {
-          name: "delegateEmissionsAdmin";
-          writable: true;
+          name: "admin";
           signer: true;
           relations: ["group"];
         },
@@ -5810,83 +5510,14 @@ export type Marginfi = {
           name: "bank";
           writable: true;
         },
-        {
-          name: "emissionsMint";
-        },
-        {
-          name: "emissionsTokenAccount";
-          writable: true;
-          pda: {
-            seeds: [
-              {
-                kind: "const";
-                value: [
-                  101,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110,
-                  115,
-                  95,
-                  116,
-                  111,
-                  107,
-                  101,
-                  110,
-                  95,
-                  97,
-                  99,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100,
-                ];
-              },
-              {
-                kind: "account";
-                path: "bank";
-              },
-              {
-                kind: "account";
-                path: "emissionsMint";
-              },
-            ];
-          };
-        },
-        {
-          name: "emissionsFundingAccount";
-          writable: true;
-        },
-        {
-          name: "tokenProgram";
-        },
       ];
       args: [
         {
-          name: "emissionsFlags";
+          name: "price";
           type: {
-            option: "u64";
-          };
-        },
-        {
-          name: "emissionsRate";
-          type: {
-            option: "u64";
-          };
-        },
-        {
-          name: "additionalEmissions";
-          type: {
-            option: "u64";
+            defined: {
+              name: "wrappedI80f48";
+            };
           };
         },
       ];
@@ -6394,7 +6025,7 @@ export type Marginfi = {
       name: "marginfiAccountKeeperCloseOrder";
       docs: [
         "(permissionless keeper) Close an existing Order after the user account was closed, or it no",
-        "longer as the associated positions, or the user has executed",
+        "longer has the associated positions, or the user has executed",
         "`marginfi_account_set_keeper_close_flags`. Keeper keeps the rent.",
       ];
       discriminator: [128, 114, 71, 46, 194, 71, 186, 106];
@@ -6620,8 +6251,7 @@ export type Marginfi = {
     {
       name: "marginfiAccountUpdateEmissionsDestinationAccount";
       docs: [
-        "(account authority) Set the wallet whose canonical ATA will receive permissionless emissions",
-        "withdrawals.",
+        "(account authority) Set the wallet whose canonical ATA will receive off-chain emissions.",
       ];
       discriminator: [73, 185, 162, 201, 111, 24, 116, 185];
       accounts: [
@@ -6632,11 +6262,10 @@ export type Marginfi = {
         {
           name: "authority";
           signer: true;
-          relations: ["marginfiAccount"];
         },
         {
           name: "destinationAccount";
-          docs: ["User's earned emissions will be sent to the canonical ATA of this wallet.", ""];
+          docs: ["the canonical ATA for each emissions mint."];
         },
       ];
       args: [];
@@ -6681,6 +6310,12 @@ export type Marginfi = {
         },
         {
           name: "newLimitAdmin";
+          type: {
+            option: "pubkey";
+          };
+        },
+        {
+          name: "newFlowAdmin";
           type: {
             option: "pubkey";
           };
@@ -6933,7 +6568,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -7255,7 +6889,6 @@ export type Marginfi = {
       accounts: [
         {
           name: "group";
-          writable: true;
           relations: ["marginfiAccount", "bank"];
         },
         {
@@ -7596,6 +7229,91 @@ export type Marginfi = {
       ];
     },
     {
+      name: "updateDeleverageWithdrawals";
+      docs: [
+        "(delegate_flow_admin only) Update the deleverage daily withdraw outflow with",
+        "aggregated data. The delegate flow admin aggregates",
+        "`DeleverageWithdrawFlowEvent` events off-chain and calls this instruction at intervals.",
+      ];
+      discriminator: [56, 3, 181, 118, 27, 247, 207, 227];
+      accounts: [
+        {
+          name: "marginfiGroup";
+          writable: true;
+        },
+        {
+          name: "delegateFlowAdmin";
+          signer: true;
+          relations: ["marginfiGroup"];
+        },
+      ];
+      args: [
+        {
+          name: "outflowUsd";
+          type: "u32";
+        },
+        {
+          name: "updateSeq";
+          type: "u64";
+        },
+        {
+          name: "eventStartSlot";
+          type: "u64";
+        },
+        {
+          name: "eventEndSlot";
+          type: "u64";
+        },
+      ];
+    },
+    {
+      name: "updateGroupRateLimiter";
+      docs: [
+        "(delegate_flow_admin only) Update the group rate limiter with aggregated",
+        "inflow/outflow. The delegate flow admin aggregates",
+        "`RateLimitFlowEvent` events off-chain, converts to USD, and calls this instruction at",
+        "intervals to update group rate limiter state.",
+      ];
+      discriminator: [23, 78, 60, 139, 187, 44, 129, 37];
+      accounts: [
+        {
+          name: "marginfiGroup";
+          writable: true;
+        },
+        {
+          name: "delegateFlowAdmin";
+          signer: true;
+          relations: ["marginfiGroup"];
+        },
+      ];
+      args: [
+        {
+          name: "outflowUsd";
+          type: {
+            option: "u64";
+          };
+        },
+        {
+          name: "inflowUsd";
+          type: {
+            option: "u64";
+          };
+        },
+        {
+          name: "updateSeq";
+          type: "u64";
+        },
+        {
+          name: "eventStartSlot";
+          type: "u64";
+        },
+        {
+          name: "eventEndSlot";
+          type: "u64";
+        },
+      ];
+    },
+    {
       name: "writeBankMetadata";
       docs: [
         "(metadata admin only) Write ticker/description information for a bank on-chain. Optional, not",
@@ -7706,6 +7424,10 @@ export type Marginfi = {
       discriminator: [161, 8, 108, 204, 209, 198, 12, 30];
     },
     {
+      name: "deleverageWithdrawFlowEvent";
+      discriminator: [109, 90, 139, 200, 10, 204, 84, 176];
+    },
+    {
       name: "editStakedSettingsEvent";
       discriminator: [29, 58, 155, 191, 75, 220, 145, 206];
     },
@@ -7800,6 +7522,10 @@ export type Marginfi = {
     {
       name: "marginfiGroupCreateEvent";
       discriminator: [233, 125, 61, 14, 98, 240, 136, 253];
+    },
+    {
+      name: "rateLimitFlowEvent";
+      discriminator: [229, 5, 73, 200, 0, 107, 105, 109];
     },
     {
       name: "setKeeperCloseFlagsEvent";
@@ -8406,6 +8132,66 @@ export type Marginfi = {
       code: 6119;
       name: "invalidRateLimitPrice";
       msg: "Invalid rate limit price: pass oracle or pre-crank cache";
+    },
+    {
+      code: 6120;
+      name: "groupRateLimiterUpdateEmpty";
+      msg: "Group rate limiter admin update must include inflow and/or outflow";
+    },
+    {
+      code: 6121;
+      name: "groupRateLimiterUpdateInvalidSlotRange";
+      msg: "Group rate limiter admin update slot range is invalid";
+    },
+    {
+      code: 6122;
+      name: "groupRateLimiterUpdateFutureSlot";
+      msg: "Group rate limiter admin update cannot reference future slots";
+    },
+    {
+      code: 6123;
+      name: "groupRateLimiterUpdateStale";
+      msg: "Group rate limiter admin update is too stale";
+    },
+    {
+      code: 6124;
+      name: "groupRateLimiterUpdateOutOfOrderSlot";
+      msg: "Group rate limiter admin update slot progression is out of order";
+    },
+    {
+      code: 6125;
+      name: "groupRateLimiterUpdateOutOfOrderSeq";
+      msg: "Group rate limiter admin update sequence is out of order";
+    },
+    {
+      code: 6126;
+      name: "deleverageWithdrawalUpdateEmpty";
+      msg: "Deleverage withdrawal admin update must include outflow";
+    },
+    {
+      code: 6127;
+      name: "deleverageWithdrawalUpdateInvalidSlotRange";
+      msg: "Deleverage withdrawal admin update slot range is invalid";
+    },
+    {
+      code: 6128;
+      name: "deleverageWithdrawalUpdateFutureSlot";
+      msg: "Deleverage withdrawal admin update cannot reference future slots";
+    },
+    {
+      code: 6129;
+      name: "deleverageWithdrawalUpdateStale";
+      msg: "Deleverage withdrawal admin update is too stale";
+    },
+    {
+      code: 6130;
+      name: "deleverageWithdrawalUpdateOutOfOrderSlot";
+      msg: "Deleverage withdrawal admin update slot progression is out of order";
+    },
+    {
+      code: 6131;
+      name: "deleverageWithdrawalUpdateOutOfOrderSeq";
+      msg: "Deleverage withdrawal admin update sequence is out of order";
     },
     {
       code: 6200;
@@ -9212,7 +8998,7 @@ export type Marginfi = {
           {
             name: "pad0";
             type: {
-              array: ["u8", 8];
+              array: ["u8", 16];
             };
           },
           {
@@ -9330,8 +9116,10 @@ export type Marginfi = {
               "Liquidate as an additional safeguard, if the liquidation prices stored here were to be",
               "edited between start and end, it would completely break the risk engine. End validates that",
               "the lock is set, panics if not, and removes it - which prevents footguns if the cache was",
-              "e.g. accidently set to default. The lock is also removed when a Balance is closed with",
-              "repay_all or withdraw_all, since those Balances can be omitted from the risk check at End.",
+              "e.g. accidently set to default. The lock is also removed when a Balance is closed via",
+              "withdraw_all, repay_all, or close_balance, but only when the account has",
+              "ACCOUNT_IN_RECEIVERSHIP set, so that operations on unrelated accounts sharing the same",
+              "bank do not interfere with an in-progress liquidation.",
             ];
             type: "u8";
           },
@@ -9975,16 +9763,6 @@ export type Marginfi = {
               };
             };
           },
-          {
-            name: "untrackedInflow";
-            docs: [
-              "Native token inflows pending USD conversion for group rate limiter.",
-              "When deposits/repays occur without a valid oracle price, the amount is",
-              "recorded here and later applied to the group rate limiter when a valid",
-              "price becomes available (e.g., during pulse_bank_price_cache or outflow operations).",
-            ];
-            type: "i64";
-          },
         ];
       };
     },
@@ -10008,6 +9786,41 @@ export type Marginfi = {
           {
             name: "deleverageeLiabilityRepaid";
             type: "f64";
+          },
+        ];
+      };
+    },
+    {
+      name: "deleverageWithdrawFlowEvent";
+      docs: [
+        "Emitted for deleverage-only withdraw outflows.",
+        "The delegate flow admin aggregates these off-chain and",
+        "updates the deleverage daily withdraws via `update_deleverage_withdrawals`.",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "group";
+            type: "pubkey";
+          },
+          {
+            name: "bank";
+            type: "pubkey";
+          },
+          {
+            name: "mint";
+            type: "pubkey";
+          },
+          {
+            name: "outflowUsd";
+            docs: ["Equity-denominated outflow value in USD, rounded to integer."];
+            type: "u32";
+          },
+          {
+            name: "currentTimestamp";
+            docs: ["Unix timestamp when the flow was recorded"];
+            type: "i64";
           },
         ];
       };
@@ -11318,7 +11131,7 @@ export type Marginfi = {
         "(i.e. no implicit padding). This is important because `Pubkey` has alignment=1 while `u64`",
         "has alignment=8; using plain `repr(C)` would insert padding before the first `u64`.",
       ];
-      serialization: "bytemuckunsafe";
+      serialization: "bytemuck";
       repr: {
         kind: "c";
         packed: true;
@@ -12165,12 +11978,7 @@ export type Marginfi = {
           },
           {
             name: "emissionsDestinationAccount";
-            docs: [
-              "Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the",
-              "canonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).",
-              "If pubkey default, the user has not opted into this feature, and must claim emissions",
-              "manually (withdraw_emissions).",
-            ];
+            docs: ["Wallet whose canonical ATA receives off-chain emissions distributions."];
             type: "pubkey";
           },
           {
@@ -12441,7 +12249,7 @@ export type Marginfi = {
             name: "emodeAdmin";
             docs: [
               "This admin can configure collateral ratios above (but not below) the collateral ratio of",
-              "certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of",
+              "certain banks, e.g. allow SOL to count as 90% collateral when borrowing an LST instead of",
               "the default rate.",
             ];
             type: "pubkey";
@@ -12543,13 +12351,47 @@ export type Marginfi = {
             };
           },
           {
+            name: "rateLimiterLastAdminUpdateSlot";
+            docs: ["Last slot covered by an admin group rate limiter aggregation update."];
+            type: "u64";
+          },
+          {
+            name: "rateLimiterLastAdminUpdateSeq";
+            docs: [
+              "Monotonic sequence number for admin group rate limiter updates.",
+              "This is used to enforce strict ordering and prevent duplicate/replayed batches",
+              "when slot ranges overlap or multiple updates happen in the same slot.",
+            ];
+            type: "u64";
+          },
+          {
+            name: "deleverageWithdrawLastAdminUpdateSlot";
+            docs: ["Last slot covered by an admin deleverage withdraw-limit aggregation update."];
+            type: "u64";
+          },
+          {
+            name: "deleverageWithdrawLastAdminUpdateSeq";
+            docs: ["Monotonic sequence number for admin deleverage withdraw-limit updates."];
+            type: "u64";
+          },
+          {
+            name: "delegateFlowAdmin";
+            docs: [
+              "Can modify flow-control status for the group, i.e. update the withdraw caches with flow",
+              "information from banks. Typically this is a hot wallet that lives in e.g. some cron job. If",
+              "compromised, flow control can be effectively disabled until the admin is restored, which",
+              "does not itself compromise any funds, and is merely annoying.",
+            ];
+            type: "pubkey";
+          },
+          {
             name: "padding0";
             type: {
               array: [
                 {
                   array: ["u64", 2];
                 },
-                6,
+                2,
               ];
             };
           },
@@ -13655,6 +13497,50 @@ export type Marginfi = {
           {
             name: "lastCacheUpdate";
             docs: ["Timestamp when this cache was last updated"];
+            type: "i64";
+          },
+        ];
+      };
+    },
+    {
+      name: "rateLimitFlowEvent";
+      docs: [
+        "Emitted when a bank-level inflow or outflow is recorded.",
+        "The delegate flow admin aggregates these off-chain and",
+        "updates the group rate limiter via `update_group_rate_limiter`.",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "group";
+            type: "pubkey";
+          },
+          {
+            name: "bank";
+            type: "pubkey";
+          },
+          {
+            name: "mint";
+            type: "pubkey";
+          },
+          {
+            name: "flowDirection";
+            docs: ["0 = outflow (withdraw/borrow), 1 = inflow (deposit/repay)"];
+            type: "u8";
+          },
+          {
+            name: "nativeAmount";
+            docs: ["Amount in native tokens"];
+            type: "u64";
+          },
+          {
+            name: "mintDecimals";
+            type: "u8";
+          },
+          {
+            name: "currentTimestamp";
+            docs: ["Unix timestamp when the flow was recorded"];
             type: "i64";
           },
         ];

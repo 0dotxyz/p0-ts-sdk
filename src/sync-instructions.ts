@@ -61,7 +61,7 @@ const DISCRIMINATORS = {
   LENDING_ACCOUNT_WITHDRAW: Buffer.from([36, 72, 74, 19, 210, 210, 192, 192]),
   LENDING_ACCOUNT_BORROW: Buffer.from([4, 126, 116, 53, 48, 5, 212, 31]),
   LENDING_ACCOUNT_LIQUIDATE: Buffer.from([214, 169, 151, 213, 251, 167, 86, 219]),
-  LENDING_ACCOUNT_WITHDRAW_EMISSIONS: Buffer.from([234, 22, 84, 214, 118, 176, 140, 170]),
+  LENDING_ACCOUNT_CLEAR_EMISSIONS: Buffer.from([239, 4, 221, 98, 45, 167, 201, 244]),
   LENDING_POOL_ADD_BANK: Buffer.from([215, 68, 72, 78, 208, 218, 103, 182]),
   LENDING_POOL_CONFIGURE_BANK: Buffer.from([121, 173, 156, 40, 93, 148, 56, 237]),
   LENDING_ACCOUNT_START_FLASHLOAN: Buffer.from([14, 131, 33, 220, 81, 186, 180, 107]),
@@ -221,7 +221,7 @@ function makeWithdrawIx(
   const [liquidityVault] = deriveBankLiquidityVault(programId, accounts.bank);
 
   const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: true },
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
@@ -461,7 +461,7 @@ function makeKaminoWithdrawIx(
     lendingMarket: PublicKey;
     lendingMarketAuthority: PublicKey;
     integrationAcc1: PublicKey; // The Kamino reserve that holds liquidity
-    reserveLiquidityMint: PublicKey;
+    mint: PublicKey;
     reserveLiquiditySupply: PublicKey;
     reserveCollateralMint: PublicKey;
     reserveSourceCollateral: PublicKey;
@@ -479,7 +479,7 @@ function makeKaminoWithdrawIx(
   const liquidityVault = deriveBankLiquidityVault(programId, accounts.bank)[0];
 
   const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: true },
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
@@ -499,7 +499,7 @@ function makeKaminoWithdrawIx(
     },
     { pubkey: accounts.integrationAcc1, isSigner: false, isWritable: true },
     {
-      pubkey: accounts.reserveLiquidityMint,
+      pubkey: accounts.mint,
       isSigner: false,
       isWritable: true,
     },
@@ -616,36 +616,22 @@ function makeLendingAccountLiquidateIx(
   return new TransactionInstruction({ keys, programId, data });
 }
 
-function makelendingAccountWithdrawEmissionIx(
+function makeLendingAccountClearEmissionsIx(
   programId: PublicKey,
   accounts: {
-    group: PublicKey; // relations - caller must provide
     marginfiAccount: PublicKey;
-    authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
     bank: PublicKey;
-    emissionsMint: PublicKey; // relations: ["bank"] - caller must provide
-    emissionsAuth: PublicKey; // PDA - caller must derive
-    emissionsVault: PublicKey; // PDA - caller must derive
-    destinationAccount: PublicKey;
-    tokenProgram: PublicKey;
   }
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
-    { pubkey: accounts.authority, isSigner: true, isWritable: false },
-    { pubkey: accounts.bank, isSigner: false, isWritable: true },
-    { pubkey: accounts.emissionsMint, isSigner: false, isWritable: false },
-    { pubkey: accounts.emissionsAuth, isSigner: false, isWritable: false },
-    { pubkey: accounts.emissionsVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.destinationAccount, isSigner: false, isWritable: true },
-    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: false },
   ];
 
   return new TransactionInstruction({
     keys,
     programId,
-    data: DISCRIMINATORS.LENDING_ACCOUNT_WITHDRAW_EMISSIONS,
+    data: DISCRIMINATORS.LENDING_ACCOUNT_CLEAR_EMISSIONS,
   });
 }
 
@@ -993,7 +979,7 @@ function makeDriftWithdrawIx(
 
   // Build keys in exact IDL order
   const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: true },
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
@@ -1172,7 +1158,7 @@ const syncInstructions = {
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeLendingAccountLiquidateIx,
-  makelendingAccountWithdrawEmissionIx,
+  makeLendingAccountClearEmissionsIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
   makeBeginFlashLoanIx,
