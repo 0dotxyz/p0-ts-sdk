@@ -835,7 +835,7 @@ export async function makeJuplendWithdrawIx({
     vault,
     liquidity,
     rewardsRateModel,
-  } = getAllDerivedJupLendAccounts(bank.mint);
+  } = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
 
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);

@@ -628,7 +628,7 @@ export async function makeJuplendDepositIx({
     throw new Error("Bank has no JupLend integration accounts");
   }
 
-  const derivedAccounts = getAllDerivedJupLendAccounts(bank.mint);
+  const derivedAccounts = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
   const {
     fTokenMint,
     lendingAdmin,

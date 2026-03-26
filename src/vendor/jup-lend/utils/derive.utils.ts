@@ -25,7 +25,7 @@ export const SEED_USER_CLAIM = "user_claim";
 // Rewards Program Seeds
 export const SEED_LENDING_REWARDS_RATE_MODEL = "lending_rewards_rate_model";
 
-export function getAllDerivedJupLendAccounts(mint: PublicKey) {
+export function getAllDerivedJupLendAccounts(mint: PublicKey, tokenProgram?: PublicKey) {
   const [fTokenMint] = deriveJupLendFTokenMint(mint);
   const [lending] = deriveJupLendLending(mint, fTokenMint);
   const [liquidity] = deriveJupLendLiquidity();
@@ -36,7 +36,7 @@ export function getAllDerivedJupLendAccounts(mint: PublicKey) {
     supplyTokenReservesLiquidity: deriveJupLendTokenReserve(mint)[0],
     lendingSupplyPositionOnLiquidity: deriveJupLendLiquiditySupplyPositionPda(mint, lending)[0],
     rateModel: deriveJupLendRateModel(mint)[0],
-    vault: deriveJupLendLiquidityVaultAta(mint, liquidity),
+    vault: deriveJupLendLiquidityVaultAta(mint, liquidity, tokenProgram),
     liquidity: liquidity,
     rewardsRateModel: deriveJupLendLendingRewardsRateModel(mint)[0],
   };
