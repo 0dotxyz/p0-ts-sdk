@@ -420,7 +420,7 @@ async function makeKaminoWithdrawIx(
     bank: PublicKey;
     destinationTokenAccount: PublicKey;
     lendingMarket: PublicKey;
-    reserveLiquidityMint: PublicKey;
+    mint: PublicKey;
 
     lendingMarketAuthority: PublicKey;
     reserveLiquiditySupply: PublicKey;
@@ -446,7 +446,6 @@ async function makeKaminoWithdrawIx(
     bank,
     destinationTokenAccount,
     lendingMarket,
-    reserveLiquidityMint,
     lendingMarketAuthority,
     reserveLiquiditySupply,
     reserveCollateralMint,
@@ -464,7 +463,6 @@ async function makeKaminoWithdrawIx(
       bank,
       destinationTokenAccount,
       lendingMarket,
-      reserveLiquidityMint,
       lendingMarketAuthority,
       reserveLiquiditySupply,
       reserveCollateralMint,
@@ -588,31 +586,19 @@ function makeLendingAccountLiquidateIx(
     .instruction();
 }
 
-function makelendingAccountWithdrawEmissionIx(
+function makeLendingAccountClearEmissionsIx(
   mfiProgram: MarginfiProgram,
   accounts: {
-    // Required accounts
     marginfiAccount: PublicKey;
-    destinationAccount: PublicKey;
     bank: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    emissionsMint?: PublicKey;
   }
 ) {
-  const { marginfiAccount, destinationAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
-
   return mfiProgram.methods
-    .lendingAccountWithdrawEmissions()
+    .lendingAccountClearEmissions()
     .accounts({
-      marginfiAccount,
-      destinationAccount,
-      bank,
-      tokenProgram,
+      marginfiAccount: accounts.marginfiAccount,
+      bank: accounts.bank,
     })
-    .accountsPartial(optionalAccounts)
     .instruction();
 }
 
@@ -944,7 +930,7 @@ const instructions = {
   makeInitMarginfiAccountIx,
   makeInitMarginfiAccountPdaIx,
   makeLendingAccountLiquidateIx,
-  makelendingAccountWithdrawEmissionIx,
+  makeLendingAccountClearEmissionsIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
   makeBeginFlashLoanIx,
