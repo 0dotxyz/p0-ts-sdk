@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.3
+
+### Patch Changes
+
+- JupLend token program support for vault ATA derivation, removed unused swap/titan utils
+
 ## 2.1.2
 
 ### Patch Changes
