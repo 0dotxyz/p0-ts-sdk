@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-alpha.2
+
+### Patch Changes
+
+- rebase jup-lend
+
 ## 2.2.0-alpha.1
 
 ### Patch Changes
