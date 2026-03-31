@@ -9,7 +9,7 @@ import {
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
-  getAccountKeys,
+  getWritableAccountKeys,
   getTxSize,
   InstructionsWrapper,
   splitInstructionsToFitTransactions,
@@ -22,7 +22,7 @@ import {
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -35,6 +35,7 @@ import {
   getExactOutEstimate,
   isWholePosition,
   computeFlashloanSwapConstraints,
+  compileFlashloanPrecheck,
 } from "../utils";
 import { MakeSwapDebtTxParams, SwapProvider, SwapQuoteResult } from "../types";
 
@@ -291,7 +292,8 @@ async function buildSwapDebtFlashloanTx({
     destinationTokenAccount,
     swapOpts,
     sizeConstraint: swapConstraints.sizeConstraint,
-    maxSwapAccounts: swapConstraints.maxSwapAccounts,
+    maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
+    maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
   });
 
   const { quoteResponse } = swapResponses;
@@ -350,6 +352,22 @@ async function buildSwapDebtFlashloanTx({
     ...swapResponses.addressLookupTableAddresses,
   ];
 
+  const allNonFlIxs = [
+    ...cuRequestIxs,
+    ...borrowIxs.instructions,
+    ...swapResponses.swapInstructions,
+    ...repayIxs.instructions,
+  ];
+
+  compileFlashloanPrecheck({
+    allIxs: allNonFlIxs,
+    payer: marginfiAccount.authority,
+    luts,
+    sizeConstraint: swapConstraints.sizeConstraint,
+    swapIxCount: swapResponses.swapInstructions.length,
+    swapLutCount: swapResponses.addressLookupTableAddresses.length,
+  });
+
   // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
   // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
   // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
@@ -359,22 +377,17 @@ async function buildSwapDebtFlashloanTx({
     bankMap,
     addressLookupTableAccounts: luts,
     blockhash,
-    ixs: [
-      ...cuRequestIxs,
-      ...borrowIxs.instructions,
-      ...swapResponses.swapInstructions,
-      ...repayIxs.instructions,
-    ],
+    ixs: allNonFlIxs,
     isSync: true,
   });
 
   const txSize = getTxSize(flashloanTx);
-  const keySize = getAccountKeys(flashloanTx, luts);
+  const writableKeys = getWritableAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || keySize > 64) {
+  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
-      keySize,
+      writableKeys,
       swapOpts.swapConfig?.provider
     );
   }

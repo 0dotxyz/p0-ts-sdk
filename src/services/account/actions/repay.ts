@@ -26,7 +26,7 @@ import {
   makeWrapSolIxs,
   splitInstructionsToFitTransactions,
   TransactionType,
-  getAccountKeys,
+  getWritableAccountKeys,
   getTxSize,
 } from "~/services/transaction";
 import {
@@ -35,7 +35,7 @@ import {
   makeUpdateDriftMarketIxs,
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
-import { MAX_TX_SIZE } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
 
@@ -53,7 +53,7 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "./withdraw";
-import { computeFlashloanSwapConstraints } from "../utils";
+import { computeFlashloanSwapConstraints, compileFlashloanPrecheck } from "../utils";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSetupIx } from "./account-lifecycle";
 
@@ -354,6 +354,7 @@ async function buildRepayWithCollatFlashloanTx({
   let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
+  let sizeConstraintUsed = 0;
 
   if (repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint)) {
     // No swap needed, you just withdraw and repay the same mint
@@ -399,8 +400,10 @@ async function buildRepayWithCollatFlashloanTx({
       destinationTokenAccount,
       swapOpts,
       sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapAccounts: swapConstraints.maxSwapAccounts,
+      maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
+      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
     });
+    sizeConstraintUsed = swapConstraints.sizeConstraint;
 
     const { quoteResponse } = swapResponse;
     const outAmount = nativeToUi(quoteResponse.outAmount, repayOpts.repayBank.mintDecimals);
@@ -603,6 +606,24 @@ async function buildRepayWithCollatFlashloanTx({
 
   const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
 
+  const allNonFlIxs = [
+    ...cuRequestIxs,
+    ...withdrawIxs.instructions,
+    ...swapInstructions,
+    ...repayIxs.instructions,
+  ];
+
+  if (swapInstructions.length > 0) {
+    compileFlashloanPrecheck({
+      allIxs: allNonFlIxs,
+      payer: marginfiAccount.authority,
+      luts,
+      sizeConstraint: sizeConstraintUsed,
+      swapIxCount: swapInstructions.length,
+      swapLutCount: swapLookupTables.length,
+    });
+  }
+
   // if cuRequestIxs are not present, priority fee ix is needed
   // wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
   // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
@@ -613,22 +634,17 @@ async function buildRepayWithCollatFlashloanTx({
     bankMap,
     addressLookupTableAccounts: luts,
     blockhash,
-    ixs: [
-      ...cuRequestIxs,
-      ...withdrawIxs.instructions,
-      ...swapInstructions,
-      ...repayIxs.instructions,
-    ],
+    ixs: allNonFlIxs,
     isSync: true,
   });
 
   const txSize = getTxSize(flashloanTx);
-  const keySize = getAccountKeys(flashloanTx, luts);
+  const writableKeys = getWritableAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || keySize > 64) {
+  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
     throw TransactionBuildingError.swapSizeExceededRepay(
       txSize,
-      keySize,
+      writableKeys,
       swapOpts.swapConfig?.provider
     );
   }

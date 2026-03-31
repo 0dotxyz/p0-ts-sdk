@@ -62,6 +62,10 @@ export interface SwapParams {
   addSizeConstraint?: boolean;
   sizeConstraint?: number;
   providers?: string[];
+  /** Limit total number of accounts used by routes. Default: 256. Available since v1.1. */
+  accountsLimitTotal?: number;
+  /** Limit writable accounts used by routes. Default: 64. Available since v1.1. */
+  accountsLimitWritable?: number;
 }
 
 export interface TransactionParams {

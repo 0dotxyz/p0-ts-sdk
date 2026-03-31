@@ -10,7 +10,7 @@ import {
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
-  getAccountKeys,
+  getWritableAccountKeys,
   getTxSize,
   InstructionsWrapper,
   splitInstructionsToFitTransactions,
@@ -24,7 +24,7 @@ import {
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -32,7 +32,12 @@ import {
 } from "~/vendor/spl";
 import { nativeToUi, uiToNative } from "~/utils";
 
-import { getSwapIxsForFlashloan, isWholePosition, computeFlashloanSwapConstraints } from "../utils";
+import {
+  getSwapIxsForFlashloan,
+  isWholePosition,
+  computeFlashloanSwapConstraints,
+  compileFlashloanPrecheck,
+} from "../utils";
 import { MakeSwapCollateralTxParams, SwapProvider, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -265,6 +270,7 @@ async function buildSwapCollateralFlashloanTx({
   let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
+  let sizeConstraintUsed = 0;
 
   // Build withdraw instruction
   let withdrawIxs: InstructionsWrapper;
@@ -432,8 +438,10 @@ async function buildSwapCollateralFlashloanTx({
       destinationTokenAccount,
       swapOpts,
       sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapAccounts: swapConstraints.maxSwapAccounts,
+      maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
+      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
     });
+    sizeConstraintUsed = swapConstraints.sizeConstraint;
 
     amountToDeposit = nativeToUi(
       swapResponses.quoteResponse.otherAmountThreshold,
@@ -543,6 +551,24 @@ async function buildSwapCollateralFlashloanTx({
 
   const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
 
+  const allNonFlIxs = [
+    ...cuRequestIxs,
+    ...withdrawIxs.instructions,
+    ...swapInstructions,
+    ...depositIxs.instructions,
+  ];
+
+  if (swapInstructions.length > 0) {
+    compileFlashloanPrecheck({
+      allIxs: allNonFlIxs,
+      payer: marginfiAccount.authority,
+      luts,
+      sizeConstraint: sizeConstraintUsed,
+      swapIxCount: swapInstructions.length,
+      swapLutCount: swapLookupTables.length,
+    });
+  }
+
   // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
   // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
   // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
@@ -552,22 +578,17 @@ async function buildSwapCollateralFlashloanTx({
     bankMap,
     addressLookupTableAccounts: luts,
     blockhash,
-    ixs: [
-      ...cuRequestIxs,
-      ...withdrawIxs.instructions,
-      ...swapInstructions,
-      ...depositIxs.instructions,
-    ],
+    ixs: allNonFlIxs,
     isSync: true,
   });
 
   const txSize = getTxSize(flashloanTx);
-  const keySize = getAccountKeys(flashloanTx, luts);
+  const writableKeys = getWritableAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || keySize > 64) {
+  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
-      keySize,
+      writableKeys,
       swapOpts.swapConfig?.provider
     );
   }

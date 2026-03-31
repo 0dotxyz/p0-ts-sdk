@@ -11,7 +11,7 @@ import {
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
-  getAccountKeys,
+  getWritableAccountKeys,
   getTxSize,
   InstructionsWrapper,
   makeWrapSolIxs,
@@ -26,10 +26,14 @@ import {
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 
-import { getSwapIxsForFlashloan, computeFlashloanSwapConstraints } from "../utils";
+import {
+  getSwapIxsForFlashloan,
+  computeFlashloanSwapConstraints,
+  compileFlashloanPrecheck,
+} from "../utils";
 import { MakeLoopTxParams, SwapQuoteResult } from "../types";
 
 import {
@@ -228,6 +232,7 @@ async function buildLoopFlashloanTx({
   let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
+  let sizeConstraintUsed = 0;
 
   if (depositOpts.depositBank.mint.equals(borrowOpts.borrowBank.mint)) {
     // No swap needed, you just borrow and deposit the same mint
@@ -271,8 +276,10 @@ async function buildLoopFlashloanTx({
       destinationTokenAccount,
       swapOpts,
       sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapAccounts: swapConstraints.maxSwapAccounts,
+      maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
+      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
     });
+    sizeConstraintUsed = swapConstraints.sizeConstraint;
 
     const outAmountThreshold = nativeToUi(
       swapResponse.quoteResponse.otherAmountThreshold,
@@ -405,6 +412,24 @@ async function buildLoopFlashloanTx({
 
   const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
 
+  const allNonFlIxs = [
+    ...cuRequestIxs,
+    ...borrowIxs.instructions,
+    ...swapInstructions,
+    ...depositIxs.instructions,
+  ];
+
+  if (swapInstructions.length > 0) {
+    compileFlashloanPrecheck({
+      allIxs: allNonFlIxs,
+      payer: marginfiAccount.authority,
+      luts,
+      sizeConstraint: sizeConstraintUsed,
+      swapIxCount: swapInstructions.length,
+      swapLutCount: swapLookupTables.length,
+    });
+  }
+
   // if cuRequestIxs are not present, priority fee ix is needed
   // wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
   // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
@@ -415,21 +440,16 @@ async function buildLoopFlashloanTx({
     bankMap,
     addressLookupTableAccounts: luts,
     blockhash,
-    ixs: [
-      ...cuRequestIxs,
-      ...borrowIxs.instructions,
-      ...swapInstructions,
-      ...depositIxs.instructions,
-    ],
+    ixs: allNonFlIxs,
   });
 
   const txSize = getTxSize(flashloanTx);
-  const keySize = getAccountKeys(flashloanTx, luts);
+  const writableKeys = getWritableAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || keySize > 64) {
+  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
-      keySize,
+      writableKeys,
       swapOpts.swapConfig?.provider
     );
   }

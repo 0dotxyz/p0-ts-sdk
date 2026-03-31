@@ -63,6 +63,8 @@ export type GetTitanSwapIxsParams = {
   destinationTokenAccount: PublicKey;
   apiConfig?: SwapApiConfig;
   sizeConstraint?: number;
+  maxSwapAccounts?: number;
+  maxSwapTotalAccounts?: number;
 };
 
 export type GetTitanExactOutEstimateParams = {
@@ -120,6 +122,7 @@ async function getTitanSwapIxsViaWebSocket(
     destinationTokenAccount,
     apiConfig,
     sizeConstraint,
+    maxSwapAccounts,
   } = params;
 
   const wsUrl = apiConfig?.basePath;
@@ -149,6 +152,8 @@ async function getTitanSwapIxsViaWebSocket(
         onlyDirectRoutes: directRoutesOnly,
         addSizeConstraint: sizeConstraint !== undefined,
         sizeConstraint,
+        accountsLimitWritable: maxSwapAccounts,
+        accountsLimitTotal: params.maxSwapTotalAccounts,
       },
       transaction: txParams,
       update: {
@@ -212,6 +217,7 @@ async function getTitanSwapIxsViaHttpProxy(
     destinationTokenAccount,
     apiConfig,
     sizeConstraint,
+    maxSwapAccounts,
   } = params;
 
   const basePath = apiConfig?.basePath;
@@ -244,6 +250,8 @@ async function getTitanSwapIxsViaHttpProxy(
         onlyDirectRoutes: directRoutesOnly,
         addSizeConstraint: sizeConstraint !== undefined,
         sizeConstraint,
+        accountsLimitWritable: maxSwapAccounts,
+        accountsLimitTotal: params.maxSwapTotalAccounts,
       },
       transaction: txBody,
     }),

@@ -28,6 +28,11 @@ export interface SwapApiConfig {
   headers?: Record<string, string>;
 }
 
+export interface SwapProviderEntry {
+  provider: SwapProvider;
+  apiConfig?: SwapApiConfig;
+}
+
 export interface SwapProviderConfig {
   provider: SwapProvider;
   slippageMode: "DYNAMIC" | "FIXED";
@@ -35,6 +40,7 @@ export interface SwapProviderConfig {
   platformFeeBps: number;
   directRoutesOnly?: boolean;
   apiConfig?: SwapApiConfig;
+  fallbackProviders?: SwapProviderEntry[];
 }
 
 export interface SwapOpts {

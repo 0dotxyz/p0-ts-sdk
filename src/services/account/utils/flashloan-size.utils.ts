@@ -16,6 +16,8 @@ import {
   ComputeBudgetProgram,
   PublicKey,
   TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import BN from "bn.js";
 
@@ -42,7 +44,18 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "../actions/withdraw";
-import { MAX_ACCOUNT_KEYS, MAX_TX_SIZE } from "~/constants";
+import { MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+
+// V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
+// causes the compiler to redistribute key resolution. Multi-hop routes add many
+// unique program IDs (always static) and new LUT addresses. Observed merge
+// overhead varies by route complexity: 25–191 bytes. 200 bytes covers worst
+// observed case and forces Titan to prefer simpler routes with lower overhead.
+const SWAP_MERGE_OVERHEAD = 150;
+
+// BeginFL + EndFL instructions add ~52 bytes to the IX section. The precheck
+// compiles without FL IXs, so we add this constant to get an accurate estimate.
+const FL_IX_OVERHEAD = 52;
 
 // ============================================================================
 // V0 TX size estimator (simulates V0 message compilation key resolution)
@@ -61,7 +74,7 @@ export function computeV0TxSize(
   ixs: TransactionInstruction[],
   payerKey: PublicKey,
   luts: AddressLookupTableAccount[]
-): { size: number; accountCount: number } {
+): { size: number; accountCount: number; writableAccountCount: number } {
   // --- Collect all unique keys with merged properties ---
   const keyMap = new Map<string, { isSigner: boolean; isWritable: boolean }>();
 
@@ -102,6 +115,7 @@ export function computeV0TxSize(
 
   // --- Partition keys into static vs LUT ---
   let numStaticKeys = 0;
+  let numWritableStaticKeys = 0;
   // Per-LUT: track writable and readonly index sets
   const lutWritableIdxs: Set<number>[] = luts.map(() => new Set());
   const lutReadonlyIdxs: Set<number>[] = luts.map(() => new Set());
@@ -110,6 +124,7 @@ export function computeV0TxSize(
     // Signers and invoked program IDs must be static
     if (props.isSigner || programIds.has(keyStr)) {
       numStaticKeys++;
+      if (props.isWritable) numWritableStaticKeys++;
       continue;
     }
 
@@ -122,6 +137,7 @@ export function computeV0TxSize(
       }
     } else {
       numStaticKeys++;
+      if (props.isWritable) numWritableStaticKeys++;
     }
   }
 
@@ -168,11 +184,18 @@ export function computeV0TxSize(
   }
   const accountCount = numStaticKeys + totalLutKeys;
 
+  // Writable accounts: writable static keys + LUT writable indexes
+  let totalLutWritableKeys = 0;
+  for (let li = 0; li < luts.length; li++) {
+    totalLutWritableKeys += lutWritableIdxs[li].size;
+  }
+  const writableAccountCount = numWritableStaticKeys + totalLutWritableKeys;
+
   // Empirical +1: component-based calculation consistently underestimates by 1 byte
   // vs actual VersionedTransaction.serialize(). Verified across all measurement variants.
   const size = fixedOverhead + staticKeysSection + ixSection + lutSection + 1;
 
-  return { size, accountCount };
+  return { size, accountCount, writableAccountCount };
 }
 
 // ============================================================================
@@ -182,14 +205,16 @@ export function computeV0TxSize(
 export interface FlashloanSwapConstraints {
   /** Available bytes for swap instruction(s) */
   sizeConstraint: number;
-  /** Available account slots for swap instruction(s) */
-  maxSwapAccounts: number;
+  /** Available writable account slots for swap instruction(s) */
+  maxSwapWritableAccounts: number;
+  /** Available total account slots for swap instruction(s) */
+  maxSwapTotalAccounts: number;
 }
 
 /**
  * Compute the available byte budget and account budget for swap instructions
- * in a flashloan TX. Uses lightweight V0 size estimation — no TX compilation
- * or serialization needed.
+ * in a flashloan TX. Compiles a real V0 message and serializes it for an exact
+ * non-swap byte count.
  *
  * @param ixs - The non-swap IXs (CU requests + primary + secondary).
  *              Must NOT include BeginFL/EndFL — those are synthesized internally.
@@ -237,17 +262,119 @@ export function computeFlashLoanNonSwapBudget({
   // 3. Assemble all non-swap IXs in flashloan order
   const allNonSwapIxs = [beginFlIx, ...ixs, endFlIx];
 
-  // 4. Estimate V0 TX size and account count without compiling/serializing
-  const nonSwap = computeV0TxSize(
-    allNonSwapIxs,
-    marginfiAccount.authority,
-    addressLookupTableAccounts
-  );
+  // 4. Compile a real V0 message and serialize for exact non-swap size
+  const nonSwapMsg = new TransactionMessage({
+    payerKey: marginfiAccount.authority,
+    recentBlockhash: PublicKey.default.toBase58(),
+    instructions: allNonSwapIxs,
+  }).compileToV0Message(addressLookupTableAccounts);
+  const nonSwapSize = new VersionedTransaction(nonSwapMsg).serialize().length;
 
-  return {
-    sizeConstraint: MAX_TX_SIZE - nonSwap.size,
-    maxSwapAccounts: MAX_ACCOUNT_KEYS - nonSwap.accountCount,
-  };
+  const { header, staticAccountKeys, addressTableLookups } = nonSwapMsg;
+  const writableStatic =
+    staticAccountKeys.length -
+    header.numReadonlySignedAccounts -
+    header.numReadonlyUnsignedAccounts;
+  const writableLut = addressTableLookups.reduce((s, l) => s + l.writableIndexes.length, 0);
+  const nonSwapWritable = writableStatic + writableLut;
+  const nonSwapTotal =
+    staticAccountKeys.length +
+    addressTableLookups.reduce(
+      (s, l) => s + l.writableIndexes.length + l.readonlyIndexes.length,
+      0
+    );
+
+  const sizeConstraint = MAX_TX_SIZE - nonSwapSize - SWAP_MERGE_OVERHEAD;
+  const maxSwapWritableAccounts = MAX_WRITABLE_ACCOUNTS - nonSwapWritable;
+  const maxSwapTotalAccounts = MAX_ACCOUNT_LOCKS - nonSwapTotal;
+
+  console.log("[flashloan-budget]", {
+    method: "compiled",
+    nonSwapSize,
+    nonSwapWritable,
+    nonSwapTotal,
+    sizeConstraint,
+    maxSwapWritableAccounts,
+    maxSwapTotalAccounts,
+  });
+
+  return { sizeConstraint, maxSwapWritableAccounts, maxSwapTotalAccounts };
+}
+
+// ============================================================================
+// Post-swap pre-check: compile full TX to verify it fits before makeFlashLoanTx
+// ============================================================================
+
+export interface FlashloanPrecheckResult {
+  /** Exact serialized size of the full flashloan TX */
+  fullTxSize: number;
+  /** How many bytes over MAX_TX_SIZE (negative = under budget) */
+  overshoot: number;
+  /** Total writable accounts in the full TX */
+  writableAccounts: number;
+  /** Total accounts (static + LUT) in the full TX */
+  totalAccounts: number;
+}
+
+/**
+ * Compile the full flashloan TX (all IXs + all LUTs) and return exact size info.
+ * Call this AFTER receiving swap IXs but BEFORE makeFlashLoanTx to detect overflows
+ * early with good diagnostics.
+ *
+ * Uses a dummy blockhash (same 32 bytes as a real one) so the size is exact.
+ */
+export function compileFlashloanPrecheck({
+  allIxs,
+  payer,
+  luts,
+  sizeConstraint,
+  swapIxCount,
+  swapLutCount,
+}: {
+  allIxs: TransactionInstruction[];
+  payer: PublicKey;
+  luts: AddressLookupTableAccount[];
+  sizeConstraint: number;
+  swapIxCount: number;
+  swapLutCount: number;
+}): FlashloanPrecheckResult {
+  const msg = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: PublicKey.default.toBase58(),
+    instructions: allIxs,
+  }).compileToV0Message(luts);
+
+  const rawSize = new VersionedTransaction(msg).serialize().length;
+  const fullTxSize = rawSize + FL_IX_OVERHEAD;
+  const overshoot = fullTxSize - MAX_TX_SIZE;
+
+  const { header, staticAccountKeys, addressTableLookups } = msg;
+  const writableStatic =
+    staticAccountKeys.length -
+    header.numReadonlySignedAccounts -
+    header.numReadonlyUnsignedAccounts;
+  const writableLut = addressTableLookups.reduce((s, l) => s + l.writableIndexes.length, 0);
+  const writableAccounts = writableStatic + writableLut;
+  const totalAccounts =
+    staticAccountKeys.length +
+    addressTableLookups.reduce(
+      (s, l) => s + l.writableIndexes.length + l.readonlyIndexes.length,
+      0
+    );
+
+  console.log("[flashloan-precheck]", {
+    fullTxSize,
+    overshoot,
+    sizeConstraint,
+    writableAccounts,
+    totalAccounts,
+    staticKeys: staticAccountKeys.length,
+    numLuts: addressTableLookups.length,
+    swapIxCount,
+    swapLutCount,
+  });
+
+  return { fullTxSize, overshoot, writableAccounts, totalAccounts };
 }
 
 // ============================================================================

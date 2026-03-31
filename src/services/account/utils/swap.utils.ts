@@ -8,9 +8,40 @@ import {
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { SwapApiConfig, SwapIxsResult, SwapOpts, SwapProvider, SwapQuoteResult } from "../types";
+import {
+  SwapApiConfig,
+  SwapIxsResult,
+  SwapOpts,
+  SwapProvider,
+  SwapProviderEntry,
+  SwapQuoteResult,
+} from "../types";
 import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils";
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
+
+// --- Generic fallback runner ---
+
+async function runWithFallback<T>(
+  attempts: SwapProviderEntry[],
+  dispatch: Partial<Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<T>>>,
+  label: string
+): Promise<T> {
+  let firstError: unknown;
+
+  for (const { provider, apiConfig } of attempts) {
+    const fn = dispatch[provider];
+    if (!fn) continue;
+
+    try {
+      return await fn(apiConfig);
+    } catch (err) {
+      if (!firstError) firstError = err;
+      console.warn(`[${label}] ${provider} failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  throw firstError ?? new Error(`No swap providers available`);
+}
 
 // --- Provider router ---
 
@@ -25,6 +56,7 @@ export type GetSwapIxsForFlashloanParams = {
   swapOpts: SwapOpts;
   sizeConstraint?: number;
   maxSwapAccounts?: number;
+  maxSwapTotalAccounts?: number;
 };
 
 export const getSwapIxsForFlashloan = async (
@@ -58,11 +90,11 @@ export const getSwapIxsForFlashloan = async (
     };
   }
 
-  const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
-
-  switch (provider) {
-    case SwapProvider.TITAN:
-      return getTitanSwapIxsForFlashloan({
+  const dispatch: Partial<
+    Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<SwapIxsResult>>
+  > = {
+    [SwapProvider.TITAN]: (apiConfig) =>
+      getTitanSwapIxsForFlashloan({
         inputMint,
         outputMint,
         amount,
@@ -73,13 +105,13 @@ export const getSwapIxsForFlashloan = async (
         authority,
         connection,
         destinationTokenAccount,
-        apiConfig: swapOpts.swapConfig?.apiConfig,
+        apiConfig,
         sizeConstraint,
-      });
-
-    case SwapProvider.JUPITER:
-    default:
-      return getJupiterSwapIxsForFlashloan({
+        maxSwapAccounts,
+        maxSwapTotalAccounts: params.maxSwapTotalAccounts,
+      }),
+    [SwapProvider.JUPITER]: (apiConfig) =>
+      getJupiterSwapIxsForFlashloan({
         quoteParams: {
           inputMint,
           outputMint,
@@ -95,10 +127,18 @@ export const getSwapIxsForFlashloan = async (
         authority,
         connection,
         destinationTokenAccount,
-        apiConfig: swapOpts.swapConfig?.apiConfig,
+        apiConfig,
         maxSwapAccounts,
-      });
-  }
+      }),
+  };
+
+  const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
+  const attempts: SwapProviderEntry[] = [
+    { provider, apiConfig: swapOpts.swapConfig?.apiConfig },
+    ...(swapOpts.swapConfig?.fallbackProviders ?? []),
+  ];
+
+  return runWithFallback(attempts, dispatch, "swap");
 };
 
 // --- ExactOut estimate router (used by swap-debt) ---
@@ -121,21 +161,19 @@ export const getExactOutEstimate = async (
 ): Promise<ExactOutEstimateResult> => {
   const { inputMint, outputMint, amount, swapOpts, connection } = params;
 
-  const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
-
-  switch (provider) {
-    case SwapProvider.TITAN:
-      return getTitanExactOutEstimate({
+  const dispatch: Partial<
+    Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<ExactOutEstimateResult>>
+  > = {
+    [SwapProvider.TITAN]: (apiConfig) =>
+      getTitanExactOutEstimate({
         inputMint,
         outputMint,
         amount,
         slippageBps: swapOpts.swapConfig?.slippageBps,
-        apiConfig: swapOpts.swapConfig?.apiConfig,
-      });
-
-    case SwapProvider.JUPITER:
-    default: {
-      const configParams = toJupiterConfig(swapOpts.swapConfig?.apiConfig);
+        apiConfig,
+      }),
+    [SwapProvider.JUPITER]: async (apiConfig) => {
+      const configParams = toJupiterConfig(apiConfig);
       const jupiterApiClient = configParams?.basePath
         ? new SwapApi(new Configuration(configParams))
         : createJupiterApiClient(configParams);
@@ -152,13 +190,17 @@ export const getExactOutEstimate = async (
       });
 
       const quoteResult = mapJupiterQuoteToSwapQuoteResult(estimateQuote);
+      return { otherAmountThreshold: quoteResult.otherAmountThreshold, quoteResult };
+    },
+  };
 
-      return {
-        otherAmountThreshold: quoteResult.otherAmountThreshold,
-        quoteResult,
-      };
-    }
-  }
+  const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
+  const attempts: SwapProviderEntry[] = [
+    { provider, apiConfig: swapOpts.swapConfig?.apiConfig },
+    ...(swapOpts.swapConfig?.fallbackProviders ?? []),
+  ];
+
+  return runWithFallback(attempts, dispatch, "exactout");
 };
 
 // --- Jupiter QuoteResponse → SwapQuoteResult mapper ---
