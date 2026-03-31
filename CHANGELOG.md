@@ -6,6 +6,12 @@
 
 - Remove `mintPrice` from `BankType` and related utilities. Clean up testing framework (remove vitest configs and TESTING.md). Update CI workflows to use pnpm and Node 22.
 
+## 2.2.0-alpha.1
+
+### Patch Changes
+
+- remove mint apy and mint price from bank type
+
 ## 2.2.0-alpha.0
 
 ### Minor Changes
