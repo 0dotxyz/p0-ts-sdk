@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.2.0-beta.0
+
+### Minor Changes
+
+- feat: Titan swap provider support, transaction size optimization, and enhanced error handling
+
+  ## New Features
+  - **Titan Swap Provider**: Added full support for Titan as a swap provider alongside Jupiter
+    - Vendored minimal Titan WebSocket client (`@repo/marginfi-client-v2/vendor/titan`)
+    - HTTP proxy route for serverless environments (`/api/titan/[...path]`)
+    - Fee account validation with automatic fallback when ATA doesn't exist
+    - Consistent `quoteParams` structure matching Jupiter's API
+
+  ## Transaction Size Optimization
+  - Added `getTotalAccountKeys()` helper to count static + LUT-resolved accounts
+  - Implemented account lock limit validation (64 max) across all flashloan actions
+  - Added early throwing of `TransactionBuildingError.swapSizeExceeded*` before simulation
+  - Updated `loop.ts`, `repay.ts`, `swap-collateral.ts`, `swap-debt.ts` with total account checks
+  - Improved `computeFlashloanSwapConstraints` to calculate available swap budget accurately
+
+  ## Error Handling Improvements
+  - Fixed `TransactionBuildingError` passthrough in swap provider fallback loops
+  - Added simulation error parsing for "Transaction locked too many accounts" message
+  - Moved account lock overflow errors from precheck to transaction build step
+  - Improved typed error propagation across Jupiter and Titan swap providers
+  - Enhanced error messages for swap size exceeded scenarios
+
 ## 2.1.4
 
 ### Patch Changes
