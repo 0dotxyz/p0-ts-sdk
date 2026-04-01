@@ -113,3 +113,22 @@ export function getWritableAccountKeys(tx: VersionedTransaction | Transaction): 
     return 9999;
   }
 }
+
+export function getTotalAccountKeys(tx: VersionedTransaction | Transaction): number {
+  const isVersioned = isV0Tx(tx);
+
+  try {
+    if (isVersioned) {
+      const { staticAccountKeys, addressTableLookups } = tx.message;
+      const lutAccounts = addressTableLookups.reduce(
+        (sum, lookup) => sum + lookup.writableIndexes.length + lookup.readonlyIndexes.length,
+        0
+      );
+      return staticAccountKeys.length + lutAccounts;
+    } else {
+      return tx.compileMessage().accountKeys.length;
+    }
+  } catch {
+    return 9999;
+  }
+}

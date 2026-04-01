@@ -28,10 +28,10 @@ const getTitanFeeAccount = (mint: PublicKey): PublicKey => {
 const checkTitanFeeAccount = async (
   connection: Connection,
   mint: PublicKey
-): Promise<{ feeAccount: PublicKey; hasFeeAccount: boolean }> => {
+): Promise<{ feeAccount: PublicKey; hasFeeAccount: boolean; feeWallet: PublicKey }> => {
   const feeAccount = getTitanFeeAccount(mint);
   const hasFeeAccount = !!(await connection.getAccountInfo(feeAccount));
-  return { feeAccount, hasFeeAccount };
+  return { feeAccount, hasFeeAccount, feeWallet: TITAN_FEE_WALLET };
 };
 
 // --- Instruction deserializer ---
@@ -50,7 +50,7 @@ function deserializeTitanInstruction(ix: TitanInstruction): TransactionInstructi
 
 // --- Params types ---
 
-export type GetTitanSwapIxsParams = {
+export type TitanQuoteParams = {
   inputMint: string;
   outputMint: string;
   amount: number;
@@ -58,13 +58,17 @@ export type GetTitanSwapIxsParams = {
   slippageBps?: number;
   platformFeeBps?: number;
   directRoutesOnly?: boolean;
+  sizeConstraint?: number;
+  maxSwapAccounts?: number;
+  maxSwapTotalAccounts?: number;
+};
+
+export type GetTitanSwapIxsParams = {
+  quoteParams: TitanQuoteParams;
   authority: PublicKey;
   connection: Connection;
   destinationTokenAccount: PublicKey;
   apiConfig?: SwapApiConfig;
-  sizeConstraint?: number;
-  maxSwapAccounts?: number;
-  maxSwapTotalAccounts?: number;
 };
 
 export type GetTitanExactOutEstimateParams = {
@@ -75,31 +79,41 @@ export type GetTitanExactOutEstimateParams = {
   apiConfig?: SwapApiConfig;
 };
 
-// --- Swap IXs: public API ---
-
-export const getTitanSwapIxsForFlashloan = async (
-  params: GetTitanSwapIxsParams
-): Promise<SwapIxsResult> => {
-  const basePath = params.apiConfig?.basePath ?? "";
+export const getTitanSwapIxsForFlashloan = async ({
+  quoteParams,
+  authority,
+  connection,
+  destinationTokenAccount,
+  apiConfig,
+}: GetTitanSwapIxsParams): Promise<SwapIxsResult> => {
+  const basePath = apiConfig?.basePath ?? "";
 
   // Check fee account existence — strip platformFeeBps if ATA doesn't exist
   const feeMint = new PublicKey(
-    params.swapMode === "ExactIn" ? params.outputMint : params.inputMint
+    quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint
   );
-  const { feeAccount, hasFeeAccount } = await checkTitanFeeAccount(params.connection, feeMint);
+  const { feeAccount, hasFeeAccount } = await checkTitanFeeAccount(connection, feeMint);
+
+  let finalQuoteParams = quoteParams;
 
   if (!hasFeeAccount) {
     console.warn("Warning: Titan fee account ATA does not exist, disabling platform fee");
+    finalQuoteParams = {
+      ...quoteParams,
+      platformFeeBps: undefined,
+    };
   }
 
-  const finalParams: GetTitanSwapIxsParams = hasFeeAccount
-    ? params
-    : { ...params, platformFeeBps: undefined };
-
   if (basePath.startsWith("wss://") || basePath.startsWith("ws://")) {
-    return getTitanSwapIxsViaWebSocket(finalParams, hasFeeAccount ? feeAccount : undefined);
+    return getTitanSwapIxsViaWebSocket(
+      { quoteParams: finalQuoteParams, authority, connection, destinationTokenAccount, apiConfig },
+      hasFeeAccount ? feeAccount : undefined
+    );
   } else {
-    return getTitanSwapIxsViaHttpProxy(finalParams, hasFeeAccount ? feeAccount : undefined);
+    return getTitanSwapIxsViaHttpProxy(
+      { quoteParams: finalQuoteParams, authority, connection, destinationTokenAccount, apiConfig },
+      hasFeeAccount ? feeAccount : undefined
+    );
   }
 };
 
@@ -109,6 +123,7 @@ async function getTitanSwapIxsViaWebSocket(
   params: GetTitanSwapIxsParams,
   feeAccount?: PublicKey
 ): Promise<SwapIxsResult> {
+  const { quoteParams, authority, connection, destinationTokenAccount, apiConfig } = params;
   const {
     inputMint,
     outputMint,
@@ -117,13 +132,10 @@ async function getTitanSwapIxsViaWebSocket(
     slippageBps,
     platformFeeBps,
     directRoutesOnly,
-    authority,
-    connection,
-    destinationTokenAccount,
-    apiConfig,
     sizeConstraint,
     maxSwapAccounts,
-  } = params;
+    maxSwapTotalAccounts,
+  } = quoteParams;
 
   const wsUrl = apiConfig?.basePath;
   if (!wsUrl) {
@@ -153,7 +165,7 @@ async function getTitanSwapIxsViaWebSocket(
         addSizeConstraint: sizeConstraint !== undefined,
         sizeConstraint,
         accountsLimitWritable: maxSwapAccounts,
-        accountsLimitTotal: params.maxSwapTotalAccounts,
+        accountsLimitTotal: maxSwapTotalAccounts,
       },
       transaction: txParams,
       update: {
@@ -204,6 +216,7 @@ async function getTitanSwapIxsViaHttpProxy(
   params: GetTitanSwapIxsParams,
   feeAccount?: PublicKey
 ): Promise<SwapIxsResult> {
+  const { quoteParams, authority, connection, destinationTokenAccount, apiConfig } = params;
   const {
     inputMint,
     outputMint,
@@ -212,13 +225,10 @@ async function getTitanSwapIxsViaHttpProxy(
     slippageBps,
     platformFeeBps,
     directRoutesOnly,
-    authority,
-    connection,
-    destinationTokenAccount,
-    apiConfig,
     sizeConstraint,
     maxSwapAccounts,
-  } = params;
+    maxSwapTotalAccounts,
+  } = quoteParams;
 
   const basePath = apiConfig?.basePath;
   if (!basePath) {
@@ -251,7 +261,7 @@ async function getTitanSwapIxsViaHttpProxy(
         addSizeConstraint: sizeConstraint !== undefined,
         sizeConstraint,
         accountsLimitWritable: maxSwapAccounts,
-        accountsLimitTotal: params.maxSwapTotalAccounts,
+        accountsLimitTotal: maxSwapTotalAccounts,
       },
       transaction: txBody,
     }),

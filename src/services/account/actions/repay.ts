@@ -28,6 +28,7 @@ import {
   TransactionType,
   getWritableAccountKeys,
   getTxSize,
+  getTotalAccountKeys,
 } from "~/services/transaction";
 import {
   makeRefreshKaminoBanksIxs,
@@ -35,7 +36,7 @@ import {
   makeUpdateDriftMarketIxs,
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
-import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
 
@@ -640,8 +641,13 @@ async function buildRepayWithCollatFlashloanTx({
 
   const txSize = getTxSize(flashloanTx);
   const writableKeys = getWritableAccountKeys(flashloanTx);
+  const totalKeys = getTotalAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
+  if (
+    txSize > MAX_TX_SIZE ||
+    writableKeys > MAX_WRITABLE_ACCOUNTS ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededRepay(
       txSize,
       writableKeys,

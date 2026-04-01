@@ -362,6 +362,15 @@ export function compileFlashloanPrecheck({
       0
     );
 
+  // Check account limits before returning
+  // if (totalAccounts > MAX_ACCOUNT_LOCKS) {
+  //   throw TransactionBuildingError.swapSizeExceededLoop(
+  //     fullTxSize,
+  //     writableAccounts,
+  //     undefined // provider unknown at this layer
+  //   );
+  // }
+
   console.log("[flashloan-precheck]", {
     fullTxSize,
     overshoot,

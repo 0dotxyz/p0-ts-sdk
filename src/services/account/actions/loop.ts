@@ -13,6 +13,7 @@ import {
   ExtendedV0Transaction,
   getWritableAccountKeys,
   getTxSize,
+  getTotalAccountKeys,
   InstructionsWrapper,
   makeWrapSolIxs,
   splitInstructionsToFitTransactions,
@@ -26,7 +27,7 @@ import {
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS } from "~/constants";
+import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 
 import {
@@ -67,8 +68,10 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     additionalIxs = [],
   } = params;
 
+  // Get blockhash
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
+  // Setup Ata's if needed for borrow & deposit tokens
   const setupIxs = await makeSetupIx({
     connection,
     authority: marginfiAccount.authority,
@@ -84,6 +87,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     ],
   });
 
+  // Update jup lend rates, depositBank is excluded deposit ix does updates this by default
   const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -91,6 +95,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     params.bankMetadataMap
   );
 
+  // Update drift market, depositBank is excluded deposit ix does updates this by default
   const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -98,6 +103,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     params.bankMetadataMap
   );
 
+  // Refresh kamino banks, no cpi here so dposit bank needs to be included
   const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
     marginfiAccount,
     bankMap,
@@ -111,6 +117,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
       blockhash,
     });
 
+  // Add ata creations needed for routing
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
     // filter out compute budget instructions
     if (ix.programId.equals(ComputeBudgetProgram.programId)) {
@@ -246,6 +253,8 @@ async function buildLoopFlashloanTx({
       true,
       depositOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
     );
+
+    // Measure how much bytes & accounts are available for swapping
     const swapConstraints = await computeFlashloanSwapConstraints({
       program,
       marginfiAccount,
@@ -445,8 +454,13 @@ async function buildLoopFlashloanTx({
 
   const txSize = getTxSize(flashloanTx);
   const writableKeys = getWritableAccountKeys(flashloanTx);
+  const totalKeys = getTotalAccountKeys(flashloanTx);
 
-  if (txSize > MAX_TX_SIZE || writableKeys > MAX_WRITABLE_ACCOUNTS) {
+  if (
+    txSize > MAX_TX_SIZE ||
+    writableKeys > MAX_WRITABLE_ACCOUNTS ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
       writableKeys,

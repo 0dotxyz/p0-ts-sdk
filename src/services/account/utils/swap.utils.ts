@@ -18,29 +18,133 @@ import {
 } from "../types";
 import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils";
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
+import { TransactionBuildingError } from "~/errors";
 
-// --- Generic fallback runner ---
-
-async function runWithFallback<T>(
-  attempts: SwapProviderEntry[],
-  dispatch: Partial<Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<T>>>,
-  label: string
-): Promise<T> {
-  let firstError: unknown;
-
-  for (const { provider, apiConfig } of attempts) {
-    const fn = dispatch[provider];
-    if (!fn) continue;
-
-    try {
-      return await fn(apiConfig);
-    } catch (err) {
-      if (!firstError) firstError = err;
-      console.warn(`[${label}] ${provider} failed:`, err instanceof Error ? err.message : err);
-    }
+// Helper to get swap provider function
+function getSwapProviderFn({
+  attemptProvider,
+  maxSwapTotalAccounts,
+  inputMint,
+  outputMint,
+  amount,
+  swapMode,
+  authority,
+  connection,
+  destinationTokenAccount,
+  swapOpts,
+  sizeConstraint,
+  maxSwapAccounts,
+}: {
+  attemptProvider: SwapProvider;
+  maxSwapTotalAccounts?: number;
+  inputMint: string;
+  outputMint: string;
+  amount: number;
+  swapMode: "ExactIn" | "ExactOut";
+  authority: PublicKey;
+  connection: Connection;
+  destinationTokenAccount: PublicKey;
+  swapOpts: SwapOpts;
+  sizeConstraint?: number;
+  maxSwapAccounts?: number;
+}): ((apiConfig?: SwapApiConfig) => Promise<SwapIxsResult>) | undefined {
+  switch (attemptProvider) {
+    case SwapProvider.TITAN:
+      return (apiConfig) =>
+        getTitanSwapIxsForFlashloan({
+          quoteParams: {
+            inputMint,
+            outputMint,
+            amount,
+            swapMode,
+            slippageBps: swapOpts.swapConfig?.slippageBps,
+            platformFeeBps: swapOpts.swapConfig?.platformFeeBps,
+            directRoutesOnly: swapOpts.swapConfig?.directRoutesOnly,
+            sizeConstraint,
+            maxSwapAccounts,
+            maxSwapTotalAccounts,
+          },
+          authority,
+          connection,
+          destinationTokenAccount,
+          apiConfig,
+        });
+    case SwapProvider.JUPITER:
+      return (apiConfig) =>
+        getJupiterSwapIxsForFlashloan({
+          quoteParams: {
+            inputMint,
+            outputMint,
+            amount,
+            swapMode,
+            dynamicSlippage: swapOpts.swapConfig
+              ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
+              : true,
+            slippageBps: swapOpts.swapConfig?.slippageBps,
+            platformFeeBps: swapOpts.swapConfig?.platformFeeBps,
+            onlyDirectRoutes: swapOpts.swapConfig?.directRoutesOnly ?? false,
+          },
+          authority,
+          connection,
+          destinationTokenAccount,
+          apiConfig,
+          maxSwapAccounts,
+        });
+    default:
+      return undefined;
   }
+}
 
-  throw firstError ?? new Error(`No swap providers available`);
+// Helper to get exact out estimate provider function
+function getExactOutProviderFn({
+  attemptProvider,
+  inputMint,
+  outputMint,
+  amount,
+  swapOpts,
+  apiConfig,
+}: {
+  attemptProvider: SwapProvider;
+  inputMint: string;
+  outputMint: string;
+  amount: number;
+  swapOpts: SwapOpts;
+  apiConfig?: SwapApiConfig;
+}): ((apiConfig?: SwapApiConfig) => Promise<ExactOutEstimateResult>) | undefined {
+  switch (attemptProvider) {
+    case SwapProvider.TITAN:
+      return () =>
+        getTitanExactOutEstimate({
+          inputMint,
+          outputMint,
+          amount,
+          slippageBps: swapOpts.swapConfig?.slippageBps,
+          apiConfig,
+        });
+    case SwapProvider.JUPITER:
+      return async () => {
+        const configParams = toJupiterConfig(apiConfig);
+        const jupiterApiClient = configParams?.basePath
+          ? new SwapApi(new Configuration(configParams))
+          : createJupiterApiClient(configParams);
+
+        const estimateQuote = await jupiterApiClient.quoteGet({
+          inputMint,
+          outputMint,
+          amount,
+          swapMode: "ExactOut",
+          dynamicSlippage: swapOpts.swapConfig
+            ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
+            : true,
+          slippageBps: swapOpts.swapConfig?.slippageBps,
+        });
+
+        const quoteResult = mapJupiterQuoteToSwapQuoteResult(estimateQuote);
+        return { otherAmountThreshold: quoteResult.otherAmountThreshold, quoteResult };
+      };
+    default:
+      return undefined;
+  }
 }
 
 // --- Provider router ---
@@ -90,55 +194,49 @@ export const getSwapIxsForFlashloan = async (
     };
   }
 
-  const dispatch: Partial<
-    Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<SwapIxsResult>>
-  > = {
-    [SwapProvider.TITAN]: (apiConfig) =>
-      getTitanSwapIxsForFlashloan({
-        inputMint,
-        outputMint,
-        amount,
-        swapMode,
-        slippageBps: swapOpts.swapConfig?.slippageBps,
-        platformFeeBps: swapOpts.swapConfig?.platformFeeBps,
-        directRoutesOnly: swapOpts.swapConfig?.directRoutesOnly,
-        authority,
-        connection,
-        destinationTokenAccount,
-        apiConfig,
-        sizeConstraint,
-        maxSwapAccounts,
-        maxSwapTotalAccounts: params.maxSwapTotalAccounts,
-      }),
-    [SwapProvider.JUPITER]: (apiConfig) =>
-      getJupiterSwapIxsForFlashloan({
-        quoteParams: {
-          inputMint,
-          outputMint,
-          amount,
-          swapMode,
-          dynamicSlippage: swapOpts.swapConfig
-            ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
-            : true,
-          slippageBps: swapOpts.swapConfig?.slippageBps,
-          platformFeeBps: swapOpts.swapConfig?.platformFeeBps,
-          onlyDirectRoutes: swapOpts.swapConfig?.directRoutesOnly ?? false,
-        },
-        authority,
-        connection,
-        destinationTokenAccount,
-        apiConfig,
-        maxSwapAccounts,
-      }),
-  };
-
   const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
   const attempts: SwapProviderEntry[] = [
     { provider, apiConfig: swapOpts.swapConfig?.apiConfig },
     ...(swapOpts.swapConfig?.fallbackProviders ?? []),
   ];
 
-  return runWithFallback(attempts, dispatch, "swap");
+  let lastError: unknown;
+
+  for (const { provider: attemptProvider, apiConfig } of attempts) {
+    const fn = getSwapProviderFn({
+      attemptProvider,
+      maxSwapTotalAccounts: params.maxSwapTotalAccounts,
+      inputMint,
+      outputMint,
+      amount,
+      swapMode,
+      authority,
+      connection,
+      destinationTokenAccount,
+      swapOpts,
+      sizeConstraint,
+      maxSwapAccounts,
+    });
+
+    if (!fn) continue;
+
+    try {
+      return await fn(apiConfig);
+    } catch (err) {
+      if (err instanceof TransactionBuildingError) throw err;
+      lastError = err;
+      console.warn(`[swap] ${attemptProvider} failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // All providers failed — throw typed error
+  const firstProvider = attempts[0]?.provider ?? "Swap";
+  throw TransactionBuildingError.swapQuoteFailed(
+    firstProvider,
+    inputMint,
+    outputMint,
+    (lastError as Error)?.message ?? "No swap route available"
+  );
 };
 
 // --- ExactOut estimate router (used by swap-debt) ---
@@ -161,46 +259,46 @@ export const getExactOutEstimate = async (
 ): Promise<ExactOutEstimateResult> => {
   const { inputMint, outputMint, amount, swapOpts, connection } = params;
 
-  const dispatch: Partial<
-    Record<SwapProvider, (apiConfig?: SwapApiConfig) => Promise<ExactOutEstimateResult>>
-  > = {
-    [SwapProvider.TITAN]: (apiConfig) =>
-      getTitanExactOutEstimate({
-        inputMint,
-        outputMint,
-        amount,
-        slippageBps: swapOpts.swapConfig?.slippageBps,
-        apiConfig,
-      }),
-    [SwapProvider.JUPITER]: async (apiConfig) => {
-      const configParams = toJupiterConfig(apiConfig);
-      const jupiterApiClient = configParams?.basePath
-        ? new SwapApi(new Configuration(configParams))
-        : createJupiterApiClient(configParams);
-
-      const estimateQuote = await jupiterApiClient.quoteGet({
-        inputMint,
-        outputMint,
-        amount,
-        swapMode: "ExactOut",
-        dynamicSlippage: swapOpts.swapConfig
-          ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
-          : true,
-        slippageBps: swapOpts.swapConfig?.slippageBps,
-      });
-
-      const quoteResult = mapJupiterQuoteToSwapQuoteResult(estimateQuote);
-      return { otherAmountThreshold: quoteResult.otherAmountThreshold, quoteResult };
-    },
-  };
-
   const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
   const attempts: SwapProviderEntry[] = [
     { provider, apiConfig: swapOpts.swapConfig?.apiConfig },
     ...(swapOpts.swapConfig?.fallbackProviders ?? []),
   ];
 
-  return runWithFallback(attempts, dispatch, "exactout");
+  let lastError: unknown;
+
+  for (const { provider: attemptProvider, apiConfig } of attempts) {
+    const fn = getExactOutProviderFn({
+      attemptProvider,
+      inputMint,
+      outputMint,
+      amount,
+      swapOpts,
+      apiConfig,
+    });
+
+    if (!fn) continue;
+
+    try {
+      return await fn(apiConfig);
+    } catch (err) {
+      if (err instanceof TransactionBuildingError) throw err;
+      lastError = err;
+      console.warn(
+        `[exactout] ${attemptProvider} failed:`,
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  // All providers failed — throw typed error
+  const firstProvider = attempts[0]?.provider ?? "Swap";
+  throw TransactionBuildingError.swapQuoteFailed(
+    firstProvider,
+    inputMint,
+    outputMint,
+    (lastError as Error)?.message ?? "No swap route available"
+  );
 };
 
 // --- Jupiter QuoteResponse → SwapQuoteResult mapper ---
