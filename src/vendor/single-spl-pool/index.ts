@@ -96,6 +96,7 @@ const SinglePoolInstruction = {
     userLamportAccount: PublicKey
   ): Promise<TransactionInstruction> => {
     const stake = findPoolStakeAddress(pool);
+    const onRamp = findPoolOnRampAddress(pool);
     const mint = findPoolMintAddress(pool);
     const stakeAuthority = findPoolStakeAuthorityAddress(pool);
     const mintAuthority = findPoolMintAuthorityAddress(pool);
@@ -105,6 +106,7 @@ const SinglePoolInstruction = {
       [
         { pubkey: pool, isSigner: false, isWritable: false },
         { pubkey: stake, isSigner: false, isWritable: true },
+        { pubkey: onRamp, isSigner: false, isWritable: false },
         { pubkey: mint, isSigner: false, isWritable: true },
         { pubkey: stakeAuthority, isSigner: false, isWritable: false },
         { pubkey: mintAuthority, isSigner: false, isWritable: false },
@@ -128,6 +130,7 @@ const SinglePoolInstruction = {
     tokenAmount: BigNumber
   ): Promise<TransactionInstruction> => {
     const stake = findPoolStakeAddress(pool);
+    const onRamp = findPoolOnRampAddress(pool);
     const mint = findPoolMintAddress(pool);
     const stakeAuthority = findPoolStakeAuthorityAddress(pool);
     const mintAuthority = findPoolMintAuthorityAddress(pool);
@@ -146,6 +149,7 @@ const SinglePoolInstruction = {
       [
         { pubkey: pool, isSigner: false, isWritable: false },
         { pubkey: stake, isSigner: false, isWritable: true },
+        { pubkey: onRamp, isSigner: false, isWritable: false },
         { pubkey: mint, isSigner: false, isWritable: true },
         { pubkey: stakeAuthority, isSigner: false, isWritable: false },
         { pubkey: mintAuthority, isSigner: false, isWritable: false },
