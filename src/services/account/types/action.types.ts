@@ -225,6 +225,12 @@ export interface MakeBorrowIxOpts {
     group?: PublicKey;
     authority?: PublicKey;
   };
+  /**
+   * Additional banks to include in the health check calculation.
+   * Useful for combined operations where a deposit precedes the borrow
+   * and the deposited bank needs to be considered for health calculation.
+   */
+  additionalHealthCheckBanks?: PublicKey[];
 }
 
 export interface MakeBorrowIxParams {
