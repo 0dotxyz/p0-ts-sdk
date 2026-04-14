@@ -1,10 +1,10 @@
 {
-  "mode": "exit",
+  "mode": "pre",
   "tag": "alpha",
   "initialVersions": {
-    "@0dotxyz/p0-ts-sdk": "2.1.1"
+    "@0dotxyz/p0-ts-sdk": "2.2.0-alpha.2"
   },
   "changesets": [
-    "native-stake-banks"
+    "shiny-zebras-yawn"
   ]
 }

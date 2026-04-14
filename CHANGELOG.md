@@ -6,6 +6,12 @@
 
 - Remove `mintPrice` from `BankType` and related utilities. Clean up testing framework (remove vitest configs and TESTING.md). Update CI workflows to use pnpm and Node 22.
 
+## 2.2.0-alpha.3
+
+### Patch Changes
+
+- chore: support deposit & borrow in one transaction
+
 ## 2.2.0-alpha.2
 
 ### Patch Changes
