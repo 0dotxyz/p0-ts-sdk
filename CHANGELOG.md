@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.4
+
+### Patch Changes
+
+- Remove `mintPrice` from `BankType` and related utilities. Clean up testing framework (remove vitest configs and TESTING.md). Update CI workflows to use pnpm and Node 22.
+
 ## 2.1.3
 
 ### Patch Changes
