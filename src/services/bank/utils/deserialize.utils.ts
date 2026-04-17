@@ -79,11 +79,7 @@ interface BankMetadata {
 export function parseBankRaw(
   address: PublicKey,
   accountParsed: BankRaw,
-  bankMetadata?: BankMetadata,
-  mintData?: {
-    mintRate: number | null;
-    mintPrice: number;
-  }
+  bankMetadata?: BankMetadata
 ): BankType {
   const flags = accountParsed.flags.toNumber();
 
@@ -213,8 +209,6 @@ export function parseBankRaw(
     borrowingPositionCount,
     emode,
     tokenSymbol,
-    mintRate: mintData?.mintRate ?? null,
-    mintPrice: mintData?.mintPrice ?? 0,
     kaminoIntegrationAccounts,
     driftIntegrationAccounts,
     solendIntegrationAccounts,
@@ -266,8 +260,6 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     borrowingPositionCount: bankDto.borrowingPositionCount
       ? new BigNumber(bankDto.borrowingPositionCount)
       : undefined,
-    mintRate: null, // TODO: move these out
-    mintPrice: 0,
     kaminoIntegrationAccounts: bankDto.kaminoIntegrationAccounts
       ? {
           kaminoReserve: new PublicKey(bankDto.kaminoIntegrationAccounts.kaminoReserve),

@@ -131,8 +131,6 @@ export interface BankType {
   group: PublicKey;
   mint: PublicKey;
   mintDecimals: number;
-  mintRate: number | null;
-  mintPrice: number;
 
   assetShareValue: BigNumber;
   liabilityShareValue: BigNumber;
