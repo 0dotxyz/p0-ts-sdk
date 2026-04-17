@@ -1,0 +1,10 @@
+{
+  "mode": "exit",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.2.0-alpha.3"
+  },
+  "changesets": [
+    "native-stake-banks-alpha"
+  ]
+}

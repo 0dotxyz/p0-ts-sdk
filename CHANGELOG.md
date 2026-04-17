@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-alpha.4
+
+### Minor Changes
+
+- Native stake bank support, testing cleanup, CI workflow updates (pnpm + Node 22).
+
 ## 2.1.4
 
 ### Patch Changes
