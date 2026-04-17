@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-beta.1
+
+### Minor Changes
+
+- Rebase onto latest main. Update GitHub CI workflows to use pnpm and Node 22, remove unused docs and publish workflows.
+
 ## 2.2.0-beta.0
 
 ### Minor Changes
