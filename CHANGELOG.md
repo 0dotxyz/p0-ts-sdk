@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-beta.2
+
+### Minor Changes
+
+- Add provider field to SwapQuoteResult to expose which swap provider (Jupiter/Titan) was used. Market pricing improvements.
+
 ## 2.2.0-beta.1
 
 ### Minor Changes
