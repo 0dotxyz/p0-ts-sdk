@@ -64,6 +64,7 @@ export interface SwapQuoteResult {
   priceImpactPct?: string;
   contextSlot?: number;
   timeTaken?: number;
+  provider?: SwapProvider;
 }
 
 export interface SwapIxsResult {

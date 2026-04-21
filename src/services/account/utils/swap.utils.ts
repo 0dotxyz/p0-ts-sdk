@@ -318,5 +318,6 @@ export function mapJupiterQuoteToSwapQuoteResult(quote: QuoteResponse): SwapQuot
     priceImpactPct: quote.priceImpactPct,
     contextSlot: quote.contextSlot,
     timeTaken: quote.timeTaken,
+    provider: SwapProvider.JUPITER,
   };
 }

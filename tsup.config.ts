@@ -27,5 +27,6 @@ export default defineConfig({
     "decimal.js",
     "superstruct",
     "ws",
+    "@msgpack/msgpack",
   ],
 });

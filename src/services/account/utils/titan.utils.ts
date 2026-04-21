@@ -13,7 +13,7 @@ import { getAssociatedTokenAddressSync } from "~/vendor/spl";
 
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
-import { SwapApiConfig, SwapIxsResult, SwapQuoteResult } from "../types";
+import { SwapApiConfig, SwapIxsResult, SwapProvider, SwapQuoteResult } from "../types";
 
 // --- Constants ---
 
@@ -195,7 +195,10 @@ async function getTitanSwapIxsViaWebSocket(
     const addressLookupTableAddresses = await resolveLookupTables(connection, lutPubkeys);
 
     // Build quote result
-    const quoteResponse = buildSwapQuoteResult(bestRoute, swapMode);
+    const quoteResponse = {
+      ...buildSwapQuoteResult(bestRoute, swapMode),
+      provider: SwapProvider.TITAN,
+    };
 
     return {
       swapInstructions,
@@ -290,7 +293,10 @@ async function getTitanSwapIxsViaHttpProxy(
   );
   const addressLookupTableAddresses = await resolveLookupTables(connection, lutPubkeys);
 
-  const quoteResponse = buildSwapQuoteResult(bestRoute, swapMode);
+  const quoteResponse = {
+    ...buildSwapQuoteResult(bestRoute, swapMode),
+    provider: SwapProvider.TITAN,
+  };
 
   return {
     swapInstructions,
@@ -359,7 +365,10 @@ async function getTitanExactOutViaWebSocket(
       throw new Error(`No Titan ExactOut routes found for ${inputMint} -> ${outputMint}`);
     }
 
-    const quoteResult = buildSwapQuoteResult(bestRoute, "ExactOut");
+    const quoteResult = {
+      ...buildSwapQuoteResult(bestRoute, "ExactOut"),
+      provider: SwapProvider.TITAN,
+    };
 
     return {
       otherAmountThreshold: quoteResult.otherAmountThreshold,
@@ -412,6 +421,7 @@ async function getTitanExactOutViaHttpProxy(
     outAmount: String(data.outAmount),
     otherAmountThreshold: data.otherAmountThreshold,
     slippageBps: data.slippageBps,
+    provider: SwapProvider.TITAN,
   };
 
   return {
