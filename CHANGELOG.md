@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.2.0-alpha.5
+
+### Minor Changes
+
+- 804738b: Rebase onto latest main. Update GitHub CI workflows to use pnpm and Node 22, remove unused docs and publish workflows.
+- Flashloan actions improvements (merged from feat/fl-actions-improvements):
+  - Add Titan swap provider support with WebSocket and HTTP proxy paths, including vendored SDK client
+  - Add swap provider fallback system with configurable primary/fallback providers
+  - Add provider field to SwapQuoteResult to expose which swap provider was used
+  - Add flashloan TX size estimator for computing swap byte/account budgets without serialization
+  - Add exact-out estimate routing for swap-debt actions via Titan and Jupiter
+  - Remove writable account checks for flashloan transactions
+  - Support market pricing instead of oracle for swap quotes
+
+- 01736d8: Add provider field to SwapQuoteResult to expose which swap provider (Jupiter/Titan) was used. Market pricing improvements.
+
+### Patch Changes
+
+- 2969f70: Remove writable account checks for flashloans.
+
 ## 2.2.0-beta.3
 
 ### Patch Changes
