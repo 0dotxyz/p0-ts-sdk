@@ -5,7 +5,6 @@ import {
   Signer,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { ConfigurationParameters } from "@jup-ag/api";
 
 import { ReserveRaw } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
@@ -16,6 +15,64 @@ import { SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
+
+export enum SwapProvider {
+  JUPITER = "JUPITER",
+  TITAN = "TITAN",
+  DFLOW = "DFLOW",
+}
+
+export interface SwapApiConfig {
+  basePath?: string;
+  apiKey?: string;
+  headers?: Record<string, string>;
+}
+
+export interface SwapProviderEntry {
+  provider: SwapProvider;
+  apiConfig?: SwapApiConfig;
+}
+
+export interface SwapProviderConfig {
+  provider: SwapProvider;
+  slippageMode: "DYNAMIC" | "FIXED";
+  slippageBps: number;
+  platformFeeBps: number;
+  directRoutesOnly?: boolean;
+  apiConfig?: SwapApiConfig;
+  fallbackProviders?: SwapProviderEntry[];
+}
+
+export interface SwapOpts {
+  swapConfig?: SwapProviderConfig;
+  // if swapIxs is provided, it will be used instead of creating instructions
+  swapIxs?: {
+    instructions: TransactionInstruction[];
+    lookupTables: AddressLookupTableAccount[];
+  };
+}
+
+export interface SwapQuoteResult {
+  inAmount: string;
+  outAmount: string;
+  otherAmountThreshold: string;
+  slippageBps: number;
+  platformFee?: {
+    amount: string;
+    feeBps: number;
+  };
+  priceImpactPct?: string;
+  contextSlot?: number;
+  timeTaken?: number;
+  provider?: SwapProvider;
+}
+
+export interface SwapIxsResult {
+  swapInstructions: TransactionInstruction[];
+  setupInstructions: TransactionInstruction[];
+  addressLookupTableAddresses: AddressLookupTableAccount[];
+  quoteResponse: SwapQuoteResult;
+}
 
 export interface MakeDepositIxOpts {
   wrapAndUnwrapSol?: boolean;
@@ -321,20 +378,7 @@ export interface MakeLoopTxParams {
     borrowBank: BankType;
     tokenProgram: PublicKey;
   };
-  swapOpts: {
-    jupiterOptions?: {
-      slippageMode: "DYNAMIC" | "FIXED";
-      slippageBps: number;
-      platformFeeBps: number;
-      directRoutesOnly?: boolean;
-      configParams?: ConfigurationParameters;
-    };
-    // if swapIxs is provided, it will be used instead of creating instructions
-    swapIxs?: {
-      instructions: TransactionInstruction[];
-      lookupTables: AddressLookupTableAccount[];
-    };
-  };
+  swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;
@@ -368,20 +412,7 @@ export interface MakeRepayWithCollatTxParams {
     // if repayAmount is provided, it will be used instead of jupiter swap output
     repayAmount?: number;
   };
-  swapOpts: {
-    jupiterOptions?: {
-      slippageMode: "DYNAMIC" | "FIXED";
-      slippageBps: number;
-      platformFeeBps: number;
-      directRoutesOnly?: boolean;
-      configParams?: ConfigurationParameters;
-    };
-    // if swapIxs is provided, it will be used instead of creating instructions
-    swapIxs?: {
-      instructions: TransactionInstruction[];
-      lookupTables: AddressLookupTableAccount[];
-    };
-  };
+  swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;
@@ -411,15 +442,7 @@ export interface MakeSwapCollateralTxParams {
     depositBank: BankType;
     tokenProgram: PublicKey;
   };
-  swapOpts: {
-    jupiterOptions?: {
-      slippageMode: "DYNAMIC" | "FIXED";
-      slippageBps: number;
-      platformFeeBps: number;
-      directRoutesOnly?: boolean;
-      configParams?: ConfigurationParameters;
-    };
-  };
+  swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;
@@ -451,15 +474,7 @@ export interface MakeSwapDebtTxParams {
     borrowBank: BankType;
     tokenProgram: PublicKey;
   };
-  swapOpts: {
-    jupiterOptions?: {
-      slippageMode: "DYNAMIC" | "FIXED";
-      slippageBps: number;
-      platformFeeBps: number;
-      directRoutesOnly?: boolean;
-      configParams?: ConfigurationParameters;
-    };
-  };
+  swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;

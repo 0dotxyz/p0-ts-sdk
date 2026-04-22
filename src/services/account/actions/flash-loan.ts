@@ -14,6 +14,11 @@ import syncInstructions from "~/sync-instructions";
 import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
 import { MakeFlashLoanTxParams } from "../types";
 
+export {
+  computeFlashLoanNonSwapBudget,
+  type FlashloanSwapConstraints,
+} from "../utils/flashloan-size.utils";
+
 export async function makeBeginFlashLoanIx(
   program: MarginfiProgram,
   marginfiAccountPk: PublicKey,

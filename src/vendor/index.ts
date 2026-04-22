@@ -7,3 +7,4 @@ export * from "./klend";
 export * from "./spl";
 export * from "./drift";
 export * from "./jup-lend";
+export * from "./titan";
