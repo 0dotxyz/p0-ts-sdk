@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0-beta.3
+
+### Patch Changes
+
+- Remove writable account checks for flashloans.
+
 ## 2.2.0-beta.2
 
 ### Minor Changes
