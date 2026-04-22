@@ -44,7 +44,7 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "../actions/withdraw";
-import { MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 
 // V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
 // causes the compiler to redistribute key resolution. Multi-hop routes add many
@@ -205,8 +205,6 @@ export function computeV0TxSize(
 export interface FlashloanSwapConstraints {
   /** Available bytes for swap instruction(s) */
   sizeConstraint: number;
-  /** Available writable account slots for swap instruction(s) */
-  maxSwapWritableAccounts: number;
   /** Available total account slots for swap instruction(s) */
   maxSwapTotalAccounts: number;
 }
@@ -271,12 +269,6 @@ export function computeFlashLoanNonSwapBudget({
   const nonSwapSize = new VersionedTransaction(nonSwapMsg).serialize().length;
 
   const { header, staticAccountKeys, addressTableLookups } = nonSwapMsg;
-  const writableStatic =
-    staticAccountKeys.length -
-    header.numReadonlySignedAccounts -
-    header.numReadonlyUnsignedAccounts;
-  const writableLut = addressTableLookups.reduce((s, l) => s + l.writableIndexes.length, 0);
-  const nonSwapWritable = writableStatic + writableLut;
   const nonSwapTotal =
     staticAccountKeys.length +
     addressTableLookups.reduce(
@@ -285,20 +277,17 @@ export function computeFlashLoanNonSwapBudget({
     );
 
   const sizeConstraint = MAX_TX_SIZE - nonSwapSize - SWAP_MERGE_OVERHEAD;
-  const maxSwapWritableAccounts = MAX_WRITABLE_ACCOUNTS - nonSwapWritable;
   const maxSwapTotalAccounts = MAX_ACCOUNT_LOCKS - nonSwapTotal;
 
   console.log("[flashloan-budget]", {
     method: "compiled",
     nonSwapSize,
-    nonSwapWritable,
     nonSwapTotal,
     sizeConstraint,
-    maxSwapWritableAccounts,
     maxSwapTotalAccounts,
   });
 
-  return { sizeConstraint, maxSwapWritableAccounts, maxSwapTotalAccounts };
+  return { sizeConstraint, maxSwapTotalAccounts };
 }
 
 // ============================================================================

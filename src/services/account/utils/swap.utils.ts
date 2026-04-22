@@ -33,7 +33,6 @@ function getSwapProviderFn({
   destinationTokenAccount,
   swapOpts,
   sizeConstraint,
-  maxSwapAccounts,
 }: {
   attemptProvider: SwapProvider;
   maxSwapTotalAccounts?: number;
@@ -46,7 +45,6 @@ function getSwapProviderFn({
   destinationTokenAccount: PublicKey;
   swapOpts: SwapOpts;
   sizeConstraint?: number;
-  maxSwapAccounts?: number;
 }): ((apiConfig?: SwapApiConfig) => Promise<SwapIxsResult>) | undefined {
   switch (attemptProvider) {
     case SwapProvider.TITAN:
@@ -61,7 +59,6 @@ function getSwapProviderFn({
             platformFeeBps: swapOpts.swapConfig?.platformFeeBps,
             directRoutesOnly: swapOpts.swapConfig?.directRoutesOnly,
             sizeConstraint,
-            maxSwapAccounts,
             maxSwapTotalAccounts,
           },
           authority,
@@ -88,7 +85,7 @@ function getSwapProviderFn({
           connection,
           destinationTokenAccount,
           apiConfig,
-          maxSwapAccounts,
+          maxSwapAccounts: maxSwapTotalAccounts,
         });
     default:
       return undefined;
@@ -159,7 +156,6 @@ export type GetSwapIxsForFlashloanParams = {
   destinationTokenAccount: PublicKey;
   swapOpts: SwapOpts;
   sizeConstraint?: number;
-  maxSwapAccounts?: number;
   maxSwapTotalAccounts?: number;
 };
 
@@ -176,7 +172,7 @@ export const getSwapIxsForFlashloan = async (
     destinationTokenAccount,
     swapOpts,
     sizeConstraint,
-    maxSwapAccounts,
+    maxSwapTotalAccounts,
   } = params;
 
   // Manual swap instructions override
@@ -215,7 +211,6 @@ export const getSwapIxsForFlashloan = async (
       destinationTokenAccount,
       swapOpts,
       sizeConstraint,
-      maxSwapAccounts,
     });
 
     if (!fn) continue;

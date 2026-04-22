@@ -27,7 +27,7 @@ import {
 } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 
 import {
@@ -285,7 +285,6 @@ async function buildLoopFlashloanTx({
       destinationTokenAccount,
       swapOpts,
       sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
       maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
     });
     sizeConstraintUsed = swapConstraints.sizeConstraint;
@@ -453,17 +452,12 @@ async function buildLoopFlashloanTx({
   });
 
   const txSize = getTxSize(flashloanTx);
-  const writableKeys = getWritableAccountKeys(flashloanTx);
   const totalKeys = getTotalAccountKeys(flashloanTx);
 
-  if (
-    txSize > MAX_TX_SIZE ||
-    writableKeys > MAX_WRITABLE_ACCOUNTS ||
-    totalKeys > MAX_ACCOUNT_LOCKS
-  ) {
+  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
-      writableKeys,
+      totalKeys,
       swapOpts.swapConfig?.provider
     );
   }

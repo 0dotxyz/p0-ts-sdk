@@ -36,7 +36,7 @@ import {
   makeUpdateDriftMarketIxs,
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
-import { MAX_TX_SIZE, MAX_WRITABLE_ACCOUNTS, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
 
@@ -401,7 +401,6 @@ async function buildRepayWithCollatFlashloanTx({
       destinationTokenAccount,
       swapOpts,
       sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapAccounts: swapConstraints.maxSwapWritableAccounts,
       maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
     });
     sizeConstraintUsed = swapConstraints.sizeConstraint;
@@ -640,17 +639,12 @@ async function buildRepayWithCollatFlashloanTx({
   });
 
   const txSize = getTxSize(flashloanTx);
-  const writableKeys = getWritableAccountKeys(flashloanTx);
   const totalKeys = getTotalAccountKeys(flashloanTx);
 
-  if (
-    txSize > MAX_TX_SIZE ||
-    writableKeys > MAX_WRITABLE_ACCOUNTS ||
-    totalKeys > MAX_ACCOUNT_LOCKS
-  ) {
+  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.swapSizeExceededRepay(
       txSize,
-      writableKeys,
+      totalKeys,
       swapOpts.swapConfig?.provider
     );
   }
