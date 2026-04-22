@@ -34,13 +34,7 @@ import { MarginfiAccount } from "./account";
 import { MarginfiAccountWrapper } from "./account-wrapper";
 import { AssetTag } from "../services";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
-import { getStakedBankMetadataMap, getValidatorVoteAccountByBank } from "~/services/native-stake";
-import {
-  findPoolAddress,
-  findPoolStakeAddress,
-  findPoolMintAddress,
-} from "~/vendor/single-spl-pool";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { computeStakedBankMultipliers } from "~/services/native-stake";
 
 export class Project0Client {
   constructor(
@@ -354,68 +348,11 @@ export class Project0Client {
     });
 
     // Compute asset share multipliers for staked banks (LST→SOL ratio)
-    const stakedBanks = banksArray.filter((b) => b.config.assetTag === AssetTag.STAKED);
-    if (stakedBanks.length > 0) {
-      const metadataMap = getStakedBankMetadataMap();
-
-      // Derive pool stake addresses and LST mint addresses for each staked bank
-      const stakedBankAddresses: string[] = [];
-      const poolStakeAddresses: PublicKey[] = [];
-      const lstMintAddresses: PublicKey[] = [];
-
-      for (const bank of stakedBanks) {
-        const metadata = metadataMap.get(bank.address.toBase58());
-        if (!metadata) {
-          assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
-          continue;
-        }
-        const pool = findPoolAddress(new PublicKey(metadata.validatorVoteAccount));
-        stakedBankAddresses.push(bank.address.toBase58());
-        poolStakeAddresses.push(findPoolStakeAddress(pool));
-        lstMintAddresses.push(findPoolMintAddress(pool));
-      }
-
-      if (stakedBankAddresses.length > 0) {
-        // Batch-fetch pool stake accounts and LST mint supplies
-        const allAddresses = [
-          ...poolStakeAddresses.map((a) => a.toBase58()),
-          ...lstMintAddresses.map((a) => a.toBase58()),
-        ];
-        const accountInfos = await chunkedGetRawMultipleAccountInfoOrdered(
-          connection,
-          allAddresses
-        );
-        const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
-        const lstMintInfos = accountInfos.slice(poolStakeAddresses.length);
-
-        for (let i = 0; i < stakedBankAddresses.length; i++) {
-          const bankAddr = stakedBankAddresses[i];
-          const poolStakeInfo = poolStakeInfos[i];
-          const lstMintInfo = lstMintInfos[i];
-
-          if (!poolStakeInfo || !lstMintInfo) {
-            assetShareMultiplierByBank.set(bankAddr, new BigNumber(1));
-            continue;
-          }
-
-          const stakeLamports = poolStakeInfo.lamports;
-          // LST mint supply is stored at offset 36, as a little-endian u64
-          const supplyBuffer = lstMintInfo.data.slice(36, 44);
-          const lstMintSupply = Number(Buffer.from(supplyBuffer).readBigUInt64LE(0));
-
-          if (lstMintSupply === 0) {
-            assetShareMultiplierByBank.set(bankAddr, new BigNumber(1));
-            continue;
-          }
-
-          // multiplier = (stakeInPool - LAMPORTS_PER_SOL) / lstMintSupply
-          const LAMPORTS_PER_SOL = 1_000_000_000;
-          const adjustedStake = Math.max(stakeLamports - LAMPORTS_PER_SOL, 0);
-          const multiplier = new BigNumber(adjustedStake).dividedBy(lstMintSupply);
-          assetShareMultiplierByBank.set(bankAddr, multiplier);
-        }
-      }
-    }
+    const stakedMultipliers = await computeStakedBankMultipliers(
+      banksArray.filter((b) => b.config.assetTag === AssetTag.STAKED),
+      connection
+    );
+    stakedMultipliers.forEach((v, k) => assetShareMultiplierByBank.set(k, v));
 
     // Generate emode pairs from bank configurations
     const emodePairs = getEmodePairs(banksArray);

@@ -23,9 +23,6 @@ import {
   TransactionBuilderResult,
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
-  makeMintStakedLstTx,
-  makeRedeemStakedLstTx,
-  makeMergeStakeAccountsTx,
 } from "~/services/account";
 import { fetchProgramForMints } from "~/services/misc";
 import {
@@ -1017,80 +1014,6 @@ export class MarginfiAccountWrapper {
     excludedBanks: PublicKey[] = []
   ): BankType[] {
     return this.account.getHealthCheckAccounts(this.client.bankMap, mandatoryBanks, excludedBanks);
-  }
-
-  // ----------------------------------------------------------------------------
-  // Native stake actions
-  // Note: These call standalone action functions directly rather than routing
-  // through this.account because they interact with the SPL stake pool program,
-  // not the marginfi program. No MarginfiAccount state is needed.
-  // ----------------------------------------------------------------------------
-
-  /**
-   * Creates a transaction to mint LST from a native stake account.
-   *
-   * Converts a native stake account (or a portion of it) into LST tokens
-   * by depositing the stake into the single-validator pool.
-   *
-   * @param amount - SOL amount to convert (in UI units)
-   * @param stakeAccountPk - The stake account to convert
-   * @param validator - The validator vote account
-   */
-  async makeMintStakedLstTx(
-    amount: Amount,
-    stakeAccountPk: PublicKey,
-    validator: PublicKey
-  ): Promise<ExtendedV0Transaction> {
-    return makeMintStakedLstTx({
-      amount,
-      authority: this.authority,
-      stakeAccountPk,
-      validator,
-      connection: this.client.program.provider.connection,
-      luts: this.client.addressLookupTables,
-    });
-  }
-
-  /**
-   * Creates a transaction to redeem LST tokens back to a native stake account.
-   *
-   * Burns LST tokens and withdraws the underlying stake into a new stake account.
-   *
-   * @param amount - LST amount to redeem (in UI units)
-   * @param validator - The validator vote account
-   */
-  async makeRedeemStakedLstTx(
-    amount: Amount,
-    validator: PublicKey
-  ): Promise<ExtendedV0Transaction> {
-    return makeRedeemStakedLstTx({
-      amount,
-      authority: this.authority,
-      validator,
-      connection: this.client.program.provider.connection,
-      luts: this.client.addressLookupTables,
-    });
-  }
-
-  /**
-   * Creates a transaction to merge two stake accounts.
-   *
-   * Both accounts must share the same authorized staker/withdrawer and vote account.
-   *
-   * @param sourceStakeAccount - The stake account to merge from (will be consumed)
-   * @param destinationStakeAccount - The stake account to merge into
-   */
-  async makeMergeStakeAccountsTx(
-    sourceStakeAccount: PublicKey,
-    destinationStakeAccount: PublicKey
-  ): Promise<ExtendedV0Transaction> {
-    return makeMergeStakeAccountsTx({
-      authority: this.authority,
-      sourceStakeAccount,
-      destinationStakeAccount,
-      connection: this.client.program.provider.connection,
-      luts: this.client.addressLookupTables,
-    });
   }
 
   // ----------------------------------------------------------------------------
