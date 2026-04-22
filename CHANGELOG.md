@@ -51,12 +51,6 @@
 
 - Native stake bank support, testing cleanup, CI workflow updates (pnpm + Node 22).
 
-## 2.1.4
-
-### Patch Changes
-
-- Remove `mintPrice` from `BankType` and related utilities. Clean up testing framework (remove vitest configs and TESTING.md). Update CI workflows to use pnpm and Node 22.
-
 ## 2.2.0-alpha.3
 
 ### Patch Changes
@@ -80,6 +74,12 @@
 ### Minor Changes
 
 - Add native stake bank support: mint LST from stake accounts, redeem LST back to stake accounts, merge stake accounts, asset share multiplier for staked banks, oracle simplification for staked collateral, and hardcoded staked bank metadata.
+
+## 2.1.4
+
+### Patch Changes
+
+- Remove `mintPrice` from `BankType` and related utilities. Clean up testing framework (remove vitest configs and TESTING.md). Update CI workflows to use pnpm and Node 22.
 
 ## 2.1.3
 
