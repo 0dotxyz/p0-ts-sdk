@@ -101,8 +101,14 @@ export const getJupiterSwapIxsForFlashloan = async ({
     };
   }
 
-  // Use computed maxSwapAccounts from the dummy TX budget, falling back to 40
-  const maxAccounts = maxSwapAccounts ?? 40;
+  // Apply a Jupiter-specific safety margin on top of the shared flashloan
+  // account budget: even when accounts fit MAX_ACCOUNT_LOCKS, Jupiter routes
+  // that consume all remaining slots tend to produce swap IXs large enough to
+  // blow the 1232-byte TX size limit. Titan lets us constrain IX bytes
+  // directly via `sizeConstraint`, so the margin is only needed here.
+  const JUPITER_MAX_ACCOUNTS_MARGIN = 4;
+  const maxAccounts =
+    maxSwapAccounts !== undefined ? maxSwapAccounts - JUPITER_MAX_ACCOUNTS_MARGIN : 40;
 
   const swapQuote = await jupiterApiClient.quoteGet({
     ...finalQuoteParams,
