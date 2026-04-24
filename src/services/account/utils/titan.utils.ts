@@ -8,6 +8,7 @@ import {
   selectBestRoute,
   buildSwapQuoteResult,
   resolveLookupTables,
+  SwapMode,
 } from "~/vendor/titan";
 import { getAssociatedTokenAddressSync } from "~/vendor/spl";
 
@@ -159,7 +160,7 @@ async function getTitanSwapIxsViaWebSocket(
         inputMint: new PublicKey(inputMint).toBytes(),
         outputMint: new PublicKey(outputMint).toBytes(),
         amount,
-        swapMode: swapMode as any,
+        swapMode,
         slippageBps,
         onlyDirectRoutes: directRoutesOnly,
         addSizeConstraint: sizeConstraint !== undefined,
@@ -340,7 +341,7 @@ async function getTitanExactOutViaWebSocket(
         inputMint: new PublicKey(inputMint).toBytes(),
         outputMint: new PublicKey(outputMint).toBytes(),
         amount,
-        swapMode: "ExactOut" as any,
+        swapMode: SwapMode.ExactOut,
         slippageBps,
       },
       transaction: {

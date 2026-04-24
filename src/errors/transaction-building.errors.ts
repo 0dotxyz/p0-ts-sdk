@@ -6,6 +6,7 @@ export enum TransactionBuildingErrorCode {
   JUPITER_SWAP_SIZE_EXCEEDED_LOOP = "JUPITER_SWAP_SIZE_EXCEEDED_LOOP",
   SWAP_SIZE_EXCEEDED_LOOP = "SWAP_SIZE_EXCEEDED_LOOP",
   SWAP_SIZE_EXCEEDED_REPAY = "SWAP_SIZE_EXCEEDED_REPAY",
+  SWAP_SIZE_EXCEEDED_POSITION_SWAP = "SWAP_SIZE_EXCEEDED_POSITION_SWAP",
   ORACLE_CRANK_FAILED = "ORACLE_CRANK_FAILED",
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
   DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
@@ -32,6 +33,11 @@ export interface TransactionBuildingErrorDetails {
     provider?: string;
   };
   [TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY]: {
+    bytes: number;
+    accountKeys: number;
+    provider?: string;
+  };
+  [TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_POSITION_SWAP]: {
     bytes: number;
     accountKeys: number;
     provider?: string;
@@ -143,6 +149,18 @@ export class TransactionBuildingError<
   ): TransactionBuildingError<TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY> {
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY,
+      `${provider ?? "Swap"} instruction size exceeds available transaction size`,
+      { bytes, accountKeys, provider }
+    );
+  }
+
+  static swapSizeExceededPositionSwap(
+    bytes: number,
+    accountKeys: number,
+    provider?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_POSITION_SWAP> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_POSITION_SWAP,
       `${provider ?? "Swap"} instruction size exceeds available transaction size`,
       { bytes, accountKeys, provider }
     );

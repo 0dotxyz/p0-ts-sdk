@@ -385,7 +385,7 @@ async function buildSwapDebtFlashloanTx({
   const totalKeys = getTotalAccountKeys(flashloanTx);
 
   if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
-    throw TransactionBuildingError.swapSizeExceededLoop(
+    throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,
       swapOpts.swapConfig?.provider
