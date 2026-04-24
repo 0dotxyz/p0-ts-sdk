@@ -127,15 +127,36 @@ export class V1Client {
 
       ws.binaryType = "arraybuffer";
 
-      ws.on("open", () => {
+      const onOpen = () => {
         // ws doesn't populate .protocol when using the `ws` library in Node
         // but since we only offer one subprotocol, the server must accept it.
+        ws.off("error", onError);
+        ws.off("close", onClose);
         resolve(new V1Client(ws));
-      });
-
-      ws.on("error", (err: Error) => {
+      };
+      const onError = (err: Error) => {
+        ws.off("open", onOpen);
+        ws.off("close", onClose);
         reject(err);
-      });
+      };
+      // Guard against the socket closing before `open` fires without a
+      // preceding `error` (e.g. a clean close during handshake). Without this
+      // the promise would hang forever.
+      const onClose = (code: number, reason: Buffer) => {
+        ws.off("open", onOpen);
+        ws.off("error", onError);
+        reject(
+          new Error(
+            `WebSocket closed before open (code=${code}${
+              reason.length ? `, reason=${reason.toString()}` : ""
+            })`
+          )
+        );
+      };
+
+      ws.once("open", onOpen);
+      ws.once("error", onError);
+      ws.once("close", onClose);
     });
   }
 

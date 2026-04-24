@@ -39,7 +39,7 @@ import {
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
 } from "../utils";
-import { MakeSwapCollateralTxParams, SwapProvider, SwapQuoteResult } from "../types";
+import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
 import {

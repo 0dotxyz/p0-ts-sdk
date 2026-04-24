@@ -46,7 +46,12 @@ import {
   MakeRepayWithCollatTxParams,
   SwapQuoteResult,
 } from "../types";
-import { isWholePosition, getSwapIxsForFlashloan } from "../utils";
+import {
+  isWholePosition,
+  getSwapIxsForFlashloan,
+  computeFlashloanSwapConstraints,
+  compileFlashloanPrecheck,
+} from "../utils";
 
 import {
   makeDriftWithdrawIx,
@@ -54,7 +59,6 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "./withdraw";
-import { computeFlashloanSwapConstraints, compileFlashloanPrecheck } from "../utils";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSetupIx } from "./account-lifecycle";
 

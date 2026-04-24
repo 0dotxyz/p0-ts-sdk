@@ -2,8 +2,6 @@
  * Error codes for transaction building failures
  */
 export enum TransactionBuildingErrorCode {
-  JUPITER_SWAP_SIZE_EXCEEDED_REPAY = "JUPITER_SWAP_SIZE_EXCEEDED_REPAY",
-  JUPITER_SWAP_SIZE_EXCEEDED_LOOP = "JUPITER_SWAP_SIZE_EXCEEDED_LOOP",
   SWAP_SIZE_EXCEEDED_LOOP = "SWAP_SIZE_EXCEEDED_LOOP",
   SWAP_SIZE_EXCEEDED_REPAY = "SWAP_SIZE_EXCEEDED_REPAY",
   SWAP_SIZE_EXCEEDED_POSITION_SWAP = "SWAP_SIZE_EXCEEDED_POSITION_SWAP",
@@ -19,14 +17,6 @@ export enum TransactionBuildingErrorCode {
  * Typed details for each error code
  */
 export interface TransactionBuildingErrorDetails {
-  [TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_LOOP]: {
-    bytes: number;
-    accountKeys: number;
-  };
-  [TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_REPAY]: {
-    bytes: number;
-    accountKeys: number;
-  };
   [TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP]: {
     bytes: number;
     accountKeys: number;
@@ -103,31 +93,6 @@ export class TransactionBuildingError<
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, TransactionBuildingError);
     }
-  }
-
-  /**
-   * Jupiter swap instruction size exceeds available transaction size
-   */
-  static jupiterSwapSizeExceededLoop(
-    bytes: number,
-    accountKeys: number
-  ): TransactionBuildingError<TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_LOOP> {
-    return new TransactionBuildingError(
-      TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_LOOP,
-      "Jupiter swap instruction size exceeds available transaction size",
-      { bytes, accountKeys }
-    );
-  }
-
-  static jupiterSwapSizeExceededRepay(
-    bytes: number,
-    accountKeys: number
-  ): TransactionBuildingError<TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_REPAY> {
-    return new TransactionBuildingError(
-      TransactionBuildingErrorCode.JUPITER_SWAP_SIZE_EXCEEDED_REPAY,
-      "Jupiter swap instruction size exceeds available transaction size",
-      { bytes, accountKeys }
-    );
   }
 
   static swapSizeExceededLoop(
