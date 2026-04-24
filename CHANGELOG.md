@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0-alpha.6
+
+### Patch Changes
+
+- SDK cleanup from PR feedback:
+  - Remove unused `examples/rnd-flashloan-size.ts`.
+  - Tighten Jupiter routing constraints.
+  - Minor fixes in `repay`, `swap-collateral`, `swap-debt` actions and Titan client.
+
 ## 2.2.0-alpha.5
 
 ### Minor Changes

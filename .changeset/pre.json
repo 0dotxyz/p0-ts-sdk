@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.2.0-alpha.4"
   },
   "changesets": [
+    "alpha-6",
     "beta-rebase-workflow",
     "fl-actions-improvements",
     "native-stake-banks-alpha",
