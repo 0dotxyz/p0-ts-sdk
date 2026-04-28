@@ -13,7 +13,20 @@ export * from "./models/health-cache";
 export * from "./services";
 export * from "./idl";
 export * from "./types";
-export * from "./instructions";
+// Re-export default from `./instructions` (`export *` omits it). Named Ix helpers that overlap
+// `./services` wrappers are only available via `@0dotxyz/p0-ts-sdk/instructions`.
+export { default } from "./instructions";
+export {
+  makeInitMarginfiAccountIx,
+  makeInitMarginfiAccountPdaIx,
+  makeLendingAccountLiquidateIx,
+  makeLendingAccountClearEmissionsIx,
+  makeAccountTransferToNewAccountIx,
+  makeGroupInitIx,
+  makeCloseAccountIx,
+  makePoolAddPermissionlessStakedBankIx,
+  makeLendingPoolConfigureBankOracleIx,
+} from "./instructions";
 export * from "./sync-instructions";
 export * from "./utils/pda.utils";
 // Vendor exports moved to separate entry point: p0-ts-sdk/vendor

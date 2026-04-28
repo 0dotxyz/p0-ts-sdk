@@ -943,4 +943,30 @@ const instructions = {
   makePulseHealthIx,
 };
 
+export {
+  makeDepositIx,
+  makeJuplendDepositIx,
+  makeDriftDepositIx,
+  makeKaminoDepositIx,
+  makeRepayIx,
+  makeWithdrawIx,
+  makeJuplendWithdrawIx,
+  makeDriftWithdrawIx,
+  makeKaminoWithdrawIx,
+  makeBorrowIx,
+  makeInitMarginfiAccountIx,
+  makeInitMarginfiAccountPdaIx,
+  makeLendingAccountLiquidateIx,
+  makeLendingAccountClearEmissionsIx,
+  makePoolAddBankIx,
+  makePoolConfigureBankIx,
+  makeBeginFlashLoanIx,
+  makeEndFlashLoanIx,
+  makeAccountTransferToNewAccountIx,
+  makeGroupInitIx,
+  makeCloseAccountIx,
+  makePoolAddPermissionlessStakedBankIx,
+  makeLendingPoolConfigureBankOracleIx,
+  makePulseHealthIx,
+};
 export default instructions;

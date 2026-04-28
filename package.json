@@ -17,6 +17,11 @@
       "types": "./dist/vendor.d.ts",
       "import": "./dist/vendor.js",
       "require": "./dist/vendor.cjs"
+    },
+    "./instructions": {
+      "types": "./dist/instructions.d.ts",
+      "import": "./dist/instructions.js",
+      "require": "./dist/instructions.cjs"
     }
   },
   "files": [
