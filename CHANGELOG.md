@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0-alpha.7
+
+### Minor Changes
+
+- - Add bank metrics calculation utilities (`src/services/bank/utils/bank-metrics.utils.ts`).
+  - Expose dummy account creation function from `account-lifecycle`.
+
 ## 2.2.0-alpha.6
 
 ### Patch Changes
