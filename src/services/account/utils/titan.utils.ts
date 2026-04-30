@@ -89,31 +89,39 @@ export const getTitanSwapIxsForFlashloan = async ({
 }: GetTitanSwapIxsParams): Promise<SwapIxsResult> => {
   const basePath = apiConfig?.basePath ?? "";
 
-  // Check fee account existence — strip platformFeeBps if ATA doesn't exist
+  // Only attach a platform fee / feeAccount when both:
+  //   1. the on-chain referral ATA exists, AND
+  //   2. the caller actually requested a non-zero platformFeeBps.
+  // Mirrors the Jupiter path so callers get consistent behaviour and Titan
+  // never receives a `feeAccount` paired with a 0/undefined `feeBps`.
   const feeMint = new PublicKey(
     quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint
   );
   const { feeAccount, hasFeeAccount } = await checkTitanFeeAccount(connection, feeMint);
+  const useFeeAccount = hasFeeAccount && !!quoteParams.platformFeeBps;
 
   let finalQuoteParams = quoteParams;
-
-  if (!hasFeeAccount) {
-    console.warn("Warning: Titan fee account ATA does not exist, disabling platform fee");
+  if (!useFeeAccount) {
+    if (!hasFeeAccount) {
+      console.warn("Warning: Titan fee account ATA does not exist, disabling platform fee");
+    }
     finalQuoteParams = {
       ...quoteParams,
       platformFeeBps: undefined,
     };
   }
 
+  const effectiveFeeAccount = useFeeAccount ? feeAccount : undefined;
+
   if (basePath.startsWith("wss://") || basePath.startsWith("ws://")) {
     return getTitanSwapIxsViaWebSocket(
       { quoteParams: finalQuoteParams, authority, connection, destinationTokenAccount, apiConfig },
-      hasFeeAccount ? feeAccount : undefined
+      effectiveFeeAccount
     );
   } else {
     return getTitanSwapIxsViaHttpProxy(
       { quoteParams: finalQuoteParams, authority, connection, destinationTokenAccount, apiConfig },
-      hasFeeAccount ? feeAccount : undefined
+      effectiveFeeAccount
     );
   }
 };

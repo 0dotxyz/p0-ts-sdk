@@ -89,11 +89,21 @@ export const getJupiterSwapIxsForFlashloan = async ({
   const project0JupiterLut = (await connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP))
     ?.value;
 
+  // Only attach a platform fee / feeAccount when both:
+  //   1. the on-chain referral ATA exists, AND
+  //   2. the caller actually requested a non-zero platformFeeBps.
+  // Jupiter rejects swap requests with a `feeAccount` when the resulting
+  // quote has no `platformFee` ("platformFee must be greater than 0 when
+  // feeAccount is set"), so we must strip both together.
+  const useFeeAccount = hasFeeAccount && !!quoteParams.platformFeeBps;
+
   let finalQuoteParams: QuoteGetRequest = quoteParams;
   // Ideally we shouldn't be checking this, slows the entire flow down by a rpc call
-  if (!hasFeeAccount) {
-    // TODO: setup logging if a fee account has not been created
-    console.warn("Warning: feeAccountInfo is undefined");
+  if (!useFeeAccount) {
+    if (!hasFeeAccount) {
+      // TODO: setup logging if a fee account has not been created
+      console.warn("Warning: feeAccountInfo is undefined");
+    }
     // removes platformFeeBps from quoteParams to avoid errors
     finalQuoteParams = {
       ...quoteParams,
@@ -119,7 +129,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
     swapRequest: {
       quoteResponse: swapQuote,
       userPublicKey: authority.toBase58(),
-      feeAccount: hasFeeAccount ? feeAccount : undefined,
+      feeAccount: useFeeAccount ? feeAccount : undefined,
       wrapAndUnwrapSol: false,
       destinationTokenAccount: destinationTokenAccount.toBase58(),
     },
