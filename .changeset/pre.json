@@ -10,6 +10,7 @@
     "beta-rebase-workflow",
     "fl-actions-improvements",
     "native-stake-banks-alpha",
+    "platform-fee-account-gate",
     "remove-writable-check-fl",
     "swap-provider-field"
   ]
