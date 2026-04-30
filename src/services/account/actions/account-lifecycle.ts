@@ -343,7 +343,11 @@ export async function makePulseHealthIx(
   return { instructions: [ix], keys: [] };
 }
 
-function generateDummyAccount(group: PublicKey, authority: PublicKey, accountKey: PublicKey) {
+export function generateDummyAccount(
+  group: PublicKey,
+  authority: PublicKey,
+  accountKey: PublicKey
+) {
   // create a dummy account with 15 empty balances to be used in other transactions
   const dummyWrappedI80F48 = bigNumberToWrappedI80F48(new BigNumber(0));
   const dummyBalances: BalanceRaw[] = Array(15).fill({

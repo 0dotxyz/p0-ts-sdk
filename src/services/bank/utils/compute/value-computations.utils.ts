@@ -236,8 +236,8 @@ export function computeLoopingParams(
   targetLeverage: number,
   depositBank: BankType,
   borrowBank: BankType,
-  depositOracleInfo: OraclePrice,
-  borrowOracleInfo: OraclePrice,
+  depositPriceUsd: number,
+  borrowPriceUsd: number,
   opts?: { assetWeightInit?: BigNumber; liabilityWeightInit?: BigNumber }
 ): { totalBorrowAmount: BigNumber; totalDepositAmount: BigNumber } {
   const initialCollateral = toBigNumber(principal);
@@ -259,8 +259,8 @@ export function computeLoopingParams(
   const totalDepositAmount = initialCollateral.times(new BigNumber(clampedLeverage));
   const additionalDepositAmount = totalDepositAmount.minus(initialCollateral);
   const totalBorrowAmount = additionalDepositAmount
-    .times(depositOracleInfo.priceWeighted.lowestPrice)
-    .div(borrowOracleInfo.priceWeighted.highestPrice);
+    .times(new BigNumber(depositPriceUsd))
+    .div(new BigNumber(borrowPriceUsd));
 
   return {
     totalBorrowAmount: totalBorrowAmount.decimalPlaces(

@@ -34,6 +34,7 @@ import { MarginfiAccount } from "./account";
 import { MarginfiAccountWrapper } from "./account-wrapper";
 import { AssetTag } from "../services";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
+import { computeStakedBankMultipliers } from "~/services/native-stake";
 
 export class Project0Client {
   constructor(
@@ -334,8 +335,7 @@ export class Project0Client {
           break;
 
         case AssetTag.STAKED:
-          // STAKED integration not yet implemented, use default multiplier
-          assetShareMultiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
+          // Multiplier computed below after all banks are iterated
           break;
 
         case AssetTag.DEFAULT:
@@ -346,6 +346,13 @@ export class Project0Client {
           break;
       }
     });
+
+    // Compute asset share multipliers for staked banks (LST→SOL ratio)
+    const stakedMultipliers = await computeStakedBankMultipliers(
+      banksArray.filter((b) => b.config.assetTag === AssetTag.STAKED),
+      connection
+    );
+    stakedMultipliers.forEach((v, k) => assetShareMultiplierByBank.set(k, v));
 
     // Generate emode pairs from bank configurations
     const emodePairs = getEmodePairs(banksArray);

@@ -60,10 +60,14 @@ export async function makeBorrowIx({
     borrowIxs.push(createAtaIdempotentIx);
   }
 
+  // Combine the borrow bank with any additional health check banks
+  // (e.g., deposit bank in a combined deposit-borrow operation)
+  const mandatoryBanks = [bank.address, ...(opts.additionalHealthCheckBanks ?? [])];
+
   const healthAccounts = computeHealthCheckAccounts(
     marginfiAccount.balances,
     bankMap,
-    [bank.address],
+    mandatoryBanks,
     []
   );
 

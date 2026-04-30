@@ -1,5 +1,129 @@
 # Changelog
 
+## 2.2.0-alpha.8
+
+### Patch Changes
+
+- Fix: gate `feeAccount` on a non-zero `platformFeeBps` for both Jupiter and
+  Titan swap paths. Previously, callers passing `platformFeeBps: 0` (or
+  `undefined`) while a referral ATA existed on-chain would still attach
+  `feeAccount` to the swap request, causing Jupiter to reject with
+  `platformFee must be greater than 0 when feeAccount is set`. Both
+  `getJupiterSwapIxsForFlashloan` and `getTitanSwapIxsForFlashloan` now strip
+  `platformFeeBps` and omit `feeAccount` together when either prerequisite is
+  missing.
+
+## 2.2.0-alpha.7
+
+### Minor Changes
+
+- - Add bank metrics calculation utilities (`src/services/bank/utils/bank-metrics.utils.ts`).
+  - Expose dummy account creation function from `account-lifecycle`.
+
+## 2.2.0-alpha.6
+
+### Patch Changes
+
+- SDK cleanup from PR feedback:
+  - Remove unused `examples/rnd-flashloan-size.ts`.
+  - Tighten Jupiter routing constraints.
+  - Minor fixes in `repay`, `swap-collateral`, `swap-debt` actions and Titan client.
+
+## 2.2.0-alpha.5
+
+### Minor Changes
+
+- 804738b: Rebase onto latest main. Update GitHub CI workflows to use pnpm and Node 22, remove unused docs and publish workflows.
+- Flashloan actions improvements (merged from feat/fl-actions-improvements):
+  - Add Titan swap provider support with WebSocket and HTTP proxy paths, including vendored SDK client
+  - Add swap provider fallback system with configurable primary/fallback providers
+  - Add provider field to SwapQuoteResult to expose which swap provider was used
+  - Add flashloan TX size estimator for computing swap byte/account budgets without serialization
+  - Add exact-out estimate routing for swap-debt actions via Titan and Jupiter
+  - Remove writable account checks for flashloan transactions
+  - Support market pricing instead of oracle for swap quotes
+
+- 01736d8: Add provider field to SwapQuoteResult to expose which swap provider (Jupiter/Titan) was used. Market pricing improvements.
+
+### Patch Changes
+
+- 2969f70: Remove writable account checks for flashloans.
+
+## 2.2.0-beta.3
+
+### Patch Changes
+
+- Remove writable account checks for flashloans.
+
+## 2.2.0-beta.2
+
+### Minor Changes
+
+- Add provider field to SwapQuoteResult to expose which swap provider (Jupiter/Titan) was used. Market pricing improvements.
+
+## 2.2.0-beta.1
+
+### Minor Changes
+
+- Rebase onto latest main. Update GitHub CI workflows to use pnpm and Node 22, remove unused docs and publish workflows.
+
+## 2.2.0-beta.0
+
+### Minor Changes
+
+- feat: Titan swap provider support, transaction size optimization, and enhanced error handling
+
+  ## New Features
+  - **Titan Swap Provider**: Added full support for Titan as a swap provider alongside Jupiter
+    - Vendored minimal Titan WebSocket client (`@repo/marginfi-client-v2/vendor/titan`)
+    - HTTP proxy route for serverless environments (`/api/titan/[...path]`)
+    - Fee account validation with automatic fallback when ATA doesn't exist
+    - Consistent `quoteParams` structure matching Jupiter's API
+
+  ## Transaction Size Optimization
+  - Added `getTotalAccountKeys()` helper to count static + LUT-resolved accounts
+  - Implemented account lock limit validation (64 max) across all flashloan actions
+  - Added early throwing of `TransactionBuildingError.swapSizeExceeded*` before simulation
+  - Updated `loop.ts`, `repay.ts`, `swap-collateral.ts`, `swap-debt.ts` with total account checks
+  - Improved `computeFlashloanSwapConstraints` to calculate available swap budget accurately
+
+  ## Error Handling Improvements
+  - Fixed `TransactionBuildingError` passthrough in swap provider fallback loops
+  - Added simulation error parsing for "Transaction locked too many accounts" message
+  - Moved account lock overflow errors from precheck to transaction build step
+  - Improved typed error propagation across Jupiter and Titan swap providers
+  - Enhanced error messages for swap size exceeded scenarios
+
+## 2.2.0-alpha.4
+
+### Minor Changes
+
+- Native stake bank support, testing cleanup, CI workflow updates (pnpm + Node 22).
+
+## 2.2.0-alpha.3
+
+### Patch Changes
+
+- chore: support deposit & borrow in one transaction
+
+## 2.2.0-alpha.2
+
+### Patch Changes
+
+- rebase jup-lend
+
+## 2.2.0-alpha.1
+
+### Patch Changes
+
+- remove mint apy and mint price from bank type
+
+## 2.2.0-alpha.0
+
+### Minor Changes
+
+- Add native stake bank support: mint LST from stake accounts, redeem LST back to stake accounts, merge stake accounts, asset share multiplier for staked banks, oracle simplification for staked collateral, and hardcoded staked bank metadata.
+
 ## 2.1.4
 
 ### Patch Changes

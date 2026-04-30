@@ -1,6 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { QuoteResponse } from "@jup-ag/api";
 
 import { Amount, BankIntegrationMetadataMap, MintData } from "~/types";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
@@ -20,6 +19,7 @@ import {
   MakeSwapDebtTxParams,
   MakeWithdrawIxOpts,
   MarginRequirementType,
+  SwapQuoteResult,
   TransactionBuilderResult,
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
@@ -398,7 +398,7 @@ export class MarginfiAccountWrapper {
   ): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     const fullParams: MakeLoopTxParams = {
       ...params,
@@ -431,7 +431,7 @@ export class MarginfiAccountWrapper {
     >
   ): Promise<{
     transactions: ExtendedV0Transaction[];
-    swapQuote: QuoteResponse | undefined;
+    swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
   }> {
     const fullParams: MakeRepayWithCollatTxParams = {
@@ -469,7 +469,7 @@ export class MarginfiAccountWrapper {
   ): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     const fullParams: MakeSwapCollateralTxParams = {
       ...params,
@@ -506,7 +506,7 @@ export class MarginfiAccountWrapper {
   ): Promise<{
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
-    quoteResponse: QuoteResponse | undefined;
+    quoteResponse: SwapQuoteResult | undefined;
   }> {
     const fullParams: MakeSwapDebtTxParams = {
       ...params,

@@ -1,18 +1,10 @@
-import { QuoteResponse, createJupiterApiClient, Configuration, SwapApi } from "@jup-ag/api";
-import {
-  AddressLookupTableAccount,
-  ComputeBudgetProgram,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
-  getAccountKeys,
   getTxSize,
-  InstructionsWrapper,
+  getTotalAccountKeys,
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
@@ -23,7 +15,7 @@ import {
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE } from "~/constants";
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -31,8 +23,14 @@ import {
 } from "~/vendor/spl";
 import { nativeToUi, uiToNative } from "~/utils";
 
-import { getJupiterSwapIxsForFlashloan, isWholePosition } from "../utils";
-import { MakeSwapDebtTxParams } from "../types";
+import {
+  getSwapIxsForFlashloan,
+  getExactOutEstimate,
+  isWholePosition,
+  computeFlashloanSwapConstraints,
+  compileFlashloanPrecheck,
+} from "../utils";
+import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
@@ -54,14 +52,14 @@ import { makeFlashLoanTx } from "./flash-loan";
  *   oraclePrices,
  *   repayOpts: { totalPositionAmount: 100, repayBank: usdcBank, tokenProgram },
  *   borrowOpts: { borrowBank: solBank, tokenProgram },
- *   swapOpts: { jupiterOptions: { slippageMode: "DYNAMIC", slippageBps: 50 } },
+ *   swapOpts: { swapConfig: { provider: SwapProvider.JUPITER, slippageMode: "DYNAMIC", slippageBps: 50, platformFeeBps: 0 } },
  *   // ...
  * });
  */
 export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
   actionTxIndex: number;
-  quoteResponse: QuoteResponse | undefined;
+  quoteResponse: SwapQuoteResult | undefined;
 }> {
   const {
     program,
@@ -239,15 +237,6 @@ async function buildSwapDebtFlashloanTx({
   // Clamp to totalPositionAmount to prevent repaying more than owed
   const actualRepayAmount = Math.min(repayAmount ?? totalPositionAmount, totalPositionAmount);
 
-  const swapResult: {
-    amountToRepay: number;
-    borrowAmount: number;
-    swapInstructions: TransactionInstruction[];
-    setupInstructions: TransactionInstruction[];
-    swapLookupTables: AddressLookupTableAccount[];
-    quoteResponse?: QuoteResponse;
-  }[] = [];
-
   const cuRequestIxs = [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
@@ -262,177 +251,144 @@ async function buildSwapDebtFlashloanTx({
 
   // Step 1: Get an estimate of how much to borrow using ExactOut quote
   // This tells us the maximum input needed to get the desired output
-  const jupiterApiClient = swapOpts.jupiterOptions?.configParams?.basePath
-    ? new SwapApi(new Configuration(swapOpts.jupiterOptions.configParams))
-    : createJupiterApiClient(swapOpts.jupiterOptions?.configParams);
-
-  const estimateQuote = await jupiterApiClient.quoteGet({
+  const { otherAmountThreshold } = await getExactOutEstimate({
     inputMint: borrowBank.mint.toBase58(),
     outputMint: repayBank.mint.toBase58(),
     amount: uiToNative(actualRepayAmount, repayBank.mintDecimals).toNumber(),
-    swapMode: "ExactOut",
-    dynamicSlippage: swapOpts.jupiterOptions
-      ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
-      : true,
-    slippageBps: swapOpts.jupiterOptions?.slippageBps,
+    swapOpts,
+    connection,
   });
 
   // Use otherAmountThreshold (max input with slippage) as our borrow amount estimate
-  const estimatedBorrowAmount = nativeToUi(
-    estimateQuote.otherAmountThreshold,
-    borrowBank.mintDecimals
-  );
+  const estimatedBorrowAmount = nativeToUi(otherAmountThreshold, borrowBank.mintDecimals);
+
+  const swapConstraints = await computeFlashloanSwapConstraints({
+    program,
+    marginfiAccount,
+    bankMap,
+    bankMetadataMap,
+    addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+    primaryIx: { type: "borrow", bank: borrowBank, tokenProgram: borrowTokenProgram },
+    secondaryIx: { type: "repay", bank: repayBank, tokenProgram: repayTokenProgram },
+    overrideInferAccounts,
+  });
 
   // Step 2: Get the actual swap instructions using ExactIn mode
   // This is more reliable as we know exactly how much we're borrowing
-  const swapResponses = await getJupiterSwapIxsForFlashloan({
-    quoteParams: {
-      inputMint: borrowBank.mint.toBase58(),
-      outputMint: repayBank.mint.toBase58(),
-      amount: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
-      dynamicSlippage: swapOpts.jupiterOptions
-        ? swapOpts.jupiterOptions.slippageMode === "DYNAMIC"
-        : true,
-      slippageBps: swapOpts.jupiterOptions?.slippageBps,
-      swapMode: "ExactIn",
-      platformFeeBps: swapOpts.jupiterOptions?.platformFeeBps,
-      onlyDirectRoutes: swapOpts.jupiterOptions?.directRoutesOnly ?? false,
-    },
+  const swapResponses = await getSwapIxsForFlashloan({
+    inputMint: borrowBank.mint.toBase58(),
+    outputMint: repayBank.mint.toBase58(),
+    amount: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
+    swapMode: "ExactIn",
     authority: marginfiAccount.authority,
     connection,
     destinationTokenAccount,
-    configParams: swapOpts.jupiterOptions?.configParams,
+    swapOpts,
+    sizeConstraint: swapConstraints.sizeConstraint,
+    maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
   });
 
-  // Step 3: Process responses matching repay-with-collateral pattern
-  swapResponses.forEach((response) => {
-    const outAmount = nativeToUi(response.quoteResponse.outAmount, repayBank.mintDecimals);
-    const outAmountThreshold = nativeToUi(
-      response.quoteResponse.otherAmountThreshold,
+  const { quoteResponse } = swapResponses;
+  const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);
+  const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
+
+  // If output exceeds total debt, cap at total debt (for repayAll)
+  // Otherwise use minimum output with slippage protection
+  const amountToRepay = outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
+
+  // For ExactIn, inAmount is what we borrow
+  const borrowAmount = nativeToUi(quoteResponse.inAmount, borrowBank.mintDecimals);
+
+  // Build borrow instruction (new debt)
+  const borrowIxs = await makeBorrowIx({
+    program,
+    bank: borrowBank,
+    bankMap,
+    tokenProgram: borrowTokenProgram,
+    amount: borrowAmount,
+    marginfiAccount,
+    authority: marginfiAccount.authority,
+    isSync: true,
+    opts: {
+      createAtas: false,
+      wrapAndUnwrapSol: false,
+      overrideInferAccounts,
+    },
+  });
+
+  // Build repay instruction (old debt)
+  const repayIxs = await makeRepayIx({
+    program,
+    bank: repayBank,
+    tokenProgram: repayTokenProgram,
+    amount: amountToRepay,
+    accountAddress: marginfiAccount.address,
+    authority: marginfiAccount.authority,
+    repayAll: isWholePosition(
+      {
+        amount: totalPositionAmount,
+        isLending: false,
+      },
+      amountToRepay,
       repayBank.mintDecimals
-    );
-
-    // Match repay-with-collateral logic:
-    // If output exceeds total debt, cap at total debt (for repayAll)
-    // Otherwise use minimum output with slippage protection
-    const amountToRepay =
-      outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
-
-    // For ExactIn, inAmount is what we borrow
-    const borrowAmount = nativeToUi(response.quoteResponse.inAmount, borrowBank.mintDecimals);
-
-    swapResult.push({
-      amountToRepay,
-      borrowAmount,
-      swapInstructions: [response.swapInstruction],
-      setupInstructions: response.setupInstructions,
-      swapLookupTables: response.addressLookupTableAddresses,
-      quoteResponse: response.quoteResponse,
-    });
+    ),
+    isSync: true,
+    opts: {
+      wrapAndUnwrapSol: false,
+      overrideInferAccounts,
+    },
   });
 
-  // Ensure we have at least one swap route
-  if (swapResult.length === 0) {
-    throw new Error(
-      `No swap routes found for ${borrowBank.mint.toBase58()} -> ${repayBank.mint.toBase58()}`
+  const luts = [
+    ...(addressLookupTableAccounts ?? []),
+    ...swapResponses.addressLookupTableAddresses,
+  ];
+
+  const allNonFlIxs = [
+    ...cuRequestIxs,
+    ...borrowIxs.instructions,
+    ...swapResponses.swapInstructions,
+    ...repayIxs.instructions,
+  ];
+
+  compileFlashloanPrecheck({
+    allIxs: allNonFlIxs,
+    payer: marginfiAccount.authority,
+    luts,
+    sizeConstraint: swapConstraints.sizeConstraint,
+    swapIxCount: swapResponses.swapInstructions.length,
+    swapLutCount: swapResponses.addressLookupTableAddresses.length,
+  });
+
+  // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
+  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
+  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
+  const flashloanTx = await makeFlashLoanTx({
+    program,
+    marginfiAccount,
+    bankMap,
+    addressLookupTableAccounts: luts,
+    blockhash,
+    ixs: allNonFlIxs,
+    isSync: true,
+  });
+
+  const txSize = getTxSize(flashloanTx);
+  const totalKeys = getTotalAccountKeys(flashloanTx);
+
+  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+    throw TransactionBuildingError.swapSizeExceededPositionSwap(
+      txSize,
+      totalKeys,
+      swapOpts.swapConfig?.provider
     );
   }
 
-  // Try each swap route until we find one that fits in transaction limits
-  for (const [index, item] of swapResult.entries()) {
-    const {
-      amountToRepay,
-      borrowAmount,
-      swapInstructions,
-      setupInstructions,
-      swapLookupTables,
-      quoteResponse,
-    } = item;
-
-    // Build borrow instruction (new debt)
-    const borrowIxs = await makeBorrowIx({
-      program,
-      bank: borrowBank,
-      bankMap,
-      tokenProgram: borrowTokenProgram,
-      amount: borrowAmount,
-      marginfiAccount,
-      authority: marginfiAccount.authority,
-      isSync: true,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
-
-    // Build repay instruction (old debt)
-    const repayIxs = await makeRepayIx({
-      program,
-      bank: repayBank,
-      tokenProgram: repayTokenProgram,
-      amount: amountToRepay,
-      accountAddress: marginfiAccount.address,
-      authority: marginfiAccount.authority,
-      repayAll: isWholePosition(
-        {
-          amount: totalPositionAmount,
-          isLending: false,
-        },
-        amountToRepay,
-        repayBank.mintDecimals
-      ),
-      isSync: true,
-      opts: {
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts,
-      },
-    });
-
-    const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];
-
-    const flashloanParams = {
-      program,
-      marginfiAccount,
-      bankMap,
-      addressLookupTableAccounts: luts,
-      blockhash,
-    };
-
-    // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-    // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-    // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
-    const flashloanTx = await makeFlashLoanTx({
-      ...flashloanParams,
-      ixs: [
-        ...cuRequestIxs,
-        ...borrowIxs.instructions,
-        ...swapInstructions,
-        ...repayIxs.instructions,
-      ],
-      isSync: true,
-    });
-
-    const txSize = getTxSize(flashloanTx);
-    const keySize = getAccountKeys(flashloanTx, luts);
-    const isLast = index === swapResult.length - 1;
-
-    if (txSize > MAX_TX_SIZE || keySize > 64) {
-      if (isLast) {
-        throw TransactionBuildingError.jupiterSwapSizeExceededLoop(txSize, keySize);
-      } else {
-        continue;
-      }
-    } else {
-      return {
-        flashloanTx,
-        setupInstructions,
-        swapQuote: quoteResponse,
-        borrowIxs,
-        repayIxs,
-      };
-    }
-  }
-
-  throw new Error("Failed to build swap debt flashloan tx");
+  return {
+    flashloanTx,
+    setupInstructions: swapResponses.setupInstructions,
+    swapQuote: quoteResponse,
+    borrowIxs,
+    repayIxs,
+  };
 }
