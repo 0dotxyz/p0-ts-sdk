@@ -1,5 +1,46 @@
 # Changelog
 
+## 2.2.0
+
+### Minor Changes
+
+- 2947bee: - Add bank metrics calculation utilities (`src/services/bank/utils/bank-metrics.utils.ts`).
+  - Expose dummy account creation function from `account-lifecycle`.
+- 804738b: Rebase onto latest main. Update GitHub CI workflows to use pnpm and Node 22, remove unused docs and publish workflows.
+- 1057a2a: Flashloan actions improvements (merged from feat/fl-actions-improvements):
+  - Add Titan swap provider support with WebSocket and HTTP proxy paths, including vendored SDK client
+  - Add swap provider fallback system with configurable primary/fallback providers
+  - Add provider field to SwapQuoteResult to expose which swap provider was used
+  - Add flashloan TX size estimator for computing swap byte/account budgets without serialization
+  - Add exact-out estimate routing for swap-debt actions via Titan and Jupiter
+  - Remove writable account checks for flashloan transactions
+  - Support market pricing instead of oracle for swap quotes
+
+- 3ac61db: Native stake bank support, testing cleanup, CI workflow updates (pnpm + Node 22).
+- 01736d8: Add provider field to SwapQuoteResult to expose which swap provider (Jupiter/Titan) was used. Market pricing improvements.
+
+### Patch Changes
+
+- e862f16: SDK cleanup from PR feedback:
+  - Remove unused `examples/rnd-flashloan-size.ts`.
+  - Tighten Jupiter routing constraints.
+  - Minor fixes in `repay`, `swap-collateral`, `swap-debt` actions and Titan client.
+
+- 943ca48: Fix: gate `feeAccount` on a non-zero `platformFeeBps` for both Jupiter and
+  Titan swap paths. Previously, callers passing `platformFeeBps: 0` (or
+  `undefined`) while a referral ATA existed on-chain would still attach
+  `feeAccount` to the swap request, causing Jupiter to reject with
+  `platformFee must be greater than 0 when feeAccount is set`. Both
+  `getJupiterSwapIxsForFlashloan` and `getTitanSwapIxsForFlashloan` now strip
+  `platformFeeBps` and omit `feeAccount` together when either prerequisite is
+  missing.
+- 2969f70: Remove writable account checks for flashloans.
+- Declare `ws` and `@types/ws` as runtime dependencies. The Titan WebSocket
+  client (`src/vendor/titan/client.ts`) imports `ws` but the dependency was
+  missing from `package.json`, breaking type-checking and runtime resolution
+  in environments that install from the published tarball (including CI with
+  `--frozen-lockfile`).
+
 ## 2.2.0-alpha.8
 
 ### Patch Changes
