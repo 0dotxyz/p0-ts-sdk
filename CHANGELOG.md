@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1
+
+### Patch Changes
+
+- Remove `isSync` boolean from collateral swap flow.
+
 ## 2.2.0
 
 ### Minor Changes
