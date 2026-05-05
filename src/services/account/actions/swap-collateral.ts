@@ -309,7 +309,7 @@ async function buildSwapCollateralFlashloanTx({
         reserve,
         bankMetadataMap,
         withdrawAll: isFullWithdraw,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -374,7 +374,7 @@ async function buildSwapCollateralFlashloanTx({
         jupLendingState: jupLendState.jupLendingState,
         bankMetadataMap,
         withdrawAll: isFullWithdraw,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -395,7 +395,7 @@ async function buildSwapCollateralFlashloanTx({
         authority: marginfiAccount.authority,
         withdrawAll: isFullWithdraw,
         bankMetadataMap,
-        isSync: true,
+        isSync: false,
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
@@ -579,7 +579,7 @@ async function buildSwapCollateralFlashloanTx({
     addressLookupTableAccounts: luts,
     blockhash,
     ixs: allNonFlIxs,
-    isSync: true,
+    isSync: false,
   });
 
   const txSize = getTxSize(flashloanTx);
