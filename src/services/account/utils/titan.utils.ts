@@ -18,7 +18,7 @@ import { SwapApiConfig, SwapIxsResult, SwapProvider, SwapQuoteResult } from "../
 
 // --- Constants ---
 
-const TITAN_FEE_WALLET = new PublicKey("6ryqDDCwKFZfSiHQrYRkjTEarbsLjg9TmuFg1RJorBk3");
+const TITAN_FEE_WALLET = new PublicKey("FEES6XLN7dMz2iBwKab9Hri9Kwc4WJ6TmDAiT4BNhyej");
 
 // --- Fee account helpers ---
 
