@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.2
+
+### Patch Changes
+
+- - Update fee wallet address
+  - Add ctoken conversion in transaction projection for Drift and Jupiter
+  - Publish `instructions` subpath via package exports and tsup config
+
 ## 2.2.1
 
 ### Patch Changes
