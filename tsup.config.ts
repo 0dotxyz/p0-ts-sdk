@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     vendor: "src/vendor/index.ts",
+    instructions: "src/instructions.ts",
   },
   outDir: "dist",
   format: ["esm", "cjs"],
