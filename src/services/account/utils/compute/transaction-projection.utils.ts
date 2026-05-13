@@ -473,8 +473,17 @@ export function computeProjectedActiveBalancesNoCpi(
           if (!bank) {
             throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
           }
-          // You always withdraw in collateral token so no multiplier needed to convert liquidity token to collateral token
-          const withdrawShares = getAssetShares(bank, withdrawTokenAmount);
+          // Per-venue amount semantics:
+          // - kaminoWithdraw: amount is already in cToken units → no multiplier
+          // - lendingAccountWithdraw / driftWithdraw / solendWithdraw / juplendWithdraw:
+          //   amount is in underlying units → divide by multiplier to get cToken units
+          //   (multiplier is 1 for regular banks, ≠ 1 for drift / juplend integrations)
+          const isKaminoWithdraw = decoded.name === "kaminoWithdraw";
+          const assetShareValueMultiplier = isKaminoWithdraw
+            ? new BigNumber(1)
+            : (assetShareValueMultiplierByBank.get(targetBank.toBase58()) ?? new BigNumber(1));
+          const cTokenAmount = withdrawTokenAmount.div(assetShareValueMultiplier);
+          const withdrawShares = getAssetShares(bank, cTokenAmount);
           targetBalance.assetShares = BigNumber.max(
             0,
             targetBalance.assetShares.minus(withdrawShares)
