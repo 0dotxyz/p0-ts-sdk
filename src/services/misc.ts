@@ -28,20 +28,18 @@ import {
   dtoToDriftSpotMarketRaw,
   dtoToDriftUserRaw,
   dtoToDriftUserStatsRaw,
-  dtoToFarmRaw,
   dtoToJupLendingRewardsRateModelRaw,
   dtoToJupLendingStateRaw,
   dtoToJupRateModelRaw,
   dtoToJupTokenReserveRaw,
-  dtoToObligationRaw,
-  dtoToReserveRaw,
-  farmRawToDto,
+  dtoToKaminoFarm,
+  dtoToKaminoReserve,
   jupLendingRewardsRateModelRawToDto,
   jupLendingStateRawToDto,
   jupRateModelRawToDto,
   jupTokenReserveRawToDto,
-  obligationRawToDto,
-  reserveRawToDto,
+  kaminoFarmToDto,
+  kaminoReserveToDto,
 } from "../vendor";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
@@ -73,10 +71,9 @@ export function dtoToBankMetadata(
   return {
     kaminoStates: bankMetadataDto.kaminoStates
       ? {
-          reserveState: dtoToReserveRaw(bankMetadataDto.kaminoStates.reserveState),
-          obligationState: dtoToObligationRaw(bankMetadataDto.kaminoStates.obligationState),
+          reserveState: dtoToKaminoReserve(bankMetadataDto.kaminoStates.reserveState),
           farmState: bankMetadataDto.kaminoStates.farmState
-            ? dtoToFarmRaw(bankMetadataDto.kaminoStates.farmState)
+            ? dtoToKaminoFarm(bankMetadataDto.kaminoStates.farmState)
             : undefined,
         }
       : undefined,
@@ -114,10 +111,9 @@ export function bankMetadataToDto(
   return {
     kaminoStates: bankMetadata.kaminoStates
       ? {
-          reserveState: reserveRawToDto(bankMetadata.kaminoStates.reserveState),
-          obligationState: obligationRawToDto(bankMetadata.kaminoStates.obligationState),
+          reserveState: kaminoReserveToDto(bankMetadata.kaminoStates.reserveState),
           farmState: bankMetadata.kaminoStates.farmState
-            ? farmRawToDto(bankMetadata.kaminoStates.farmState)
+            ? kaminoFarmToDto(bankMetadata.kaminoStates.farmState)
             : undefined,
         }
       : undefined,

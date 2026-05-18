@@ -4,26 +4,23 @@ import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
-  ObligationRaw,
-  ReserveRaw,
-  FarmStateRaw,
   decodeKlendReserveData,
-  decodeKlendObligationData,
   decodeFarmDataRaw,
-  reserveRawToDto,
-  obligationRawToDto,
-  farmRawToDto,
-  dtoToReserveRaw,
-  dtoToObligationRaw,
-  dtoToFarmRaw,
+  dtoToKaminoFarm,
+  dtoToKaminoReserve,
+  kaminoFarmFromRaw,
+  kaminoFarmToDto,
+  kaminoReserveFromRaw,
+  kaminoReserveToDto,
+  KaminoFarm,
+  KaminoReserve,
 } from "~/vendor/klend";
 import { KaminoStateJsonByBank } from "./kamino.types";
 
 export interface KaminoMetadata {
   kaminoStates: {
-    reserveState: ReserveRaw;
-    obligationState: ObligationRaw;
-    farmState?: FarmStateRaw;
+    reserveState: KaminoReserve;
+    farmState?: KaminoFarm;
   };
 }
 
@@ -39,18 +36,20 @@ export interface KaminoBankInput {
 }
 
 /**
- * Fetch Kamino reserve, obligation, and farm states for banks with Kamino integration
+ * Fetch Kamino reserve and farm states for banks with Kamino integration,
+ * projecting directly into slim {@link KaminoReserve}/{@link KaminoFarm}
+ * structures suitable for storage and transport.
  *
  * This function:
- * 1. Filters banks that have Kamino reserves/obligations
- * 2. Batch fetches all reserve and obligation data in one RPC call
- * 3. Decodes reserve and obligation states
+ * 1. Filters banks that have Kamino reserves
+ * 2. Batch fetches all reserve data in one RPC call
+ * 3. Decodes reserves and projects slim states
  * 4. Identifies farms from reserve.farmCollateral addresses
  * 5. Batch fetches and decodes farm states in a second RPC call
  * 6. Returns a complete map keyed by bank address
  *
  * @param options - Connection and banks to fetch metadata for
- * @returns Map of bank addresses to their complete Kamino metadata (reserve, obligation, farm)
+ * @returns Map of bank addresses to their slim Kamino metadata
  */
 export async function getKaminoMetadata(
   options: FetchKaminoMetadataOptions
@@ -84,15 +83,18 @@ export async function getKaminoMetadata(
   for (const [bankAddress, state] of Object.entries(kaminoStates)) {
     kaminoMetadataMap.set(bankAddress, {
       kaminoStates: {
-        reserveState: dtoToReserveRaw(state.reserveState),
-        obligationState: dtoToObligationRaw(state.obligationState),
-        farmState: state.farmState ? dtoToFarmRaw(state.farmState) : undefined,
+        reserveState: dtoToKaminoReserve(state.reserveState),
+        ...(state.farmState && { farmState: dtoToKaminoFarm(state.farmState) }),
       },
     });
   }
   return kaminoMetadataMap;
 }
 
+/**
+ * Fetch and decode Kamino reserves (and any associated farms), returning
+ * JSON-friendly slim DTOs for transport across the network.
+ */
 export async function getKaminoStatesDto(
   connection: Connection,
   kaminoBanks: KaminoBankInput[]
@@ -100,46 +102,35 @@ export async function getKaminoStatesDto(
   const DEFAULT_PUBKEY = PublicKey.default;
   const DEFAULT_PUBKEY_BASE = DEFAULT_PUBKEY.toBase58();
 
-  const kaminoStatesMap: KaminoStateJsonByBank = {};
+  const dtoStates: KaminoStateJsonByBank = {};
   const bankByFarmKey: Record<string, string> = {};
 
-  // Filter banks with valid (non-default) reserve and obligation addresses
-  const validBanks = kaminoBanks.filter(
-    (bank) => bank.reserve !== DEFAULT_PUBKEY_BASE && bank.obligation !== DEFAULT_PUBKEY_BASE
-  );
+  const validBanks = kaminoBanks.filter((bank) => bank.reserve !== DEFAULT_PUBKEY_BASE);
 
-  // Early return if no valid banks
   if (validBanks.length === 0) {
     return {};
   }
 
-  // Flatten all keys for batch fetching
-  const allKeys: string[] = validBanks.flatMap((bank) => [bank.reserve, bank.obligation]);
+  const reserveKeys: string[] = validBanks.map((bank) => bank.reserve);
+  const reserveResults = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
+    connection,
+    reserveKeys
+  );
 
-  const allResults = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, allKeys);
-
-  // Process results - they come in pairs (reserve, obligation)
   for (const [index, bank] of validBanks.entries()) {
-    const reserveAccount = allResults[index * 2];
-    const obligationAccount = allResults[index * 2 + 1];
-
-    if (!reserveAccount || !obligationAccount) {
+    const reserveAccount = reserveResults[index];
+    if (!reserveAccount) {
       continue;
     }
 
-    const reserveState = decodeKlendReserveData(reserveAccount.data);
-    const obligationState = decodeKlendObligationData(obligationAccount.data);
+    const reserveRaw = decodeKlendReserveData(reserveAccount.data);
+    const reserveSlim = kaminoReserveFromRaw(reserveRaw);
 
-    const hasFarmState = !reserveState.farmCollateral.equals(DEFAULT_PUBKEY);
-
-    if (hasFarmState) {
-      bankByFarmKey[reserveState.farmCollateral.toBase58()] = bank.bankAddress;
+    if (!reserveRaw.farmCollateral.equals(DEFAULT_PUBKEY)) {
+      bankByFarmKey[reserveRaw.farmCollateral.toBase58()] = bank.bankAddress;
     }
 
-    kaminoStatesMap[bank.bankAddress] = {
-      reserveState: reserveRawToDto(reserveState),
-      obligationState: obligationRawToDto(obligationState),
-    };
+    dtoStates[bank.bankAddress] = { reserveState: kaminoReserveToDto(reserveSlim) };
   }
 
   const allFarmKeys = Object.keys(bankByFarmKey);
@@ -157,22 +148,19 @@ export async function getKaminoStatesDto(
       }
 
       const bankKey = bankByFarmKey[farmKey]!;
-      const kaminoState = kaminoStatesMap[bankKey];
-
-      if (!kaminoState) {
-        // This should not happen - reserve was decoded successfully earlier
+      const dtoState = dtoStates[bankKey];
+      if (!dtoState) {
         console.error(`Kamino state not found for bank key ${bankKey}, skipping farm state`);
         continue;
       }
 
-      const decodedFarmState = decodeFarmDataRaw(farmState.data);
-
-      kaminoStatesMap[bankKey] = {
-        ...kaminoState,
-        farmState: farmRawToDto(decodedFarmState),
+      const farmRaw = decodeFarmDataRaw(farmState.data);
+      dtoStates[bankKey] = {
+        ...dtoState,
+        farmState: kaminoFarmToDto(kaminoFarmFromRaw(farmRaw)),
       };
     }
   }
 
-  return kaminoStatesMap;
+  return dtoStates;
 }
