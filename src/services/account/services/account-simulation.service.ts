@@ -436,6 +436,7 @@ export async function getHealthSimulationTransactions({
   luts,
   includeCrankTx,
   blockhash,
+  crossbarUrl,
 }: {
   projectedActiveBanks: PublicKey[];
   bankMap: Map<string, BankType>;
@@ -446,6 +447,7 @@ export async function getHealthSimulationTransactions({
   luts: AddressLookupTableAccount[];
   includeCrankTx: boolean;
   blockhash: string;
+  crossbarUrl?: string;
 }) {
   const additionalTxs: SolanaTransaction[] = [];
 
@@ -463,7 +465,8 @@ export async function getHealthSimulationTransactions({
       marginfiAccount,
       bankMap,
       projectedActiveBanks,
-      program.provider
+      program.provider,
+      crossbarUrl
     );
   }
 

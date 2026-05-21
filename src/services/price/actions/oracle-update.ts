@@ -78,16 +78,21 @@ export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxPar
     swbPullOracles: oraclesToCrank,
     feePayer: params.marginfiAccount.authority,
     connection: params.connection,
+    crossbarUrl: params.crossbarUrl,
   });
 
   return { instructions, luts };
 }
 
+export const DEFAULT_CROSSBAR_URL = "https://crossbar.0.xyz";
+export const DEFAULT_FALLBACK_CROSSBAR_URL  = "https://crossbar.switchboard.xyz";
+
 export async function makeCrankSwbFeedIx(
   marginfiAccount: MarginfiAccountType,
   bankMap: Map<string, BankType>,
   newBanksPk: PublicKey[],
-  provider: AnchorProvider
+  provider: AnchorProvider,
+  crossbarUrl?: string
 ): Promise<{
   instructions: TransactionInstruction[];
   luts: AddressLookupTableAccount[];
@@ -121,6 +126,7 @@ export async function makeCrankSwbFeedIx(
         swbPullOracles: staleOracles.map((oracle) => ({ key: oracle })),
         feePayer: provider.publicKey,
         connection: provider.connection,
+        crossbarUrl,
       });
       return { instructions, luts };
     }
@@ -138,6 +144,8 @@ export async function makeUpdateSwbFeedIx(props: {
   }[];
   feePayer: PublicKey;
   connection: Connection;
+  crossbarUrl?: string;
+  fallbackCrossbarUrl?: string;
 }): Promise<{
   instructions: TransactionInstruction[];
   luts: AddressLookupTableAccount[];
@@ -179,16 +187,25 @@ export async function makeUpdateSwbFeedIx(props: {
     return { instructions: [], luts: [] };
   }
 
-  const crossbarClient = new CrossbarClient(
-    process.env.NEXT_PUBLIC_SWITCHBOARD_CROSSSBAR_API || "https://integrator-crossbar.prod.mrgn.app"
-  );
+  const primaryUrl = props.crossbarUrl ?? DEFAULT_CROSSBAR_URL;
+  const fallbackUrl = props.fallbackCrossbarUrl ?? DEFAULT_FALLBACK_CROSSBAR_URL;
 
-  const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
-    feeds: pullFeedInstances,
-    numSignatures: 1,
-    crossbarClient,
-    payer: props.feePayer,
-  });
-
-  return { instructions: pullIx, luts };
+  try {
+    const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
+      feeds: pullFeedInstances,
+      numSignatures: 1,
+      crossbarClient: new CrossbarClient(primaryUrl),
+      payer: props.feePayer,
+    });
+    return { instructions: pullIx, luts };
+  } catch (primaryError) {
+    console.warn(`Primary crossbar endpoint failed (${primaryUrl}), trying fallback:`, primaryError);
+    const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
+      feeds: pullFeedInstances,
+      numSignatures: 1,
+      crossbarClient: new CrossbarClient(fallbackUrl),
+      payer: props.feePayer,
+    });
+    return { instructions: pullIx, luts };
+  }
 }

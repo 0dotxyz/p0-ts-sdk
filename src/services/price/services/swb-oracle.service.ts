@@ -131,7 +131,7 @@ export const fetchSwbOracleData = async (
     // Handle non-API endpoint case - placeholder for now
     crossbarResponse = await fetchSwbOraclePricesFromCrossbar(
       swbFeedIds,
-      opts.crossbarEndpoint || "https://34.97.218.183.sslip.io",
+      opts.crossbarEndpoint || "https://crossbar.0.xyz",
       "https://crossbar.switchboard.xyz"
     );
     birdeyeResponse = {};
