@@ -34,7 +34,7 @@ type CrossbarSimulatePayload = CrossbarFeedResponse[];
  */
 export async function checkBatchOracleCrankability(
   feedHashes: string[],
-  crossbarUrl: string = "https://integrator-crossbar.prod.mrgn.app"
+  crossbarUrl: string = "https://crossbar.0.xyz"
 ): Promise<Map<string, { crankable: boolean; reason?: string }>> {
   const results = new Map<string, { crankable: boolean; reason?: string }>();
 
