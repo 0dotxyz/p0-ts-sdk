@@ -220,12 +220,9 @@ export function computeEmodeImpacts(
   allBanks: PublicKey[]
 ): Record<string, ActionEmodeImpact> {
   // Convert everything to base58 strings ONCE up front and run all
-  // membership/grouping on string Sets/Maps. The legacy implementation called
-  // `PublicKey.equals` / `.toBase58()` tens of thousands of times per run (once
-  // per bank × action × pair); doing the conversion once is ~100x faster with
-  // identical output.
-  const liabBaseSet = new Set(activeLiabilities.map((b) => b.toBase58()));
-  const collBaseSet = new Set(activeCollateral.map((b) => b.toBase58()));
+  // membership/grouping on string Sets/Maps.
+  const activeLiabilitiesSet = new Set(activeLiabilities.map((b) => b.toBase58()));
+  const activeCollateralSet = new Set(activeCollateral.map((b) => b.toBase58()));
 
   // Index of configured pairs — hoisted out of the simulation loop.
   const { configured, liabTagByBank } = indexConfiguredPairs(emodePairs);
@@ -244,11 +241,16 @@ export function computeEmodeImpacts(
   }
 
   // Baseline state
-  const basePairs = activePairsFromIndex(configured, liabTagByBank, liabBaseSet, collBaseSet);
+  const basePairs = activePairsFromIndex(
+    configured,
+    liabTagByBank,
+    activeLiabilitiesSet,
+    activeCollateralSet
+  );
   const baseOn = basePairs.length > 0;
 
   const existingTags = new Set<string>(
-    Array.from(liabBaseSet)
+    Array.from(activeLiabilitiesSet)
       .map((l) => liabTagMapAll.get(l))
       .filter((t): t is string => !!t)
   );
@@ -281,8 +283,8 @@ export function computeEmodeImpacts(
     bankStr: string,
     action: "borrow" | "repay" | "supply" | "withdraw"
   ): EmodeImpact {
-    const L = new Set(liabBaseSet),
-      C = new Set(collBaseSet);
+    const L = new Set(activeLiabilitiesSet),
+      C = new Set(activeCollateralSet);
     switch (action) {
       case "borrow":
         L.add(bankStr);
@@ -363,19 +365,23 @@ export function computeEmodeImpacts(
     const impact: ActionEmodeImpact = {};
 
     // Only new borrows (bank not already collateral)
-    if (!collBaseSet.has(key)) {
+    if (!activeCollateralSet.has(key)) {
       impact.borrowImpact = simulate(key, "borrow");
     }
 
     // Only supply for collateral-configured banks not in play
-    if (allCollateralBankStrs.has(key) && !collBaseSet.has(key) && !liabBaseSet.has(key)) {
+    if (
+      allCollateralBankStrs.has(key) &&
+      !activeCollateralSet.has(key) &&
+      !activeLiabilitiesSet.has(key)
+    ) {
       impact.supplyImpact = simulate(key, "supply");
     }
 
-    if (liabBaseSet.has(key)) {
+    if (activeLiabilitiesSet.has(key)) {
       impact.repayAllImpact = simulate(key, "repay");
     }
-    if (collBaseSet.has(key)) {
+    if (activeCollateralSet.has(key)) {
       impact.withdrawAllImpact = simulate(key, "withdraw");
     }
 
