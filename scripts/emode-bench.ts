@@ -305,6 +305,164 @@ function legacyComputeEmodeImpacts(
 }
 
 // ----------------------------------------------------------------------------
+// VARIANT — strings, but NO hoist (index rebuilt every call). This isolates the
+// two levers cleanly:
+//   legacy (PublicKey + rebuild)  →  stringsOnly (strings + rebuild)  = STRING-KEYS lever
+//   stringsOnly (strings + rebuild)  →  final (strings + hoist)       = BUILD-ONCE lever
+// ----------------------------------------------------------------------------
+
+type Indexed = {
+  orig: EmodePair;
+  liabStr: string;
+  liabTagStr: string;
+  collTagStr: string;
+  collStrs: string[];
+};
+
+function buildIndex(emodePairs: EmodePair[]): {
+  configured: Indexed[];
+  liabTagByBank: Map<string, string>;
+} {
+  const configured: Indexed[] = [];
+  const liabTagByBank = new Map<string, string>();
+  for (const p of emodePairs) {
+    if (p.collateralBankTag === EmodeTag.UNSET || p.liabilityBankTag === EmodeTag.UNSET) continue;
+    const liabStr = p.liabilityBank.toBase58();
+    const liabTagStr = p.liabilityBankTag.toString();
+    configured.push({
+      orig: p,
+      liabStr,
+      liabTagStr,
+      collTagStr: p.collateralBankTag.toString(),
+      collStrs: p.collateralBanks.map((b) => b.toBase58()),
+    });
+    liabTagByBank.set(liabStr, liabTagStr);
+  }
+  return { configured, liabTagByBank };
+}
+
+function activeFromIndex(
+  configured: Indexed[],
+  liabTagByBank: Map<string, string>,
+  liabSet: Set<string>,
+  collSet: Set<string>
+): EmodePair[] {
+  const requiredTags = new Set<string>();
+  for (const liab of liabSet) {
+    const tag = liabTagByBank.get(liab);
+    if (!tag) return [];
+    requiredTags.add(tag);
+  }
+  const possible = configured.filter(
+    (p) => liabSet.has(p.liabStr) && p.collStrs.some((c) => collSet.has(c))
+  );
+  if (possible.length === 0) return [];
+  const byCollTag: Record<string, Indexed[]> = {};
+  for (const p of possible) (byCollTag[p.collTagStr] ||= []).push(p);
+  const validGroups: Indexed[][] = [];
+  for (const group of Object.values(byCollTag)) {
+    const supports = new Set(group.map((p) => p.liabTagStr));
+    let coversAll = true;
+    for (const rt of requiredTags) if (!supports.has(rt)) { coversAll = false; break; }
+    if (coversAll) validGroups.push(group);
+  }
+  if (validGroups.length === 0) return [];
+  return validGroups.flat().map((p) => p.orig);
+}
+
+function mw(ps: EmodePair[]): BigNumber {
+  let m = ps[0]!.assetWeightInit;
+  for (const x of ps) if (x.assetWeightInit.lt(m)) m = x.assetWeightInit;
+  return m;
+}
+function ds(before: EmodePair[], after: EmodePair[]): EmodeImpactStatus {
+  const was = before.length > 0,
+    isOn = after.length > 0;
+  if (!was && !isOn) return EmodeImpactStatus.InactiveEmode;
+  if (!was && isOn) return EmodeImpactStatus.ActivateEmode;
+  if (was && !isOn) return EmodeImpactStatus.RemoveEmode;
+  const bMin = mw(before),
+    aMin = mw(after);
+  if (aMin.gt(bMin)) return EmodeImpactStatus.IncreaseEmode;
+  if (aMin.lt(bMin)) return EmodeImpactStatus.ReduceEmode;
+  return EmodeImpactStatus.ExtendEmode;
+}
+
+function computeEmodeImpacts_stringsOnly(
+  emodePairs: EmodePair[],
+  activeLiabilities: PublicKey[],
+  activeCollateral: PublicKey[],
+  allBanks: PublicKey[]
+): Record<string, ActionEmodeImpact> {
+  const liabBaseSet = new Set(activeLiabilities.map((b) => b.toBase58()));
+  const collBaseSet = new Set(activeCollateral.map((b) => b.toBase58()));
+  const liabTagMapAll = new Map<string, string>();
+  for (const p of emodePairs)
+    liabTagMapAll.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
+
+  // NO HOIST: rebuild the index here (baseline) and again in every simulate.
+  const baseIdx = buildIndex(emodePairs);
+  const basePairs = activeFromIndex(baseIdx.configured, baseIdx.liabTagByBank, liabBaseSet, collBaseSet);
+  const baseOn = basePairs.length > 0;
+  const existingTags = new Set<string>(
+    Array.from(liabBaseSet)
+      .map((l) => liabTagMapAll.get(l))
+      .filter((t): t is string => !!t)
+  );
+
+  function simulate(bankStr: string, action: "borrow" | "repay" | "supply" | "withdraw"): EmodeImpact {
+    const L = new Set(liabBaseSet),
+      C = new Set(collBaseSet);
+    switch (action) {
+      case "borrow": L.add(bankStr); break;
+      case "repay": L.delete(bankStr); break;
+      case "supply": C.add(bankStr); break;
+      case "withdraw": C.delete(bankStr); break;
+    }
+    const idx = buildIndex(emodePairs); // ← rebuilt every call (no hoist)
+    const after = activeFromIndex(idx.configured, idx.liabTagByBank, L, C);
+    let status = ds(basePairs, after);
+    if (action === "borrow") {
+      const tag = liabTagMapAll.get(bankStr);
+      if (!tag) status = baseOn ? EmodeImpactStatus.RemoveEmode : EmodeImpactStatus.InactiveEmode;
+      else if (baseOn) {
+        if (after.length === 0) status = EmodeImpactStatus.RemoveEmode;
+        else if (existingTags.has(tag)) status = EmodeImpactStatus.ExtendEmode;
+      }
+    }
+    if (action === "supply") {
+      const isOn = after.length > 0;
+      status = !baseOn && isOn ? EmodeImpactStatus.ActivateEmode : baseOn && isOn ? EmodeImpactStatus.ExtendEmode : EmodeImpactStatus.InactiveEmode;
+    }
+    if (action === "withdraw") {
+      if (!baseOn) status = EmodeImpactStatus.InactiveEmode;
+      else if (after.length === 0) status = EmodeImpactStatus.RemoveEmode;
+      else {
+        const b = mw(basePairs), a = mw(after);
+        if (a.gt(b)) status = EmodeImpactStatus.IncreaseEmode;
+        else if (a.lt(b)) status = EmodeImpactStatus.ReduceEmode;
+        else status = EmodeImpactStatus.ExtendEmode;
+      }
+    }
+    return { status, resultingPairs: after, activePair: createActiveEmodePairFromPairs(after) };
+  }
+
+  const result: Record<string, ActionEmodeImpact> = {};
+  for (const bank of allBanks) {
+    const key = bank.toBase58();
+    const impact: ActionEmodeImpact = {};
+    // NO HOIST: rebuild the all-collateral set each iteration.
+    const allColl = new Set(emodePairs.flatMap((p) => p.collateralBanks.map((c) => c.toBase58())));
+    if (!collBaseSet.has(key)) impact.borrowImpact = simulate(key, "borrow");
+    if (allColl.has(key) && !collBaseSet.has(key) && !liabBaseSet.has(key)) impact.supplyImpact = simulate(key, "supply");
+    if (liabBaseSet.has(key)) impact.repayAllImpact = simulate(key, "repay");
+    if (collBaseSet.has(key)) impact.withdrawAllImpact = simulate(key, "withdraw");
+    result[key] = impact;
+  }
+  return result;
+}
+
+// ----------------------------------------------------------------------------
 // Canonical serialization for deep comparison
 // ----------------------------------------------------------------------------
 
@@ -346,59 +504,53 @@ console.log("Scenario:", {
   activeCollateral: activeCollateral.length,
 });
 
-const legacyOut = legacyComputeEmodeImpacts(
-  emodePairs,
-  activeLiabilities,
-  activeCollateral,
-  allBanks
-);
+const legacyOut = legacyComputeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks);
+const stringsOut = computeEmodeImpacts_stringsOnly(emodePairs, activeLiabilities, activeCollateral, allBanks);
 const newOut = computeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks);
 
-console.log("Legacy output:", summarize(legacyOut));
-console.log("New output:   ", summarize(newOut));
+console.log("Legacy output:     ", summarize(legacyOut));
+console.log("StringsOnly output:", summarize(stringsOut));
+console.log("Final output:      ", summarize(newOut));
 
-// --- Correctness ---
+// --- Correctness: all three must be byte-identical ---
 const legacyCanon = canon(legacyOut);
+const stringsCanon = canon(stringsOut);
 const newCanon = canon(newOut);
-if (legacyCanon === newCanon) {
-  console.log("\n✅ CORRECTNESS: outputs are byte-identical");
+if (legacyCanon === stringsCanon && stringsCanon === newCanon) {
+  console.log("\n✅ CORRECTNESS: legacy === stringsOnly === final (byte-identical)");
 } else {
   console.error("\n❌ CORRECTNESS: outputs DIFFER");
-  // find first differing key for a useful diff
-  for (const key of Object.keys(legacyOut)) {
-    const a = canon(legacyOut[key]);
-    const b = canon(newOut[key]);
-    if (a !== b) {
-      console.error("First differing bank:", key);
-      console.error("  legacy:", a);
-      console.error("  new:   ", b);
-      break;
-    }
-  }
+  console.error("  legacy === stringsOnly:", legacyCanon === stringsCanon);
+  console.error("  stringsOnly === final: ", stringsCanon === newCanon);
   process.exit(1);
 }
 
-// --- Performance ---
+// --- Performance: isolate the two levers ---
 const ITERS = 50;
 
 function time(fn: () => void, iters: number): number {
-  // warmup
-  for (let i = 0; i < 5; i++) fn();
+  for (let i = 0; i < 5; i++) fn(); // warmup
   const start = performance.now();
   for (let i = 0; i < iters; i++) fn();
   return (performance.now() - start) / iters;
 }
 
-const legacyMs = time(
-  () => legacyComputeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks),
-  ITERS
-);
-const newMs = time(
-  () => computeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks),
-  ITERS
-);
+const legacyMs = time(() => legacyComputeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks), ITERS);
+const stringsMs = time(() => computeEmodeImpacts_stringsOnly(emodePairs, activeLiabilities, activeCollateral, allBanks), ITERS);
+const newMs = time(() => computeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, allBanks), ITERS);
 
 console.log("\nPERFORMANCE (avg over", ITERS, "iters):");
-console.log(`  legacy: ${legacyMs.toFixed(3)} ms`);
-console.log(`  new:    ${newMs.toFixed(3)} ms`);
-console.log(`  speedup: ${(legacyMs / newMs).toFixed(1)}x`);
+console.log(`  1. legacy      (PublicKey + rebuild): ${legacyMs.toFixed(3)} ms`);
+console.log(`  2. stringsOnly (strings   + rebuild): ${stringsMs.toFixed(3)} ms`);
+console.log(`  3. final       (strings   + hoist):   ${newMs.toFixed(3)} ms`);
+
+console.log("\nLEVER ATTRIBUTION:");
+console.log(`  string-keys lever  (1 → 2): ${(legacyMs / stringsMs).toFixed(2)}x   (${(legacyMs - stringsMs).toFixed(1)} ms saved)`);
+console.log(`  build-once  lever  (2 → 3): ${(stringsMs / newMs).toFixed(2)}x   (${(stringsMs - newMs).toFixed(1)} ms saved)`);
+console.log(`  total              (1 → 3): ${(legacyMs / newMs).toFixed(1)}x`);
+
+// Share of total time saved attributable to each lever.
+const totalSaved = legacyMs - newMs;
+console.log("\nSHARE OF TOTAL SPEEDUP:");
+console.log(`  string-keys: ${(((legacyMs - stringsMs) / totalSaved) * 100).toFixed(1)}%`);
+console.log(`  build-once:  ${(((stringsMs - newMs) / totalSaved) * 100).toFixed(1)}%`);

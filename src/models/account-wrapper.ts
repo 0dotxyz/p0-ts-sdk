@@ -347,12 +347,16 @@ export class MarginfiAccountWrapper {
    */
   async makeAccountTransferToNewAccountIx(
     newMarginfiAccount: PublicKey,
-    newAuthority: PublicKey
+    newAuthority: PublicKey,
+    globalFeeWallet: PublicKey,
+    feePayer: PublicKey
   ): Promise<InstructionsWrapper> {
     return this.account.makeAccountTransferToNewAccountIx(
       this.client.program,
       newMarginfiAccount,
-      newAuthority
+      newAuthority,
+      globalFeeWallet,
+      feePayer
     );
   }
 

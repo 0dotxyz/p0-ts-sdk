@@ -2,6 +2,7 @@ import {
   AddressLookupTableAccount,
   Keypair,
   PublicKey,
+  Signer,
   Transaction,
   TransactionInstruction,
   TransactionMessage,
@@ -24,6 +25,7 @@ import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
 import {
   BalanceRaw,
   BalanceType,
+  MakeAccountTransferToNewAccountTxParams,
   MakeCloseAccountIxParams,
   MakeCloseAccountTxParams,
   MakeSetupIxParams,
@@ -105,6 +107,75 @@ export async function makeCloseMarginfiAccountTx({
   );
 
   return closeTx;
+}
+
+/**
+ * Creates a transaction to transfer a Marginfi account to a new authority.
+ *
+ * Migrates the account's positions into a brand-new account (`newMarginfiAccount`)
+ * owned by `newAuthority`; the old account is left disabled. The new-account
+ * keypair signs to create itself, the current authority (the program's provider
+ * wallet) signs to authorize, and `feePayer` pays. `globalFeeWallet` is resolved
+ * from the program's fee state — matching the marginfi implementation.
+ *
+ * @param params - Configuration object
+ * @param params.connection - Solana connection instance
+ * @param params.program - The Marginfi program instance
+ * @param params.marginfiAccount - The account being transferred
+ * @param params.newMarginfiAccount - Freshly generated keypair for the destination account
+ * @param params.newAuthority - The wallet that will own the new account
+ * @param params.feePayer - Pays rent/fees (the connected wallet, or a separate fee payer)
+ * @param params.feePayerKeypair - Required only when `feePayer` is a separate keypair
+ * @returns Versioned transaction to transfer the account
+ */
+export async function makeAccountTransferToNewAccountTx({
+  connection,
+  program,
+  marginfiAccount,
+  newMarginfiAccount,
+  newAuthority,
+  feePayer,
+  feePayerKeypair,
+}: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
+  const [feeStateKey] = PublicKey.findProgramAddressSync(
+    [Buffer.from("feestate", "utf-8")],
+    program.programId
+  );
+  const feeState = await program.account.feeState.fetch(feeStateKey);
+
+  const transferIx = await instructions.makeAccountTransferToNewAccountIx(program, {
+    oldMarginfiAccount: marginfiAccount.address,
+    newMarginfiAccount: newMarginfiAccount.publicKey,
+    newAuthority,
+    globalFeeWallet: feeState.globalFeeWallet,
+    feePayer,
+  });
+
+  const {
+    value: { blockhash },
+  } = await connection.getLatestBlockhashAndContext("confirmed");
+
+  // The new-account keypair always signs; a separate fee-payer keypair signs only
+  // when the fee payer isn't the connected wallet (which signs via the adapter).
+  const signers: Signer[] = [newMarginfiAccount];
+  if (feePayerKeypair) signers.push(feePayerKeypair);
+
+  const transferTx = addTransactionMetadata(
+    new VersionedTransaction(
+      new TransactionMessage({
+        instructions: [transferIx],
+        payerKey: feePayer,
+        recentBlockhash: blockhash,
+      }).compileToV0Message([])
+    ),
+    {
+      signers,
+      addressLookupTables: [],
+      type: TransactionType.TRANSFER_AUTH,
+    }
+  );
+
+  return transferTx;
 }
 
 /**
