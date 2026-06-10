@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.3
+
+### Patch Changes
+
+- - Configure Crossbar API with new env vars
+  - Export Jupiter Lend IDL from `vendor/jup-lend/idl`
+
 ## 2.2.2
 
 ### Patch Changes
