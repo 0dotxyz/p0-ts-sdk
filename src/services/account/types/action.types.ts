@@ -337,6 +337,21 @@ export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
   connection: Connection;
 }
 
+export interface MakeAccountTransferToNewAccountTxParams {
+  connection: Connection;
+  program: MarginfiProgram;
+  /** The account being transferred (its current authority is the signer). */
+  marginfiAccount: MarginfiAccountType;
+  /** Freshly generated keypair for the destination account; must sign. */
+  newMarginfiAccount: Signer;
+  /** The wallet that will own the new account. */
+  newAuthority: PublicKey;
+  /** Pays rent/fees — the connected wallet, or a separate fee payer. */
+  feePayer: PublicKey;
+  /** Required only when `feePayer` is a separate keypair (not the connected wallet). */
+  feePayerKeypair?: Signer;
+}
+
 export interface TransactionBuilderResult {
   transactions: SolanaTransaction[];
   actionTxIndex: number;

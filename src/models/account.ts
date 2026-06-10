@@ -645,7 +645,9 @@ class MarginfiAccount implements MarginfiAccountType {
   async makeAccountTransferToNewAccountIx(
     program: MarginfiProgram,
     newMarginfiAccount: PublicKey,
-    newAuthority: PublicKey
+    newAuthority: PublicKey,
+    globalFeeWallet: PublicKey,
+    feePayer: PublicKey
   ): Promise<InstructionsWrapper> {
     const accountTransferToNewAccountIx = await instructions.makeAccountTransferToNewAccountIx(
       program,
@@ -653,7 +655,8 @@ class MarginfiAccount implements MarginfiAccountType {
         oldMarginfiAccount: this.address,
         newMarginfiAccount,
         newAuthority,
-        feePayer: this.authority,
+        globalFeeWallet,
+        feePayer,
       }
     );
     return { instructions: [accountTransferToNewAccountIx], keys: [] };
