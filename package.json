@@ -19,6 +19,11 @@
       "import": "./dist/vendor.js",
       "require": "./dist/vendor.cjs"
     },
+    "./jupiter": {
+      "types": "./dist/jupiter.d.ts",
+      "import": "./dist/jupiter.js",
+      "require": "./dist/jupiter.cjs"
+    },
     "./instructions": {
       "types": "./dist/instructions.d.ts",
       "import": "./dist/instructions.js",

@@ -125,6 +125,9 @@ function getExactOutProviderFn({
             ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
             : true,
           slippageBps: swapOpts.swapConfig?.slippageBps,
+          // Match the bundle-compatible routing used by the executed flashloan
+          // swap so the ExactOut estimate reflects an achievable route.
+          forJitoBundle: true,
         });
 
         const quoteResult = mapJupiterQuoteToSwapQuoteResult(estimateQuote);

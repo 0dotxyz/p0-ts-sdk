@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     vendor: "src/vendor/index.ts",
+    jupiter: "src/vendor/jupiter/index.ts",
     instructions: "src/instructions.ts",
   },
   outDir: "dist",

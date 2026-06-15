@@ -30,6 +30,12 @@ export interface QuoteGetRequest {
   maxAccounts?: number;
   instructionVersion?: InstructionVersion;
   dynamicSlippage?: boolean;
+  /**
+   * Set to true if the quote will be consumed in a Jito bundle. Excludes DEXes
+   * that are incompatible with Jito bundles (e.g. HumidiFi). Flashloan swaps in
+   * this SDK always execute inside a Jito bundle, so they set this to true.
+   */
+  forJitoBundle?: boolean;
 }
 
 export interface PlatformFee {

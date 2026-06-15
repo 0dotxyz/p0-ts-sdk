@@ -116,6 +116,9 @@ export const getJupiterSwapIxsForFlashloan = async ({
   const swapQuote = await jupiterApiClient.quoteGet({
     ...finalQuoteParams,
     maxAccounts,
+    // Flashloan swaps are landed via a Jito bundle, so restrict routing to
+    // bundle-compatible DEXes (excludes e.g. HumidiFi).
+    forJitoBundle: true,
   });
 
   const swapInstructionResponse = await jupiterApiClient.swapInstructionsPost({
