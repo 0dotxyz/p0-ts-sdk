@@ -43,6 +43,15 @@ export interface ComputeMaxBorrowForBankParams {
   volatilityFactor?: number;
   /** Active e-mode pair for applying e-mode weights */
   activePair?: ActiveEmodePair;
+  /**
+   * Per-bank e-mode weights (lowest across active pairs), matching the weights
+   * used to build the on-chain health cache. When provided, takes precedence
+   * over deriving a single stamped weight from `activePair`.
+   */
+  activeEmodeWeightsByBank?: Map<
+    string,
+    { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }
+  >;
 }
 
 /**
@@ -101,11 +110,13 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
 
   if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
 
-  // Build Map of e-mode collateral banks if activePair exists
-  const activeEmodeWeightsByBank =
+  // Per-bank e-mode weights. Prefer the caller-supplied map (matches the
+  // health cache); otherwise fall back to stamping the single activePair weight
+  // onto every collateral bank (legacy behavior).
+  const emodeWeightsByBank =
+    params.activeEmodeWeightsByBank ??
     activePair?.collateralBanks.reduce((map, bankPk) => {
-      const bank = banksMap.get(bankPk.toBase58());
-      if (bank) {
+      if (banksMap.get(bankPk.toBase58())) {
         map.set(bankPk.toBase58(), {
           assetWeightMaint: activePair.assetWeightMaint,
           assetWeightInit: activePair.assetWeightInit,
@@ -115,7 +126,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     }, new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>()) ??
     new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>();
 
-  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress.toBase58());
+  const activeEmodeWeightsForBank = emodeWeightsByBank.get(bankAddress.toBase58());
   const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
 
   const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
@@ -159,8 +170,9 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
   const balance = getBalance(bankAddress, activeBalances);
 
   const useCache =
-    emodeImpactStatus === EmodeImpactStatus.InactiveEmode ||
-    emodeImpactStatus === EmodeImpactStatus.ExtendEmode;
+    emodeWeightsByBank.size === 0 &&
+    (emodeImpactStatus === EmodeImpactStatus.InactiveEmode ||
+      emodeImpactStatus === EmodeImpactStatus.ExtendEmode);
 
   let freeCollateral = useCache
     ? computeFreeCollateralFromCache(account).times(_volatilityFactor)
@@ -168,7 +180,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
         activeBalances,
         banksMap,
         oraclePricesByBank,
-        activeEmodeWeightsByBank,
+        activeEmodeWeightsByBank: emodeWeightsByBank,
         assetShareValueMultiplierByBank,
       }).times(_volatilityFactor);
 
@@ -225,6 +237,15 @@ export interface ComputeMaxWithdrawForBankParams {
   volatilityFactor?: number;
   /** Active e-mode pair for applying e-mode weights */
   activePair?: ActiveEmodePair;
+  /**
+   * Per-bank e-mode weights (lowest across active pairs), matching the weights
+   * used to build the on-chain health cache. When provided, takes precedence
+   * over deriving a single stamped weight from `activePair`.
+   */
+  activeEmodeWeightsByBank?: Map<
+    string,
+    { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }
+  >;
 }
 
 /**
@@ -276,11 +297,13 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
   const bank = banksMap.get(bankAddress.toBase58());
   if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
 
-  // Build Map of e-mode collateral banks if activePair exists
-  const activeEmodeWeightsByBank =
+  // Per-bank e-mode weights. Prefer the caller-supplied map (matches the
+  // health cache); otherwise fall back to stamping the single activePair weight
+  // onto every collateral bank (legacy behavior).
+  const emodeWeightsByBank =
+    params.activeEmodeWeightsByBank ??
     activePair?.collateralBanks.reduce((map, bankPk) => {
-      const bank = banksMap.get(bankPk.toBase58());
-      if (bank) {
+      if (banksMap.get(bankPk.toBase58())) {
         map.set(bankPk.toBase58(), {
           assetWeightMaint: activePair.assetWeightMaint,
           assetWeightInit: activePair.assetWeightInit,
@@ -290,7 +313,7 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
     }, new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>()) ??
     new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>();
 
-  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress.toBase58());
+  const activeEmodeWeightsForBank = emodeWeightsByBank.get(bankAddress.toBase58());
   const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
 
   const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
@@ -319,12 +342,13 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
   const balance = getBalance(bankAddress, activeBalances);
 
   // Recalculate free collateral if emode weights were applied
-  const freeCollateral = opts?.activePair
+  const useBalances = !!opts?.activePair || emodeWeightsByBank.size > 0;
+  const freeCollateral = useBalances
     ? computeFreeCollateralFromBalances({
         activeBalances,
         banksMap,
         oraclePricesByBank,
-        activeEmodeWeightsByBank,
+        activeEmodeWeightsByBank: emodeWeightsByBank,
         assetShareValueMultiplierByBank,
       })
     : computeFreeCollateralFromCache(account);
