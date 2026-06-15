@@ -20,7 +20,6 @@ export default defineConfig({
     "@solana/web3.js",
     "@switchboard-xyz/on-demand",
     "@switchboard-xyz/common",
-    "@jup-ag/api",
     "bignumber.js",
     "borsh",
     "bs58",

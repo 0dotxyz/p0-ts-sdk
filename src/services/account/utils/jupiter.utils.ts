@@ -1,11 +1,9 @@
 import {
-  createJupiterApiClient,
-  QuoteGetRequest,
-  Instruction as JupiterInstruction,
-  ConfigurationParameters,
-  SwapApi,
-  Configuration,
-} from "@jup-ag/api";
+  createJupiterClient,
+  type JupiterClientConfig,
+  type QuoteGetRequest,
+  type Instruction as JupiterInstruction,
+} from "~/vendor/jupiter";
 
 import { SwapApiConfig, SwapIxsResult } from "../types";
 import {
@@ -50,11 +48,11 @@ function deserializeJupiterInstruction(instruction: JupiterInstruction) {
   });
 }
 
-export function toJupiterConfig(apiConfig?: SwapApiConfig): ConfigurationParameters | undefined {
+export function toJupiterConfig(apiConfig?: SwapApiConfig): JupiterClientConfig | undefined {
   if (!apiConfig) return undefined;
   return {
     basePath: apiConfig.basePath,
-    apiKey: apiConfig.apiKey ? () => apiConfig.apiKey! : undefined,
+    apiKey: apiConfig.apiKey,
     headers: apiConfig.headers,
   };
 }
@@ -76,12 +74,7 @@ export const getJupiterSwapIxsForFlashloan = async ({
   apiConfig,
   maxSwapAccounts,
 }: GetJupiterSwapIxsForFlashloanParams): Promise<SwapIxsResult> => {
-  // Create SwapApi directly to respect custom basePath
-  // createJupiterApiClient ignores basePath and hardcodes it to jup.ag URLs
-  const configParams = toJupiterConfig(apiConfig);
-  const jupiterApiClient = configParams?.basePath
-    ? new SwapApi(new Configuration(configParams))
-    : createJupiterApiClient(configParams);
+  const jupiterApiClient = createJupiterClient(toJupiterConfig(apiConfig));
 
   const feeMint =
     quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint;
