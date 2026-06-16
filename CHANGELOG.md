@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.4
+
+### Patch Changes
+
+- f4d23a1: perf(emode): ~80-100x faster emode impact computation
+
+  Refactored `computeEmodeImpacts` and `computeActiveEmodePairs` to operate on
+  base58 string `Set`/`Map` lookups instead of `PublicKey.equals()` / `.toBase58()`
+  in hot loops, and hoisted the configured-pair index out of the per-bank/per-action
+  simulation loop (previously rebuilt ~800x per call). Output is byte-identical to
+  the previous implementation (validated by `scripts/emode-bench.ts`) and all public
+  signatures are unchanged, so consumers need no code changes.
+
+- - Isolate unmaintained SDK into a separate `vendor` folder
+  - Export Jupiter vendor for app consumers and add Jupiter bundle flag
+  - Refactor emode to use string keys for performance
+  - Add mrgn SDK → p0 SDK account transfer functionality
+  - Remove `emode-bench` script
+
 ## 2.2.3
 
 ### Patch Changes
