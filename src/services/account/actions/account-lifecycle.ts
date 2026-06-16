@@ -11,7 +11,12 @@ import {
 import BN from "bn.js";
 import BigNumber from "bignumber.js";
 
-import { addTransactionMetadata, SolanaTransaction, TransactionType } from "~/services/transaction";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  SolanaTransaction,
+  TransactionType,
+} from "~/services/transaction";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
@@ -124,8 +129,9 @@ export async function makeCloseMarginfiAccountTx({
  * @param params.marginfiAccount - The account being transferred
  * @param params.newMarginfiAccount - Freshly generated keypair for the destination account
  * @param params.newAuthority - The wallet that will own the new account
- * @param params.feePayer - Pays rent/fees (the connected wallet, or a separate fee payer)
- * @param params.feePayerKeypair - Required only when `feePayer` is a separate keypair
+ * @param params.feePayer - Optional. Pays rent/fees. A `PublicKey` signs via the
+ *   wallet adapter; a `Keypair` is a separate fee payer that signs directly.
+ *   Defaults to the account's current authority.
  * @returns Versioned transaction to transfer the account
  */
 export async function makeAccountTransferToNewAccountTx({
@@ -135,8 +141,10 @@ export async function makeAccountTransferToNewAccountTx({
   newMarginfiAccount,
   newAuthority,
   feePayer,
-  feePayerKeypair,
-}: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
+}: MakeAccountTransferToNewAccountTxParams): Promise<ExtendedV0Transaction> {
+  const feePayerKey =
+    feePayer instanceof Keypair ? feePayer.publicKey : (feePayer ?? marginfiAccount.authority);
+
   const [feeStateKey] = PublicKey.findProgramAddressSync(
     [Buffer.from("feestate", "utf-8")],
     program.programId
@@ -148,23 +156,23 @@ export async function makeAccountTransferToNewAccountTx({
     newMarginfiAccount: newMarginfiAccount.publicKey,
     newAuthority,
     globalFeeWallet: feeState.globalFeeWallet,
-    feePayer,
+    feePayer: feePayerKey,
   });
 
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  // The new-account keypair always signs; a separate fee-payer keypair signs only
-  // when the fee payer isn't the connected wallet (which signs via the adapter).
+  // The new-account keypair always signs; a separate fee-payer Keypair signs too.
+  // A PublicKey fee payer (or the default authority) signs via the wallet adapter.
   const signers: Signer[] = [newMarginfiAccount];
-  if (feePayerKeypair) signers.push(feePayerKeypair);
+  if (feePayer instanceof Keypair) signers.push(feePayer);
 
   const transferTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
         instructions: [transferIx],
-        payerKey: feePayer,
+        payerKey: feePayerKey,
         recentBlockhash: blockhash,
       }).compileToV0Message([])
     ),

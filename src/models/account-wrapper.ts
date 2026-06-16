@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { Amount, BankIntegrationMetadataMap, MintData } from "~/types";
@@ -340,22 +340,22 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Creates an account transfer instruction.
+   * Builds a transaction to transfer this account to a new authority.
    *
-   * @param newMarginfiAccount - New account public key
+   * @param newMarginfiAccount - Freshly generated keypair for the destination account
    * @param newAuthority - New authority public key
+   * @param feePayer - Optional `PublicKey` (adapter-signed) or `Keypair` (separate
+   *   payer); defaults to this account's authority
    */
-  async makeAccountTransferToNewAccountIx(
-    newMarginfiAccount: PublicKey,
+  async makeAccountTransferToNewAccountTx(
+    newMarginfiAccount: Keypair,
     newAuthority: PublicKey,
-    globalFeeWallet: PublicKey,
-    feePayer: PublicKey
-  ): Promise<InstructionsWrapper> {
-    return this.account.makeAccountTransferToNewAccountIx(
+    feePayer?: PublicKey | Keypair
+  ): Promise<ExtendedV0Transaction> {
+    return this.account.makeAccountTransferToNewAccountTx(
       this.client.program,
       newMarginfiAccount,
       newAuthority,
-      globalFeeWallet,
       feePayer
     );
   }

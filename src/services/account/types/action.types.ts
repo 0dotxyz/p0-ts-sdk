@@ -1,6 +1,7 @@
 import {
   AddressLookupTableAccount,
   Connection,
+  Keypair,
   PublicKey,
   Signer,
   TransactionInstruction,
@@ -346,10 +347,10 @@ export interface MakeAccountTransferToNewAccountTxParams {
   newMarginfiAccount: Signer;
   /** The wallet that will own the new account. */
   newAuthority: PublicKey;
-  /** Pays rent/fees — the connected wallet, or a separate fee payer. */
-  feePayer: PublicKey;
-  /** Required only when `feePayer` is a separate keypair (not the connected wallet). */
-  feePayerKeypair?: Signer;
+  /** Optional. Pays rent/fees. A `PublicKey` signs via the wallet adapter; a
+   *  `Keypair` is a separate fee payer that signs directly. Defaults to the
+   *  account's current authority. */
+  feePayer?: PublicKey | Keypair;
 }
 
 export interface TransactionBuilderResult {
