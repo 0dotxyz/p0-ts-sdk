@@ -119,25 +119,140 @@ export function createActiveEmodePairFromPairs(pairs: EmodePair[]): ActiveEmodeP
   };
 }
 
+/**
+ * A configured emode pair with its banks/tags pre-stringified, plus a reference
+ * back to the original `EmodePair`. The hot paths below compare/group on these
+ * base58 strings (O(1) Set/Map lookups) instead of `PublicKey.equals` /
+ * `.toBase58()` (32-byte compares + base58 encodes), then return `orig` so
+ * callers still receive the original `EmodePair` objects.
+ */
+type IndexedEmodePair = {
+  orig: EmodePair;
+  liabStr: string;
+  liabTagStr: string;
+  collTagStr: string;
+  collStrs: string[];
+};
+
+/**
+ * Indexes the *configured* emode pairs (both tags set) once. `emodePairs` is
+ * constant across a whole `computeEmodeImpacts` run, so this is hoisted out of
+ * the per-bank/per-action simulation loop instead of being rebuilt ~800x.
+ */
+function indexConfiguredPairs(emodePairs: EmodePair[]): {
+  configured: IndexedEmodePair[];
+  liabTagByBank: Map<string, string>;
+} {
+  const configured: IndexedEmodePair[] = [];
+  const liabTagByBank = new Map<string, string>();
+  for (const p of emodePairs) {
+    if (p.collateralBankTag === EmodeTag.UNSET || p.liabilityBankTag === EmodeTag.UNSET) {
+      continue;
+    }
+    const liabStr = p.liabilityBank.toBase58();
+    const liabTagStr = p.liabilityBankTag.toString();
+    configured.push({
+      orig: p,
+      liabStr,
+      liabTagStr,
+      collTagStr: p.collateralBankTag.toString(),
+      collStrs: p.collateralBanks.map((b) => b.toBase58()),
+    });
+    liabTagByBank.set(liabStr, liabTagStr);
+  }
+  return { configured, liabTagByBank };
+}
+
+/**
+ * String-keyed core of {@link computeActiveEmodePairs}. Operates purely on the
+ * pre-built index + base58 Sets — no PublicKey ops. Returns the original
+ * `EmodePair` objects (same order and references as the legacy implementation).
+ */
+function activePairsFromIndex(
+  configured: IndexedEmodePair[],
+  liabTagByBank: Map<string, string>,
+  liabSet: Set<string>,
+  collSet: Set<string>
+): EmodePair[] {
+  // Required liability-tags from all active liabilities. A liability with no
+  // configured entry kills EMODE immediately.
+  const requiredTags = new Set<string>();
+  for (const liab of liabSet) {
+    const tag = liabTagByBank.get(liab);
+    if (!tag) return [];
+    requiredTags.add(tag);
+  }
+
+  // Keep configured pairs touching both an active liability AND collateral.
+  const possible = configured.filter(
+    (p) => liabSet.has(p.liabStr) && p.collStrs.some((c) => collSet.has(c))
+  );
+  if (possible.length === 0) return [];
+
+  // Group by collateral-tag.
+  const byCollTag: Record<string, IndexedEmodePair[]> = {};
+  for (const p of possible) {
+    (byCollTag[p.collTagStr] ||= []).push(p);
+  }
+
+  // Keep groups whose liability-tags cover every required tag.
+  const validGroups: IndexedEmodePair[][] = [];
+  for (const group of Object.values(byCollTag)) {
+    const supports = new Set(group.map((p) => p.liabTagStr));
+    let coversAll = true;
+    for (const rt of requiredTags) {
+      if (!supports.has(rt)) {
+        coversAll = false;
+        break;
+      }
+    }
+    if (coversAll) validGroups.push(group);
+  }
+  if (validGroups.length === 0) return [];
+
+  return validGroups.flat().map((p) => p.orig);
+}
+
 export function computeEmodeImpacts(
   emodePairs: EmodePair[],
   activeLiabilities: PublicKey[],
   activeCollateral: PublicKey[],
   allBanks: PublicKey[]
 ): Record<string, ActionEmodeImpact> {
-  const toKey = (k: PublicKey) => k.toBase58();
+  // Convert everything to base58 strings ONCE up front and run all
+  // membership/grouping on string Sets/Maps.
+  const activeLiabilitiesSet = new Set(activeLiabilities.map((b) => b.toBase58()));
+  const activeCollateralSet = new Set(activeCollateral.map((b) => b.toBase58()));
+
+  // Index of configured pairs — hoisted out of the simulation loop.
+  const { configured, liabTagByBank } = indexConfiguredPairs(emodePairs);
+
+  // Liability-tag map over ALL pairs (incl. unconfigured). Intentionally broader
+  // than the configured map above: used by the borrow override and `existingTags`.
+  const liabTagMapAll = new Map<string, string>();
+  for (const p of emodePairs) {
+    liabTagMapAll.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
+  }
+
+  // Every collateral bank referenced by any pair (supply-eligibility check).
+  const allCollateralBankStrs = new Set<string>();
+  for (const p of emodePairs) {
+    for (const c of p.collateralBanks) allCollateralBankStrs.add(c.toBase58());
+  }
 
   // Baseline state
-  const basePairs = computeActiveEmodePairs(emodePairs, activeLiabilities, activeCollateral);
+  const basePairs = activePairsFromIndex(
+    configured,
+    liabTagByBank,
+    activeLiabilitiesSet,
+    activeCollateralSet
+  );
   const baseOn = basePairs.length > 0;
 
-  // Liability tag map & existing tags
-  const liabTagMap = new Map<string, string>();
-  for (const p of emodePairs) {
-    liabTagMap.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
-  }
   const existingTags = new Set<string>(
-    activeLiabilities.map((l) => liabTagMap.get(l.toBase58())).filter((t): t is string => !!t)
+    Array.from(activeLiabilitiesSet)
+      .map((l) => liabTagMapAll.get(l))
+      .filter((t): t is string => !!t)
   );
 
   // Helper for min initial weight (used in diffState only)
@@ -165,34 +280,32 @@ export function computeEmodeImpacts(
 
   // Simulation of each action
   function simulate(
-    bank: PublicKey,
+    bankStr: string,
     action: "borrow" | "repay" | "supply" | "withdraw"
   ): EmodeImpact {
-    const isSolBank = bank.equals(new PublicKey("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh"));
-
-    let L = [...activeLiabilities],
-      C = [...activeCollateral];
+    const L = new Set(activeLiabilitiesSet),
+      C = new Set(activeCollateralSet);
     switch (action) {
       case "borrow":
-        if (!L.some((x) => x.equals(bank))) L.push(bank);
+        L.add(bankStr);
         break;
       case "repay":
-        L = L.filter((x) => !x.equals(bank));
+        L.delete(bankStr);
         break;
       case "supply":
-        if (!C.some((x) => x.equals(bank))) C.push(bank);
+        C.add(bankStr);
         break;
       case "withdraw":
-        C = C.filter((x) => !x.equals(bank));
+        C.delete(bankStr);
         break;
     }
 
-    const after = computeActiveEmodePairs(emodePairs, L, C);
+    const after = activePairsFromIndex(configured, liabTagByBank, L, C);
     let status = diffState(basePairs, after);
 
     // Borrow override
     if (action === "borrow") {
-      const tag = liabTagMap.get(bank.toBase58());
+      const tag = liabTagMapAll.get(bankStr);
 
       // Borrowing an unconfigured bank => EMODE off / inactive
       if (!tag) {
@@ -248,29 +361,28 @@ export function computeEmodeImpacts(
   // Run simulations across allBanks
   const result: Record<string, ActionEmodeImpact> = {};
   for (const bank of allBanks) {
-    const key = toKey(bank);
+    const key = bank.toBase58();
     const impact: ActionEmodeImpact = {};
 
-    // Only new borrows
-    if (!activeCollateral.some((x) => x.equals(bank))) {
-      impact.borrowImpact = simulate(bank, "borrow");
+    // Only new borrows (bank not already collateral)
+    if (!activeCollateralSet.has(key)) {
+      impact.borrowImpact = simulate(key, "borrow");
     }
 
     // Only supply for collateral-configured banks not in play
-    const collSet = new Set(emodePairs.flatMap((p) => p.collateralBanks.map((c) => c.toBase58())));
     if (
-      collSet.has(key) &&
-      !activeCollateral.some((x) => x.equals(bank)) &&
-      !activeLiabilities.some((x) => x.equals(bank))
+      allCollateralBankStrs.has(key) &&
+      !activeCollateralSet.has(key) &&
+      !activeLiabilitiesSet.has(key)
     ) {
-      impact.supplyImpact = simulate(bank, "supply");
+      impact.supplyImpact = simulate(key, "supply");
     }
 
-    if (activeLiabilities.some((x) => x.equals(bank))) {
-      impact.repayAllImpact = simulate(bank, "repay");
+    if (activeLiabilitiesSet.has(key)) {
+      impact.repayAllImpact = simulate(key, "repay");
     }
-    if (activeCollateral.some((x) => x.equals(bank))) {
-      impact.withdrawAllImpact = simulate(bank, "withdraw");
+    if (activeCollateralSet.has(key)) {
+      impact.withdrawAllImpact = simulate(key, "withdraw");
     }
 
     result[key] = impact;
@@ -284,62 +396,11 @@ export function computeActiveEmodePairs(
   activeLiabilities: PublicKey[],
   activeCollateral: PublicKey[]
 ): EmodePair[] {
-  // 1) Drop any pairs with an “unset” tag (0)
-  const configured = emodePairs.filter(
-    (p) => p.collateralBankTag !== EmodeTag.UNSET && p.liabilityBankTag !== EmodeTag.UNSET
-  );
-
-  // 2) Build the set of required liability‐tags from _all_ active liabilities
-  //    If any liability has no configured entry at all, EMODE is off.
-  const liabTagByBank = new Map<string, string>();
-  for (const p of configured) {
-    liabTagByBank.set(p.liabilityBank.toBase58(), p.liabilityBankTag.toString());
-  }
-  const requiredTags = new Set<string>();
-  for (const liab of activeLiabilities) {
-    const tag = liabTagByBank.get(liab.toBase58());
-    if (!tag) {
-      // a liability with no entries kills EMODE immediately
-      return [];
-    }
-    requiredTags.add(tag);
-  }
-
-  // 3) Of those configured pairs, keep only ones touching both an active liability AND collateral
-  const possible = configured.filter(
-    (p) =>
-      activeLiabilities.some((l) => l.equals(p.liabilityBank)) &&
-      p.collateralBanks.some((c) => activeCollateral.some((a) => a.equals(c)))
-  );
-  if (possible.length === 0) return [];
-
-  // 4) Group by collateral-tag
-  const byCollTag: Record<string, EmodePair[]> = {};
-  for (const p of possible) {
-    const ct = p.collateralBankTag.toString();
-    (byCollTag[ct] ||= []).push(p);
-  }
-
-  // 5) Find all groups whose liability-tags cover _every_ requiredTag
-  const validGroups: EmodePair[][] = [];
-  for (const group of Object.values(byCollTag)) {
-    const supports = new Set(group.map((p) => p.liabilityBankTag.toString()));
-
-    let coversAll = true;
-    for (const rt of requiredTags) {
-      if (!supports.has(rt)) {
-        coversAll = false;
-        break;
-      }
-    }
-    if (coversAll) {
-      validGroups.push(group);
-    }
-  }
-
-  // 6) Return all valid groups flattened (selection happens elsewhere)
-  if (validGroups.length === 0) return [];
-
-  // Flatten all valid groups into a single array
-  return validGroups.flat();
+  // Public PublicKey-based API preserved for callers (action-box simulations,
+  // account model). Converts to base58 once and delegates to the string-keyed
+  // core — drops the O(pairs × actives) PublicKey.equals/.toBase58 work.
+  const { configured, liabTagByBank } = indexConfiguredPairs(emodePairs);
+  const liabSet = new Set(activeLiabilities.map((b) => b.toBase58()));
+  const collSet = new Set(activeCollateral.map((b) => b.toBase58()));
+  return activePairsFromIndex(configured, liabTagByBank, liabSet, collSet);
 }

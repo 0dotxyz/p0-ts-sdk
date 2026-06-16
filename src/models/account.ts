@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import instructions from "~/instructions";
@@ -44,6 +44,7 @@ import {
   MakeKaminoDepositTxParams,
   makeKaminoWithdrawTx,
   MakeKaminoWithdrawTxParams,
+  makeAccountTransferToNewAccountTx,
   makeLoopTx,
   makePulseHealthIx,
   makeRepayIx,
@@ -630,33 +631,34 @@ class MarginfiAccount implements MarginfiAccountType {
   }
 
   /**
-   * Creates an instruction to transfer this account to a new authority.
+   * Builds a transaction to transfer this account to a new authority.
    *
-   * Transfers ownership of the marginfi account to a new authority and account address.
+   * Thin wrapper over the {@link makeAccountTransferToNewAccountTx} action,
+   * injecting the connection and this account from context. The global fee
+   * wallet is derived inside the action from the program's fee state.
    *
    * @param program - The Marginfi program instance
-   * @param newMarginfiAccount - The new marginfi account public key
+   * @param newMarginfiAccount - Freshly generated keypair for the destination account
    * @param newAuthority - The new authority public key
+   * @param feePayer - Optional `PublicKey` (adapter-signed) or `Keypair` (separate
+   *   payer); defaults to this account's authority
    *
-   * @returns Promise resolving to InstructionsWrapper containing the transfer instruction
-   *
-   * @see {@link makeAccountTransferToNewAccountIx} for implementation
+   * @returns Promise resolving to the transfer transaction
    */
-  async makeAccountTransferToNewAccountIx(
+  async makeAccountTransferToNewAccountTx(
     program: MarginfiProgram,
-    newMarginfiAccount: PublicKey,
-    newAuthority: PublicKey
-  ): Promise<InstructionsWrapper> {
-    const accountTransferToNewAccountIx = await instructions.makeAccountTransferToNewAccountIx(
+    newMarginfiAccount: Keypair,
+    newAuthority: PublicKey,
+    feePayer?: PublicKey | Keypair
+  ): Promise<ExtendedV0Transaction> {
+    return makeAccountTransferToNewAccountTx({
+      connection: program.provider.connection,
       program,
-      {
-        oldMarginfiAccount: this.address,
-        newMarginfiAccount,
-        newAuthority,
-        feePayer: this.authority,
-      }
-    );
-    return { instructions: [accountTransferToNewAccountIx], keys: [] };
+      marginfiAccount: this,
+      newMarginfiAccount,
+      newAuthority,
+      feePayer,
+    });
   }
 
   /**
