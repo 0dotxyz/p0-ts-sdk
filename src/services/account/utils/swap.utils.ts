@@ -1,10 +1,4 @@
-import {
-  createJupiterApiClient,
-  QuoteResponse,
-  ConfigurationParameters,
-  SwapApi,
-  Configuration,
-} from "@jup-ag/api";
+import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
@@ -120,10 +114,7 @@ function getExactOutProviderFn({
         });
     case SwapProvider.JUPITER:
       return async () => {
-        const configParams = toJupiterConfig(apiConfig);
-        const jupiterApiClient = configParams?.basePath
-          ? new SwapApi(new Configuration(configParams))
-          : createJupiterApiClient(configParams);
+        const jupiterApiClient = createJupiterClient(toJupiterConfig(apiConfig));
 
         const estimateQuote = await jupiterApiClient.quoteGet({
           inputMint,
@@ -134,6 +125,9 @@ function getExactOutProviderFn({
             ? swapOpts.swapConfig.slippageMode === "DYNAMIC"
             : true,
           slippageBps: swapOpts.swapConfig?.slippageBps,
+          // Match the bundle-compatible routing used by the executed flashloan
+          // swap so the ExactOut estimate reflects an achievable route.
+          forJitoBundle: true,
         });
 
         const quoteResult = mapJupiterQuoteToSwapQuoteResult(estimateQuote);
