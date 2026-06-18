@@ -16,8 +16,6 @@ import {
   computeHealthComponentsFromCache,
   computeHealthComponentsFromBalances,
   ComputeHealthComponentsFromBalancesParams,
-  computeHealthComponentsWithoutBiasFromBalances,
-  ComputeHealthComponentsWithoutBiasParams,
   computeMaxBorrowForBank,
   ComputeMaxBorrowForBankParams,
   computeMaxWithdrawForBank,
@@ -315,27 +313,6 @@ class MarginfiAccount implements MarginfiAccountType {
     liabilities: BigNumber;
   } {
     return computeHealthComponentsFromBalances({
-      activeBalances: this.activeBalances,
-      ...params,
-    });
-  }
-
-  /**
-   * Computes health components from balances without price bias.
-   *
-   * Returns weighted asset and liability values using neutral pricing
-   * (no conservative adjustments).
-   *
-   * @param params - Configuration for health computation (excluding activeBalances)
-   * @returns Object containing assets and liabilities values in USD
-   */
-  computeHealthComponentsWithoutBiasFromBalances(
-    params: Omit<ComputeHealthComponentsWithoutBiasParams, "activeBalances">
-  ): {
-    assets: BigNumber;
-    liabilities: BigNumber;
-  } {
-    return computeHealthComponentsWithoutBiasFromBalances({
       activeBalances: this.activeBalances,
       ...params,
     });

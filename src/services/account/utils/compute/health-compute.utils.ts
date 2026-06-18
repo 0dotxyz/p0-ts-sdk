@@ -12,10 +12,7 @@ import {
   HealthCacheType,
   HealthCacheStatus,
 } from "../../types";
-import {
-  getBalanceUsdValueWithPriceBias,
-  computeBalanceUsdValue,
-} from "./balance-value-compute.utils";
+import { getBalanceUsdValueWithPriceBias } from "./balance-value-compute.utils";
 
 /**
  * Health & Free Collateral Calculations
@@ -315,129 +312,6 @@ export function computeHealthComponentsFromBalances(
       marginRequirement,
       assetShareValueMultiplier,
       activeEmodeWeights,
-    });
-
-    totalAssets = totalAssets.plus(assets);
-    totalLiabilities = totalLiabilities.plus(liabilities);
-  }
-
-  return { assets: totalAssets, liabilities: totalLiabilities };
-}
-
-/**
- * Configuration for computing health components without price bias
- */
-export interface ComputeHealthComponentsWithoutBiasParams {
-  /** Active account balances to compute health for */
-  activeBalances: BalanceType[];
-  /** Margin requirement type (Equity, Initial, or Maintenance) */
-  marginRequirement: MarginRequirementType;
-  /** Map of bank addresses to bank data */
-  banksMap: Map<string, BankType>;
-  /** Map of bank addresses to oracle price data */
-  oraclePricesByBank: Map<string, OraclePrice>;
-  /** Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift) */
-  assetShareValueMultiplierByBank?: Map<string, BigNumber>;
-  /** Optional emode weight overrides by bank address */
-  activeEmodeWeightsByBank?: Map<
-    string,
-    {
-      assetWeightMaint: BigNumber;
-      assetWeightInit: BigNumber;
-    }
-  >;
-  /** Optional banks to exclude from health calculation */
-  excludedBanks?: PublicKey[];
-}
-
-/**
- * Computes health components (assets and liabilities) from active balances WITHOUT price bias.
- *
- * Key differences from `computeHealthComponentsFromBalances`:
- * - Uses neutral oracle prices (no conservative bias applied)
- * - Primarily used for equity calculations where unbiased values are needed
- *
- * @param params - Configuration object for health computation
- * @returns Object containing weighted asset and liability values in USD (unbiased)
- *
- * @example
- * ```typescript
- * const { assets, liabilities } = computeHealthComponentsWithoutBiasFromBalances({
- *   activeBalances: account.balances.filter(b => b.active),
- *   marginRequirement: MarginRequirementType.Equity,
- *   banksMap: client.bankMap,
- *   oraclePricesByBank: client.oraclePriceByBank,
- *   assetShareValueMultiplierByBank: client.assetShareMultiplierByBank,
- * });
- * ```
- */
-export function computeHealthComponentsWithoutBiasFromBalances(
-  params: ComputeHealthComponentsWithoutBiasParams
-): {
-  assets: BigNumber;
-  liabilities: BigNumber;
-} {
-  const {
-    activeBalances,
-    banksMap,
-    oraclePricesByBank,
-    marginRequirement,
-    assetShareValueMultiplierByBank,
-    activeEmodeWeightsByBank,
-    excludedBanks,
-  } = params;
-
-  const filteredBalances = activeBalances.filter(
-    (accountBalance) => !(excludedBanks ?? []).find((b) => b.equals(accountBalance.bankPk))
-  );
-
-  let totalAssets = new BigNumber(0);
-  let totalLiabilities = new BigNumber(0);
-
-  for (const accountBalance of filteredBalances) {
-    // Cache toBase58 conversion - used 3 times
-    const bankKey = accountBalance.bankPk.toBase58();
-
-    const bank = banksMap.get(bankKey);
-    if (!bank) {
-      console.warn(
-        `Bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
-      );
-      continue;
-    }
-
-    const oraclePrice = oraclePricesByBank.get(bankKey);
-    if (!oraclePrice) {
-      console.warn(
-        `Price info for bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
-      );
-      continue;
-    }
-
-    const emodeWeight = activeEmodeWeightsByBank?.get(bankKey);
-    const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankKey);
-
-    // if emode weight is lower than bank config, use bank config
-    const activeEmodeWeights = emodeWeight
-      ? {
-          assetWeightInit: BigNumber.max(
-            bank.config.assetWeightInit,
-            emodeWeight.assetWeightInit ?? bank.config.assetWeightInit
-          ),
-          assetWeightMaint: BigNumber.max(
-            bank.config.assetWeightMaint,
-            emodeWeight.assetWeightMaint ?? bank.config.assetWeightMaint
-          ),
-        }
-      : undefined;
-
-    const { assets, liabilities } = computeBalanceUsdValue({
-      balance: accountBalance,
-      bank,
-      oraclePrice,
-      marginRequirement,
-      activeEmodeWeights,
-      assetShareValueMultiplier,
     });
 
     totalAssets = totalAssets.plus(assets);
