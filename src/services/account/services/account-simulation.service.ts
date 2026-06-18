@@ -42,7 +42,6 @@ import {
   decodeAccountRaw,
   parseMarginfiAccountRaw,
   computeHealthComponentsFromBalances,
-  computeHealthComponentsWithoutBiasFromBalances,
 } from "../utils";
 import { makePulseHealthIx } from "../actions";
 
@@ -134,8 +133,10 @@ export async function simulateAccountHealthCacheWithFallback(
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
+  // Equity health-cache values mirror the program (biased + time-weighted price), matching
+  // computeHealthCacheStatus. Not the UI "neutral value" helper.
   const { assets: assetValueEquity, liabilities: liabilityValueEquity } =
-    computeHealthComponentsWithoutBiasFromBalances({
+    computeHealthComponentsFromBalances({
       activeBalances,
       banksMap,
       oraclePricesByBank,

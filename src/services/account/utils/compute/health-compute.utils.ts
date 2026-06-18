@@ -504,8 +504,12 @@ export function computeHealthCacheStatus(params: ComputeHealthCacheStatusParams)
     assetShareValueMultiplierByBank,
     activeEmodeWeightsByBank,
   } = params;
+  // Equity values mirror the program: weight 1, conservative price bias (Lowest for assets,
+  // Highest for liabilities), and the time-weighted (TWAP) price (RequirementType::Equity uses
+  // OraclePriceType::TimeWeighted, handled by isWeightedPrice). Uses the biased path, not the
+  // UI "neutral value" helper.
   const { assets: assetValueEquity, liabilities: liabilityValueEquity } =
-    computeHealthComponentsWithoutBiasFromBalances({
+    computeHealthComponentsFromBalances({
       activeBalances,
       marginRequirement: MarginRequirementType.Equity,
       banksMap,

@@ -5,7 +5,7 @@ import { MarginRequirementType } from "~/services/account/types";
 import { toBigNumber } from "~/utils";
 import { Amount } from "~/types";
 
-import { BankType, BankConfigType } from "../../types";
+import { BankType, BankConfigType, RiskTier, OperationalState } from "../../types";
 import { getAssetQuantity, getLiabilityQuantity } from "./share-conversions.utils";
 
 /**
@@ -14,16 +14,19 @@ import { getAssetQuantity, getLiabilityQuantity } from "./share-conversions.util
  */
 
 /**
- * Determines if a margin requirement type uses weighted prices.
+ * Determines if a margin requirement type uses the time-weighted (TWAP/EMA) price.
  *
- * Initial margin uses weighted prices (EMA-based), while Maintenance and Equity
- * use spot prices for more accurate liquidation decisions.
+ * Mirrors the program's `RequirementType::get_oracle_price_type`: Initial and Equity use the
+ * time-weighted price, while Maintenance uses the real-time price (more accurate for liquidations).
  *
  * @param marginRequirement - The margin requirement type to check
- * @returns True if Initial margin (uses weighted prices), false otherwise
+ * @returns True for Initial and Equity (time-weighted), false for Maintenance (real-time)
  */
 export function isWeightedPrice(marginRequirement: MarginRequirementType): boolean {
-  return marginRequirement === MarginRequirementType.Initial;
+  return (
+    marginRequirement === MarginRequirementType.Initial ||
+    marginRequirement === MarginRequirementType.Equity
+  );
 }
 
 /**
@@ -89,6 +92,21 @@ export function getAssetWeight(params: GetAssetWeightParams): BigNumber {
     ignoreSoftLimits,
   } = params;
 
+  // Isolated-tier banks contribute 0 asset value for all requirement types.
+  // Mirrors the program (RiskTier::Isolated => Ok((ZERO, ZERO)) in calc_weighted_asset_value_standalone).
+  if (bank.config.riskTier === RiskTier.Isolated) {
+    return new BigNumber(0);
+  }
+
+  // ReduceOnly banks should not be counted as collateral for Initial checks.
+  // Mirrors the program ((ReduceOnly, Initial) => Ok((ZERO, ...))). Maintenance/Equity keep normal weights.
+  if (
+    marginRequirement === MarginRequirementType.Initial &&
+    bank.config.operationalState === OperationalState.ReduceOnly
+  ) {
+    return new BigNumber(0);
+  }
+
   // if emode weight is lower then bank weight, bank weight should be used
   const assetWeightInit = BigNumber.max(
     activeEmodeWeights?.assetWeightInit ?? BigNumber(0),
@@ -107,6 +125,8 @@ export function getAssetWeight(params: GetAssetWeightParams): BigNumber {
         bank,
         oraclePrice,
         assetShares: bank.totalAssetShares,
+        // Unweighted (Equity => weight 1) total bank value, priced at the same time-weighted
+        // low price used for the Initial balance valuation (program: maybe_get_asset_weight_init_discount).
         marginRequirement: MarginRequirementType.Equity,
         priceBias: PriceBias.Lowest,
         assetShareValueMultiplier,
