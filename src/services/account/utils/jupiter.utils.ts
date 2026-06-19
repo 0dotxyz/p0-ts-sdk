@@ -17,7 +17,7 @@ import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
 import { mapJupiterQuoteToSwapQuoteResult } from "./swap.utils";
 
 const REFERRAL_PROGRAM_ID = new PublicKey("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
-const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("Mm7HcujSK2JzPW4eX7g4oqTXbWYDuFxapNMHXe8yp1B");
+const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("6rQUBEfS3hASrBbviL7rXA5tRYmZmeFUgHgCYsjeDVBm");
 
 const getFeeAccount = (mint: PublicKey): string => {
   const [feeAccount] = PublicKey.findProgramAddressSync(
