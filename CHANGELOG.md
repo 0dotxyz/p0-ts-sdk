@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.6
+
+### Patch Changes
+
+- Update referral key
+
 ## 2.2.5
 
 ### Patch Changes
