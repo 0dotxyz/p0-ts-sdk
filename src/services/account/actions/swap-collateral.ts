@@ -31,14 +31,20 @@ import {
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "~/vendor/spl";
-import { nativeToUi, uiToNative } from "~/utils";
+import { uiToNative } from "~/utils";
 
 import {
-  getSwapIxsForFlashloan,
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
+  patchDepositAmount,
+  isDepositIx,
 } from "../utils";
+import {
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
 import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -238,6 +244,7 @@ async function buildSwapCollateralFlashloanTx({
   connection,
   overrideInferAccounts,
   blockhash,
+  swapEngineRunner,
 }: MakeSwapCollateralTxParams & { blockhash: string }) {
   const {
     withdrawBank,
@@ -406,52 +413,11 @@ async function buildSwapCollateralFlashloanTx({
     }
   }
 
-  // Handle same-mint case (no swap needed)
-  if (depositBank.mint.equals(withdrawBank.mint)) {
-    amountToDeposit = actualWithdrawAmount;
-  } else {
-    const destinationTokenAccount = getAssociatedTokenAddressSync(
-      depositBank.mint,
-      marginfiAccount.authority,
-      true,
-      depositTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-    );
-
-    const swapConstraints = await computeFlashloanSwapConstraints({
-      program,
-      marginfiAccount,
-      bankMap,
-      bankMetadataMap,
-      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
-      primaryIx: { type: "withdraw", bank: withdrawBank, tokenProgram: withdrawTokenProgram },
-      secondaryIx: { type: "deposit", bank: depositBank, tokenProgram: depositTokenProgram },
-      overrideInferAccounts,
-    });
-
-    // Get swap instructions
-    const swapResponses = await getSwapIxsForFlashloan({
-      inputMint: withdrawBank.mint.toBase58(),
-      outputMint: depositBank.mint.toBase58(),
-      amount: uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toNumber(),
-      swapMode: "ExactIn",
-      authority: marginfiAccount.authority,
-      connection,
-      destinationTokenAccount,
-      swapOpts,
-      sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-    });
-    sizeConstraintUsed = swapConstraints.sizeConstraint;
-
-    amountToDeposit = nativeToUi(
-      swapResponses.quoteResponse.otherAmountThreshold,
-      depositBank.mintDecimals
-    );
-    swapInstructions = swapResponses.swapInstructions;
-    setupInstructions = swapResponses.setupInstructions;
-    swapLookupTables = swapResponses.addressLookupTableAddresses;
-    swapQuote = swapResponses.quoteResponse;
-  }
+  // Deferred-swap: when a swap is needed the deposit is seeded with a placeholder amount
+  // (its byte/account footprint is amount-independent) and byte-patched to the real swap
+  // output after the engine runs. Same-mint deposits the exact withdrawn amount.
+  const swapNeeded = !depositBank.mint.equals(withdrawBank.mint);
+  amountToDeposit = swapNeeded ? 0 : actualWithdrawAmount;
 
   // Build deposit instruction
   let depositIxs: InstructionsWrapper;
@@ -547,6 +513,60 @@ async function buildSwapCollateralFlashloanTx({
       });
       break;
     }
+  }
+
+  if (swapNeeded) {
+    const destinationTokenAccount = getAssociatedTokenAddressSync(
+      depositBank.mint,
+      marginfiAccount.authority,
+      true,
+      depositTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
+    );
+
+    const swapConstraints = await computeFlashloanSwapConstraints({
+      program,
+      marginfiAccount,
+      bankMap,
+      bankMetadataMap,
+      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+      primaryIx: { type: "withdraw", bank: withdrawBank, tokenProgram: withdrawTokenProgram },
+      secondaryIx: { type: "deposit", bank: depositBank, tokenProgram: depositTokenProgram },
+      overrideInferAccounts,
+    });
+    sizeConstraintUsed = swapConstraints.sizeConstraint;
+
+    const runEngine = swapEngineRunner ?? runSwapEngine;
+    const engineResult = await runEngine({
+      inputMint: withdrawBank.mint.toBase58(),
+      outputMint: depositBank.mint.toBase58(),
+      amountNative: uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toNumber(),
+      inputDecimals: withdrawBank.mintDecimals,
+      outputDecimals: depositBank.mintDecimals,
+      ...swapEngineQuoteFieldsFromOpts(swapOpts),
+      taker: marginfiAccount.authority,
+      destinationTokenAccount,
+      connection,
+      footprint: {
+        instructions: [...cuRequestIxs, ...withdrawIxs.instructions, ...depositIxs.instructions],
+        luts: addressLookupTableAccounts ?? [],
+        payer: marginfiAccount.authority,
+        sizeConstraint: swapConstraints.sizeConstraint,
+        maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+      },
+      providers: swapEngineProvidersFromOpts(swapOpts),
+    });
+
+    // Patch the seeded deposit to the real (minimum guaranteed) swap output.
+    const depositIxToPatch = depositIxs.instructions.find(isDepositIx);
+    if (!depositIxToPatch) {
+      throw new Error("swap-collateral: could not locate deposit instruction for amount patching");
+    }
+    patchDepositAmount(depositIxToPatch, engineResult.outputAmountNative);
+
+    swapInstructions = engineResult.swapInstructions;
+    setupInstructions = engineResult.setupInstructions;
+    swapLookupTables = engineResult.swapLuts;
+    swapQuote = engineResult.quoteResponse;
   }
 
   const luts = [...(addressLookupTableAccounts ?? []), ...swapLookupTables];

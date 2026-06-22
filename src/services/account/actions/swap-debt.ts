@@ -24,12 +24,16 @@ import {
 import { nativeToUi, uiToNative } from "~/utils";
 
 import {
-  getSwapIxsForFlashloan,
-  getExactOutEstimate,
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
 } from "../utils";
+import {
+  computeBorrowEstimateForRepay,
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
 import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -219,6 +223,7 @@ async function buildSwapDebtFlashloanTx({
   connection,
   overrideInferAccounts,
   blockhash,
+  swapEngineRunner,
 }: MakeSwapDebtTxParams & { blockhash: string }) {
   const {
     repayBank,
@@ -249,18 +254,16 @@ async function buildSwapDebtFlashloanTx({
     repayTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
   );
 
-  // Step 1: Get an estimate of how much to borrow using ExactOut quote
-  // This tells us the maximum input needed to get the desired output
-  const { otherAmountThreshold } = await getExactOutEstimate({
-    inputMint: borrowBank.mint.toBase58(),
-    outputMint: repayBank.mint.toBase58(),
-    amount: uiToNative(actualRepayAmount, repayBank.mintDecimals).toNumber(),
-    swapOpts,
-    connection,
+  // Step 1: size the borrow from a market-price calculation — never a provider
+  // ExactOut quote (Jupiter Router /build is ExactIn-only, and provider ExactOut
+  // routes are unreliable). See computeBorrowEstimateForRepay for the buffering.
+  const estimatedBorrowAmount = computeBorrowEstimateForRepay({
+    repayTargetUi: actualRepayAmount,
+    repayMarketPrice: repayOpts.marketPrice,
+    borrowMarketPrice: borrowOpts.marketPrice,
+    slippageBps: swapOpts.swapConfig?.slippageBps,
+    isRepayAll: actualRepayAmount >= totalPositionAmount,
   });
-
-  // Use otherAmountThreshold (max input with slippage) as our borrow amount estimate
-  const estimatedBorrowAmount = nativeToUi(otherAmountThreshold, borrowBank.mintDecimals);
 
   const swapConstraints = await computeFlashloanSwapConstraints({
     program,
@@ -273,22 +276,58 @@ async function buildSwapDebtFlashloanTx({
     overrideInferAccounts,
   });
 
-  // Step 2: Get the actual swap instructions using ExactIn mode
-  // This is more reliable as we know exactly how much we're borrowing
-  const swapResponses = await getSwapIxsForFlashloan({
-    inputMint: borrowBank.mint.toBase58(),
-    outputMint: repayBank.mint.toBase58(),
-    amount: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
-    swapMode: "ExactIn",
+  // Footprint for engine route sizing: borrow + repay ixs at estimate amounts (their
+  // byte/account footprint is amount-independent). The real ixs are built from the
+  // winning quote below.
+  const footprintBorrowIxs = await makeBorrowIx({
+    program,
+    bank: borrowBank,
+    bankMap,
+    tokenProgram: borrowTokenProgram,
+    amount: estimatedBorrowAmount,
+    marginfiAccount,
     authority: marginfiAccount.authority,
-    connection,
-    destinationTokenAccount,
-    swapOpts,
-    sizeConstraint: swapConstraints.sizeConstraint,
-    maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+    isSync: true,
+    opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts },
+  });
+  const footprintRepayIxs = await makeRepayIx({
+    program,
+    bank: repayBank,
+    tokenProgram: repayTokenProgram,
+    amount: actualRepayAmount,
+    accountAddress: marginfiAccount.address,
+    authority: marginfiAccount.authority,
+    isSync: true,
+    opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
   });
 
-  const { quoteResponse } = swapResponses;
+  // Step 2: run the multi-provider engine (ExactIn on the estimated borrow amount).
+  const runEngine = swapEngineRunner ?? runSwapEngine;
+  const engineResult = await runEngine({
+    inputMint: borrowBank.mint.toBase58(),
+    outputMint: repayBank.mint.toBase58(),
+    amountNative: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
+    inputDecimals: borrowBank.mintDecimals,
+    outputDecimals: repayBank.mintDecimals,
+    ...swapEngineQuoteFieldsFromOpts(swapOpts),
+    taker: marginfiAccount.authority,
+    destinationTokenAccount,
+    connection,
+    footprint: {
+      instructions: [
+        ...cuRequestIxs,
+        ...footprintBorrowIxs.instructions,
+        ...footprintRepayIxs.instructions,
+      ],
+      luts: addressLookupTableAccounts ?? [],
+      payer: marginfiAccount.authority,
+      sizeConstraint: swapConstraints.sizeConstraint,
+      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+    },
+    providers: swapEngineProvidersFromOpts(swapOpts),
+  });
+
+  const quoteResponse = engineResult.quoteResponse;
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);
   const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
 
@@ -339,15 +378,12 @@ async function buildSwapDebtFlashloanTx({
     },
   });
 
-  const luts = [
-    ...(addressLookupTableAccounts ?? []),
-    ...swapResponses.addressLookupTableAddresses,
-  ];
+  const luts = [...(addressLookupTableAccounts ?? []), ...engineResult.swapLuts];
 
   const allNonFlIxs = [
     ...cuRequestIxs,
     ...borrowIxs.instructions,
-    ...swapResponses.swapInstructions,
+    ...engineResult.swapInstructions,
     ...repayIxs.instructions,
   ];
 
@@ -356,8 +392,8 @@ async function buildSwapDebtFlashloanTx({
     payer: marginfiAccount.authority,
     luts,
     sizeConstraint: swapConstraints.sizeConstraint,
-    swapIxCount: swapResponses.swapInstructions.length,
-    swapLutCount: swapResponses.addressLookupTableAddresses.length,
+    swapIxCount: engineResult.swapInstructions.length,
+    swapLutCount: engineResult.swapLuts.length,
   });
 
   // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
@@ -386,7 +422,7 @@ async function buildSwapDebtFlashloanTx({
 
   return {
     flashloanTx,
-    setupInstructions: swapResponses.setupInstructions,
+    setupInstructions: engineResult.setupInstructions,
     swapQuote: quoteResponse,
     borrowIxs,
     repayIxs,

@@ -19,7 +19,7 @@ import { mapJupiterQuoteToSwapQuoteResult } from "./swap.utils";
 const REFERRAL_PROGRAM_ID = new PublicKey("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
 const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("6rQUBEfS3hASrBbviL7rXA5tRYmZmeFUgHgCYsjeDVBm");
 
-const getFeeAccount = (mint: PublicKey): string => {
+export const getJupiterReferralFeeAccount = (mint: PublicKey): string => {
   const [feeAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("referral_ata"), REFERRAL_ACCOUNT_PUBKEY.toBuffer(), mint.toBuffer()],
     REFERRAL_PROGRAM_ID
@@ -27,11 +27,11 @@ const getFeeAccount = (mint: PublicKey): string => {
   return feeAccount.toBase58();
 };
 
-const checkFeeAccount = async (
+export const checkJupiterFeeAccount = async (
   connection: Connection,
   mint: PublicKey
 ): Promise<{ feeAccount: string; hasFeeAccount: boolean }> => {
-  const feeAccount = getFeeAccount(mint);
+  const feeAccount = getJupiterReferralFeeAccount(mint);
   const hasFeeAccount = !!(await connection.getAccountInfo(new PublicKey(feeAccount)));
   return { feeAccount, hasFeeAccount };
 };
@@ -78,7 +78,10 @@ export const getJupiterSwapIxsForFlashloan = async ({
 
   const feeMint =
     quoteParams.swapMode === "ExactIn" ? quoteParams.outputMint : quoteParams.inputMint;
-  const { feeAccount, hasFeeAccount } = await checkFeeAccount(connection, new PublicKey(feeMint));
+  const { feeAccount, hasFeeAccount } = await checkJupiterFeeAccount(
+    connection,
+    new PublicKey(feeMint)
+  );
   const project0JupiterLut = (await connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP))
     ?.value;
 

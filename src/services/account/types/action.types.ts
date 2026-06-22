@@ -16,6 +16,7 @@ import { SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
+import type { SwapEngineRunner } from "../services/swap-engine/types";
 
 export enum SwapProvider {
   JUPITER = "JUPITER",
@@ -25,6 +26,10 @@ export enum SwapProvider {
 
 export interface SwapApiConfig {
   basePath?: string;
+  /** WebSocket endpoint (e.g. `wss://<host>/api/v1/ws`). Used by the Titan V3
+   *  adapter, which sends the full footprint template inline over the socket to
+   *  avoid the gateway GET's URL-length limit. */
+  wsUrl?: string;
   apiKey?: string;
   headers?: Record<string, string>;
 }
@@ -388,11 +393,15 @@ export interface MakeLoopTxParams {
     depositBank: BankType;
     tokenProgram: PublicKey;
     loopMode: "DEPOSIT" | "BORROW";
+    // market price (USD per token, UI units) used for the no-slippage deposit estimate
+    marketPrice: number;
   };
   borrowOpts: {
     borrowAmount: number;
     borrowBank: BankType;
     tokenProgram: PublicKey;
+    // market price (USD per token, UI units) used for the no-slippage deposit estimate
+    marketPrice: number;
   };
   swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
@@ -402,6 +411,40 @@ export interface MakeLoopTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /**
+   * Optional override for how the swap engine runs. Defaults to the in-process
+   * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
+   * so the multi-provider fan-out happens server-side.
+   */
+  swapEngineRunner?: SwapEngineRunner;
+}
+
+/**
+ * Describes a loop flashloan that has been built up to — but not including — the swap.
+ * Handed off to the swap engine, which selects a route against the remaining tx budget
+ * and returns the swap instruction(s) to splice into `innerIxs` at `swapSlotIndex`.
+ *
+ * The flashloan wrapper (begin/end-FL) is intentionally NOT part of `innerIxs`; its size
+ * and account cost are already accounted for in `sizeConstraint` / `maxSwapTotalAccounts`.
+ */
+export interface LoopFlashloanDescriptor {
+  // Inner instructions in final order: [cuRequest..., borrow..., <swap slot>, deposit...]
+  innerIxs: TransactionInstruction[];
+  // Array index in `innerIxs` where the swap instruction(s) should be inserted
+  swapSlotIndex: number;
+  // Index of the deposit instruction in `innerIxs` (for the post-swap amount byte-patch)
+  depositIxIndex: number;
+  inputMint: string;
+  outputMint: string;
+  inputDecimals: number;
+  outputDecimals: number;
+  // Borrow amount in native (base) units — the swap input amount (ExactIn)
+  inAmountNative: number;
+  destinationTokenAccount: PublicKey;
+  // Remaining tx budget for the swap, already net of the flashloan wrapper cost
+  sizeConstraint: number;
+  maxSwapTotalAccounts: number;
+  luts: AddressLookupTableAccount[];
 }
 
 export interface MakeRepayWithCollatTxParams {
@@ -436,6 +479,8 @@ export interface MakeRepayWithCollatTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSwapCollateralTxParams {
@@ -466,6 +511,8 @@ export interface MakeSwapCollateralTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSwapDebtTxParams {
@@ -484,11 +531,15 @@ export interface MakeSwapDebtTxParams {
     repayAmount?: number;
     repayBank: BankType;
     tokenProgram: PublicKey;
+    // Market price (USD per token, UI units) used to size the borrow amount.
+    marketPrice: number;
   };
   // Destination debt (what we're borrowing)
   borrowOpts: {
     borrowBank: BankType;
     tokenProgram: PublicKey;
+    // Market price (USD per token, UI units) used to size the borrow amount.
+    marketPrice: number;
   };
   swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
@@ -498,6 +549,8 @@ export interface MakeSwapDebtTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSetupIxParams {

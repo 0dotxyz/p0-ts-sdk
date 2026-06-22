@@ -26,7 +26,7 @@ const getTitanFeeAccount = (mint: PublicKey): PublicKey => {
   return getAssociatedTokenAddressSync(mint, TITAN_FEE_WALLET, true);
 };
 
-const checkTitanFeeAccount = async (
+export const checkTitanFeeAccount = async (
   connection: Connection,
   mint: PublicKey
 ): Promise<{ feeAccount: PublicKey; hasFeeAccount: boolean; feeWallet: PublicKey }> => {
@@ -317,6 +317,10 @@ async function getTitanSwapIxsViaHttpProxy(
 
 // --- ExactOut estimate: public API ---
 
+/**
+ * @deprecated Provider ExactOut quotes are unreliable; size target-output swaps
+ * from a market-price calculation and route ExactIn instead.
+ */
 export const getTitanExactOutEstimate = async (
   params: GetTitanExactOutEstimateParams
 ): Promise<{ otherAmountThreshold: string; quoteResult: SwapQuoteResult }> => {

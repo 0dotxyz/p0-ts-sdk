@@ -121,3 +121,54 @@ export interface SwapInstructionsResponse {
   cleanupInstruction?: Instruction;
   addressLookupTableAddresses: Array<string>;
 }
+
+// --- Router (`GET /swap/v2/build`) ---
+//
+// The Router endpoint replaces Metis `/quote` + `/swap-instructions` with a
+// single call. ExactIn only. It returns raw instructions plus the ALT contents
+// inline (`addressesByLookupTableAddress`), so no separate RPC fetch is needed.
+// See ./client.ts and the "Metis to Router" migration guide.
+
+/** Query parameters for `GET /swap/v2/build`. */
+export interface BuildGetRequest {
+  inputMint: string;
+  outputMint: string;
+  amount: number;
+  /** The account performing the swap (replaces Metis `userPublicKey`). */
+  taker: string;
+  slippageBps?: number;
+  /** "fast" trades route optimality for lower latency. */
+  mode?: "fast";
+  dexes?: Array<string>;
+  excludeDexes?: Array<string>;
+  platformFeeBps?: number;
+  feeAccount?: string;
+  maxAccounts?: number;
+  payer?: string;
+  wrapAndUnwrapSol?: boolean;
+  destinationTokenAccount?: string;
+}
+
+/** Response from `GET /swap/v2/build`. */
+export interface BuildResponse {
+  inputMint: string;
+  outputMint: string;
+  inAmount: string;
+  outAmount: string;
+  otherAmountThreshold: string;
+  swapMode: string;
+  slippageBps: number;
+  routePlan: Array<RoutePlanStep>;
+  computeBudgetInstructions: Array<Instruction>;
+  setupInstructions: Array<Instruction>;
+  swapInstruction: Instruction;
+  cleanupInstruction?: Instruction | null;
+  otherInstructions?: Array<Instruction>;
+  tipInstruction?: Instruction | null;
+  /** Map of ALT address -> the addresses stored inside it (in order). */
+  addressesByLookupTableAddress?: Record<string, string[]> | null;
+  blockhashWithMetadata?: {
+    blockhash: number[];
+    lastValidBlockHeight: number;
+  };
+}
