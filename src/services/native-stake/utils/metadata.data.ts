@@ -360,5 +360,19 @@ export const STAKED_BANK_METADATA_JSON: StakedBankMetadata[] = [
     tokenAddress: "TjA2rtxoUFzyPVAw35VQGEQnNXiwcmNjKSk29nmkq1P",
     tokenName: "Valigator Open",
     tokenSymbol: "Valigator",
-  }
+  },
+  {
+    bankAddress: "7jDJDLjjPZG3M2C8XAEJxDbvHz1e9c7zWzGX4itnKicR",
+    validatorVoteAccount: "7K8DVxtNJGnMtUY1CQJT5jcs8sFGSZTDiG7kowvFpECh",
+    tokenAddress: "CRpAn8E5k9G5VSRuzGfSyfL3Dhtq3phHZbfRwMQnCe2Z",
+    tokenName: "Hubra",
+    tokenSymbol: "HUBRA"
+  },
+  {
+    bankAddress: "62KsgJK5e1WM1uJ3KDgVdizHqLYfbMthNZLnJQRRJKRG",
+    validatorVoteAccount: "FKsC411dik9ktS6xPADxs4Fk2SCENvAiuccQHLAPndvk",
+    tokenAddress: "2pMCRTPxF355vC56r6mL8vfnqa24up5CfZmcX1HkFj7i",
+    tokenName: "P2P org",
+    tokenSymbol: "P2P"
+  }
 ];
