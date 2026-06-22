@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.7
+
+### Patch Changes
+
+- Update staked bank metadata.
+
 ## 2.2.6
 
 ### Patch Changes
