@@ -10,6 +10,7 @@ import {
 import { ReserveRaw } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
+import type { ExponentMergeAccounts } from "~/vendor/exponent";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { SolanaTransaction } from "~/services/transaction";
@@ -510,6 +511,60 @@ export interface MakeSwapCollateralTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
+  crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
+}
+
+/**
+ * Params for {@link makeRollPtTx} — rolling a matured Exponent PT collateral position
+ * into its next-maturity PT.
+ *
+ * The roll deliberately splits the two legs to avoid AMM slippage on the matured side:
+ *   1. withdraw the old PT, then `merge` it 1:1 into the underlying (Exponent, no slippage)
+ *   2. swap the underlying into the new PT via the swap engine (Titan/Jupiter route)
+ *   3. deposit the new PT.
+ *
+ * The Exponent-account resolution (decoding the maturity `Vault`) and the redeemed-amount
+ * sizing (from `Vault.final_sy_exchange_rate`) are the caller's responsibility and are
+ * passed in via `mergeAccounts` / `underlying` / `redeemedAmountNative`.
+ */
+export interface MakeRollPtTxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  connection: Connection;
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  withdrawOpts: {
+    totalPositionAmount: number;
+    withdrawAmount?: number;
+    /** The expiring (matured) PT bank. */
+    withdrawBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  depositOpts: {
+    /** The successor (next-maturity) PT bank. */
+    depositBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  /** Resolved Exponent `merge` accounts for the matured vault (see ExponentMergeAccounts). */
+  mergeAccounts: ExponentMergeAccounts;
+  /** The token `merge` outputs and the swap consumes (the vault's SY/underlying). */
+  underlying: { mint: PublicKey; decimals: number; tokenProgram?: PublicKey };
+  /**
+   * Native amount of `underlying` the `merge` will yield (≈ PT amount × the vault's
+   * `final_sy_exchange_rate`; for a matured vault redemption is fixed). Drives the
+   * engine quote for the buy leg.
+   */
+  redeemedAmountNative: bigint;
+  swapOpts: SwapOpts;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: {
+    group?: PublicKey;
+    authority?: PublicKey;
+  };
   crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
