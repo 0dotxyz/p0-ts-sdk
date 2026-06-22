@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.2.7"
   },
   "changesets": [
+    "light-toes-move",
     "multi-provider-swap-engine"
   ]
 }

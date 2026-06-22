@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.1
+
+### Patch Changes
+
+- exponent vendor & pt rollover
+
 ## 2.3.0-alpha.0
 
 ### Minor Changes
