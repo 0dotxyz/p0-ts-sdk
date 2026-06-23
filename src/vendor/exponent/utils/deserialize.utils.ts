@@ -43,6 +43,7 @@ function pk(v: unknown): PublicKey {
 export function decodeExponentVault(data: Buffer): ExponentVault {
   const d = EXPONENT_ACCOUNTS_CODER.decode("Vault", data) as Record<string, unknown>;
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
+  const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? (v as BN).toString() : String(v ?? 0));
 
   return {
     authority: pk(get("authority", "authority")),
@@ -53,6 +54,8 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
     escrowSy: pk(get("escrow_sy", "escrowSy")),
     yieldPosition: pk(get("yield_position", "yieldPosition")),
     addressLookupTable: pk(get("address_lookup_table", "addressLookupTable")),
+    syForPt: u64(get("sy_for_pt", "syForPt")),
+    ptSupply: u64(get("pt_supply", "ptSupply")),
     finalSyExchangeRate: exponentNumberToBigNumber(
       get("final_sy_exchange_rate", "finalSyExchangeRate")
     ),

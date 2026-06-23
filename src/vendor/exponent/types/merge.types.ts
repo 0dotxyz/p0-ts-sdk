@@ -57,7 +57,7 @@ export interface ResolveExponentMergeContextParams {
 /**
  * Resolved inputs for `makeRollPtTx`, derived from the maturity `Vault`: the `merge`
  * accounts, the SY (underlying) token the swap leg consumes, and a helper to size the
- * redeemed SY amount from `Vault.final_sy_exchange_rate`.
+ * redeemed SY amount from the vault's PT redemption rate.
  */
 export interface ExponentMergeContext {
   vaultAddress: PublicKey;
@@ -65,9 +65,9 @@ export interface ExponentMergeContext {
   mergeAccounts: ExponentMergeAccounts;
   underlying: { mint: PublicKey; decimals: number; tokenProgram: PublicKey };
   /**
-   * Native SY that `merge` yields for a given native PT amount, at the matured rate:
-   * `floor(ptAmountNative × final_sy_exchange_rate)`. Assumes PT and SY share decimals
-   * (true for Exponent vaults). Feed its result into `MakeRollPtTxParams.redeemedAmountNative`.
+   * Native SY that `merge` yields for a given native PT amount, mirroring Exponent's
+   * on-chain math: `floor(ptAmountNative × sy_for_pt / pt_supply)`
+   * (`Vault::pt_redemption_rate`). Feed its result into `MakeRollPtTxParams.redeemedAmountNative`.
    */
   computeRedeemedAmountNative(ptAmountNative: bigint): bigint;
 }

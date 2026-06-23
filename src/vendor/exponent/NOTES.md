@@ -25,9 +25,16 @@ github.com/exponent-finance/exponent-core (`target/idl/exponent_core.json`, copi
   `EXPONENT_NUMBER_DENOM`). Redeemed SY = `floor(ptAmount × final_sy_exchange_rate)`,
   assuming PT and SY share decimals (true for Exponent vaults).
 
-## Worth a quick on-chain sanity check (not blockers)
-- That Anchor 0.30's `BorshAccountsCoder` decodes this 0.31-generated IDL's `Vault`
-  cleanly (custom types: `Number`, `CpiAccounts`, `EmissionInfo`, …) — decode one real
-  vault and confirm the field values.
-- That `redeemedAmountNative` matches the on-chain `MergeEvent.amount_sy_out` for a sample
-  PT amount (confirms the `Number` decode + the same-decimals assumption).
+## Validation status
+- ✅ **Resolver validated against mainnet** (PT-bulkSOL market `7rRzQ…`): `BorshAccountsCoder`
+  decodes `MarketTwo`→`Vault` cleanly, and `mergeAccounts.mintPt` came back as the exact
+  PT-bulkSOL mint — confirming account resolution + that `PT_TOKEN_MARKETS` values are the
+  on-chain `MarketTwo` addresses.
+- ✅ **Redemption math fixed via on-chain source.** `merge` computes
+  `amount_sy_out = floor(amount_py × pt_redemption_rate)` where
+  `pt_redemption_rate = sy_for_pt / pt_supply` (`Vault::pt_redemption_rate`) — NOT
+  `final_sy_exchange_rate`. `computeRedeemedAmountNative` now matches (validated: 1 PT →
+  0.9195 SY on the live vault).
+- ⏳ **Remaining**: the `merge` instruction *execution* (1-byte disc `[5]` + account order)
+  is taken from the IDL but not yet exercised — it'll be confirmed the first time a real
+  roll simulates against a matured PT + successor bank.

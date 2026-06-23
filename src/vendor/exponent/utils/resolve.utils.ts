@@ -69,8 +69,12 @@ export async function resolveExponentMergeContext(
     mergeAccounts,
     underlying: { mint: vault.mintSy, decimals, tokenProgram: syTokenProgram },
     computeRedeemedAmountNative(ptAmountNative: bigint): bigint {
+      // Mirrors Exponent's `merge`: amount_sy_out = floor(amount_py × pt_redemption_rate),
+      // where pt_redemption_rate = sy_for_pt / pt_supply (Vault::pt_redemption_rate).
+      if (vault.ptSupply === 0n) return 0n;
       const sy = new BigNumber(ptAmountNative.toString())
-        .times(vault.finalSyExchangeRate)
+        .times(vault.syForPt.toString())
+        .div(vault.ptSupply.toString())
         .integerValue(BigNumber.ROUND_FLOOR);
       return BigInt(sy.toFixed(0));
     },
