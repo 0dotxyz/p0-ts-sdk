@@ -15,6 +15,7 @@ import {
   MakeLoopTxParams,
   MakeRepayIxOpts,
   MakeRepayWithCollatTxParams,
+  MakeRollPtTxParams,
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
   MakeWithdrawIxOpts,
@@ -485,6 +486,42 @@ export class MarginfiAccountWrapper {
       addressLookupTableAccounts: this.client.addressLookupTables,
     };
     return this.account.makeSwapCollateralTx(fullParams);
+  }
+
+  /**
+   * Rolls a matured Exponent PT collateral position into its next-maturity PT, with
+   * auto-injected client data (withdraw PT_old → merge → buy PT_new → deposit, flash-loan
+   * wrapped). The buy leg is venue-agnostic — supplied via `rollOpts.buyInstructions`.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
+   *
+   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, rollOpts, etc.)
+   */
+  async makeRollPtTx(
+    params: Omit<
+      MakeRollPtTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+    >
+  ): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: SwapQuoteResult | undefined;
+  }> {
+    const fullParams: MakeRollPtTxParams = {
+      ...params,
+      program: this.client.program,
+      marginfiAccount: this.account,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+    };
+    return this.account.makeRollPtTx(fullParams);
   }
 
   /**

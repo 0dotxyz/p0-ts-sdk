@@ -10,7 +10,6 @@ import {
 import { ReserveRaw } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
-import type { ExponentMergeAccounts } from "~/vendor/exponent";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { SolanaTransaction } from "~/services/transaction";
@@ -518,16 +517,22 @@ export interface MakeSwapCollateralTxParams {
 
 /**
  * Params for {@link makeRollPtTx} — rolling a matured Exponent PT collateral position
- * into its next-maturity PT.
+ * into its next-maturity PT, entirely within Exponent (no unwrap, no external aggregator).
  *
- * The roll deliberately splits the two legs to avoid AMM slippage on the matured side:
- *   1. withdraw the old PT, then `merge` it 1:1 into the underlying (Exponent, no slippage)
- *   2. swap the underlying into the new PT via the swap engine (Titan/Jupiter route)
+ * SY is Exponent's internal unit of account and is maturity-independent (the same SY mint
+ * backs every maturity of an underlying), so the roll stays in SY end-to-end:
+ *   1. withdraw the old PT, then `merge` it into SY (Exponent, 1:1, no slippage)
+ *   2. buy the new PT with that SY on the successor maturity's venue
  *   3. deposit the new PT.
  *
- * The Exponent-account resolution (decoding the maturity `Vault`) and the redeemed-amount
- * sizing (from `Vault.final_sy_exchange_rate`) are the caller's responsibility and are
- * passed in via `mergeAccounts` / `underlying` / `redeemedAmountNative`.
+ * The buy leg (step 2) is **venue-agnostic**: the caller supplies the SY→PT_new
+ * instructions via `rollOpts.buyInstructions` (+ any `buyLookupTables`). They may come from
+ * `strip` ({@link makeExponentStripIx}, *mints* PT — unbounded), the legacy `MarketTwo`
+ * ({@link makeExponentTradePtIx}), the CLMM/orderbook, etc. The only requirements: the buy
+ * spends from the SY account the `merge` writes to (`mergeAccounts.sySrcDstAta`) and
+ * delivers ≥ `ptOutNative` of the deposit bank's PT mint to the owner's PT ATA.
+ *
+ * Mirrors {@link MakeSwapCollateralTxParams} (`rollOpts` is the roll's analog of `swapOpts`).
  */
 export interface MakeRollPtTxParams {
   program: MarginfiProgram;
@@ -549,25 +554,62 @@ export interface MakeRollPtTxParams {
     depositBank: BankType;
     tokenProgram: PublicKey;
   };
-  /** Resolved Exponent `merge` accounts for the matured vault (see ExponentMergeAccounts). */
-  mergeAccounts: ExponentMergeAccounts;
-  /** The token `merge` outputs and the swap consumes (the vault's SY/underlying). */
-  underlying: { mint: PublicKey; decimals: number; tokenProgram?: PublicKey };
-  /**
-   * Native amount of `underlying` the `merge` will yield (≈ PT amount × the vault's
-   * `final_sy_exchange_rate`; for a matured vault redemption is fixed). Drives the
-   * engine quote for the buy leg.
-   */
-  redeemedAmountNative: bigint;
-  swapOpts: SwapOpts;
+  /** Exponent merge + buy-leg config (the roll's analog of swap-collateral's `swapOpts`). */
+  rollOpts: RollPtOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;
     authority?: PublicKey;
   };
   crossbarUrl?: string;
-  /** See `MakeLoopTxParams.swapEngineRunner`. */
-  swapEngineRunner?: SwapEngineRunner;
+}
+
+/**
+ * High-level Exponent config for {@link makeRollPtTx} — the roll's analog of `swapOpts`.
+ *
+ * `makeRollPtTx` resolves the matured `merge` and (by default) builds the `strip` buy leg
+ * internally from these addresses, so the caller never assembles Exponent accounts/ixs.
+ * For a non-strip venue, supply a pre-built buy leg via {@link RollPtOpts.buy} (the analog
+ * of `makeLoopTx`'s `swapEngineRunner` override).
+ */
+export interface RollPtOpts {
+  /** The matured PT's Exponent `MarketTwo` — used to resolve `merge` (one of market/vault required). */
+  maturedMarket?: PublicKey;
+  /** …or the matured vault directly. */
+  maturedVault?: PublicKey;
+  /**
+   * The successor (active) vault to `strip` PT_new from — one of vault/market required for
+   * the default strip buy leg (ignored when {@link RollPtOpts.buy} is provided).
+   */
+  successorVault?: PublicKey;
+  /** …or the successor market (its vault is read). */
+  successorMarket?: PublicKey;
+  /**
+   * Optional dedicated PT-roll address lookup table (fetched internally) that compresses the
+   * strip flashloan's two SY-CPI account sets back under the tx size limit
+   * (see `examples/create-pt-roll-lut.ts`).
+   */
+  lookupTable?: PublicKey;
+  /**
+   * Slippage/rounding buffer in basis points applied to the strip's SY-in and the minted-PT
+   * deposit floor, so on-chain merge rounding / SY-rate lag never short the strip. Default 10.
+   */
+  slippageBps?: number;
+  /**
+   * Escape hatch: a pre-built SY→PT_new buy leg (e.g. legacy `MarketTwo` `trade_pt`, CLMM)
+   * to use instead of the internal `strip`. When set, `successorVault`/`successorMarket` and
+   * the internal strip build are skipped. The buy must spend from the merge's SY account
+   * (`mergeAccounts.sySrcDstAta`) and deliver ≥ `ptOutNative` PT to the owner's PT ATA.
+   */
+  buy?: {
+    instructions: TransactionInstruction[];
+    /** ATA creates etc. — placed in the setup tx, not the flashloan. */
+    setupInstructions?: TransactionInstruction[];
+    /** LUTs the buy instructions reference. */
+    lookupTables?: AddressLookupTableAccount[];
+    /** Native PT the buy guarantees — the deposit amount (byte-patched). */
+    ptOutNative: bigint;
+  };
 }
 
 export interface MakeSwapDebtTxParams {

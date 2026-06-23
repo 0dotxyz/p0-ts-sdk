@@ -53,6 +53,8 @@ import {
   MakeRepayWithCollatTxParams,
   makeSwapCollateralTx,
   MakeSwapCollateralTxParams,
+  makeRollPtTx,
+  MakeRollPtTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
   makeClearEmissionsIx,
@@ -895,6 +897,29 @@ class MarginfiAccount implements MarginfiAccountType {
     quoteResponse: SwapQuoteResult | undefined;
   }> {
     return makeSwapCollateralTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a transaction to roll a matured Exponent PT collateral position into its
+   * next-maturity PT, in one flash-loan-wrapped bundle
+   * (withdraw PT_old → merge → buy PT_new → deposit). See {@link makeRollPtTx}.
+   *
+   * @param params - Roll-PT parameters (`withdrawOpts`/`depositOpts`/`rollOpts`).
+   */
+  async makeRollPtTx(params: Omit<MakeRollPtTxParams, "marginfiAccount">): Promise<{
+    transactions: ExtendedV0Transaction[];
+    actionTxIndex: number;
+    quoteResponse: SwapQuoteResult | undefined;
+  }> {
+    return makeRollPtTx({
       ...params,
       marginfiAccount: this,
       overrideInferAccounts: {

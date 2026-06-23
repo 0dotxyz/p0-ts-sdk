@@ -1,4 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { AccountMeta, AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 
 import { ExponentVault } from "./vault.types";
 
@@ -38,6 +38,11 @@ export interface ExponentMergeAccounts {
   yieldPosition: PublicKey;
   /** SPL token program for PT/YT/SY mints (defaults to the classic token program). */
   tokenProgram?: PublicKey;
+  /**
+   * SY-program CPI accounts (`get_sy_state` ++ `withdraw_sy`), pubkeys already resolved
+   * from the vault's address lookup table. Appended after the 15 fixed accounts.
+   */
+  remainingAccounts?: AccountMeta[];
 }
 
 export interface ResolveExponentMergeContextParams {
@@ -63,6 +68,12 @@ export interface ExponentMergeContext {
   vaultAddress: PublicKey;
   vault: ExponentVault;
   mergeAccounts: ExponentMergeAccounts;
+  /**
+   * The vault's address lookup table — `merge`'s SY-CPI remaining accounts are referenced
+   * by ALT index, so adding it to the transaction's lookup tables keeps the tx within size
+   * limits. Add it to `MakeRollPtTxParams.addressLookupTableAccounts`.
+   */
+  addressLookupTable: AddressLookupTableAccount;
   underlying: { mint: PublicKey; decimals: number; tokenProgram: PublicKey };
   /**
    * Native SY that `merge` yields for a given native PT amount, mirroring Exponent's

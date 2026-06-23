@@ -4,7 +4,11 @@ import { BorshAccountsCoder, type Idl } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import { EXPONENT_CORE_IDL } from "../idl";
-import { ExponentVault } from "../types";
+import {
+  ExponentCpiInterfaceContext,
+  ExponentMarketTwo,
+  ExponentVault,
+} from "../types";
 
 /**
  * Exponent's high-precision `Number` is a little-endian U256 (`[u64; 4]`) scaled by 1e12
@@ -45,6 +49,8 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
   const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? (v as BN).toString() : String(v ?? 0));
 
+  const cpi = (get("cpi_accounts", "cpiAccounts") ?? {}) as Record<string, unknown>;
+
   return {
     authority: pk(get("authority", "authority")),
     syProgram: pk(get("sy_program", "syProgram")),
@@ -54,8 +60,16 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
     escrowSy: pk(get("escrow_sy", "escrowSy")),
     yieldPosition: pk(get("yield_position", "yieldPosition")),
     addressLookupTable: pk(get("address_lookup_table", "addressLookupTable")),
+    cpiAccounts: {
+      getSyState: decodeCpiContexts(cpi.get_sy_state ?? cpi.getSyState),
+      depositSy: decodeCpiContexts(cpi.deposit_sy ?? cpi.depositSy),
+      withdrawSy: decodeCpiContexts(cpi.withdraw_sy ?? cpi.withdrawSy),
+    },
     syForPt: u64(get("sy_for_pt", "syForPt")),
     ptSupply: u64(get("pt_supply", "ptSupply")),
+    lastSeenSyExchangeRate: exponentNumberToBigNumber(
+      get("last_seen_sy_exchange_rate", "lastSeenSyExchangeRate")
+    ),
     finalSyExchangeRate: exponentNumberToBigNumber(
       get("final_sy_exchange_rate", "finalSyExchangeRate")
     ),
@@ -67,6 +81,54 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
 export function decodeExponentMarketVault(data: Buffer): PublicKey {
   const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data) as Record<string, unknown>;
   return pk(d.vault);
+}
+
+/** Decode an Anchor-decoded list of `CpiInterfaceContext` (snake/camel tolerant). */
+function decodeCpiContexts(raw: unknown): ExponentCpiInterfaceContext[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((c) => {
+    const o = (c ?? {}) as Record<string, unknown>;
+    return {
+      altIndex: Number(o.alt_index ?? o.altIndex ?? 0),
+      isSigner: Boolean(o.is_signer ?? o.isSigner ?? false),
+      isWritable: Boolean(o.is_writable ?? o.isWritable ?? false),
+    };
+  });
+}
+
+/** Decode a raw `MarketTwo` account buffer into {@link ExponentMarketTwo}. */
+export function decodeExponentMarketTwo(data: Buffer): ExponentMarketTwo {
+  const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data) as Record<string, unknown>;
+  const get = (snake: string, camel: string) => d[snake] ?? d[camel];
+  const cpi = (get("cpi_accounts", "cpiAccounts") ?? {}) as Record<string, unknown>;
+
+  return {
+    selfAddress: pk(get("self_address", "selfAddress")),
+    mintPt: pk(get("mint_pt", "mintPt")),
+    mintSy: pk(get("mint_sy", "mintSy")),
+    vault: pk(get("vault", "vault")),
+    tokenPtEscrow: pk(get("token_pt_escrow", "tokenPtEscrow")),
+    tokenSyEscrow: pk(get("token_sy_escrow", "tokenSyEscrow")),
+    tokenFeeTreasurySy: pk(get("token_fee_treasury_sy", "tokenFeeTreasurySy")),
+    addressLookupTable: pk(get("address_lookup_table", "addressLookupTable")),
+    syProgram: pk(get("sy_program", "syProgram")),
+    statusFlags: Number(get("status_flags", "statusFlags") ?? 0),
+    cpiAccounts: {
+      getSyState: decodeCpiContexts(cpi.get_sy_state ?? cpi.getSyState),
+      depositSy: decodeCpiContexts(cpi.deposit_sy ?? cpi.depositSy),
+      withdrawSy: decodeCpiContexts(cpi.withdraw_sy ?? cpi.withdrawSy),
+    },
+  };
+}
+
+/** Fetch + decode an Exponent `MarketTwo` account. */
+export async function fetchExponentMarketTwo(
+  connection: Connection,
+  market: PublicKey
+): Promise<ExponentMarketTwo> {
+  const info = await connection.getAccountInfo(market);
+  if (!info) throw new Error(`Exponent market account not found: ${market.toBase58()}`);
+  return decodeExponentMarketTwo(info.data);
 }
 
 /** Fetch + decode an Exponent `Vault` account. */
