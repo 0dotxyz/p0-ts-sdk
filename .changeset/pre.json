@@ -7,6 +7,7 @@
   "changesets": [
     "fifty-spoons-invent",
     "light-toes-move",
-    "multi-provider-swap-engine"
+    "multi-provider-swap-engine",
+    "pt-roll-up"
   ]
 }
