@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.2
+
+### Patch Changes
+
+- fix:resolveExponentMergeContext
+
 ## 2.3.0-alpha.1
 
 ### Patch Changes
