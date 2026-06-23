@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import BN from "bn.js";
 import {
   PublicKey,
   TransactionInstruction,
@@ -7,7 +8,7 @@ import {
 } from "@solana/web3.js";
 
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "~/vendor/spl";
-import { EXPONENT_CORE_PROGRAM_ID, type ExponentMergeAccounts } from "~/vendor/exponent";
+import { EXPONENT_CORE_PROGRAM_ID } from "~/vendor/exponent";
 
 // ---- Shared capture store (hoisted so the mock factories can see it) ----------------
 const store = vi.hoisted(() => ({
@@ -15,21 +16,37 @@ const store = vi.hoisted(() => ({
   flashloanLuts: [] as unknown[],
   setupIxs: [] as TransactionInstruction[],
   crank: { instructions: [] as TransactionInstruction[], luts: [] as unknown[] },
-  mergeCtx: undefined as any,
-  stripCtx: undefined as any,
-  stripCalls: 0,
+  wrapperCtx: undefined as any,
+  swapResult: undefined as any,
+  wrapperCalls: 0,
+  swapCalls: 0,
 }));
 
 const KNOWN_DEPOSIT_DISC = [171, 94, 235, 103, 82, 64, 212, 140]; // lending_account_deposit
 
-// Stub the Exponent resolvers (RPC) but keep the real ix encoders (makeExponentMergeIx/StripIx).
+// Stub the Exponent resolver (RPC) but keep the real ix encoder (makeExponentWrapperMergeIx).
 vi.mock("~/vendor/exponent", async (importActual) => ({
   ...(await importActual<typeof import("~/vendor/exponent")>()),
-  resolveExponentMergeContext: async () => store.mergeCtx,
-  resolveExponentStripContext: async () => {
-    store.stripCalls++;
-    return store.stripCtx;
+  resolveExponentWrapperMergeContext: async () => {
+    store.wrapperCalls++;
+    return store.wrapperCtx;
   },
+}));
+
+// Keep the pure opts→fields helpers, mock the engine itself (no Titan/Jupiter RPC).
+vi.mock("~/services/account/services/swap-engine", async (importActual) => ({
+  ...(await importActual<typeof import("~/services/account/services/swap-engine")>()),
+  runSwapEngine: async () => {
+    store.swapCalls++;
+    return store.swapResult;
+  },
+}));
+
+// Keep isWholePosition/patchDepositAmount/isDepositIx real; stub the size estimators (need real banks).
+vi.mock("~/services/account/utils", async (importActual) => ({
+  ...(await importActual<typeof import("~/services/account/utils")>()),
+  computeFlashLoanNonSwapBudget: () => ({ sizeConstraint: 1000, maxSwapTotalAccounts: 64 }),
+  compileFlashloanPrecheck: () => ({ fullTxSize: 0, overshoot: -1, writableAccounts: 0, totalAccounts: 0 }),
 }));
 
 vi.mock("~/services/account/actions/account-lifecycle", () => ({
@@ -83,63 +100,52 @@ function pk(seed: number): PublicKey {
   return new PublicKey(b);
 }
 
-const MERGE_LUT = { key: pk(50), state: { addresses: [] } } as any;
-const STRIP_LUT = { key: pk(51), state: { addresses: [] } } as any;
+const VAULT_LUT = { key: pk(50), state: { addresses: [] } } as any;
+const SWAP_LUT = { key: pk(51), state: { addresses: [] } } as any;
 const PT_ROLL_LUT = { key: pk(52), state: { addresses: [] } } as any;
+const STAKE_POOL_REFRESH = new TransactionInstruction({
+  keys: [],
+  programId: pk(90),
+  data: Buffer.from([7]),
+});
+const SWAP_MARKER = new TransactionInstruction({ keys: [], programId: pk(80), data: Buffer.from([0xaa]) });
 
-function makeMergeAccounts(): ExponentMergeAccounts {
-  return {
-    owner: pk(1),
-    authority: pk(11),
-    vault: pk(12),
-    sySrcDstAta: pk(70),
-    escrowSy: pk(13),
-    ytSrcAta: pk(14),
-    ptSrcAta: pk(15),
-    mintYt: pk(16),
-    mintPt: pk(17),
-    syProgram: pk(18),
-    addressLookupTable: pk(19),
-    yieldPosition: pk(20),
-  };
-}
-
-function makeMergeCtx() {
+function makeWrapperCtx() {
   return {
     vaultAddress: pk(12),
     vault: {} as any,
-    mergeAccounts: makeMergeAccounts(),
-    addressLookupTable: MERGE_LUT,
-    underlying: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ID },
-    computeRedeemedAmountNative: () => 1000n,
+    wrapperMergeAccounts: {
+      owner: pk(1),
+      syAta: pk(70),
+      vault: pk(12),
+      escrowSy: pk(13),
+      ytAta: pk(14),
+      ptAta: pk(15),
+      mintYt: pk(16),
+      mintPt: pk(17),
+      authority: pk(11),
+      addressLookupTable: pk(19),
+      yieldPosition: pk(20),
+      syProgram: pk(18),
+      tokenProgram: TOKEN_PROGRAM_ID,
+      remainingAccounts: [],
+      redeemSyAccountsUntil: 10,
+    },
+    preInstructions: [STAKE_POOL_REFRESH],
+    addressLookupTable: VAULT_LUT,
+    baseToken: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ID },
+    setupMints: [{ mint: pk(41), tokenProgram: TOKEN_PROGRAM_ID }],
+    computeRedeemedBaseNative: () => 999n,
   };
 }
 
-function makeStripCtx() {
+function makeSwapResult() {
   return {
-    vaultAddress: pk(61),
-    vault: {} as any,
-    stripAccounts: {
-      depositor: pk(1),
-      authority: pk(62),
-      vault: pk(61),
-      sySrc: pk(70),
-      escrowSy: pk(63),
-      ytDst: pk(64),
-      ptDst: pk(65),
-      mintYt: pk(72),
-      mintPt: pk(66),
-      syProgram: pk(18),
-      addressLookupTable: pk(67),
-      yieldPosition: pk(68),
-      remainingAccounts: [],
-    },
-    addressLookupTable: STRIP_LUT,
-    sy: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ID },
-    pt: { mint: pk(66), decimals: 9, tokenProgram: TOKEN_PROGRAM_ID },
-    yt: { mint: pk(72), tokenProgram: TOKEN_PROGRAM_ID },
-    syExchangeRate: 1,
-    computeStrippedPtNative: (n: bigint) => n,
+    swapInstructions: [SWAP_MARKER],
+    setupInstructions: [],
+    swapLuts: [SWAP_LUT],
+    quoteResponse: { outAmount: "777" } as any,
+    outputAmountNative: new BN(777),
   };
 }
 
@@ -168,54 +174,57 @@ function makeParams(
       depositBank: { mint: pk(31), mintDecimals: 6 } as any,
       tokenProgram: TOKEN_PROGRAM_ID,
     },
-    // High-level config: markets in, resolution internal. slippage 0 for predictable amounts.
-    rollOpts: { maturedMarket: pk(60), successorVault: pk(61), slippageBps: 0 },
+    swapOpts: { swapConfig: {} } as any,
+    rollOpts: { maturedMarket: pk(60), baseMint: pk(41) },
     addressLookupTableAccounts: [],
   };
   return { ...base, ...rest, rollOpts: { ...base.rollOpts, ...rollOverrides } };
 }
 
-describe("makeRollPtTx (internalized strip roll)", () => {
+describe("makeRollPtTx (wrapper_merge + swap engine)", () => {
   beforeEach(() => {
     store.flashloanIxs = [];
     store.flashloanLuts = [];
     store.setupIxs = [];
     store.crank = { instructions: [], luts: [] };
-    store.mergeCtx = makeMergeCtx();
-    store.stripCtx = makeStripCtx();
-    store.stripCalls = 0;
+    store.wrapperCtx = makeWrapperCtx();
+    store.swapResult = makeSwapResult();
+    store.wrapperCalls = 0;
+    store.swapCalls = 0;
   });
 
-  it("internally resolves merge + strip and bundles withdraw → merge → strip → deposit", async () => {
+  it("bundles withdraw → wrapper_merge → swap → deposit; runs the stake-pool refresh in setup", async () => {
     const res = await makeRollPtTx(makeParams());
 
-    // strip mints a new YT → a setup tx (YT ATA create) is emitted ahead of the flashloan.
+    expect(store.wrapperCalls).toBe(1);
+    expect(store.swapCalls).toBe(1);
+    // setup tx (carries the flavor stake-pool refresh pre-ix) + the flashloan
     expect(res.transactions).toHaveLength(2);
     expect(res.actionTxIndex).toBe(1);
-    expect(store.stripCalls).toBe(1);
 
     const ixs = store.flashloanIxs;
-    // [cuLimit, cuPrice, withdraw, merge, strip, deposit]
+    // [cuLimit, cuPrice, withdraw, wrapper_merge, swap, deposit] — refresh is NOT in the flashloan
     expect(ixs).toHaveLength(6);
-    const merge = ixs[3];
-    const strip = ixs[4];
-    const deposit = ixs[5];
-
-    // real merge encoding (disc 5, amount = uiToNative(100, 9))
-    expect(merge.programId.equals(EXPONENT_CORE_PROGRAM_ID)).toBe(true);
-    expect(merge.data[0]).toBe(5);
-    expect(merge.data.readBigUInt64LE(1)).toBe(100_000_000_000n);
-    // real strip encoding (disc 4)
-    expect(strip.programId.equals(EXPONENT_CORE_PROGRAM_ID)).toBe(true);
-    expect(strip.data[0]).toBe(4);
-    // deposit byte-patched to the minted PT floor (computeStrippedPtNative(1000) at 0 slippage)
-    expect(deposit.data.readBigUInt64LE(8)).toBe(1000n);
+    expect(ixs[2].data[0]).toBe(9); // withdraw stub
+    expect(ixs[3].programId.equals(EXPONENT_CORE_PROGRAM_ID)).toBe(true);
+    expect(ixs[3].data[0]).toBe(39); // wrapper_merge disc
+    expect(ixs[3].data.readBigUInt64LE(1)).toBe(100_000_000_000n); // amount_py = uiToNative(100, 9)
+    expect(ixs[3].data.readUInt8(9)).toBe(10); // redeem_sy_accounts_until
+    expect(ixs[4].data[0]).toBe(0xaa); // swap marker
+    expect(ixs[5].data.readBigUInt64LE(8)).toBe(777n); // deposit patched to swap min-out
+    // the stake-pool refresh ran in the setup tx, keeping its accounts out of the flashloan
+    expect(ixs.some((ix) => ix.programId.equals(pk(90)))).toBe(false);
   });
 
-  it("carries the merge + strip vault ALTs in the flashloan lookup tables", async () => {
+  it("returns the swap engine's quote (the destination amount the UI needs)", async () => {
+    const res = await makeRollPtTx(makeParams());
+    expect(res.quoteResponse).toEqual({ outAmount: "777" });
+  });
+
+  it("carries the vault ALT + swap LUTs in the flashloan lookup tables", async () => {
     await makeRollPtTx(makeParams());
-    expect(store.flashloanLuts).toContain(MERGE_LUT);
-    expect(store.flashloanLuts).toContain(STRIP_LUT);
+    expect(store.flashloanLuts).toContain(VAULT_LUT);
+    expect(store.flashloanLuts).toContain(SWAP_LUT);
   });
 
   it("fetches and carries the dedicated PT-roll lookupTable when provided", async () => {
@@ -223,7 +232,7 @@ describe("makeRollPtTx (internalized strip roll)", () => {
     expect(store.flashloanLuts).toContain(PT_ROLL_LUT);
   });
 
-  it("creates the new YT ATA in the setup tx, not the flashloan", async () => {
+  it("keeps ATA creates out of the flashloan", async () => {
     await makeRollPtTx(makeParams());
     const ataInFlashloan = store.flashloanIxs.some((ix) =>
       ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)
@@ -231,28 +240,9 @@ describe("makeRollPtTx (internalized strip roll)", () => {
     expect(ataInFlashloan).toBe(false);
   });
 
-  it("uses rollOpts.buy (escape hatch) instead of strip when provided", async () => {
-    const marker = new TransactionInstruction({ keys: [], programId: pk(80), data: Buffer.from([0xaa]) });
-    const res = await makeRollPtTx(
-      makeParams({ rollOpts: { buy: { instructions: [marker], ptOutNative: 500n } } })
-    );
-
-    expect(store.stripCalls).toBe(0); // strip resolver NOT called
-    expect(res.transactions).toHaveLength(1); // no YT-ATA setup tx
-    const ixs = store.flashloanIxs;
-    expect(ixs.some((ix) => ix.data[0] === 0xaa)).toBe(true);
-    expect(ixs[ixs.length - 1].data.readBigUInt64LE(8)).toBe(500n); // deposit patched to buy.ptOutNative
-  });
-
   it("rejects when no matured market/vault is given", async () => {
     await expect(
       makeRollPtTx(makeParams({ rollOpts: { maturedMarket: undefined, maturedVault: undefined } }))
     ).rejects.toThrow(/maturedMarket/);
-  });
-
-  it("rejects when no successor market/vault and no buy override", async () => {
-    await expect(
-      makeRollPtTx(makeParams({ rollOpts: { successorVault: undefined, successorMarket: undefined } }))
-    ).rejects.toThrow(/successorVault/);
   });
 });

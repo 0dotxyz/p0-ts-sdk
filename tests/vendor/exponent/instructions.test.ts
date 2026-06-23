@@ -1,14 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
 import {
   exponentBuyPtArgs,
   makeExponentTradePtIx,
   makeExponentStripIx,
+  makeExponentWrapperMergeIx,
   EXPONENT_CORE_PROGRAM_ID,
   type ExponentTradePtAccounts,
   type ExponentStripAccounts,
+  type ExponentWrapperMergeAccounts,
 } from "~/vendor/exponent";
 
 // The resolvers pull the MarketTwo/Vault decode from deserialize.utils; mock that single
@@ -25,6 +27,7 @@ vi.mock("~/vendor/exponent/utils/deserialize.utils", () => ({
 import {
   resolveExponentTradePtContext,
   resolveExponentStripContext,
+  resolveExponentWrapperMergeContext,
 } from "~/vendor/exponent/utils/resolve.utils";
 
 function pk(seed: number): PublicKey {
@@ -297,5 +300,164 @@ describe("resolveExponentStripContext", () => {
     expect(ctx.syExchangeRate).toBeCloseTo(1.0875);
     // floor(1_000_000_000 × 1.0875) = 1_087_500_000
     expect(ctx.computeStrippedPtNative(1_000_000_000n)).toBe(1_087_500_000n);
+  });
+});
+
+// ============================================================================
+// wrapper_merge — instruction encoding + resolver
+// ============================================================================
+
+function makeWrapperMergeAccounts(
+  overrides: Partial<ExponentWrapperMergeAccounts> = {}
+): ExponentWrapperMergeAccounts {
+  return {
+    owner: pk(1),
+    syAta: pk(2),
+    vault: pk(3),
+    escrowSy: pk(4),
+    ytAta: pk(5),
+    ptAta: pk(6),
+    mintYt: pk(7),
+    mintPt: pk(8),
+    authority: pk(9),
+    addressLookupTable: pk(10),
+    yieldPosition: pk(11),
+    syProgram: pk(12),
+    // redeem[0] is the owner (keeps its signer flag), then non-signer redeem + cpi accounts
+    remainingAccounts: [
+      { pubkey: pk(1), isSigner: true, isWritable: true },
+      { pubkey: pk(20), isSigner: false, isWritable: true },
+      { pubkey: pk(21), isSigner: false, isWritable: false },
+    ],
+    redeemSyAccountsUntil: 2,
+    ...overrides,
+  };
+}
+
+describe("makeExponentWrapperMergeIx", () => {
+  it("encodes discriminator [39] + u64 amount_py + u8 redeem_sy_accounts_until", () => {
+    const ix = makeExponentWrapperMergeIx(makeWrapperMergeAccounts(), {
+      amountPyNative: 1_000_000_000n,
+      redeemSyAccountsUntil: 2,
+    });
+    expect(ix.programId.equals(EXPONENT_CORE_PROGRAM_ID)).toBe(true);
+    expect(ix.data.length).toBe(1 + 9);
+    expect(ix.data[0]).toBe(39);
+    expect(ix.data.readBigUInt64LE(1)).toBe(1_000_000_000n);
+    expect(ix.data.readUInt8(9)).toBe(2);
+  });
+
+  it("lays out the 16 fixed accounts (IDL order), then the assembled remaining accounts", () => {
+    const a = makeWrapperMergeAccounts();
+    const ix = makeExponentWrapperMergeIx(a, { amountPyNative: 1n, redeemSyAccountsUntil: 2 });
+    expect(ix.keys.length).toBe(16 + 3);
+
+    expect(ix.keys[0]).toMatchObject({ pubkey: a.owner, isSigner: true, isWritable: true });
+    expect(ix.keys[1].pubkey.equals(a.syAta)).toBe(true);
+    expect(ix.keys[2].pubkey.equals(a.vault)).toBe(true);
+    expect(ix.keys[9].pubkey.equals(a.addressLookupTable)).toBe(true);
+    expect(ix.keys[9].isWritable).toBe(false);
+    expect(ix.keys[11].pubkey.equals(a.yieldPosition)).toBe(true);
+    expect(ix.keys[12].pubkey.equals(a.syProgram)).toBe(true);
+    expect(ix.keys[13].pubkey.equals(SystemProgram.programId)).toBe(true);
+    expect(ix.keys[15].pubkey.equals(EXPONENT_CORE_PROGRAM_ID)).toBe(true);
+    // remaining accounts come strictly after the 16 fixed ones, flags preserved (owner stays signer)
+    expect(ix.keys[16]).toMatchObject({ pubkey: pk(1), isSigner: true, isWritable: true });
+    expect(ix.keys[17]).toMatchObject({ pubkey: pk(20), isWritable: true });
+    expect(ix.keys[18]).toMatchObject({ pubkey: pk(21), isWritable: false });
+  });
+});
+
+describe("resolveExponentWrapperMergeContext", () => {
+  const owner = pk(100);
+  // get_sy_state = [syState, mintSy, tokenSyEscrow, stakePool]
+  const altAddresses = [pk(200), pk(41), pk(202), pk(203), pk(204)];
+  const vault = {
+    authority: pk(11),
+    syProgram: pk(18),
+    mintSy: pk(41),
+    mintYt: pk(16),
+    mintPt: pk(17),
+    escrowSy: pk(13),
+    yieldPosition: pk(20),
+    addressLookupTable: pk(19),
+    cpiAccounts: {
+      getSyState: [
+        { altIndex: 0, isSigner: false, isWritable: true },
+        { altIndex: 1, isSigner: false, isWritable: false },
+        { altIndex: 2, isSigner: false, isWritable: true },
+        { altIndex: 3, isSigner: false, isWritable: true },
+      ],
+      depositSy: [],
+      withdrawSy: [
+        { altIndex: 0, isSigner: false, isWritable: true },
+        { altIndex: 4, isSigner: false, isWritable: false },
+      ],
+    },
+    syForPt: 919n,
+    ptSupply: 1000n,
+    lastSeenSyExchangeRate: new BigNumber("1.0875"),
+    finalSyExchangeRate: new BigNumber(0),
+    status: 0,
+  };
+
+  // Minimal SPL StakePool buffer: pubkeys at the documented offsets.
+  const stakePoolData = Buffer.alloc(260);
+  pk(98).toBuffer().copy(stakePoolData, 98); // validatorList
+  pk(130).toBuffer().copy(stakePoolData, 130); // reserveStake
+  pk(42).toBuffer().copy(stakePoolData, 162); // poolMint
+  pk(194).toBuffer().copy(stakePoolData, 194); // managerFeeAccount
+
+  const connection = {
+    getAddressLookupTable: async () => ({ value: { state: { addresses: altAddresses } } }),
+    getAccountInfo: async () => ({ owner: pk(90), data: stakePoolData }),
+  } as any;
+
+  it("assembles wrapper_merge accounts (redeem owner keeps signer) + the stake-pool refresh", async () => {
+    hoisted.vault = vault;
+    const ctx = await resolveExponentWrapperMergeContext({
+      connection,
+      owner,
+      vault: pk(3),
+      baseMint: pk(42),
+    });
+
+    const wm = ctx.wrapperMergeAccounts;
+    expect(wm.redeemSyAccountsUntil).toBe(10);
+    // redeem accounts: [owner(signer), syState, baseAta, baseEscrow, syAta, mintSy, mintBase, tokenProg, baseTokenProg, stakePool]
+    expect(wm.remainingAccounts[0]).toMatchObject({ pubkey: owner, isSigner: true });
+    expect(wm.remainingAccounts[1].pubkey.equals(altAddresses[0])).toBe(true); // syState = get_sy_state[0]
+    expect(wm.remainingAccounts[5].pubkey.equals(vault.mintSy)).toBe(true);
+    expect(wm.remainingAccounts[9].pubkey.equals(altAddresses[3])).toBe(true); // stakePool = get_sy_state[3]
+    // cpi remaining (deduped withdraw_sy ++ get_sy_state) follow the 10 redeem accounts
+    expect(wm.remainingAccounts.length).toBeGreaterThan(10);
+    // no phantom signer beyond the owner
+    expect(wm.remainingAccounts.filter((m) => m.isSigner).length).toBe(1);
+  });
+
+  it("builds the stake-pool refresh pre-ix on the pool's owning program", async () => {
+    hoisted.vault = vault;
+    const ctx = await resolveExponentWrapperMergeContext({
+      connection,
+      owner,
+      vault: pk(3),
+      baseMint: pk(42),
+    });
+    expect(ctx.preInstructions).toHaveLength(1);
+    expect(ctx.preInstructions[0].programId.equals(pk(90))).toBe(true);
+    expect(ctx.preInstructions[0].data[0]).toBe(7); // UpdateStakePoolBalance
+    expect(ctx.baseToken.mint.equals(pk(42))).toBe(true);
+  });
+
+  it("sizes the redeemed base as the 1:1 merge SY output: floor(pt × sy_for_pt / pt_supply)", async () => {
+    hoisted.vault = vault;
+    const ctx = await resolveExponentWrapperMergeContext({
+      connection,
+      owner,
+      vault: pk(3),
+      baseMint: pk(42),
+    });
+    // SY→base unwrap is 1:1 in amount → floor(1000 × 919/1000) = 919
+    expect(ctx.computeRedeemedBaseNative(1000n)).toBe(919n);
   });
 });

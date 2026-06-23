@@ -3,6 +3,7 @@ import { AccountMeta, PublicKey } from "@solana/web3.js";
 
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
+import { makeSplStakePoolUpdateBalanceIx } from "../instructions";
 import {
   ExponentCpiInterfaceContext,
   ExponentMergeAccounts,
@@ -12,9 +13,12 @@ import {
   ExponentTradePtAccounts,
   ExponentTradePtContext,
   ExponentVault,
+  ExponentWrapperMergeAccounts,
+  ExponentWrapperMergeContext,
   ResolveExponentMergeContextParams,
   ResolveExponentStripContextParams,
   ResolveExponentTradePtContextParams,
+  ResolveExponentWrapperMergeContextParams,
 } from "../types";
 
 import {
@@ -48,6 +52,26 @@ function resolveCpiMetas(
     return { pubkey, isSigner: false, isWritable: ctx.isWritable };
   });
 }
+
+/** Dedupe AccountMetas by pubkey, keeping first order and OR-ing writability (matches the SDK). */
+function uniqueRemainingAccounts(metas: AccountMeta[]): AccountMeta[] {
+  const seen = new Map<string, AccountMeta>();
+  for (const m of metas) {
+    const key = m.pubkey.toBase58();
+    const prev = seen.get(key);
+    if (prev) prev.isWritable = prev.isWritable || m.isWritable;
+    else seen.set(key, { ...m });
+  }
+  return [...seen.values()];
+}
+
+/** SPL Stake Pool account layout offsets for the fields the refresh ix needs. */
+const STAKE_POOL_OFFSETS = {
+  validatorList: 98,
+  reserveStake: 130,
+  poolMint: 162,
+  managerFeeAccount: 194,
+} as const;
 
 /**
  * Resolve everything `makeRollPtTx` needs for an Exponent PT roll by decoding the maturity
@@ -283,6 +307,160 @@ export async function resolveExponentStripContext(
         .times(syInNative.toString())
         .integerValue(BigNumber.ROUND_FLOOR);
       return BigInt(pt.toFixed(0));
+    },
+  };
+}
+
+/**
+ * Build the SPL Stake Pool `UpdateStakePoolBalance` instruction for `stakePool` by reading
+ * the pool's account (validator list / reserve / manager fee / pool mint are at fixed offsets)
+ * and deriving the pool's withdraw authority PDA — all dep-free. The pool's owning program is
+ * read from the account itself (no hard-coded stake-pool program id).
+ */
+async function resolveSplStakePoolRefreshIx(
+  connection: ResolveExponentWrapperMergeContextParams["connection"],
+  stakePool: PublicKey
+) {
+  const info = await connection.getAccountInfo(stakePool);
+  if (!info) throw new Error(`SPL stake pool account not found: ${stakePool.toBase58()}`);
+  const stakePoolProgram = info.owner;
+  const at = (off: number) => new PublicKey(info.data.subarray(off, off + 32));
+  const [withdrawAuthority] = PublicKey.findProgramAddressSync(
+    [stakePool.toBuffer(), Buffer.from("withdraw")],
+    stakePoolProgram
+  );
+  return makeSplStakePoolUpdateBalanceIx({
+    stakePoolProgram,
+    stakePool,
+    withdrawAuthority,
+    validatorList: at(STAKE_POOL_OFFSETS.validatorList),
+    reserveStake: at(STAKE_POOL_OFFSETS.reserveStake),
+    managerFeeAccount: at(STAKE_POOL_OFFSETS.managerFeeAccount),
+    poolMint: at(STAKE_POOL_OFFSETS.poolMint),
+  });
+}
+
+/**
+ * Resolve everything the roll's redeem leg needs to turn matured PT into the underlying
+ * **base** token via `wrapper_merge` (merge PT → SY, then CPI-redeem SY → base, in one ix) —
+ * so the buy leg swaps a normal token, not the un-swappable SY.
+ *
+ * Decodes the maturity `Vault`, derives the owner's SY/PT/YT/base token accounts, assembles
+ * the flavor redeem accounts (all derivable: the generic SY state is `get_sy_state[0]`, the
+ * SPL stake pool is `get_sy_state[3]`, the base escrow is `ATA(syState, baseMint)`), appends
+ * the vault's `withdraw_sy ++ get_sy_state` CPI accounts, and builds the stake-pool refresh
+ * that must run first. Validated byte-for-byte against the Exponent SDK's `ixMergeToBase`.
+ */
+export async function resolveExponentWrapperMergeContext(
+  params: ResolveExponentWrapperMergeContextParams
+): Promise<ExponentWrapperMergeContext> {
+  const { connection, owner, baseMint } = params;
+  const ptYtTokenProgram = params.ptYtTokenProgram ?? TOKEN_PROGRAM_ID;
+  const syTokenProgram = params.syTokenProgram ?? TOKEN_PROGRAM_ID;
+  const baseTokenProgram = params.baseTokenProgram ?? TOKEN_PROGRAM_ID;
+
+  let vaultAddress: PublicKey;
+  let vault: ExponentVault;
+  if (params.vault) {
+    vaultAddress = params.vault;
+    vault = await fetchExponentVault(connection, vaultAddress);
+  } else if (params.market) {
+    const res = await fetchExponentVaultFromMarket(connection, params.market);
+    vaultAddress = res.vault;
+    vault = res.account;
+  } else {
+    throw new Error("resolveExponentWrapperMergeContext: one of `vault` or `market` is required");
+  }
+
+  const altResult = await connection.getAddressLookupTable(vault.addressLookupTable);
+  const alt = altResult.value;
+  if (!alt) {
+    throw new Error(
+      `Exponent vault address lookup table not found: ${vault.addressLookupTable.toBase58()}`
+    );
+  }
+  const altKey = vault.addressLookupTable;
+  const getSyState = resolveCpiMetas(vault.cpiAccounts.getSyState, alt.state.addresses, altKey);
+  const withdrawSy = resolveCpiMetas(vault.cpiAccounts.withdrawSy, alt.state.addresses, altKey);
+  if (getSyState.length < 4) {
+    throw new Error(
+      "resolveExponentWrapperMergeContext: unexpected get_sy_state shape (expected the generic " +
+        "SPL-stake-pool flavor: [syState, mintSy, tokenSyEscrow, stakePool])"
+    );
+  }
+  // The generic SY state owns the base escrow; the SPL stake pool drives the SY↔base rate.
+  const syState = getSyState[0].pubkey;
+  const stakePool = getSyState[3].pubkey;
+
+  const syAta = getAssociatedTokenAddressSync(vault.mintSy, owner, true, syTokenProgram);
+  const ptAta = getAssociatedTokenAddressSync(vault.mintPt, owner, true, ptYtTokenProgram);
+  const ytAta = getAssociatedTokenAddressSync(vault.mintYt, owner, true, ptYtTokenProgram);
+  const baseAta = getAssociatedTokenAddressSync(baseMint, owner, true, baseTokenProgram);
+  const baseEscrow = getAssociatedTokenAddressSync(baseMint, syState, true, baseTokenProgram);
+
+  // Flavor `redeem_sy` accounts (generic SY program). Owner (the redeemer) keeps its signer
+  // flag; everything else is non-signer. Order taken from the SDK's `flavor.ixRedeemSy`.
+  const redeem: AccountMeta[] = [
+    { pubkey: owner, isSigner: true, isWritable: true },
+    { pubkey: syState, isSigner: false, isWritable: true },
+    { pubkey: baseAta, isSigner: false, isWritable: true },
+    { pubkey: baseEscrow, isSigner: false, isWritable: true },
+    { pubkey: syAta, isSigner: false, isWritable: true },
+    { pubkey: vault.mintSy, isSigner: false, isWritable: true },
+    { pubkey: baseMint, isSigner: false, isWritable: false },
+    { pubkey: syTokenProgram, isSigner: false, isWritable: false },
+    { pubkey: baseTokenProgram, isSigner: false, isWritable: false },
+    { pubkey: stakePool, isSigner: false, isWritable: true },
+  ];
+  const cpi = uniqueRemainingAccounts([...withdrawSy, ...getSyState]);
+
+  const wrapperMergeAccounts: ExponentWrapperMergeAccounts = {
+    owner,
+    syAta,
+    vault: vaultAddress,
+    escrowSy: vault.escrowSy,
+    ytAta,
+    ptAta,
+    mintYt: vault.mintYt,
+    mintPt: vault.mintPt,
+    authority: vault.authority,
+    addressLookupTable: vault.addressLookupTable,
+    yieldPosition: vault.yieldPosition,
+    syProgram: vault.syProgram,
+    tokenProgram: ptYtTokenProgram,
+    remainingAccounts: [...redeem, ...cpi],
+    redeemSyAccountsUntil: redeem.length,
+  };
+
+  const [baseDecimals, stakePoolRefreshIx] = await Promise.all([
+    getMintDecimals(connection, baseMint),
+    resolveSplStakePoolRefreshIx(connection, stakePool),
+  ]);
+
+  return {
+    vaultAddress,
+    vault,
+    wrapperMergeAccounts,
+    preInstructions: [stakePoolRefreshIx],
+    addressLookupTable: alt,
+    baseToken: { mint: baseMint, decimals: baseDecimals, tokenProgram: baseTokenProgram },
+    setupMints: [
+      { mint: baseMint, tokenProgram: baseTokenProgram },
+      { mint: vault.mintSy, tokenProgram: syTokenProgram },
+      { mint: vault.mintPt, tokenProgram: ptYtTokenProgram },
+      { mint: vault.mintYt, tokenProgram: ptYtTokenProgram },
+    ],
+    computeRedeemedBaseNative(ptAmountNative: bigint): bigint {
+      // `merge` gives sy = floor(pt × sy_for_pt / pt_supply); the SY→base unwrap is 1:1 in
+      // *amount* (the SY exchange rate is a valuation, not a conversion factor — verified on
+      // mainnet: it slightly *under*-estimates the real base, a safe never-short lower bound
+      // for the swap input). So base ≈ the merge SY output.
+      if (vault.ptSupply === 0n) return 0n;
+      const base = new BigNumber(ptAmountNative.toString())
+        .times(vault.syForPt.toString())
+        .div(vault.ptSupply.toString())
+        .integerValue(BigNumber.ROUND_FLOOR);
+      return BigInt(base.toFixed(0));
     },
   };
 }

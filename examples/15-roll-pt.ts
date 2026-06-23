@@ -1,181 +1,132 @@
 /**
- * Example: Roll a matured Exponent PT collateral position into its next maturity
- * (SIMULATION MODE) — the native, no-unwrap path.
+ * Example: Roll a matured Exponent PT collateral position into its next maturity, so the
+ * user's **full deposit ends up as new PT** — in one flash-loan-wrapped bundle:
  *
- * Exponent's SY is the protocol's internal unit of account and is maturity-independent
- * (the same SY mint backs every maturity of an underlying). So a roll never has to leave
- * SY — no unwrap to the base token, no external aggregator:
+ *     withdraw PT_old → wrapper_merge (PT_old → underlying base, e.g. bulkSOL)
+ *       → swap-engine (base → PT_new, Titan) → deposit PT_new
  *
- *     withdraw PT_old → merge (PT_old → SY, 1:1) → trade_pt (SY → PT_new) → deposit PT_new
+ * `makeRollPtTx` is structurally `makeSwapCollateralTx` with a `wrapper_merge` leg in front:
+ * the matured PT is redeemed to a normal, swappable base token (never the un-swappable SY),
+ * then the same multi-provider swap engine buys the new PT. You pass the matured Exponent
+ * market/vault + the base token (`rollOpts`) and the swap config (`swapOpts`); everything
+ * Exponent is resolved internally.
  *
- * This example shows how to:
- *   1. resolve the matured vault's `merge` accounts + redeemed SY amount
- *   2. resolve the successor market's `trade_pt` accounts (+ its address lookup table)
- *   3. quote the SY → PT_new buy leg (see `quotePtOutNative` below)
- *   4. build the flash-loan-wrapped roll with `makeRollPtTx`
- *
- * Setup:
- *   1. Copy .env.example to .env
- *   2. Fill in MARGINFI_ACCOUNT_ADDRESS and WALLET_ADDRESS (no private key needed)
- *   3. Run: tsx 15-roll-pt.ts
- *
- * Note: SIMULATION mode — no transactions are sent.
+ * Routing base → PT_new needs an Exponent-aware aggregator, so set Titan creds:
+ *   SOLANA_RPC_URL=https://...  (examples/.env)
+ *   TITAN_GATEWAY_URL=https://<host>/api/v1  TITAN_API_KEY=...
+ *   MARGINFI_ACCOUNT_ADDRESS=<account holding matured PT collateral>
+ * Then: tsx 15-roll-pt.ts   (SIMULATION only — nothing is sent.)
  */
 
 import { PublicKey } from "@solana/web3.js";
 
 import { Project0Client, MarginfiAccountWrapper, MarginfiAccount } from "../src";
-import {
-  resolveExponentMergeContext,
-  resolveExponentTradePtContext,
-  makeExponentTradePtIx,
-  exponentBuyPtArgs,
-} from "../src/vendor/exponent";
-import {
-  getConnection,
-  getMarginfiConfig,
-  getAccountAddress,
-  getWalletPubkey,
-} from "./config";
+import { SwapProvider } from "../src/services/account/types";
+import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
 
-// ============================================================================
-// Configuration — fill in the two PT markets you are rolling between.
-// ============================================================================
-
-// The matured PT's Exponent `MarketTwo` (its vault is read for the `merge`).
-const MATURED_MARKET = new PublicKey(
-  process.env.MATURED_PT_MARKET ?? "11111111111111111111111111111111"
-);
-// The successor (next-maturity) PT's Exponent `MarketTwo` (where SY → PT_new trades).
-const SUCCESSOR_MARKET = new PublicKey(
-  process.env.SUCCESSOR_PT_MARKET ?? "11111111111111111111111111111111"
-);
-
-// The matured + successor PT collateral banks (marginfi banks holding each PT).
-const MATURED_PT_BANK = new PublicKey(
-  process.env.MATURED_PT_BANK ?? "11111111111111111111111111111111"
-);
-const SUCCESSOR_PT_BANK = new PublicKey(
-  process.env.SUCCESSOR_PT_BANK ?? "11111111111111111111111111111111"
-);
-
-// Slippage floor applied to the trade_pt buy leg (1% here).
-const BUY_SLIPPAGE_BPS = 100;
-
-/**
- * Quote how much PT_new a given amount of SY buys on the successor market.
- *
- * The buy leg is Exponent's own implied-APY AMM, so the accurate quote comes from the
- * official SDK's pricing — e.g. `@exponent-labs/exponent-sdk`:
- *
- *   const market = await Market.load(env, connection, SUCCESSOR_MARKET);
- *   const ptOut = market.marketCalculator().ptOutForSyIn(syInNative);   // exact-in quote
- *   // or, across orderbook + CLMM + legacy market:
- *   const quote = Router.load(...).getQuote({ direction: BASE_TO_PT, inAmount, syExchangeRate });
- *
- * We return a conservative floor below the quoted amount; `trade_pt` fills exactly this
- * many PT and spends correspondingly less SY (any dust SY stays in the SY account).
- */
-async function quotePtOutNative(syInNative: bigint): Promise<bigint> {
-  // Placeholder: wire this to the SDK Market/Router as shown above. As a stand-in we
-  // assume ~1:1 SY→PT and apply the slippage floor. DO NOT ship this stand-in.
-  const quoted = syInNative;
-  return (quoted * BigInt(10_000 - BUY_SLIPPAGE_BPS)) / 10_000n;
-}
+// ---- The bulkSOL roll (matured PT-bulkSOL → active PT-bulkSOL). Override via env. -------
+const MATURED_MARKET = new PublicKey(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
+const MATURED_PT_BANK = new PublicKey(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
+const PT_NEW = new PublicKey(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
+const BASE_MINT = new PublicKey(process.env.BASE_MINT ?? "BULKoNSGzxtCqzwTvg5hFJg8fx6dqZRScyXe5LYMfxrn");
+const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS ?? 100);
 
 async function main() {
   const connection = getConnection();
-  const config = getMarginfiConfig();
-  const client = await Project0Client.initialize(connection, config);
-
-  const accountAddress = getAccountAddress(); // e.g. J81jGnkgCBpiY4pnDsretzc4LyTzTpxgeugvi3aJAqvf
-  const authority = getWalletPubkey();
-
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const client = await Project0Client.initialize(connection, getMarginfiConfig());
+  const account = await MarginfiAccount.fetch(getAccountAddress(), client.program);
   const wrapper = new MarginfiAccountWrapper(account, client);
 
-  const maturedBank = client.bankMap.get(MATURED_PT_BANK.toBase58());
-  const successorBank = client.bankMap.get(SUCCESSOR_PT_BANK.toBase58());
-  if (!maturedBank || !successorBank) {
-    throw new Error("PT banks not found in client.bankMap — check MATURED_PT_BANK / SUCCESSOR_PT_BANK");
+  const maturedBank = client.bankMap.get(MATURED_PT_BANK.toBase58())!;
+  const successorBank = [...client.bankMap.values()].find((b) => b.mint.equals(PT_NEW))!;
+  const maturedMint = await wrapper.getMintDataFromBank(maturedBank);
+  const successorMint = await wrapper.getMintDataFromBank(successorBank);
+
+  const positionUi = account.balances
+    .find((b) => b.bankPk.equals(MATURED_PT_BANK))!
+    .computeQuantityUi(maturedBank).assets.toNumber();
+  const withdrawUi = Number(process.env.ROLL_PT ?? String(positionUi)); // default: full roll
+  console.log(`rolling ${withdrawUi} matured PT → new PT (wrapper_merge → swap → deposit)`);
+
+  // Titan endpoint may be a bare host (e.g. "us.partners.api.titan.exchange"); the adapter
+  // quotes over the WebSocket → normalize to wss://<host>/api/v1/ws (mirrors the app).
+  const titanHost = process.env.TITAN_API_ENDPOINT || process.env.TITAN_GATEWAY_URL;
+  if (!titanHost) {
+    throw new Error("Set TITAN_API_ENDPOINT (+ TITAN_API_KEY) — base → PT_new needs the Titan aggregator.");
   }
+  const bareHost = titanHost.replace(/^https?:\/\//, "").replace(/^wss?:\/\//, "").replace(/\/.*$/, "");
+  const wsUrl = /^wss?:\/\//.test(titanHost) ? titanHost : `wss://${bareHost}/api/v1/ws`;
+  const basePath = `https://${bareHost}/api/v1`;
 
-  const maturedMintData = await wrapper.getMintDataFromBank(maturedBank);
-  const successorMintData = await wrapper.getMintDataFromBank(successorBank);
-
-  // --- 1. Matured side: resolve `merge` accounts + redeemed SY ---------------------
-  const mergeCtx = await resolveExponentMergeContext({
-    connection,
-    owner: authority,
-    market: MATURED_MARKET,
-  });
-
-  // PT position size (UI → native) we are rolling. Here: the whole position.
-  const position = account.balances.find((b) => b.bankPk.equals(MATURED_PT_BANK));
-  const positionUiAmount = position?.computeQuantityUi(maturedBank).assets.toNumber() ?? 0;
-  const ptAmountNative = BigInt(Math.floor(positionUiAmount * 10 ** maturedBank.mintDecimals));
-  const redeemedAmountNative = mergeCtx.computeRedeemedAmountNative(ptAmountNative);
-
-  // --- 2. Successor side: resolve `trade_pt` accounts + the market ALT --------------
-  const tradeCtx = await resolveExponentTradePtContext({
-    connection,
-    owner: authority,
-    market: SUCCESSOR_MARKET,
-  });
-
-  // SY is maturity-independent: the merge's SY account must equal the trade's SY account.
-  if (!mergeCtx.mergeAccounts.sySrcDstAta.equals(tradeCtx.tradePtAccounts.tokenSyTrader)) {
-    throw new Error("matured vault and successor market do not share an SY mint — cannot roll natively");
-  }
-
-  // --- 3. Quote the buy leg ---------------------------------------------------------
-  const ptOutNative = await quotePtOutNative(redeemedAmountNative);
-
-  // --- 4. Build the roll ------------------------------------------------------------
-  // makeRollPtTx resolves the `merge` internally from `maturedMarket`. Since the buy leg
-  // here is the legacy MarketTwo `trade_pt` (not the default `strip`), we pass it via the
-  // `buy` escape hatch — analogous to `makeLoopTx`'s `swapEngineRunner` override.
-  const { transactions, actionTxIndex } = await wrapper.makeRollPtTx({
+  const { transactions, actionTxIndex, quoteResponse } = await wrapper.makeRollPtTx({
     connection,
     assetShareValueMultiplierByBank: new Map(),
     withdrawOpts: {
-      totalPositionAmount: positionUiAmount,
+      totalPositionAmount: positionUi,
+      withdrawAmount: withdrawUi,
       withdrawBank: maturedBank,
-      tokenProgram: maturedMintData.tokenProgram,
+      tokenProgram: maturedMint.tokenProgram,
     },
-    depositOpts: {
-      depositBank: successorBank,
-      tokenProgram: successorMintData.tokenProgram,
-    },
-    rollOpts: {
-      maturedMarket: MATURED_MARKET,
-      buy: {
-        // a single `trade_pt` (SY → PT_new), spending the merged SY.
-        instructions: [
-          makeExponentTradePtIx(
-            tradeCtx.tradePtAccounts,
-            exponentBuyPtArgs({ ptOutNative, maxSyInNative: redeemedAmountNative })
-          ),
-        ],
-        lookupTables: [tradeCtx.addressLookupTable], // the merge vault ALT is added internally
-        ptOutNative,
+    depositOpts: { depositBank: successorBank, tokenProgram: successorMint.tokenProgram },
+    swapOpts: {
+      swapConfig: {
+        provider: SwapProvider.TITAN,
+        slippageMode: "DYNAMIC",
+        slippageBps: SLIPPAGE_BPS,
+        platformFeeBps: 0,
+        apiConfig: { basePath, wsUrl, apiKey: process.env.TITAN_API_KEY },
       },
     },
+    // The whole Exponent redeem is internal: pass the matured market + the base token.
+    // The roll's wrapper_merge + stake-pool refresh add many accounts, so a dedicated PT-roll
+    // LUT (see create-pt-roll-lut.ts) compresses the flashloan under the tx size limit.
+    rollOpts: {
+      maturedMarket: MATURED_MARKET,
+      baseMint: BASE_MINT,
+      ...(process.env.PT_ROLL_LUT ? { lookupTable: new PublicKey(process.env.PT_ROLL_LUT) } : {}),
+    },
   });
 
-  console.log(`Built roll: ${transactions.length} tx(s), action tx index ${actionTxIndex}`);
-  console.log(`  redeemed SY (native): ${redeemedAmountNative}`);
-  console.log(`  PT_new bought (native, floor): ${ptOutNative}`);
+  console.log(`built ${transactions.length} tx(s), action tx index ${actionTxIndex}`);
+  if (quoteResponse) {
+    console.log(`  PT_new out (native): ${quoteResponse.outAmount}  via ${quoteResponse.provider}`);
+  }
+  if (process.env.NO_SIM) return; // build-only (skip the slow chained bundle sim)
 
-  // Simulate the action transaction.
-  const sim = await connection.simulateTransaction(transactions[actionTxIndex], {
-    sigVerify: false,
-    replaceRecentBlockhash: true,
+  // Simulate the whole bundle (setup + crank + flashloan), chained state.
+  const bh = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  const encoded = transactions.map((tx) => {
+    tx.message.recentBlockhash = bh;
+    return Buffer.from(tx.serialize()).toString("base64");
   });
-  console.log("Simulation logs:", sim.value.logs?.slice(-10));
+  const nulls = encoded.map(() => null);
+  const res = await fetch(connection.rpcEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "simulateBundle",
+      params: [
+        { encodedTransactions: encoded },
+        { preExecutionAccountsConfigs: nulls, postExecutionAccountsConfigs: nulls, skipSigVerify: true },
+      ],
+    }),
+  }).then((r) => r.json());
+  if (res.error) return console.log("bundle err:", JSON.stringify(res.error));
+  const results = res.result?.value?.transactionResults ?? res.result?.transactionResults ?? [];
+  results.forEach((t: any, i: number) => {
+    console.log(`  tx[${i}] err: ${JSON.stringify(t.err ?? null)}`);
+    if (t.err) (t.logs ?? []).slice(-14).forEach((l: string) => console.log(`     ${l}`));
+  });
+  console.log(
+    results.length && results.every((t: any) => !t.err)
+      ? "\n✅ full deposit rolled into new PT — no YT byproduct"
+      : "\n❌ simulation failed"
+  );
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((e) => {
+  console.error(e);
   process.exit(1);
 });

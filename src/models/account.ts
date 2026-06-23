@@ -910,9 +910,10 @@ class MarginfiAccount implements MarginfiAccountType {
   /**
    * Creates a transaction to roll a matured Exponent PT collateral position into its
    * next-maturity PT, in one flash-loan-wrapped bundle
-   * (withdraw PT_old → merge → buy PT_new → deposit). See {@link makeRollPtTx}.
+   * (withdraw PT_old → `wrapper_merge` to base → swap-engine buy PT_new → deposit).
+   * See {@link makeRollPtTx}.
    *
-   * @param params - Roll-PT parameters (`withdrawOpts`/`depositOpts`/`rollOpts`).
+   * @param params - Roll-PT parameters (`withdrawOpts`/`depositOpts`/`swapOpts`/`rollOpts`).
    */
   async makeRollPtTx(params: Omit<MakeRollPtTxParams, "marginfiAccount">): Promise<{
     transactions: ExtendedV0Transaction[];

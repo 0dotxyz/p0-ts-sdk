@@ -1,8 +1,6 @@
-import BN from "bn.js";
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
-  PublicKey,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -21,20 +19,29 @@ import { makeSmartCrankSwbFeedIx } from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountIdempotentInstruction,
-  TOKEN_PROGRAM_ID,
 } from "~/vendor/spl";
 import {
-  ExponentMergeAccounts,
-  makeExponentMergeIx,
-  makeExponentStripIx,
-  resolveExponentMergeContext,
-  resolveExponentStripContext,
+  ExponentWrapperMergeContext,
+  makeExponentWrapperMergeIx,
+  resolveExponentWrapperMergeContext,
 } from "~/vendor/exponent";
 import { uiToNative } from "~/utils";
 
-import { isWholePosition, patchDepositAmount, isDepositIx } from "../utils";
+import {
+  isWholePosition,
+  computeFlashLoanNonSwapBudget,
+  compileFlashloanPrecheck,
+  patchDepositAmount,
+  isDepositIx,
+} from "../utils";
+import {
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
 import { MakeRollPtTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -42,141 +49,18 @@ import { makeWithdrawIx } from "./withdraw";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 
-const DEFAULT_ROLL_SLIPPAGE_BPS = 10;
-
-/** Everything {@link resolveRoll} works out from the high-level `rollOpts` config. */
-interface ResolvedRoll {
-  actualWithdrawAmount: number;
-  isFullWithdraw: boolean;
-  /** Resolved Exponent `merge` accounts for the matured vault. */
-  mergeAccounts: ExponentMergeAccounts;
-  /** The shared SY token (merge output / buy-leg input). */
-  syToken: { mint: PublicKey; tokenProgram: PublicKey };
-  /** SY→PT_new buy instructions (default `strip`, or `rollOpts.buy`). */
-  buyInstructions: TransactionInstruction[];
-  /** Buy-leg setup ixs (e.g. the new YT ATA `strip` mints into) — go in the setup tx. */
-  buySetupInstructions: TransactionInstruction[];
-  /** Native PT the buy delivers — the deposit amount. */
-  ptOutNative: bigint;
-  /** The roll's Exponent LUTs (merge vault ALT, buy ALT, PT-roll LUT). */
-  rollLuts: AddressLookupTableAccount[];
-}
-
 /**
- * Resolve the high-level `rollOpts` config into concrete merge accounts + buy-leg
- * instructions + sizing + lookup tables. Mirrors how `makeLoopTx`/`makeSwapCollateralTx`
- * internalize the swap engine: the caller passes markets, this does the Exponent legwork.
- */
-async function resolveRoll(params: MakeRollPtTxParams): Promise<ResolvedRoll> {
-  const { connection, marginfiAccount, withdrawOpts, rollOpts } = params;
-  const owner = marginfiAccount.authority;
-  const slippageBps = rollOpts.slippageBps ?? DEFAULT_ROLL_SLIPPAGE_BPS;
-  const keepBps = BigInt(10_000 - slippageBps);
-
-  // Clamp the withdraw amount (mirrors the withdraw/merge sizing).
-  if (withdrawOpts.withdrawAmount !== undefined && withdrawOpts.withdrawAmount <= 0) {
-    throw new Error("withdrawAmount must be greater than 0");
-  }
-  const actualWithdrawAmount = Math.min(
-    withdrawOpts.withdrawAmount ?? withdrawOpts.totalPositionAmount,
-    withdrawOpts.totalPositionAmount
-  );
-  const isFullWithdraw = isWholePosition(
-    { amount: withdrawOpts.totalPositionAmount, isLending: true },
-    actualWithdrawAmount,
-    withdrawOpts.withdrawBank.mintDecimals
-  );
-
-  // --- merge: PT_old → SY (always resolved internally) ---------------------------------
-  if (!rollOpts.maturedMarket && !rollOpts.maturedVault) {
-    throw new Error("roll-pt: rollOpts.maturedMarket or maturedVault is required");
-  }
-  const merge = await resolveExponentMergeContext({
-    connection,
-    owner,
-    market: rollOpts.maturedMarket,
-    vault: rollOpts.maturedVault,
-  });
-  const withdrawNative = BigInt(
-    uiToNative(actualWithdrawAmount, withdrawOpts.withdrawBank.mintDecimals).toString()
-  );
-  const redeemedSy = merge.computeRedeemedAmountNative(withdrawNative);
-  const syToken = { mint: merge.underlying.mint, tokenProgram: merge.underlying.tokenProgram };
-
-  // --- buy leg: default `strip`, or the `rollOpts.buy` escape hatch ---------------------
-  let buyInstructions: TransactionInstruction[];
-  let buySetupInstructions: TransactionInstruction[];
-  let buyLuts: AddressLookupTableAccount[];
-  let ptOutNative: bigint;
-
-  if (rollOpts.buy) {
-    buyInstructions = rollOpts.buy.instructions;
-    buySetupInstructions = rollOpts.buy.setupInstructions ?? [];
-    buyLuts = rollOpts.buy.lookupTables ?? [];
-    ptOutNative = rollOpts.buy.ptOutNative;
-  } else {
-    if (!rollOpts.successorVault && !rollOpts.successorMarket) {
-      throw new Error(
-        "roll-pt: rollOpts.successorVault or successorMarket is required (or pass rollOpts.buy)"
-      );
-    }
-    const strip = await resolveExponentStripContext({
-      connection,
-      owner,
-      vault: rollOpts.successorVault,
-      market: rollOpts.successorMarket,
-    });
-    // Strip a hair under the redeemed SY so on-chain merge rounding never shorts it.
-    const syIn = (redeemedSy * keepBps) / 10_000n;
-    buyInstructions = [makeExponentStripIx(strip.stripAccounts, syIn)];
-    // `strip` mints the new PT (deposited) + a new YT (left in the owner's wallet) — create
-    // that YT ATA in the setup tx, not the flashloan.
-    const ytAta = getAssociatedTokenAddressSync(strip.yt.mint, owner, true, strip.yt.tokenProgram);
-    buySetupInstructions = [
-      createAssociatedTokenAccountIdempotentInstruction(
-        owner,
-        ytAta,
-        owner,
-        strip.yt.mint,
-        strip.yt.tokenProgram
-      ),
-    ];
-    buyLuts = [strip.addressLookupTable];
-    ptOutNative = (strip.computeStrippedPtNative(syIn) * keepBps) / 10_000n;
-  }
-
-  // Fetch the optional dedicated PT-roll LUT (compresses the strip flashloan).
-  const rollLuts: AddressLookupTableAccount[] = [merge.addressLookupTable, ...buyLuts];
-  if (rollOpts.lookupTable) {
-    const fetched = (await connection.getAddressLookupTable(rollOpts.lookupTable)).value;
-    if (!fetched) {
-      throw new Error(`roll-pt: PT-roll lookup table not found: ${rollOpts.lookupTable.toBase58()}`);
-    }
-    rollLuts.push(fetched);
-  }
-
-  return {
-    actualWithdrawAmount,
-    isFullWithdraw,
-    mergeAccounts: merge.mergeAccounts,
-    syToken,
-    buyInstructions,
-    buySetupInstructions,
-    ptOutNative,
-    rollLuts,
-  };
-}
-
-/**
- * Roll a matured Exponent PT collateral position into its next-maturity PT, in one
- * flash-loan-wrapped bundle — entirely within Exponent, no unwrap, no external swap:
+ * Roll a matured Exponent PT collateral position into its next-maturity PT, so the **full
+ * deposit ends up as new PT** (no leftover), in one flash-loan-wrapped bundle:
  *
- *   withdraw PT_old → Exponent `merge` (PT_old → SY) → SY → PT_new buy → deposit PT_new
+ *   withdraw PT_old → Exponent `wrapper_merge` (PT_old → underlying base, e.g. bulkSOL)
+ *     → swap-engine (base → PT_new, Titan/Jupiter) → deposit PT_new
  *
- * The caller passes high-level config (`rollOpts`: the matured + successor markets); this
- * resolves the `merge` and (by default) builds the `strip` buy leg internally — the same
- * way `makeLoopTx`/`makeSwapCollateralTx` internalize their swap. For a non-strip venue
- * (e.g. legacy `MarketTwo` `trade_pt`), pass a pre-built buy leg via `rollOpts.buy`.
+ * Structurally `makeSwapCollateralTx` with a `wrapper_merge` leg in front: the matured PT is
+ * redeemed to a normal, swappable base token (never the un-swappable SY), then the existing
+ * multi-provider swap engine buys the new PT. The caller passes the matured Exponent
+ * market/vault + base token (`rollOpts`) and the swap config (`swapOpts`); everything Exponent
+ * is resolved internally. The buy is bounded by the new PT's market depth.
  */
 export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
@@ -191,37 +75,60 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     oraclePrices,
     withdrawOpts,
     depositOpts,
+    rollOpts,
     assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
     crossbarUrl,
   } = params;
 
-  const resolved = await resolveRoll(params);
+  if (!rollOpts.maturedMarket && !rollOpts.maturedVault) {
+    throw new Error("roll-pt: rollOpts.maturedMarket or maturedVault is required");
+  }
+
+  // Resolve the matured vault's `wrapper_merge` (redeem PT → base) accounts up front.
+  const wrapper = await resolveExponentWrapperMergeContext({
+    connection,
+    owner: marginfiAccount.authority,
+    market: rollOpts.maturedMarket,
+    vault: rollOpts.maturedVault,
+    baseMint: rollOpts.baseMint,
+    baseTokenProgram: rollOpts.baseTokenProgram,
+    ptYtTokenProgram: withdrawOpts.tokenProgram,
+  });
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
-  // ATAs touched across the bundle: old PT (withdraw dest + merge pt_src), the shared SY
-  // (merge sy_dst + buy-leg sy_src), the matured YT (merge yt_src), and the new PT (buy-leg
-  // dest + deposit source). The new YT (a `strip` byproduct) is created via the buy-leg setup.
+  // ATAs the bundle touches: old PT (withdraw dest + wrapper pt_src), the wrapper's
+  // intermediates (base, SY, YT), and the new PT (swap dest + deposit source).
   const setupIxs = await makeSetupIx({
     connection,
     authority: marginfiAccount.authority,
     tokens: [
       { mint: withdrawOpts.withdrawBank.mint, tokenProgram: withdrawOpts.tokenProgram },
-      { mint: resolved.syToken.mint, tokenProgram: resolved.syToken.tokenProgram },
-      { mint: resolved.mergeAccounts.mintYt, tokenProgram: TOKEN_PROGRAM_ID },
+      ...wrapper.setupMints,
       { mint: depositOpts.depositBank.mint, tokenProgram: depositOpts.tokenProgram },
     ],
   });
-  if (resolved.buySetupInstructions.length) {
-    setupIxs.push(...resolved.buySetupInstructions);
-  }
+  // The flavor's pre-instructions (e.g. the SPL stake-pool balance refresh) only need to run
+  // *before* `wrapper_merge`, not atomically with it — so they go in the setup tx (chained
+  // state), keeping their accounts out of the size/lock-constrained flashloan.
+  setupIxs.push(...wrapper.preInstructions);
 
-  const { flashloanTx, withdrawIxs, depositIxs } = await buildRollPtFlashloanTx({
-    params,
-    resolved,
-    blockhash,
+  const { flashloanTx, setupInstructions, swapQuote, withdrawIxs, depositIxs } =
+    await buildRollPtFlashloanTx({ params, wrapper, blockhash });
+
+  // Filter swap-engine setup ixs to avoid duplicating our own ATA creates / CU ixs.
+  const swapSetupInstructions = setupInstructions.filter((ix) => {
+    if (ix.programId.equals(ComputeBudgetProgram.programId)) return false;
+    if (ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
+      const mintKey = ix.keys[3]?.pubkey;
+      if (mintKey?.equals(withdrawOpts.withdrawBank.mint) || mintKey?.equals(depositOpts.depositBank.mint)) {
+        return false;
+      }
+    }
+    return true;
   });
+  setupIxs.push(...swapSetupInstructions);
 
   const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
     marginfiAccount,
@@ -236,14 +143,12 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
 
   const additionalTxs: ExtendedV0Transaction[] = [];
 
-  // If ATAs are needed, add them
   if (setupIxs.length > 0) {
     const txs = splitInstructionsToFitTransactions([], setupIxs, {
       blockhash,
       payerKey: marginfiAccount.authority,
       luts: addressLookupTableAccounts ?? [],
     });
-
     additionalTxs.push(
       ...txs.map((tx) =>
         addTransactionMetadata(tx, {
@@ -254,14 +159,12 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     );
   }
 
-  // If crank is needed, add it
   if (updateFeedIxs.length > 0) {
     const message = new TransactionMessage({
       payerKey: marginfiAccount.authority,
       recentBlockhash: blockhash,
       instructions: updateFeedIxs,
     }).compileToV0Message(feedLuts);
-
     additionalTxs.push(
       addTransactionMetadata(new VersionedTransaction(message), {
         addressLookupTables: feedLuts,
@@ -272,21 +175,20 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
 
   const transactions = [...additionalTxs, flashloanTx];
 
-  // Native roll — no external swap quote (kept for interface parity with the other actions).
   return {
     transactions,
     actionTxIndex: transactions.length - 1,
-    quoteResponse: undefined,
+    quoteResponse: swapQuote,
   };
 }
 
 async function buildRollPtFlashloanTx({
   params,
-  resolved,
+  wrapper,
   blockhash,
 }: {
   params: MakeRollPtTxParams;
-  resolved: ResolvedRoll;
+  wrapper: ExponentWrapperMergeContext;
   blockhash: string;
 }) {
   const {
@@ -295,35 +197,38 @@ async function buildRollPtFlashloanTx({
     bankMap,
     withdrawOpts,
     depositOpts,
+    swapOpts,
     bankMetadataMap,
+    connection,
     addressLookupTableAccounts,
     overrideInferAccounts,
+    rollOpts,
+    swapEngineRunner,
   } = params;
-  const {
-    actualWithdrawAmount,
-    isFullWithdraw,
-    mergeAccounts,
-    buyInstructions,
-    ptOutNative,
-    rollLuts,
-  } = resolved;
-  const { withdrawBank, tokenProgram: withdrawTokenProgram } = withdrawOpts;
+  const { withdrawBank, tokenProgram: withdrawTokenProgram, totalPositionAmount, withdrawAmount } =
+    withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
   const authority = marginfiAccount.authority;
 
-  if (ptOutNative <= 0n) {
-    throw new Error("roll-pt: ptOutNative (PT to buy) must be greater than 0");
+  if (withdrawAmount !== undefined && withdrawAmount <= 0) {
+    throw new Error("withdrawAmount must be greater than 0");
   }
-  if (buyInstructions.length === 0) {
-    throw new Error("roll-pt: buy leg (SY → PT_new) must not be empty");
-  }
+  const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
+  const isFullWithdraw = isWholePosition(
+    { amount: totalPositionAmount, isLending: true },
+    actualWithdrawAmount,
+    withdrawBank.mintDecimals
+  );
+  const withdrawNative = BigInt(
+    uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toString()
+  );
 
   const cuRequestIxs = [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
   ];
 
-  // 1. Withdraw the matured PT (plain SPL collateral bank).
+  // 1. Withdraw the matured PT (standard SPL collateral bank).
   const withdrawIxs: InstructionsWrapper = await makeWithdrawIx({
     program,
     bank: withdrawBank,
@@ -338,16 +243,16 @@ async function buildRollPtFlashloanTx({
     opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts },
   });
 
-  // 2. Exponent merge: PT_old → SY (1:1, post-maturity, no slippage).
-  const mergeIx = makeExponentMergeIx(
-    mergeAccounts,
-    BigInt(uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toString())
-  );
+  // 2. `wrapper_merge`: PT_old → base, post-maturity. The flavor's pre-instructions (stake-pool
+  //    refresh) run in the setup tx (see makeRollPtTx), not here, to keep them out of the
+  //    account-constrained flashloan.
+  const wrapperMergeIx = makeExponentWrapperMergeIx(wrapper.wrapperMergeAccounts, {
+    amountPyNative: withdrawNative,
+    redeemSyAccountsUntil: wrapper.wrapperMergeAccounts.redeemSyAccountsUntil,
+  });
+  const redeemIxs = [wrapperMergeIx];
 
-  // 3. Buy PT_new with the merged SY (internal strip, or the rollOpts.buy escape hatch).
-
-  // 4. Deposit the new PT. Seeded with a placeholder and byte-patched to the guaranteed
-  //    `ptOutNative` (the buy leg's minimum output).
+  // 3. Deposit the new PT — seeded with a placeholder, byte-patched to the swap's min output.
   const depositIxs: InstructionsWrapper = await makeDepositIx({
     program,
     bank: depositBank,
@@ -359,22 +264,93 @@ async function buildRollPtFlashloanTx({
     opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
   });
 
+  // LUTs for the non-swap footprint. `wrapper_merge` is account-heavy, so the swap engine sizes
+  // its route against this; over the WebSocket template the budget is generous, but the template
+  // is cleanest with a *single* dedicated PT-roll LUT that covers the whole non-swap footprint
+  // (marginfi banks + the wrapper_merge accounts) — see `create-pt-roll-lut.ts`. Falls back to
+  // the marginfi group LUTs + the vault ALT when no dedicated LUT is supplied.
+  let baseLuts: AddressLookupTableAccount[];
+  if (rollOpts.lookupTable) {
+    const fetched = (await connection.getAddressLookupTable(rollOpts.lookupTable)).value;
+    if (!fetched) {
+      throw new Error(`roll-pt: PT-roll lookup table not found: ${rollOpts.lookupTable.toBase58()}`);
+    }
+    baseLuts = [fetched];
+  } else {
+    baseLuts = [...(addressLookupTableAccounts ?? []), wrapper.addressLookupTable];
+  }
+
+  // Size the swap around the *full* non-swap footprint (incl. the heavy `wrapper_merge`).
+  const nonSwapFootprint = [
+    ...cuRequestIxs,
+    ...withdrawIxs.instructions,
+    ...redeemIxs,
+    ...depositIxs.instructions,
+  ];
+  const { sizeConstraint, maxSwapTotalAccounts } = computeFlashLoanNonSwapBudget({
+    program,
+    marginfiAccount,
+    bankMap,
+    addressLookupTableAccounts: baseLuts,
+    ixs: nonSwapFootprint,
+  });
+
+  // 4. Buy the new PT with the redeemed base. The base is the swap input; for an appreciating
+  //    LST the on-chain redeem yields ≥ this estimate, so it's a safe (never-short) lower bound.
+  const destinationTokenAccount = getAssociatedTokenAddressSync(
+    depositBank.mint,
+    authority,
+    true,
+    depositTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
+  );
+  const baseAmountNative = wrapper.computeRedeemedBaseNative(withdrawNative);
+
+  const runEngine = swapEngineRunner ?? runSwapEngine;
+  const engineResult = await runEngine({
+    inputMint: wrapper.baseToken.mint.toBase58(),
+    outputMint: depositBank.mint.toBase58(),
+    amountNative: Number(baseAmountNative),
+    inputDecimals: wrapper.baseToken.decimals,
+    outputDecimals: depositBank.mintDecimals,
+    ...swapEngineQuoteFieldsFromOpts(swapOpts),
+    taker: authority,
+    destinationTokenAccount,
+    connection,
+    footprint: {
+      instructions: nonSwapFootprint,
+      luts: baseLuts,
+      payer: authority,
+      sizeConstraint,
+      maxSwapTotalAccounts,
+    },
+    providers: swapEngineProvidersFromOpts(swapOpts),
+  });
+
+  // Patch the seeded deposit to the real (minimum guaranteed) swap output.
   const depositIxToPatch = depositIxs.instructions.find(isDepositIx);
   if (!depositIxToPatch) {
     throw new Error("roll-pt: could not locate deposit instruction for amount patching");
   }
-  patchDepositAmount(depositIxToPatch, new BN(ptOutNative.toString()));
+  patchDepositAmount(depositIxToPatch, engineResult.outputAmountNative);
 
-  // Marginfi group LUTs + the roll's Exponent LUTs (merge ALT, buy ALT, PT-roll LUT).
-  const luts = [...(addressLookupTableAccounts ?? []), ...rollLuts];
+  const luts = [...baseLuts, ...engineResult.swapLuts];
 
   const allNonFlIxs = [
     ...cuRequestIxs,
     ...withdrawIxs.instructions,
-    mergeIx,
-    ...buyInstructions,
+    ...redeemIxs,
+    ...engineResult.swapInstructions,
     ...depositIxs.instructions,
   ];
+
+  compileFlashloanPrecheck({
+    allIxs: allNonFlIxs,
+    payer: authority,
+    luts,
+    sizeConstraint,
+    swapIxCount: engineResult.swapInstructions.length,
+    swapLutCount: engineResult.swapLuts.length,
+  });
 
   const flashloanTx = await makeFlashLoanTx({
     program,
@@ -388,13 +364,18 @@ async function buildRollPtFlashloanTx({
 
   const txSize = getTxSize(flashloanTx);
   const totalKeys = getTotalAccountKeys(flashloanTx);
-
   if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
-    throw TransactionBuildingError.swapSizeExceededPositionSwap(txSize, totalKeys);
+    throw TransactionBuildingError.swapSizeExceededPositionSwap(
+      txSize,
+      totalKeys,
+      swapOpts.swapConfig?.provider
+    );
   }
 
   return {
     flashloanTx,
+    setupInstructions: engineResult.setupInstructions,
+    swapQuote: engineResult.quoteResponse,
     withdrawIxs,
     depositIxs,
   };

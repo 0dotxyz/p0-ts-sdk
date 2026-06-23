@@ -490,12 +490,12 @@ export class MarginfiAccountWrapper {
 
   /**
    * Rolls a matured Exponent PT collateral position into its next-maturity PT, with
-   * auto-injected client data (withdraw PT_old → merge → buy PT_new → deposit, flash-loan
-   * wrapped). The buy leg is venue-agnostic — supplied via `rollOpts.buyInstructions`.
+   * auto-injected client data (withdraw PT_old → `wrapper_merge` to base → swap-engine buy
+   * PT_new → deposit, flash-loan wrapped). The full deposit ends up as new PT.
    *
    * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
    *
-   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, rollOpts, etc.)
+   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, rollOpts, etc.)
    */
   async makeRollPtTx(
     params: Omit<

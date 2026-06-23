@@ -90,22 +90,26 @@ export interface TitanSwapQuoteResult {
 
 export function buildSwapQuoteResult(
   route: {
-    inAmount: number;
-    outAmount: number;
+    inAmount: number | bigint;
+    outAmount: number | bigint;
     slippageBps: number;
-    platformFee?: { amount: number; fee_bps: number };
+    platformFee?: { amount: number | bigint; fee_bps: number };
     contextSlot?: number;
     timeTaken?: number;
   },
   swapMode: "ExactIn" | "ExactOut",
 ): TitanSwapQuoteResult {
   const slippageBps = route.slippageBps;
+  // The WebSocket/protobuf path decodes int64 amounts as BigInt; token amounts fit safely in a
+  // JS number, so coerce for the slippage float math (BigInt × number throws).
+  const outAmount = Number(route.outAmount);
+  const inAmount = Number(route.inAmount);
 
   let otherAmountThreshold: string;
   if (swapMode === "ExactIn") {
-    otherAmountThreshold = String(Math.floor(route.outAmount * (1 - slippageBps / 10000)));
+    otherAmountThreshold = String(Math.floor(outAmount * (1 - slippageBps / 10000)));
   } else {
-    otherAmountThreshold = String(Math.ceil(route.inAmount * (1 + slippageBps / 10000)));
+    otherAmountThreshold = String(Math.ceil(inAmount * (1 + slippageBps / 10000)));
   }
 
   return {

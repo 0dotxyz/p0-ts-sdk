@@ -2,8 +2,15 @@ import { AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js"
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
+import { SystemProgram } from "@solana/web3.js";
+
 import { EXPONENT_CORE_PROGRAM_ID } from "./constants";
-import { ExponentMergeAccounts, ExponentStripAccounts, ExponentTradePtAccounts } from "./types";
+import {
+  ExponentMergeAccounts,
+  ExponentStripAccounts,
+  ExponentTradePtAccounts,
+  ExponentWrapperMergeAccounts,
+} from "./types";
 import { deriveExponentEventAuthority } from "./utils/derive.utils";
 
 /**
@@ -195,10 +202,109 @@ export function makeExponentStripIx(
   return new TransactionInstruction({ keys, programId: EXPONENT_CORE_PROGRAM_ID, data });
 }
 
+/**
+ * `wrapper_merge` instruction discriminator (Exponent IDL `wrapper_merge` → `[39]`,
+ * single-byte). It merges PT (post-maturity, 1:1) **and** CPIs into the flavor's SY program
+ * to redeem the resulting SY into the underlying **base** token — so the roll's buy leg can
+ * swap a normal token instead of the un-swappable SY. Account order/flags mirror the IDL /
+ * SDK `createWrapperMergeInstruction`.
+ */
+const WRAPPER_MERGE_DISCRIMINATOR = Buffer.from([39]);
+
+/**
+ * Build the Exponent `wrapper_merge(amount_py, redeem_sy_accounts_until)` instruction —
+ * redeems `amountPyNative` PT into the underlying base token at the owner's base ATA.
+ *
+ * The remaining accounts are `[...flavor redeem accounts, ...vault SY-CPI accounts]`;
+ * `redeemSyAccountsUntil` tells the program where the redeem accounts end. The redeem's first
+ * account is the owner and keeps its signer flag (the SY-CPI accounts are forced non-signer,
+ * resolved upstream). The transaction must carry the vault's address lookup table.
+ *
+ * @param accounts resolved wrapper-merge accounts (see {@link ExponentWrapperMergeAccounts})
+ * @param args     `amountPyNative` (u64) PT to redeem + `redeemSyAccountsUntil` (u8)
+ */
+export function makeExponentWrapperMergeIx(
+  accounts: ExponentWrapperMergeAccounts,
+  args: { amountPyNative: bigint; redeemSyAccountsUntil: number }
+): TransactionInstruction {
+  const tokenProgram = accounts.tokenProgram ?? TOKEN_PROGRAM_ID;
+  const eventAuthority = deriveExponentEventAuthority();
+
+  // data = discriminator(1) + amount_py(u64 LE, 8) + redeem_sy_accounts_until(u8, 1)
+  const data = Buffer.alloc(WRAPPER_MERGE_DISCRIMINATOR.length + 9);
+  WRAPPER_MERGE_DISCRIMINATOR.copy(data, 0);
+  data.writeBigUInt64LE(args.amountPyNative, WRAPPER_MERGE_DISCRIMINATOR.length);
+  data.writeUInt8(args.redeemSyAccountsUntil, WRAPPER_MERGE_DISCRIMINATOR.length + 8);
+
+  // Order + writable/signer flags taken verbatim from the IDL's `wrapper_merge` accounts.
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.owner, isSigner: true, isWritable: true },
+    { pubkey: accounts.syAta, isSigner: false, isWritable: true },
+    { pubkey: accounts.vault, isSigner: false, isWritable: true },
+    { pubkey: accounts.escrowSy, isSigner: false, isWritable: true },
+    { pubkey: accounts.ytAta, isSigner: false, isWritable: true },
+    { pubkey: accounts.ptAta, isSigner: false, isWritable: true },
+    { pubkey: accounts.mintYt, isSigner: false, isWritable: true },
+    { pubkey: accounts.mintPt, isSigner: false, isWritable: true },
+    { pubkey: accounts.authority, isSigner: false, isWritable: true },
+    { pubkey: accounts.addressLookupTable, isSigner: false, isWritable: false },
+    { pubkey: tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.yieldPosition, isSigner: false, isWritable: true },
+    { pubkey: accounts.syProgram, isSigner: false, isWritable: false },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    { pubkey: eventAuthority, isSigner: false, isWritable: false },
+    { pubkey: EXPONENT_CORE_PROGRAM_ID, isSigner: false, isWritable: false },
+    // [...redeem (flavor SY-redeem accounts), ...cpi (withdraw_sy ++ get_sy_state)]
+    ...accounts.remainingAccounts,
+  ];
+
+  return new TransactionInstruction({ keys, programId: EXPONENT_CORE_PROGRAM_ID, data });
+}
+
+/** SPL Stake Pool `UpdateStakePoolBalance` instruction tag (variant index 7). */
+const SPL_STAKE_POOL_UPDATE_BALANCE_TAG = Buffer.from([7]);
+
+/**
+ * Build the SPL Stake Pool `UpdateStakePoolBalance` instruction — refreshes a stake pool's
+ * total-lamports / pool-token-supply so the pool↔token exchange rate is current for the
+ * epoch. An SPL-stake-pool SY flavor (e.g. bulkSOL) requires this immediately before
+ * `wrapper_merge`, otherwise the redeem reads a stale SY↔base rate.
+ *
+ * Account order matches the SPL Stake Pool program's `UpdateStakePoolBalance`.
+ */
+export function makeSplStakePoolUpdateBalanceIx(accounts: {
+  stakePoolProgram: PublicKey;
+  stakePool: PublicKey;
+  withdrawAuthority: PublicKey;
+  validatorList: PublicKey;
+  reserveStake: PublicKey;
+  managerFeeAccount: PublicKey;
+  poolMint: PublicKey;
+  tokenProgram?: PublicKey;
+}): TransactionInstruction {
+  const tokenProgram = accounts.tokenProgram ?? TOKEN_PROGRAM_ID;
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.stakePool, isSigner: false, isWritable: true },
+    { pubkey: accounts.withdrawAuthority, isSigner: false, isWritable: false },
+    { pubkey: accounts.validatorList, isSigner: false, isWritable: true },
+    { pubkey: accounts.reserveStake, isSigner: false, isWritable: false },
+    { pubkey: accounts.managerFeeAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.poolMint, isSigner: false, isWritable: true },
+    { pubkey: tokenProgram, isSigner: false, isWritable: false },
+  ];
+  return new TransactionInstruction({
+    keys,
+    programId: accounts.stakePoolProgram,
+    data: Buffer.from(SPL_STAKE_POOL_UPDATE_BALANCE_TAG),
+  });
+}
+
 const exponentInstructions = {
   makeExponentMergeIx,
   makeExponentTradePtIx,
   makeExponentStripIx,
+  makeExponentWrapperMergeIx,
+  makeSplStakePoolUpdateBalanceIx,
   exponentBuyPtArgs,
 };
 

@@ -1,204 +1,84 @@
 /**
- * Build (and optionally create on-chain) an address lookup table for Exponent PT roll-ups.
+ * Create the single dedicated PT-roll address lookup table for a roll.
  *
- * A strip-based roll (withdraw → merge → strip → deposit) carries TWO Exponent SY-program
- * CPI account sets, which pushes the flashloan ~60 bytes past the legacy tx size limit. A
- * dedicated LUT covering the roll's Exponent accounts (programs + both vaults' merge/strip
- * accounts + shared SPL programs) compresses them away so the roll fits in one transaction.
+ * The roll's flashloan is account-heavy (`wrapper_merge` ~35 keys + marginfi withdraw/deposit),
+ * so the swap engine's Titan template is cleanest with ONE LUT that covers the entire non-swap
+ * footprint. This harvests every account in `withdraw → wrapper_merge → deposit` (minus the
+ * authority signer) and packs it into a single LUT; pass its address via `rollOpts.lookupTable`.
  *
- * This script:
- *   1. collects the LUT account list for a given matured→successor roll,
- *   2. proves locally (synthetic LUT) that the strip roll now fits,
- *   3. if a funded keypair is provided (WALLET_PRIVATE_KEY in .env), creates + extends the
- *      real LUT on-chain and prints its address.
- *
- * Run: tsx create-pt-roll-lut.ts
+ *   SOLANA_RPC_URL=... MARGINFI_ACCOUNT_ADDRESS=<acct> LUT_KEYPAIR=/path/funded.json \
+ *   tsx create-pt-roll-lut.ts
  */
-
 import { readFileSync } from "fs";
-import { homedir } from "os";
 import {
-  AddressLookupTableAccount,
   AddressLookupTableProgram,
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
-
 import { Project0Client, MarginfiAccount, MarginfiAccountWrapper } from "../src";
-import {
-  resolveExponentMergeContext,
-  resolveExponentStripContext,
-  makeExponentMergeIx,
-  makeExponentStripIx,
-  EXPONENT_CORE_PROGRAM_ID,
-  EXPONENT_GENERIC_SY_PROGRAM_ID,
-  EXPONENT_CLMM_PROGRAM_ID,
-  EXPONENT_ORDERBOOK_PROGRAM_ID,
-  EXPONENT_VAULTS_PROGRAM_ID,
-} from "../src/vendor/exponent";
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "../src/vendor/spl";
-import { makeRollPtTx } from "../src/services/account/actions/roll-pt";
-import { getConnection, getMarginfiConfig, getWallet } from "./config";
+import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "../src/vendor/spl";
+import { resolveExponentWrapperMergeContext, makeExponentWrapperMergeIx } from "../src/vendor/exponent";
+import { makeWithdrawIx } from "../src/services/account/actions/withdraw";
+import { makeDepositIx } from "../src/services/account/actions/deposit";
 
-/** Load the signer: WALLET_PRIVATE_KEY (.env) → SOLANA_KEYPAIR_PATH → ~/.config/solana/id.json. */
-function loadSigner(): Keypair | null {
-  const fromEnv = getWallet();
-  if (fromEnv) return fromEnv;
-  const path = process.env.SOLANA_KEYPAIR_PATH ?? `${homedir()}/.config/solana/id.json`;
-  try {
-    return Keypair.fromSecretKey(Buffer.from(JSON.parse(readFileSync(path, "utf8"))));
-  } catch {
-    return null;
-  }
+const MATURED_MARKET = new PublicKey(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
+const MATURED_PT_BANK = new PublicKey(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
+const PT_NEW = new PublicKey(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
+const BASE_MINT = new PublicKey(process.env.BASE_MINT ?? "BULKoNSGzxtCqzwTvg5hFJg8fx6dqZRScyXe5LYMfxrn");
+
+function loadKeypair(): Keypair {
+  const p = process.env.LUT_KEYPAIR ?? "/home/kobe/develop/p0/aatGhKor24nSnf1hPYbzRCPD2YWLfFLC2X6G69a2Rzw.json";
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(p, "utf8"))));
 }
-
-// The roll this LUT serves.
-const ACCOUNT = new PublicKey("Ea5Aa6E94o2wF1msyjZWokEGsMJVqdeuCrsy7FfY8upE");
-const MATURED_MARKET = new PublicKey("scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
-const MATURED_PT_BANK = new PublicKey("9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
-const SUCCESSOR_VAULT = new PublicKey("BwBn7Sro6RzDp3A59cDC7WoxWdT7yTaWuaHwvR7Gvypa");
-const PT_NEW = new PublicKey("HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
-const WITHDRAW_PT_UI = 500;
-
-const uniq = (keys: PublicKey[]) => {
-  const seen = new Set<string>();
-  return keys.filter((k) => (seen.has(k.toBase58()) ? false : (seen.add(k.toBase58()), true)));
-};
 
 async function main() {
   const connection = getConnection();
+  const payer = loadKeypair();
   const client = await Project0Client.initialize(connection, getMarginfiConfig());
-  const account = await MarginfiAccount.fetch(ACCOUNT, client.program);
+  const account = await MarginfiAccount.fetch(getAccountAddress(), client.program);
   const wrapper = new MarginfiAccountWrapper(account, client);
   const authority = account.authority;
-
   const maturedBank = client.bankMap.get(MATURED_PT_BANK.toBase58())!;
   const successorBank = [...client.bankMap.values()].find((b) => b.mint.equals(PT_NEW))!;
-  const maturedMint = await wrapper.getMintDataFromBank(maturedBank);
-  const successorMint = await wrapper.getMintDataFromBank(successorBank);
+  const mMint = await wrapper.getMintDataFromBank(maturedBank);
+  const sMint = await wrapper.getMintDataFromBank(successorBank);
 
-  // Resolve the roll's two Exponent legs to harvest their account keys.
-  const merge = await resolveExponentMergeContext({ connection, owner: authority, market: MATURED_MARKET });
-  const withdrawNative = BigInt(Math.floor(WITHDRAW_PT_UI * 10 ** maturedBank.mintDecimals));
-  const redeemedSy = merge.computeRedeemedAmountNative(withdrawNative);
-  const mergeIx = makeExponentMergeIx(merge.mergeAccounts, redeemedSy);
+  // Build the exact flashloan non-swap footprint and harvest its accounts.
+  const ctx = await resolveExponentWrapperMergeContext({ connection, owner: authority, market: MATURED_MARKET, baseMint: BASE_MINT, baseTokenProgram: TOKEN_PROGRAM_ID, ptYtTokenProgram: mMint.tokenProgram });
+  const wm = makeExponentWrapperMergeIx(ctx.wrapperMergeAccounts, { amountPyNative: 1n, redeemSyAccountsUntil: ctx.wrapperMergeAccounts.redeemSyAccountsUntil });
+  const withdraw = await makeWithdrawIx({ program: client.program, bank: maturedBank, bankMap: client.bankMap, tokenProgram: mMint.tokenProgram, amount: 1, marginfiAccount: account, authority, withdrawAll: false, bankMetadataMap: client.bankIntegrationMap, isSync: true, opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
+  const deposit = await makeDepositIx({ program: client.program, bank: successorBank, tokenProgram: sMint.tokenProgram, amount: 1, accountAddress: account.address, authority, group: account.group, isSync: true, opts: { wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
 
-  const strip = await resolveExponentStripContext({ connection, owner: authority, vault: SUCCESSOR_VAULT });
-  const stripIx = makeExponentStripIx(strip.stripAccounts, redeemedSy);
-
-  // LUT account list: shared programs + both legs' accounts + bank/mint accounts. Exclude
-  // the owner (a signer can't be loaded from a LUT) — everything else is stable per market.
-  const lutAccounts = uniq([
-    EXPONENT_CORE_PROGRAM_ID,
-    EXPONENT_GENERIC_SY_PROGRAM_ID,
-    EXPONENT_CLMM_PROGRAM_ID,
-    EXPONENT_ORDERBOOK_PROGRAM_ID,
-    EXPONENT_VAULTS_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    SUCCESSOR_VAULT,
-    PT_NEW,
-    successorBank.address,
-    maturedBank.address,
-    ...mergeIx.keys.map((k) => k.pubkey),
-    ...stripIx.keys.map((k) => k.pubkey),
-  ]).filter((k) => !k.equals(authority));
-  console.log(`LUT will hold ${lutAccounts.length} accounts`);
-
-  // --- Local proof: synthetic LUT makes the strip roll fit -------------------------------
-  const synthetic = new AddressLookupTableAccount({
-    key: PublicKey.default,
-    state: {
-      deactivationSlot: BigInt("18446744073709551615"),
-      lastExtendedSlot: 0,
-      lastExtendedSlotStartIndex: 0,
-      authority: undefined,
-      addresses: lutAccounts,
-    },
-  });
-  const successorVaultAlt = strip.addressLookupTable;
-  try {
-    const { transactions } = await makeRollPtTx({
-      program: client.program,
-      marginfiAccount: account,
-      connection,
-      bankMap: client.bankMap,
-      oraclePrices: (client as any).oraclePriceByBank,
-      bankMetadataMap: (client as any).bankIntegrationMap,
-      assetShareValueMultiplierByBank: new Map(),
-      withdrawOpts: { totalPositionAmount: 6000, withdrawAmount: WITHDRAW_PT_UI, withdrawBank: maturedBank, tokenProgram: maturedMint.tokenProgram },
-      depositOpts: { depositBank: successorBank, tokenProgram: successorMint.tokenProgram },
-      addressLookupTableAccounts: client.addressLookupTables,
-      // Pass the pre-built strip via the `buy` escape hatch + the synthetic LUT so we measure
-      // the exact flashloan this LUT will serve (merge is resolved internally from maturedMarket).
-      rollOpts: {
-        maturedMarket: MATURED_MARKET,
-        buy: {
-          instructions: [stripIx],
-          lookupTables: [synthetic, successorVaultAlt].filter(Boolean) as any,
-          ptOutNative: (strip.computeStrippedPtNative(redeemedSy) * 9999n) / 10000n,
-        },
-      },
-    });
-    console.log(`✅ with the LUT, the strip roll fits — built ${transactions.length} tx(s)`);
-  } catch (e: any) {
-    console.log(`❌ still oversized: ${e?.message}`);
-    return;
+  const keys = new Set<string>();
+  for (const ix of [...withdraw.instructions, wm, ...deposit.instructions, ...ctx.preInstructions]) {
+    keys.add(ix.programId.toBase58());
+    for (const k of ix.keys) keys.add(k.pubkey.toBase58());
   }
+  // The authority is always a static signer; everything else can live in the LUT.
+  const addresses = [...keys].filter((k) => k !== authority.toBase58()).map((k) => new PublicKey(k));
+  console.log(`LUT will hold ${addresses.length} accounts (full non-swap footprint)`);
 
-  // --- Optional: create the LUT on-chain (needs a funded keypair) ------------------------
-  const wallet = loadSigner();
-  if (!wallet) {
-    console.log("\n(no signer found → skipping on-chain creation)");
-    console.log("LUT accounts:");
-    lutAccounts.forEach((k) => console.log("  " + k.toBase58()));
-    return;
-  }
-  const bal = await connection.getBalance(wallet.publicKey);
-  console.log(`\nsigner ${wallet.publicKey.toBase58()} balance ${(bal / 1e9).toFixed(4)} SOL`);
-  if (bal < 0.011e9) {
-    console.log(`⚠️ need ~0.01 SOL (LUT rent + fees); fund this address, then re-run. Skipping.`);
-    return;
-  }
   const slot = await connection.getSlot("finalized");
-  const [createIx, lutAddress] = AddressLookupTableProgram.createLookupTable({
-    authority: wallet.publicKey,
-    payer: wallet.publicKey,
-    recentSlot: slot,
-  });
+  const [createIx, lutAddress] = AddressLookupTableProgram.createLookupTable({ authority: payer.publicKey, payer: payer.publicKey, recentSlot: slot });
+  console.log("LUT address:", lutAddress.toBase58());
 
-  // Chunk the addresses into ≤20-per-extend; first tx also creates the table.
-  const CHUNK = 20;
-  const chunks: PublicKey[][] = [];
-  for (let i = 0; i < lutAccounts.length; i += CHUNK) chunks.push(lutAccounts.slice(i, i + CHUNK));
-
-  for (let i = 0; i < chunks.length; i++) {
-    const extendIx = AddressLookupTableProgram.extendLookupTable({
-      payer: wallet.publicKey,
-      authority: wallet.publicKey,
-      lookupTable: lutAddress,
-      addresses: chunks[i],
-    });
-    const bh = (await connection.getLatestBlockhash()).blockhash;
-    const tx = new VersionedTransaction(
-      new TransactionMessage({
-        payerKey: wallet.publicKey,
-        recentBlockhash: bh,
-        instructions: i === 0 ? [createIx, extendIx] : [extendIx],
-      }).compileToV0Message()
-    );
-    tx.sign([wallet]);
-    const sig = await connection.sendTransaction(tx);
+  const send = async (ixs: any[], label: string) => {
+    const bh = (await connection.getLatestBlockhash("confirmed")).blockhash;
+    const tx = new VersionedTransaction(new TransactionMessage({ payerKey: payer.publicKey, recentBlockhash: bh, instructions: [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }), ...ixs] }).compileToV0Message());
+    tx.sign([payer]);
+    const sig = await connection.sendTransaction(tx, { skipPreflight: false });
     await connection.confirmTransaction(sig, "confirmed");
-    console.log(`  extend ${i + 1}/${chunks.length} (${chunks[i].length} accts) sig ${sig}`);
-  }
-  console.log(`\n✅ created PT-roll LUT ${lutAddress.toBase58()} with ${lutAccounts.length} accounts`);
-  console.log("   pass it via makeRollPtTx({ rollOpts: { lookupTables: [thisLut, vaultAlt, mergeAlt], ... } })");
-}
+    console.log(`  ${label}: ${sig}`);
+  };
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+  await send([createIx, AddressLookupTableProgram.extendLookupTable({ payer: payer.publicKey, authority: payer.publicKey, lookupTable: lutAddress, addresses: addresses.slice(0, 20) })], "create + extend");
+  for (let i = 20; i < addresses.length; i += 20) {
+    await send([AddressLookupTableProgram.extendLookupTable({ payer: payer.publicKey, authority: payer.publicKey, lookupTable: lutAddress, addresses: addresses.slice(i, i + 20) })], `extend ${i}`);
+  }
+  console.log("\n✅ PT-roll LUT:", lutAddress.toBase58());
+}
+main().catch((e) => { console.error("ERR", e?.stack ?? e?.message ?? e); process.exit(1); });
