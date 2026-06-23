@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.4
+
+### Patch Changes
+
+- PT roll-up now routes through the multi-provider swap engine (Titan + Jupiter) instead of Jupiter-only.
+
 ## 2.3.0-alpha.3
 
 ### Minor Changes
