@@ -24,6 +24,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForBanks,
   splitInstructionsToFitTransactions,
   TransactionType,
   getWritableAccountKeys,
@@ -186,10 +187,13 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTr
   const tx = new Transaction().add(...ixs.instructions);
   tx.feePayer = params.authority;
 
+  // Repays don't add health remaining-accounts, so only the target bank matters.
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.REPAY,
     signers: ixs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }

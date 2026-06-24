@@ -11,6 +11,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeUnwrapSolIx,
+  selectLutsForAccountAction,
   TransactionType,
 } from "~/services/transaction";
 import {
@@ -133,6 +134,16 @@ export async function makeBorrowIx({
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<TransactionBuilderResult> {
   const { luts, connection, ...borrowIxParams } = params;
 
+  // Pick the lean native-stake LUT subset when every involved bank (target + the
+  // account's active positions + any extra health-check banks) is STAKED/SOL.
+  const selectedLuts = selectLutsForAccountAction(
+    luts,
+    borrowIxParams.bank,
+    params.marginfiAccount.balances,
+    params.bankMap,
+    borrowIxParams.opts?.additionalHealthCheckBanks
+  );
+
   const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
     params.marginfiAccount,
     params.bankMap,
@@ -202,11 +213,11 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
         ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: [...kaminoRefreshIxs.keys, ...borrowIxs.keys],
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.BORROW,
     }
   );
