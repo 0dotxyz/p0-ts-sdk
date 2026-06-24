@@ -5,6 +5,8 @@ import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 import { makeSplStakePoolUpdateBalanceIx } from "../instructions";
 import {
+  ExponentClmmTradePtAccounts,
+  ExponentClmmTradePtContext,
   ExponentCpiInterfaceContext,
   ExponentMergeAccounts,
   ExponentMergeContext,
@@ -15,6 +17,7 @@ import {
   ExponentVault,
   ExponentWrapperMergeAccounts,
   ExponentWrapperMergeContext,
+  ResolveExponentClmmTradePtContextParams,
   ResolveExponentMergeContextParams,
   ResolveExponentStripContextParams,
   ResolveExponentTradePtContextParams,
@@ -22,6 +25,7 @@ import {
 } from "../types";
 
 import {
+  fetchExponentMarketThree,
   fetchExponentMarketTwo,
   fetchExponentVault,
   fetchExponentVaultFromMarket,
@@ -206,6 +210,80 @@ export async function resolveExponentTradePtContext(
     addressLookupTable: market.addressLookupTable,
     syProgram: market.syProgram,
     tokenFeeTreasurySy: market.tokenFeeTreasurySy,
+    tokenProgram: ptTokenProgram,
+    remainingAccounts,
+  };
+
+  const [syDecimals, ptDecimals] = await Promise.all([
+    getMintDecimals(connection, market.mintSy),
+    getMintDecimals(connection, market.mintPt),
+  ]);
+
+  return {
+    marketAddress: market.selfAddress,
+    market,
+    tradePtAccounts,
+    addressLookupTable: alt,
+    sy: { mint: market.mintSy, decimals: syDecimals, tokenProgram: syTokenProgram },
+    pt: { mint: market.mintPt, decimals: ptDecimals, tokenProgram: ptTokenProgram },
+  };
+}
+
+/**
+ * Resolve everything the roll needs to buy the successor PT natively on its **CLMM**
+ * (`MarketThree`) pool — SY → PT in one on-chain trade, no base unwrap and no external
+ * aggregator. The newer maturities (e.g. October bulkSOL) only list a CLMM PT/SY pool (no
+ * `MarketTwo`, no order book), so this is the direct buy leg.
+ *
+ * Decodes the pool, resolves its SY-program CPI accounts from the pool's address lookup
+ * table (each `CpiInterfaceContext` is an ALT index), de-duplicates them, and derives the
+ * owner's SY/PT token accounts. The returned {@link ExponentClmmTradePtContext.addressLookupTable}
+ * must be added to the transaction's lookup tables. The pool uses a single `ticks` account,
+ * so the resolved account set is fixed regardless of trade size.
+ */
+export async function resolveExponentClmmTradePtContext(
+  params: ResolveExponentClmmTradePtContextParams
+): Promise<ExponentClmmTradePtContext> {
+  const { connection, owner } = params;
+  const ptTokenProgram = params.ptTokenProgram ?? TOKEN_PROGRAM_ID;
+  const syTokenProgram = params.syTokenProgram ?? TOKEN_PROGRAM_ID;
+
+  const market = await fetchExponentMarketThree(connection, params.market);
+
+  const altResult = await connection.getAddressLookupTable(market.addressLookupTable);
+  const alt = altResult.value;
+  if (!alt) {
+    throw new Error(
+      `Exponent CLMM market address lookup table not found: ${market.addressLookupTable.toBase58()}`
+    );
+  }
+  const altAddresses = alt.state.addresses;
+  const altKey = market.addressLookupTable;
+
+  // Order mirrors the SDK's CLMM trade_pt remaining accounts:
+  // getSyState ++ getPositionState ++ depositSy ++ withdrawSy, then de-duplicated.
+  const remainingAccounts = uniqueRemainingAccounts([
+    ...resolveCpiMetas(market.cpiAccounts.getSyState, altAddresses, altKey),
+    ...resolveCpiMetas(market.cpiAccounts.getPositionState, altAddresses, altKey),
+    ...resolveCpiMetas(market.cpiAccounts.depositSy, altAddresses, altKey),
+    ...resolveCpiMetas(market.cpiAccounts.withdrawSy, altAddresses, altKey),
+  ]);
+
+  const tokenSyTrader = getAssociatedTokenAddressSync(market.mintSy, owner, true, syTokenProgram);
+  const tokenPtTrader = getAssociatedTokenAddressSync(market.mintPt, owner, true, ptTokenProgram);
+
+  const tradePtAccounts: ExponentClmmTradePtAccounts = {
+    trader: owner,
+    market: market.selfAddress,
+    ticks: market.ticks,
+    tokenSyTrader,
+    tokenPtTrader,
+    tokenSyEscrow: market.tokenSyEscrow,
+    tokenPtEscrow: market.tokenPtEscrow,
+    addressLookupTable: market.addressLookupTable,
+    syProgram: market.syProgram,
+    tokenFeeTreasurySy: market.tokenFeeTreasurySy,
+    tokenFeeTreasuryPt: market.tokenFeeTreasuryPt,
     tokenProgram: ptTokenProgram,
     remainingAccounts,
   };

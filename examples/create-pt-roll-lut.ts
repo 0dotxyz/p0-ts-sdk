@@ -1,10 +1,11 @@
 /**
  * Create the single dedicated PT-roll address lookup table for a roll.
  *
- * The roll's flashloan is account-heavy (`wrapper_merge` ~35 keys + marginfi withdraw/deposit),
- * so the swap engine's Titan template is cleanest with ONE LUT that covers the entire non-swap
- * footprint. This harvests every account in `withdraw → wrapper_merge → deposit` (minus the
- * authority signer) and packs it into a single LUT; pass its address via `rollOpts.lookupTable`.
+ * The roll's flash loan is `withdraw → merge → CLMM trade_pt → deposit`. Account *locks* are
+ * already comfortably under the limit (the CLMM swap is a fixed, compact set), so the LUT is
+ * only about compressing *bytes* for headroom on larger positions. This harvests every account
+ * in that footprint (minus per-user accounts) and packs it into ONE shareable LUT; pass its
+ * address via `rollOpts.lookupTable`.
  *
  *   SOLANA_RPC_URL=... MARGINFI_ACCOUNT_ADDRESS=<acct> LUT_KEYPAIR=/path/funded.json \
  *   tsx create-pt-roll-lut.ts
@@ -21,14 +22,20 @@ import {
 import { Project0Client, MarginfiAccount, MarginfiAccountWrapper } from "../src";
 import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "../src/vendor/spl";
-import { resolveExponentWrapperMergeContext, makeExponentWrapperMergeIx } from "../src/vendor/exponent";
+import {
+  resolveExponentMergeContext,
+  makeExponentMergeIx,
+  resolveExponentClmmTradePtContext,
+  makeExponentClmmTradePtIx,
+  exponentClmmBuyPtArgs,
+} from "../src/vendor/exponent";
 import { makeWithdrawIx } from "../src/services/account/actions/withdraw";
 import { makeDepositIx } from "../src/services/account/actions/deposit";
 
 const MATURED_MARKET = new PublicKey(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
 const MATURED_PT_BANK = new PublicKey(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
 const PT_NEW = new PublicKey(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
-const BASE_MINT = new PublicKey(process.env.BASE_MINT ?? "BULKoNSGzxtCqzwTvg5hFJg8fx6dqZRScyXe5LYMfxrn");
+const SUCCESSOR_MARKET = new PublicKey(process.env.SUCCESSOR_PT_MARKET ?? "7NSpRqs1ZNiZharyTwKyprfanQsaPprZSm1z84nVsbKn");
 
 function loadKeypair(): Keypair {
   const p = process.env.LUT_KEYPAIR ?? "/home/kobe/develop/p0/aatGhKor24nSnf1hPYbzRCPD2YWLfFLC2X6G69a2Rzw.json";
@@ -47,20 +54,33 @@ async function main() {
   const mMint = await wrapper.getMintDataFromBank(maturedBank);
   const sMint = await wrapper.getMintDataFromBank(successorBank);
 
-  // Build the exact flashloan non-swap footprint and harvest its accounts.
-  const ctx = await resolveExponentWrapperMergeContext({ connection, owner: authority, market: MATURED_MARKET, baseMint: BASE_MINT, baseTokenProgram: TOKEN_PROGRAM_ID, ptYtTokenProgram: mMint.tokenProgram });
-  const wm = makeExponentWrapperMergeIx(ctx.wrapperMergeAccounts, { amountPyNative: 1n, redeemSyAccountsUntil: ctx.wrapperMergeAccounts.redeemSyAccountsUntil });
+  // Build the exact flash-loan footprint and harvest its accounts.
+  const merge = await resolveExponentMergeContext({ connection, owner: authority, market: MATURED_MARKET, ptYtTokenProgram: mMint.tokenProgram });
+  const clmm = await resolveExponentClmmTradePtContext({ connection, owner: authority, market: SUCCESSOR_MARKET, ptTokenProgram: sMint.tokenProgram });
+  const mergeIx = makeExponentMergeIx(merge.mergeAccounts, 1n);
+  const tradeIx = makeExponentClmmTradePtIx(clmm.tradePtAccounts, exponentClmmBuyPtArgs({ amountInSyNative: 1n, minPtOutNative: 1n }));
   const withdraw = await makeWithdrawIx({ program: client.program, bank: maturedBank, bankMap: client.bankMap, tokenProgram: mMint.tokenProgram, amount: 1, marginfiAccount: account, authority, withdrawAll: false, bankMetadataMap: client.bankIntegrationMap, isSync: true, opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
   const deposit = await makeDepositIx({ program: client.program, bank: successorBank, tokenProgram: sMint.tokenProgram, amount: 1, accountAddress: account.address, authority, group: account.group, isSync: true, opts: { wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
 
   const keys = new Set<string>();
-  for (const ix of [...withdraw.instructions, wm, ...deposit.instructions, ...ctx.preInstructions]) {
+  for (const ix of [...withdraw.instructions, mergeIx, tradeIx, ...deposit.instructions]) {
     keys.add(ix.programId.toBase58());
     for (const k of ix.keys) keys.add(k.pubkey.toBase58());
   }
-  // The authority is always a static signer; everything else can live in the LUT.
-  const addresses = [...keys].filter((k) => k !== authority.toBase58()).map((k) => new PublicKey(k));
-  console.log(`LUT will hold ${addresses.length} accounts (full non-swap footprint)`);
+  // Exclude per-USER accounts so the LUT is SHAREABLE across all rollers of this pair: the
+  // signer, the marginfi account, and the owner's ATAs (these differ per user / stay static).
+  // Everything else (banks, the matured vault + merge accounts, the CLMM pool + its escrows /
+  // ticks / fee treasuries, SY-CPI accounts, mints, programs) is shared per matured→successor pair.
+  const ata = (mint: PublicKey) => getAssociatedTokenAddressSync(mint, authority, true).toBase58();
+  const perUser = new Set<string>([
+    authority.toBase58(),
+    account.address.toBase58(),
+    ata(maturedBank.mint),
+    ata(successorBank.mint),
+    ata(merge.underlying.mint), // shared SY
+  ]);
+  const addresses = [...keys].filter((k) => !perUser.has(k)).map((k) => new PublicKey(k));
+  console.log(`LUT will hold ${addresses.length} SHARED accounts (per-user accounts excluded)`);
 
   const slot = await connection.getSlot("finalized");
   const [createIx, lutAddress] = AddressLookupTableProgram.createLookupTable({ authority: payer.publicKey, payer: payer.publicKey, recentSlot: slot });

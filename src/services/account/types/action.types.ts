@@ -519,16 +519,14 @@ export interface MakeSwapCollateralTxParams {
  * Params for {@link makeRollPtTx} — rolling a matured Exponent PT collateral position into
  * its next-maturity PT, so the **full deposit ends up as new PT** (no leftover), in one
  * flash-loan-wrapped bundle:
- *   1. withdraw the old PT, then Exponent `wrapper_merge` (redeem PT → underlying **base**
- *      token, e.g. bulkSOL — in one ix, post-maturity, no slippage)
- *   2. swap base → new PT via the multi-provider swap engine (the same one the loop/collateral
- *      swaps use — a normal token is swappable, the un-swappable SY is never exposed)
+ *   1. withdraw the old PT, then Exponent `merge` (redeem PT → SY, post-maturity, 1:1)
+ *   2. buy the new PT with that SY directly on the successor's **CLMM** (`MarketThree`) PT/SY
+ *      pool via `trade_pt` — no base-token round-trip, no external aggregator
  *   3. deposit the new PT.
  *
- * Structurally identical to {@link MakeSwapCollateralTxParams} with a `wrapper_merge` leg in
- * front: it takes the same `swapOpts` (base → new PT) plus a thin `rollOpts` (the matured
- * Exponent market/vault + the underlying base token). The swap is liquidity-bounded by the
- * new PT's market depth.
+ * The buy is liquidity-bounded by the successor pool's depth. The SY → PT price is quoted by
+ * simulating the redeem + trade (reading the CLMM `TradePtEvent.amount_out`), so the deposit
+ * is sized to the guaranteed minimum out.
  */
 export interface MakeRollPtTxParams {
   program: MarginfiProgram;
@@ -550,9 +548,7 @@ export interface MakeRollPtTxParams {
     depositBank: BankType;
     tokenProgram: PublicKey;
   };
-  /** Swap config for the base → new-PT leg (same as swap-collateral's `swapOpts`). */
-  swapOpts: SwapOpts;
-  /** Exponent `wrapper_merge` (redeem) config for the matured PT. */
+  /** Exponent redeem (`merge`) + successor-CLMM buy config for the matured PT. */
   rollOpts: RollPtOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
@@ -560,31 +556,28 @@ export interface MakeRollPtTxParams {
     authority?: PublicKey;
   };
   crossbarUrl?: string;
-  /** See `MakeLoopTxParams.swapEngineRunner`. */
-  swapEngineRunner?: SwapEngineRunner;
 }
 
 /**
- * Exponent redeem config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's
- * `wrapper_merge` accounts internally from these addresses — the caller never assembles
- * Exponent accounts/ixs. The buy leg is the swap engine (`swapOpts`), not part of this.
+ * Exponent roll config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's
+ * `merge` accounts and the successor pool's CLMM `trade_pt` accounts internally from these
+ * addresses — the caller never assembles Exponent accounts/ixs.
  */
 export interface RollPtOpts {
   /** The matured PT's Exponent `MarketTwo` — its `vault` is read (one of market/vault required). */
   maturedMarket?: PublicKey;
   /** …or the matured vault directly. */
   maturedVault?: PublicKey;
-  /**
-   * The vault's underlying **base** token (e.g. bulkSOL) — the token `wrapper_merge` redeems
-   * the SY into and the swap leg consumes. Required: it isn't stored on the vault.
-   */
-  baseMint: PublicKey;
-  /** Token program for the base mint (defaults to the classic Token program). */
-  baseTokenProgram?: PublicKey;
+  /** The successor maturity's **CLMM** (`MarketThree`) pool — where the new PT trades (SY → PT). */
+  successorMarket: PublicKey;
+  /** Slippage tolerance (bps) for the SY → PT CLMM swap. Defaults to 50. */
+  slippageBps?: number;
+  /** Token program for the shared SY mint (defaults to the classic Token program). */
+  syTokenProgram?: PublicKey;
   /**
    * Optional dedicated PT-roll address lookup table (fetched internally) that compresses the
-   * `wrapper_merge` + swap flashloan back under the tx size limit
-   * (see `examples/create-pt-roll-lut.ts`).
+   * merge + CLMM-swap flashloan bytes (see `examples/create-pt-roll-lut.ts`). Account *locks*
+   * are already bounded by the compact, fixed CLMM footprint.
    */
   lookupTable?: PublicKey;
 }

@@ -4,14 +4,19 @@ import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 import { SystemProgram } from "@solana/web3.js";
 
-import { EXPONENT_CORE_PROGRAM_ID } from "./constants";
+import { EXPONENT_CLMM_PROGRAM_ID, EXPONENT_CORE_PROGRAM_ID } from "./constants";
 import {
+  ExponentClmmTradePtAccounts,
   ExponentMergeAccounts,
   ExponentStripAccounts,
+  ExponentSwapDirection,
   ExponentTradePtAccounts,
   ExponentWrapperMergeAccounts,
 } from "./types";
-import { deriveExponentEventAuthority } from "./utils/derive.utils";
+import {
+  deriveExponentClmmEventAuthority,
+  deriveExponentEventAuthority,
+} from "./utils/derive.utils";
 
 /**
  * `merge` instruction discriminator, taken from the committed Exponent IDL
@@ -299,13 +304,124 @@ export function makeSplStakePoolUpdateBalanceIx(accounts: {
   });
 }
 
+/**
+ * CLMM (`MarketThree`) `trade_pt` discriminator (`@exponent-labs/exponent-clmm-idl`,
+ * `trade_pt` → `[3]`, single-byte). Account order/flags + the arg layout below mirror the
+ * SDK's `createTradePtInstruction` exactly. This is the buy leg the matured-PT roll uses to
+ * buy the successor PT directly on the PT/SY CLMM (`SwapDirection.SyToPt`) — no base
+ * round-trip, no aggregator, and (unlike Raydium CLMMs) a single `ticks` account, so the
+ * account set is fixed regardless of trade size.
+ */
+const CLMM_TRADE_PT_DISCRIMINATOR = Buffer.from([3]);
+
+/** Encode a borsh `Option<u64>` (1-byte tag + u64 LE when `Some`). */
+function encodeOptionU64(value: bigint | null): Buffer {
+  if (value === null) return Buffer.from([0]);
+  const buf = Buffer.alloc(9);
+  buf.writeUInt8(1, 0);
+  buf.writeBigUInt64LE(value, 1);
+  return buf;
+}
+
+/**
+ * Signed `trade_pt` args for **buying** PT with SY on the CLMM (the roll's buy leg).
+ *
+ * `amountIn` is the exact SY spent; `swapDirection` is `SyToPt`; `amountOutConstraint` is
+ * the minimum PT out (slippage floor); `priceSpotLimit` (ln-implied-APY limit) is left unset.
+ *
+ * @param amountInSyNative SY to spend (native u64).
+ * @param minPtOutNative   minimum PT to receive (native u64) — the swap reverts below this.
+ */
+export function exponentClmmBuyPtArgs({
+  amountInSyNative,
+  minPtOutNative,
+}: {
+  amountInSyNative: bigint;
+  minPtOutNative: bigint;
+}): {
+  amountIn: bigint;
+  swapDirection: ExponentSwapDirection;
+  amountOutConstraint: bigint | null;
+  priceSpotLimit: null;
+} {
+  return {
+    amountIn: amountInSyNative,
+    swapDirection: ExponentSwapDirection.SyToPt,
+    amountOutConstraint: minPtOutNative,
+    priceSpotLimit: null,
+  };
+}
+
+/**
+ * Build the CLMM `trade_pt(amount_in, swap_direction, amount_out_constraint, price_spot_limit)`
+ * instruction — an implied-APY AMM trade of SY ↔ PT on a `MarketThree` pool. For a buy use
+ * {@link exponentClmmBuyPtArgs}.
+ *
+ * Pricing PT reads the SY exchange rate on-chain, so `accounts.remainingAccounts` (the SY-CPI
+ * accounts resolved from the market ALT) are appended after the 14 fixed accounts, and the
+ * transaction must carry the market's address lookup table.
+ *
+ * @param accounts resolved trade accounts (see {@link ExponentClmmTradePtAccounts})
+ * @param args     `amountIn` (u64) + `swapDirection` (u8) + `amountOutConstraint` (Option<u64>)
+ *                 + `priceSpotLimit` (Option<f64>, always `null` here)
+ */
+export function makeExponentClmmTradePtIx(
+  accounts: ExponentClmmTradePtAccounts,
+  args: {
+    amountIn: bigint;
+    swapDirection: ExponentSwapDirection;
+    amountOutConstraint: bigint | null;
+    priceSpotLimit: null;
+  }
+): TransactionInstruction {
+  const tokenProgram = accounts.tokenProgram ?? TOKEN_PROGRAM_ID;
+  const eventAuthority = deriveExponentClmmEventAuthority();
+
+  // data = disc(1) + amount_in(u64 LE, 8) + swap_direction(u8, 1)
+  //        + amount_out_constraint(Option<u64>) + price_spot_limit(Option<f64>)
+  const head = Buffer.alloc(CLMM_TRADE_PT_DISCRIMINATOR.length + 9);
+  CLMM_TRADE_PT_DISCRIMINATOR.copy(head, 0);
+  head.writeBigUInt64LE(args.amountIn, CLMM_TRADE_PT_DISCRIMINATOR.length);
+  head.writeUInt8(args.swapDirection, CLMM_TRADE_PT_DISCRIMINATOR.length + 8);
+  // `priceSpotLimit` is always `null` here → a single 0 tag byte (no f64 follows).
+  const data = Buffer.concat([
+    head,
+    encodeOptionU64(args.amountOutConstraint),
+    Buffer.from([0]),
+  ]);
+
+  // Order + writable/signer flags taken verbatim from the IDL / SDK `createTradePtInstruction`.
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.trader, isSigner: true, isWritable: true },
+    { pubkey: accounts.market, isSigner: false, isWritable: true },
+    { pubkey: accounts.ticks, isSigner: false, isWritable: true },
+    { pubkey: accounts.tokenSyTrader, isSigner: false, isWritable: true },
+    { pubkey: accounts.tokenPtTrader, isSigner: false, isWritable: true },
+    { pubkey: accounts.tokenSyEscrow, isSigner: false, isWritable: true },
+    { pubkey: accounts.tokenPtEscrow, isSigner: false, isWritable: true },
+    { pubkey: accounts.addressLookupTable, isSigner: false, isWritable: false },
+    { pubkey: tokenProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.syProgram, isSigner: false, isWritable: false },
+    { pubkey: accounts.tokenFeeTreasurySy, isSigner: false, isWritable: true },
+    { pubkey: accounts.tokenFeeTreasuryPt, isSigner: false, isWritable: true },
+    { pubkey: eventAuthority, isSigner: false, isWritable: false },
+    { pubkey: EXPONENT_CLMM_PROGRAM_ID, isSigner: false, isWritable: false },
+    // SY-program CPI accounts (getSyState ++ getPositionState ++ depositSy ++ withdrawSy), ALT-resolved.
+    ...accounts.remainingAccounts,
+  ];
+
+  return new TransactionInstruction({ keys, programId: EXPONENT_CLMM_PROGRAM_ID, data });
+}
+
 const exponentInstructions = {
   makeExponentMergeIx,
   makeExponentTradePtIx,
   makeExponentStripIx,
   makeExponentWrapperMergeIx,
+  makeExponentClmmTradePtIx,
   makeSplStakePoolUpdateBalanceIx,
   exponentBuyPtArgs,
+  exponentClmmBuyPtArgs,
 };
 
 export default exponentInstructions;

@@ -3,9 +3,10 @@ import { BigNumber } from "bignumber.js";
 import { BorshAccountsCoder, type Idl } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { EXPONENT_CORE_IDL } from "../idl";
+import { EXPONENT_CLMM_IDL, EXPONENT_CORE_IDL } from "../idl";
 import {
   ExponentCpiInterfaceContext,
+  ExponentMarketThree,
   ExponentMarketTwo,
   ExponentVault,
 } from "../types";
@@ -17,6 +18,7 @@ import {
 export const EXPONENT_NUMBER_DENOM = new BigNumber(1e12);
 
 const EXPONENT_ACCOUNTS_CODER = new BorshAccountsCoder(EXPONENT_CORE_IDL as unknown as Idl);
+const EXPONENT_CLMM_ACCOUNTS_CODER = new BorshAccountsCoder(EXPONENT_CLMM_IDL as unknown as Idl);
 
 /** Convert a decoded Exponent `Number` (LE `[u64; 4]` U256) to a scaled BigNumber. */
 export function exponentNumberToBigNumber(raw: unknown): BigNumber {
@@ -129,6 +131,44 @@ export async function fetchExponentMarketTwo(
   const info = await connection.getAccountInfo(market);
   if (!info) throw new Error(`Exponent market account not found: ${market.toBase58()}`);
   return decodeExponentMarketTwo(info.data);
+}
+
+/** Decode a raw `MarketThree` (CLMM) pool account buffer into {@link ExponentMarketThree}. */
+export function decodeExponentMarketThree(data: Buffer): ExponentMarketThree {
+  const d = EXPONENT_CLMM_ACCOUNTS_CODER.decode("MarketThree", data) as Record<string, unknown>;
+  const get = (snake: string, camel: string) => d[snake] ?? d[camel];
+  const cpi = (get("cpi_sy_accounts", "cpiSyAccounts") ?? {}) as Record<string, unknown>;
+
+  return {
+    selfAddress: pk(get("self_address", "selfAddress")),
+    mintPt: pk(get("mint_pt", "mintPt")),
+    mintSy: pk(get("mint_sy", "mintSy")),
+    vault: pk(get("vault", "vault")),
+    ticks: pk(get("ticks", "ticks")),
+    tokenPtEscrow: pk(get("token_pt_escrow", "tokenPtEscrow")),
+    tokenSyEscrow: pk(get("token_sy_escrow", "tokenSyEscrow")),
+    tokenFeeTreasurySy: pk(get("token_fee_treasury_sy", "tokenFeeTreasurySy")),
+    tokenFeeTreasuryPt: pk(get("token_fee_treasury_pt", "tokenFeeTreasuryPt")),
+    addressLookupTable: pk(get("address_lookup_table", "addressLookupTable")),
+    syProgram: pk(get("sy_program", "syProgram")),
+    statusFlags: Number(get("status_flags", "statusFlags") ?? 0),
+    cpiAccounts: {
+      getSyState: decodeCpiContexts(cpi.get_sy_state ?? cpi.getSyState),
+      getPositionState: decodeCpiContexts(cpi.get_position_state ?? cpi.getPositionState),
+      depositSy: decodeCpiContexts(cpi.deposit_sy ?? cpi.depositSy),
+      withdrawSy: decodeCpiContexts(cpi.withdraw_sy ?? cpi.withdrawSy),
+    },
+  };
+}
+
+/** Fetch + decode an Exponent `MarketThree` (CLMM) pool account. */
+export async function fetchExponentMarketThree(
+  connection: Connection,
+  market: PublicKey
+): Promise<ExponentMarketThree> {
+  const info = await connection.getAccountInfo(market);
+  if (!info) throw new Error(`Exponent CLMM market account not found: ${market.toBase58()}`);
+  return decodeExponentMarketThree(info.data);
 }
 
 /** Fetch + decode an Exponent `Vault` account. */

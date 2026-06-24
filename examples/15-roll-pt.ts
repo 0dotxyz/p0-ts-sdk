@@ -2,18 +2,16 @@
  * Example: Roll a matured Exponent PT collateral position into its next maturity, so the
  * user's **full deposit ends up as new PT** — in one flash-loan-wrapped bundle:
  *
- *     withdraw PT_old → wrapper_merge (PT_old → underlying base, e.g. bulkSOL)
- *       → swap-engine (base → PT_new, Titan) → deposit PT_new
+ *     withdraw PT_old → merge (PT_old → SY) → CLMM trade_pt (SY → PT_new) → deposit PT_new
  *
- * `makeRollPtTx` is structurally `makeSwapCollateralTx` with a `wrapper_merge` leg in front:
- * the matured PT is redeemed to a normal, swappable base token (never the un-swappable SY),
- * then the same multi-provider swap engine buys the new PT. You pass the matured Exponent
- * market/vault + the base token (`rollOpts`) and the swap config (`swapOpts`); everything
- * Exponent is resolved internally.
+ * The matured PT is redeemed 1:1 to its SY, then the successor PT is bought **directly on its
+ * CLMM (`MarketThree`) PT/SY pool** — no base-token round-trip and no external aggregator (the
+ * newer maturities only list a CLMM pool; the SY mint is shared across maturities, so the
+ * redeemed SY feeds the buy directly). The SY → PT price is quoted by simulating the redeem +
+ * trade, so no Titan/Jupiter credentials are needed. You pass the matured Exponent market/vault
+ * + the successor CLMM pool (`rollOpts`); everything Exponent is resolved internally.
  *
- * Routing base → PT_new needs an Exponent-aware aggregator, so set Titan creds:
  *   SOLANA_RPC_URL=https://...  (examples/.env)
- *   TITAN_GATEWAY_URL=https://<host>/api/v1  TITAN_API_KEY=...
  *   MARGINFI_ACCOUNT_ADDRESS=<account holding matured PT collateral>
  * Then: tsx 15-roll-pt.ts   (SIMULATION only — nothing is sent.)
  */
@@ -21,14 +19,14 @@
 import { PublicKey } from "@solana/web3.js";
 
 import { Project0Client, MarginfiAccountWrapper, MarginfiAccount } from "../src";
-import { SwapProvider } from "../src/services/account/types";
 import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ---- The bulkSOL roll (matured PT-bulkSOL → active PT-bulkSOL). Override via env. -------
 const MATURED_MARKET = new PublicKey(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
 const MATURED_PT_BANK = new PublicKey(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
 const PT_NEW = new PublicKey(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
-const BASE_MINT = new PublicKey(process.env.BASE_MINT ?? "BULKoNSGzxtCqzwTvg5hFJg8fx6dqZRScyXe5LYMfxrn");
+// The successor maturity's CLMM (MarketThree) PT/SY pool — where the new PT trades.
+const SUCCESSOR_MARKET = new PublicKey(process.env.SUCCESSOR_PT_MARKET ?? "7NSpRqs1ZNiZharyTwKyprfanQsaPprZSm1z84nVsbKn");
 const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS ?? 100);
 
 async function main() {
@@ -46,17 +44,7 @@ async function main() {
     .find((b) => b.bankPk.equals(MATURED_PT_BANK))!
     .computeQuantityUi(maturedBank).assets.toNumber();
   const withdrawUi = Number(process.env.ROLL_PT ?? String(positionUi)); // default: full roll
-  console.log(`rolling ${withdrawUi} matured PT → new PT (wrapper_merge → swap → deposit)`);
-
-  // Titan endpoint may be a bare host (e.g. "us.partners.api.titan.exchange"); the adapter
-  // quotes over the WebSocket → normalize to wss://<host>/api/v1/ws (mirrors the app).
-  const titanHost = process.env.TITAN_API_ENDPOINT || process.env.TITAN_GATEWAY_URL;
-  if (!titanHost) {
-    throw new Error("Set TITAN_API_ENDPOINT (+ TITAN_API_KEY) — base → PT_new needs the Titan aggregator.");
-  }
-  const bareHost = titanHost.replace(/^https?:\/\//, "").replace(/^wss?:\/\//, "").replace(/\/.*$/, "");
-  const wsUrl = /^wss?:\/\//.test(titanHost) ? titanHost : `wss://${bareHost}/api/v1/ws`;
-  const basePath = `https://${bareHost}/api/v1`;
+  console.log(`rolling ${withdrawUi} matured PT → new PT (merge → CLMM trade_pt → deposit)`);
 
   const { transactions, actionTxIndex, quoteResponse } = await wrapper.makeRollPtTx({
     connection,
@@ -68,28 +56,22 @@ async function main() {
       tokenProgram: maturedMint.tokenProgram,
     },
     depositOpts: { depositBank: successorBank, tokenProgram: successorMint.tokenProgram },
-    swapOpts: {
-      swapConfig: {
-        provider: SwapProvider.TITAN,
-        slippageMode: "DYNAMIC",
-        slippageBps: SLIPPAGE_BPS,
-        platformFeeBps: 0,
-        apiConfig: { basePath, wsUrl, apiKey: process.env.TITAN_API_KEY },
-      },
-    },
-    // The whole Exponent redeem is internal: pass the matured market + the base token.
-    // The roll's wrapper_merge + stake-pool refresh add many accounts, so a dedicated PT-roll
-    // LUT (see create-pt-roll-lut.ts) compresses the flashloan under the tx size limit.
+    // The whole Exponent redeem + buy is internal: pass the matured market + the successor CLMM
+    // pool. A dedicated PT-roll LUT (see create-pt-roll-lut.ts) can compress the flashloan bytes.
     rollOpts: {
       maturedMarket: MATURED_MARKET,
-      baseMint: BASE_MINT,
+      successorMarket: SUCCESSOR_MARKET,
+      slippageBps: SLIPPAGE_BPS,
       ...(process.env.PT_ROLL_LUT ? { lookupTable: new PublicKey(process.env.PT_ROLL_LUT) } : {}),
     },
   });
 
   console.log(`built ${transactions.length} tx(s), action tx index ${actionTxIndex}`);
   if (quoteResponse) {
-    console.log(`  PT_new out (native): ${quoteResponse.outAmount}  via ${quoteResponse.provider}`);
+    console.log(
+      `  SY in (native): ${quoteResponse.inAmount}  → PT_new out (native): ${quoteResponse.outAmount}` +
+        `  (min ${quoteResponse.otherAmountThreshold} @ ${quoteResponse.slippageBps}bps)`
+    );
   }
   if (process.env.NO_SIM) return; // build-only (skip the slow chained bundle sim)
 

@@ -495,7 +495,7 @@ export class MarginfiAccountWrapper {
    *
    * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
    *
-   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, rollOpts, etc.)
+   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, rollOpts, etc.)
    */
   async makeRollPtTx(
     params: Omit<

@@ -4,28 +4,41 @@ import { BigNumber } from "bignumber.js";
 
 import {
   exponentBuyPtArgs,
+  exponentClmmBuyPtArgs,
   makeExponentTradePtIx,
+  makeExponentClmmTradePtIx,
   makeExponentStripIx,
   makeExponentWrapperMergeIx,
   EXPONENT_CORE_PROGRAM_ID,
+  EXPONENT_CLMM_PROGRAM_ID,
+  ExponentSwapDirection,
   type ExponentTradePtAccounts,
+  type ExponentClmmTradePtAccounts,
   type ExponentStripAccounts,
   type ExponentWrapperMergeAccounts,
 } from "~/vendor/exponent";
 
-// The resolvers pull the MarketTwo/Vault decode from deserialize.utils; mock that single
-// boundary so `resolveExponentTradePtContext` / `resolveExponentStripContext` run without RPC.
-const hoisted = vi.hoisted(() => ({ market: undefined as any, vault: undefined as any }));
+// The resolvers pull the MarketTwo/MarketThree/Vault decode from deserialize.utils; mock that
+// single boundary so the resolvers run without RPC.
+const hoisted = vi.hoisted(() => ({
+  market: undefined as any,
+  marketThree: undefined as any,
+  vault: undefined as any,
+}));
 
 vi.mock("~/vendor/exponent/utils/deserialize.utils", () => ({
   fetchExponentMarketTwo: async () => hoisted.market,
+  fetchExponentMarketThree: async () => hoisted.marketThree,
   fetchExponentVault: async () => hoisted.vault,
-  getMintDecimals: async (_conn: unknown, mint: PublicKey) =>
-    hoisted.market && mint.equals(hoisted.market.mintSy) ? 9 : 6,
+  getMintDecimals: async (_conn: unknown, mint: PublicKey) => {
+    const m = hoisted.marketThree ?? hoisted.market;
+    return m && mint.equals(m.mintSy) ? 9 : 6;
+  },
 }));
 
 import {
   resolveExponentTradePtContext,
+  resolveExponentClmmTradePtContext,
   resolveExponentStripContext,
   resolveExponentWrapperMergeContext,
 } from "~/vendor/exponent/utils/resolve.utils";
@@ -193,6 +206,191 @@ describe("resolveExponentTradePtContext", () => {
     };
     await expect(
       resolveExponentTradePtContext({ connection: makeConnection(), owner, market: market.selfAddress })
+    ).rejects.toThrow(/out of range/);
+  });
+});
+
+// ============================================================================
+// CLMM (MarketThree) trade_pt — instruction encoding + resolver
+// ============================================================================
+
+function makeClmmTradePtAccounts(
+  overrides: Partial<ExponentClmmTradePtAccounts> = {}
+): ExponentClmmTradePtAccounts {
+  return {
+    trader: pk(1),
+    market: pk(2),
+    ticks: pk(3),
+    tokenSyTrader: pk(4),
+    tokenPtTrader: pk(5),
+    tokenSyEscrow: pk(6),
+    tokenPtEscrow: pk(7),
+    addressLookupTable: pk(8),
+    syProgram: pk(9),
+    tokenFeeTreasurySy: pk(10),
+    tokenFeeTreasuryPt: pk(11),
+    remainingAccounts: [
+      { pubkey: pk(20), isSigner: false, isWritable: false },
+      { pubkey: pk(21), isSigner: false, isWritable: true },
+    ],
+    ...overrides,
+  };
+}
+
+describe("exponentClmmBuyPtArgs", () => {
+  it("buys PT with SY: amountIn = SY in, SyToPt, amountOutConstraint = min PT, no price limit", () => {
+    expect(exponentClmmBuyPtArgs({ amountInSyNative: 1500n, minPtOutNative: 1000n })).toEqual({
+      amountIn: 1500n,
+      swapDirection: ExponentSwapDirection.SyToPt,
+      amountOutConstraint: 1000n,
+      priceSpotLimit: null,
+    });
+  });
+});
+
+describe("makeExponentClmmTradePtIx", () => {
+  it("encodes disc [3] + amount_in(u64) + swap_direction(u8) + Some(min) + None(price)", () => {
+    const ix = makeExponentClmmTradePtIx(
+      makeClmmTradePtAccounts(),
+      exponentClmmBuyPtArgs({ amountInSyNative: 1500n, minPtOutNative: 1000n })
+    );
+
+    expect(ix.programId.equals(EXPONENT_CLMM_PROGRAM_ID)).toBe(true);
+    // disc(1) + amountIn(8) + swapDirection(1) + Option<u64> Some(1+8) + Option<f64> None(1) = 20
+    expect(ix.data.length).toBe(1 + 8 + 1 + 9 + 1);
+    expect(ix.data[0]).toBe(3);
+    expect(ix.data.readBigUInt64LE(1)).toBe(1500n); // amount_in
+    expect(ix.data[9]).toBe(1); // swap_direction = SyToPt
+    expect(ix.data[10]).toBe(1); // amount_out_constraint Option tag = Some
+    expect(ix.data.readBigUInt64LE(11)).toBe(1000n); // min PT out
+    expect(ix.data[19]).toBe(0); // price_spot_limit Option tag = None
+  });
+
+  it("encodes a None amount_out_constraint as a single 0 tag byte", () => {
+    const ix = makeExponentClmmTradePtIx(makeClmmTradePtAccounts(), {
+      amountIn: 5n,
+      swapDirection: ExponentSwapDirection.SyToPt,
+      amountOutConstraint: null,
+      priceSpotLimit: null,
+    });
+    // disc(1) + amountIn(8) + dir(1) + None(1) + None(1) = 12
+    expect(ix.data.length).toBe(12);
+    expect(ix.data[9]).toBe(1);
+    expect(ix.data[10]).toBe(0); // None
+    expect(ix.data[11]).toBe(0); // None
+  });
+
+  it("lays out the 14 fixed accounts in IDL order, then appends remaining accounts", () => {
+    const accounts = makeClmmTradePtAccounts();
+    const ix = makeExponentClmmTradePtIx(
+      accounts,
+      exponentClmmBuyPtArgs({ amountInSyNative: 1n, minPtOutNative: 1n })
+    );
+
+    expect(ix.keys.length).toBe(16); // 14 fixed + 2 remaining
+    expect(ix.keys[0]).toMatchObject({ pubkey: accounts.trader, isSigner: true, isWritable: true });
+    expect(ix.keys[1]).toMatchObject({ pubkey: accounts.market, isWritable: true });
+    expect(ix.keys[2]).toMatchObject({ pubkey: accounts.ticks, isWritable: true });
+    expect(ix.keys[3].pubkey.equals(accounts.tokenSyTrader)).toBe(true);
+    expect(ix.keys[4].pubkey.equals(accounts.tokenPtTrader)).toBe(true);
+    expect(ix.keys[5].pubkey.equals(accounts.tokenSyEscrow)).toBe(true);
+    expect(ix.keys[6].pubkey.equals(accounts.tokenPtEscrow)).toBe(true);
+    expect(ix.keys[7]).toMatchObject({ pubkey: accounts.addressLookupTable, isWritable: false });
+    expect(ix.keys[9].pubkey.equals(accounts.syProgram)).toBe(true);
+    expect(ix.keys[10]).toMatchObject({ pubkey: accounts.tokenFeeTreasurySy, isWritable: true });
+    expect(ix.keys[11]).toMatchObject({ pubkey: accounts.tokenFeeTreasuryPt, isWritable: true });
+    // index 13 is the CLMM program itself (Anchor event self-CPI)
+    expect(ix.keys[13].pubkey.equals(EXPONENT_CLMM_PROGRAM_ID)).toBe(true);
+    // remaining accounts come strictly after the 14 fixed ones
+    expect(ix.keys[14]).toMatchObject({ pubkey: pk(20), isWritable: false });
+    expect(ix.keys[15]).toMatchObject({ pubkey: pk(21), isWritable: true });
+    expect(ix.keys.filter((k) => k.isSigner).length).toBe(1);
+  });
+});
+
+describe("resolveExponentClmmTradePtContext", () => {
+  const owner = pk(100);
+  const altAddresses = [pk(50), pk(51), pk(52), pk(53)];
+
+  const marketThree = {
+    selfAddress: pk(2),
+    mintPt: pk(40),
+    mintSy: pk(41),
+    vault: pk(42),
+    ticks: pk(3),
+    tokenPtEscrow: pk(7),
+    tokenSyEscrow: pk(6),
+    tokenFeeTreasurySy: pk(10),
+    tokenFeeTreasuryPt: pk(11),
+    addressLookupTable: pk(8),
+    syProgram: pk(9),
+    statusFlags: 0,
+    cpiAccounts: {
+      getSyState: [{ altIndex: 2, isSigner: false, isWritable: false }],
+      getPositionState: [{ altIndex: 3, isSigner: false, isWritable: false }],
+      depositSy: [{ altIndex: 0, isSigner: false, isWritable: true }],
+      // withdrawSy repeats getSyState's index 2 → should de-duplicate, OR-ing writability.
+      withdrawSy: [{ altIndex: 2, isSigner: false, isWritable: true }],
+    },
+  };
+
+  function makeConnection(addresses = altAddresses) {
+    return {
+      getAddressLookupTable: vi.fn(async () => ({ value: { state: { addresses } } })),
+    } as any;
+  }
+
+  it("resolves + de-duplicates SY-CPI remaining accounts in getSyState→getPositionState→depositSy→withdrawSy order", async () => {
+    hoisted.marketThree = marketThree;
+    const ctx = await resolveExponentClmmTradePtContext({
+      connection: makeConnection(),
+      owner,
+      market: marketThree.selfAddress,
+    });
+
+    const rem = ctx.tradePtAccounts.remainingAccounts;
+    // getSyState[2], getPositionState[3], depositSy[0]; withdrawSy[2] dedupes into the first → 3 unique
+    expect(rem).toHaveLength(3);
+    expect(rem[0]).toMatchObject({ pubkey: altAddresses[2], isWritable: true }); // OR-merged writability
+    expect(rem[1]).toMatchObject({ pubkey: altAddresses[3], isWritable: false });
+    expect(rem[2]).toMatchObject({ pubkey: altAddresses[0], isWritable: true });
+  });
+
+  it("derives the owner's SY/PT ATAs and surfaces the pool ticks, escrows, fee treasuries + ALT", async () => {
+    hoisted.marketThree = marketThree;
+    const conn = makeConnection();
+    const ctx = await resolveExponentClmmTradePtContext({
+      connection: conn,
+      owner,
+      market: marketThree.selfAddress,
+    });
+
+    expect(ctx.marketAddress.equals(marketThree.selfAddress)).toBe(true);
+    expect(ctx.tradePtAccounts.ticks.equals(marketThree.ticks)).toBe(true);
+    expect(ctx.tradePtAccounts.tokenSyEscrow.equals(marketThree.tokenSyEscrow)).toBe(true);
+    expect(ctx.tradePtAccounts.tokenFeeTreasuryPt.equals(marketThree.tokenFeeTreasuryPt)).toBe(true);
+    expect(ctx.sy.mint.equals(marketThree.mintSy)).toBe(true);
+    expect(ctx.sy.decimals).toBe(9);
+    expect(ctx.pt.decimals).toBe(6);
+    expect(conn.getAddressLookupTable).toHaveBeenCalledWith(marketThree.addressLookupTable);
+  });
+
+  it("throws when a CPI account references an ALT index that is out of range", async () => {
+    hoisted.marketThree = {
+      ...marketThree,
+      cpiAccounts: {
+        getSyState: [{ altIndex: 99, isSigner: false, isWritable: false }],
+        getPositionState: [],
+        depositSy: [],
+        withdrawSy: [],
+      },
+    };
+    await expect(
+      resolveExponentClmmTradePtContext({
+        connection: makeConnection(),
+        owner,
+        market: marketThree.selfAddress,
+      })
     ).rejects.toThrow(/out of range/);
   });
 });
