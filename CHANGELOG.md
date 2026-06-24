@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.5
+
+### Patch Changes
+
+- PT roll-up now drives the Exponent CLMM directly (vendor IDL + instruction wiring) instead of routing through an intermediate swap, removing an extra round-trip and improving reliability.
+
 ## 2.3.0-alpha.4
 
 ### Patch Changes
