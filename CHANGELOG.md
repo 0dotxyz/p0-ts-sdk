@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.9
+
+### Patch Changes
+
+- Add `noVoteAccounts` parameter to Titan swap requests to exclude vote accounts from routing.
+
 ## 2.3.0-alpha.8
 
 ### Minor Changes
