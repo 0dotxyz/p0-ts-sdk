@@ -11,6 +11,7 @@
     "multi-provider-swap-engine",
     "pt-roll-clmm-direct",
     "pt-roll-titan-swap",
-    "pt-roll-up"
+    "pt-roll-up",
+    "titan-sol-wrap"
   ]
 }

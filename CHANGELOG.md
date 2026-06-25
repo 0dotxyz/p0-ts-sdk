@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.7
+
+### Patch Changes
+
+- Fix Titan swap adapter: add SOL unwrapping and wrapping around Titan swaps so native-SOL input/output is handled correctly.
+
 ## 2.3.0-alpha.6
 
 ### Patch Changes
