@@ -80,6 +80,12 @@ export interface SwapParams {
   slippageBps?: number;
   dexes?: string[];
   excludeDexes?: string[];
+  /**
+   * Exclude the server-configured "vote account" venues from routing. Those venues touch validator
+   * vote accounts, which Jito refuses to bundle — so a swap that routes through them can't land inside
+   * our flashloan/double-hop Jito bundles. Set `true` for bundled flows. Available since Titan v1.6.
+   */
+  noVoteAccounts?: boolean;
   onlyDirectRoutes?: boolean;
   addSizeConstraint?: boolean;
   sizeConstraint?: number;

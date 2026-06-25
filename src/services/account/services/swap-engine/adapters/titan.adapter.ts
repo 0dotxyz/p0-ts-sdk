@@ -79,6 +79,10 @@ async function buildCandidates(
         swapMode: SwapMode.ExactIn,
         slippageBps: req.slippageBps,
         onlyDirectRoutes: req.directRoutesOnly,
+        // Exclude vote-account venues — they touch validator vote accounts that Jito won't bundle, so a
+        // route through them would make the swap unlandable inside our flashloan / double-hop bundles
+        // (same reason we strip `jito*` markers in vendor/titan/helpers).
+        noVoteAccounts: true,
         providers: TITAN_COMPOSABLE_PROVIDERS,
         transactionTemplate: template,
       },
