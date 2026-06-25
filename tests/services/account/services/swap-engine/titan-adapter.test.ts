@@ -95,11 +95,14 @@ describe("titan WS adapter", () => {
 
     const req = hoisted.request as {
       swap: { swapMode: string; providers: string[]; transactionTemplate: unknown };
-      transaction: { titanSwapVersion: number };
+      transaction: { titanSwapVersion: number; outputWsol: boolean };
     };
     expect(req.swap.swapMode).toBe("ExactIn");
     expect(req.swap.providers).toEqual(["Titan", "Metis", "Okx"]);
     expect(req.transaction.titanSwapVersion).toBe(3);
+    // Keep wSOL output wrapped so a following marginfi ix (built with
+    // wrapAndUnwrapSol: false) can consume it from the destination ATA.
+    expect(req.transaction.outputWsol).toBe(true);
     // The template is sent as a native object (i/a/m), not a base64 string.
     expect(typeof req.swap.transactionTemplate).toBe("object");
     expect(req.swap.transactionTemplate).toHaveProperty("i");

@@ -85,6 +85,12 @@ async function buildCandidates(
       transaction: {
         userPublicKey: req.taker.toBytes(),
         outputAccount: req.destinationTokenAccount.toBytes(),
+        // Keep a wSOL output wrapped in the destination ATA (the analog of
+        // Jupiter's `wrapAndUnwrapSol: false`). Our flashloan flows consume the
+        // output with a subsequent marginfi ix built with `wrapAndUnwrapSol:
+        // false`, so the wSOL must NOT be unwrapped to native lamports. Ignored
+        // by Titan when the output mint isn't wSOL.
+        outputWsol: true,
         titanSwapVersion: SwapVersion.V3,
         ...(fee !== undefined && feeAccount
           ? { feeBps: fee, feeAccount: new PublicKey(feeAccount).toBytes() }

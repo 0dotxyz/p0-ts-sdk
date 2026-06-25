@@ -370,7 +370,7 @@ async function buildRepayWithCollatFlashloanTx({
   const swapNeeded = !repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint);
   let amountToRepay = swapNeeded ? 0 : withdrawOpts.withdrawAmount;
   let swapInstructions: TransactionInstruction[] = [];
-  const setupInstructions: TransactionInstruction[] = [];
+  let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
   let sizeConstraintUsed = 0;
@@ -618,6 +618,7 @@ async function buildRepayWithCollatFlashloanTx({
         ? repayOpts.totalPositionAmount
         : outAmountThreshold;
     swapInstructions = engineResult.swapInstructions;
+    setupInstructions = engineResult.setupInstructions;
     swapLookupTables = engineResult.swapLuts;
     swapQuote = engineResult.quoteResponse;
   }

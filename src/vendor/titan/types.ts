@@ -105,6 +105,12 @@ export interface TransactionParams {
   feeFromInputMint?: boolean;
   outputAccount?: Pubkey;
   titanSwapVersion?: SwapVersion;
+  /**
+   * `true` leaves a wSOL output as wrapped SOL (the wSOL SPL token) instead of
+   * unwrapping it to native lamports. Default `false`. Only has an effect when
+   * `outputMint == wSOL`; ignored otherwise. Requires `titanSwapVersion=3`.
+   */
+  outputWsol?: boolean;
 }
 
 export enum SwapVersion {
