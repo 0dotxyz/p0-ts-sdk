@@ -5,6 +5,7 @@ import {
   type TitanProxySwapQuoteResponse,
   type TitanProxyExactOutResponse,
   deserializeSerializedInstruction,
+  isJitoDontFront,
   selectBestRoute,
   buildSwapQuoteResult,
   resolveLookupTables,
@@ -40,11 +41,13 @@ export const checkTitanFeeAccount = async (
 function deserializeTitanInstruction(ix: TitanInstruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(ix.p),
-    keys: ix.a.map((account) => ({
-      pubkey: new PublicKey(account.p),
-      isSigner: account.s,
-      isWritable: account.w,
-    })),
+    keys: ix.a
+      .map((account) => ({
+        pubkey: new PublicKey(account.p),
+        isSigner: account.s,
+        isWritable: account.w,
+      }))
+      .filter((key) => !isJitoDontFront(key.pubkey)),
     data: Buffer.from(ix.d),
   });
 }

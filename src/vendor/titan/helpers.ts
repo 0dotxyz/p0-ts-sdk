@@ -45,16 +45,27 @@ export interface TitanProxyExactOutResponse {
 
 // --- Deserialization ---
 
+/**
+ * Titan's router stamps a read-only `jitodontfront…` MEV-guard account onto the
+ * swap instruction. Jito refuses to bundle any transaction that touches a `jito*`
+ * marker, so we drop it to keep the swap landable inside a Jito bundle (our
+ * flashloan swaps are bundled).
+ */
+export const isJitoDontFront = (pubkey: PublicKey) =>
+  pubkey.toBase58().startsWith("jitodontfront");
+
 export function deserializeSerializedInstruction(
   ix: SerializedInstruction,
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(Buffer.from(ix.p, "base64")),
-    keys: ix.a.map((account) => ({
-      pubkey: new PublicKey(Buffer.from(account.p, "base64")),
-      isSigner: account.s,
-      isWritable: account.w,
-    })),
+    keys: ix.a
+      .map((account) => ({
+        pubkey: new PublicKey(Buffer.from(account.p, "base64")),
+        isSigner: account.s,
+        isWritable: account.w,
+      }))
+      .filter((key) => !isJitoDontFront(key.pubkey)),
     data: Buffer.from(ix.d, "base64"),
   });
 }

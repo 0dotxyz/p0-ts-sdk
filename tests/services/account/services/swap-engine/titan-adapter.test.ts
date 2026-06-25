@@ -57,6 +57,32 @@ function route(outAmount: number) {
   };
 }
 
+// Wire-format route whose swap instruction carries a `jitodontfront…` MEV-guard
+// account (last, read-only) alongside a normal account. Mirrors the shape the
+// Titan V3 router returns over the WebSocket.
+const GUARD = "jitodontfronttitanspzero1111111111111111111";
+// An arbitrary non-marker account that must survive the filter (control).
+const NORMAL_ACCOUNT = PublicKey.unique().toBase58();
+function routeWithGuard(outAmount: number) {
+  return {
+    inAmount: 1_000,
+    outAmount,
+    slippageBps: 50,
+    steps: [],
+    instructions: [
+      {
+        p: new PublicKey("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT").toBytes(),
+        a: [
+          { p: new PublicKey(NORMAL_ACCOUNT).toBytes(), s: false, w: true },
+          { p: new PublicKey(GUARD).toBytes(), s: false, w: false },
+        ],
+        d: new Uint8Array([1, 2, 3]),
+      },
+    ],
+    addressLookupTables: [],
+  };
+}
+
 function makeRequest(): SwapEngineRequest {
   return {
     inputMint: PublicKey.default.toBase58(),
@@ -139,6 +165,22 @@ describe("titan WS adapter", () => {
 
     expect(hoisted.stoppedStreamId).toBe(7);
     expect(hoisted.closed).toBe(true);
+  });
+
+  it("strips Titan's jitodontfront MEV-guard account from swap instructions", async () => {
+    hoisted.quotes = {
+      quotes: { Titan: routeWithGuard(100) },
+      metadata: { ExpectedWinner: "Titan" },
+    };
+
+    const [candidate] = await titanAdapter.buildCandidates(makeRequest(), apiConfig);
+
+    const keys = candidate.swapInstructions.flatMap((ix) =>
+      ix.keys.map((k) => k.pubkey.toBase58())
+    );
+    expect(keys).not.toContain(GUARD);
+    // Non-marker accounts are preserved.
+    expect(keys).toContain(NORMAL_ACCOUNT);
   });
 
   it("throws when no viable route is returned", async () => {
