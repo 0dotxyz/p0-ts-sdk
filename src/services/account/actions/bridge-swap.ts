@@ -34,21 +34,21 @@ import { MarginfiAccountType, SwapQuoteResult } from "../types";
  * Two non-obvious invariants are baked in here so no caller has to rediscover them:
  *
  *  1. **Cranks cannot be merged across legs.** Each leg's Switchboard On-Demand crank carries oracle
- *     responses signed for a specific slot; combining op1's and op2's crank instructions in one tx
- *     breaks Switchboard consensus verification. So each leg's crank stays its own tx, immediately
- *     before that leg's flashloan. Only setup (ATA-create) txs — which are slot-independent — are
- *     merged. Worst case is 5 txs (`setup, op1crank, op1FL, op2crank, op2FL`), Jito's ceiling; the
- *     bundle-tip instruction fits in-place in the small setup/crank txs.
+ *     responses signed for a specific slot; combining the first and second legs' crank instructions in
+ *     one tx breaks Switchboard consensus verification. So each leg's crank stays its own tx,
+ *     immediately before that leg's flashloan. Only setup (ATA-create) txs — which are slot-independent
+ *     — are merged. Worst case is 5 txs (`setup, firstLegCrank, firstLegFL, secondLegCrank,
+ *     secondLegFL`), Jito's ceiling; the bundle-tip instruction fits in-place in the small setup/crank txs.
  *
- *  2. **op2 must be built against op1's full projected effect.** op2 touches collateral/debt that op1
- *     mutates but hasn't executed yet at build time. Built against the raw account, op2's
- *     flashloan/crank balance projection either throws ("balance should be projected active") or
- *     references a stale bank op1 already closed (InvalidBankAccount). So op2 is built against a
- *     clone of the account with op1's own instructions replayed onto it. The bundle is atomic, so at
- *     execution this state really holds.
+ *  2. **The second leg must be built against the first leg's full projected effect.** It touches
+ *     collateral/debt the first leg mutates but hasn't executed yet at build time. Built against the raw
+ *     account, the second leg's flashloan/crank balance projection either throws ("balance should be
+ *     projected active") or references a stale bank the first leg already closed (InvalidBankAccount). So
+ *     the second leg is built against a clone of the account with the first leg's own instructions
+ *     replayed onto it. The bundle is atomic, so at execution this state really holds.
  */
 
-/** Default max txs in a bridged bundle: setup + op1crank + op1FL + op2crank + op2FL = Jito ceiling. */
+/** Default max txs in a bridged bundle: setup + firstLegCrank + firstLegFL + secondLegCrank + secondLegFL = Jito ceiling. */
 const MAX_BRIDGED_BUNDLE_TXS = 5;
 
 /** A single built swap leg (its txs + the swap-engine quote). */
@@ -59,17 +59,17 @@ export interface BridgedSwapLeg {
 
 export interface ComposeBridgedSwapParams {
   /** The already-built first leg (A → bridge). */
-  op1: BridgedSwapLeg;
+  firstLeg: BridgedSwapLeg;
   /**
-   * Build the second leg (bridge → C) against op1's projected post-state. The caller sizes op2 from
-   * op1's guaranteed output/borrow (so op2 can't fail from op1 slippage) and passes the supplied
-   * `projectedAccount` as the leg's marginfi account.
+   * Build the second leg (bridge → C) against the first leg's projected post-state. The caller sizes it
+   * from the first leg's guaranteed output/borrow (so it can't fail from first-leg slippage) and passes
+   * the supplied `projectedAccount` as the leg's marginfi account.
    */
-  buildOp2: (projectedAccount: MarginfiAccountType) => Promise<BridgedSwapLeg>;
+  buildSecondLeg: (projectedAccount: MarginfiAccountType) => Promise<BridgedSwapLeg>;
   marginfiAccount: MarginfiAccountType;
   program: MarginfiProgram;
   banksMap: Map<string, BankType>;
-  /** Per-bank cToken multiplier (1 for vanilla SPL banks) — for op1's effect projection. */
+  /** Per-bank cToken multiplier (1 for vanilla SPL banks) — for the first leg's effect projection. */
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   feePayer: PublicKey;
   /** Override the bundle-size ceiling (default {@link MAX_BRIDGED_BUNDLE_TXS}). */
@@ -77,15 +77,15 @@ export interface ComposeBridgedSwapParams {
 }
 
 export interface ComposeBridgedSwapResult {
-  /** The atomic bundle: `[mergedSetup?, op1crank?, op1FL, op2crank?, op2FL]`. */
+  /** The atomic bundle: `[mergedSetup?, firstLegCrank?, firstLegFL, secondLegCrank?, secondLegFL]`. */
   transactions: SolanaTransaction[];
   /**
    * The two legs' raw quotes. Presentation (the user-facing merged quote and destination amount) is
-   * flow-specific — collateral maps `op1.in → op2.out`, debt maps `op1.out → op2.in`, etc. — so the
+   * flow-specific — collateral maps `firstLeg.in → secondLeg.out`, debt maps `firstLeg.out → secondLeg.in`, etc. — so the
    * caller builds it (see {@link mergeBridgeQuotes} for the collateral/loop-deposit shape).
    */
-  op1Quote: SwapQuoteResult;
-  op2Quote: SwapQuoteResult;
+  firstLegQuote: SwapQuoteResult;
+  secondLegQuote: SwapQuoteResult;
 }
 
 interface ClassifiedTxs {
@@ -94,7 +94,7 @@ interface ClassifiedTxs {
   flashloans: ExtendedV0Transaction[]; // order preserved
 }
 
-function classify(txs: SolanaTransaction[]): ClassifiedTxs {
+function classifyTxs(txs: SolanaTransaction[]): ClassifiedTxs {
   const out: ClassifiedTxs = { setups: [], cranks: [], flashloans: [] };
   for (const tx of txs as ExtendedV0Transaction[]) {
     if (tx.type === TransactionType.CREATE_ATA) out.setups.push(tx);
@@ -112,7 +112,7 @@ function ixIdentity(ix: TransactionInstruction): string {
 
 /**
  * Merge both legs' setup (ATA-create) txs into ONE tx: decompile each, concat instructions (dedupe
- * by structural identity — op1/op2 share the bridge ATA-create), union LUTs, recompile. Returns
+ * by structural identity — the first and second legs share the bridge ATA-create), union LUTs, recompile. Returns
  * null if the merged instructions don't fit a single tx. (Cranks are NOT merged — see module doc.)
  */
 function mergeSetupTxs(
@@ -148,19 +148,20 @@ function mergeSetupTxs(
 }
 
 /**
- * Build the account op2 must be built against: a clone of `account` with op1's own instructions
- * replayed onto it (the source removed, the bridge added — with the exact withdraw-all/borrow
- * semantics op1 actually used). See invariant (2) in the module doc.
+ * Return `account` as it will look AFTER the first leg executes — a clone with the first leg's own
+ * instructions replayed onto it (source position removed, bridge position added, using the exact
+ * withdraw-all / borrow semantics the first leg used). The second leg must be built against this
+ * projected account, not the raw one — see invariant (2) in the module doc.
  */
-function projectOp1Effect(
+function projectAccountAfterFirstLeg(
   account: MarginfiAccountType,
-  op1FlashloanTxs: SolanaTransaction[],
+  firstLegFlashloanTxs: SolanaTransaction[],
   program: MarginfiProgram,
   banksMap: Map<string, BankType>,
   multipliers: Map<string, BigNumber>,
 ): MarginfiAccountType {
   const ixs: TransactionInstruction[] = [];
-  for (const tx of op1FlashloanTxs as ExtendedV0Transaction[]) {
+  for (const tx of firstLegFlashloanTxs as ExtendedV0Transaction[]) {
     const luts = (tx.addressLookupTables ?? []) as AddressLookupTableAccount[];
     ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
   }
@@ -189,14 +190,14 @@ function projectOp1Effect(
  * immediately before its flashloan. Returns null if the merge spills or the bundle exceeds the cap.
  */
 function composeBundle(
-  op1Txs: SolanaTransaction[],
-  op2Txs: SolanaTransaction[],
+  firstLegTxs: SolanaTransaction[],
+  secondLegTxs: SolanaTransaction[],
   payer: PublicKey,
   blockhash: string,
   maxBundleTxs: number,
 ): SolanaTransaction[] | null {
-  const c1 = classify(op1Txs);
-  const c2 = classify(op2Txs);
+  const c1 = classifyTxs(firstLegTxs);
+  const c2 = classifyTxs(secondLegTxs);
 
   const mergedSetup = mergeSetupTxs([...c1.setups, ...c2.setups], payer, blockhash);
   if ([...c1.setups, ...c2.setups].length > 0 && !mergedSetup) return null;
@@ -204,20 +205,20 @@ function composeBundle(
   const result: SolanaTransaction[] = [
     ...(mergedSetup ? [mergedSetup] : []),
     ...c1.cranks,
-    ...c1.flashloans, // op1FL(s)
+    ...c1.flashloans, // firstLegFL(s)
     ...c2.cranks,
-    ...c2.flashloans, // op2FL(s)
+    ...c2.flashloans, // secondLegFL(s)
   ];
   if (result.length > maxBundleTxs) return null;
   return result;
 }
 
 /**
- * Merge two leg quotes into one user-facing quote for the "in = op1 input, out = op2 output" shape
+ * Merge two leg quotes into one user-facing quote for the "in = first-leg input, out = second-leg output" shape
  * (collateral-swap, loop-deposit): A in → C out, with compounded slippage and price-impact. Flows
  * with different semantics (debt-swap: old-debt in → new-debt out) build their own.
  */
-export function mergeBridgeQuotes(op1: SwapQuoteResult, op2: SwapQuoteResult): SwapQuoteResult {
+export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
   const compound = (a?: string, b?: string): string | undefined => {
     if (a == null && b == null) return undefined;
     const x = Number(a ?? 0);
@@ -225,14 +226,14 @@ export function mergeBridgeQuotes(op1: SwapQuoteResult, op2: SwapQuoteResult): S
     return String(1 - (1 - x) * (1 - y));
   };
   return {
-    inAmount: op1.inAmount,
-    outAmount: op2.outAmount,
-    otherAmountThreshold: op2.otherAmountThreshold,
+    inAmount: firstLeg.inAmount,
+    outAmount: secondLeg.outAmount,
+    otherAmountThreshold: secondLeg.otherAmountThreshold,
     slippageBps: Math.round(
-      (1 - (1 - op1.slippageBps / 10_000) * (1 - op2.slippageBps / 10_000)) * 10_000,
+      (1 - (1 - firstLeg.slippageBps / 10_000) * (1 - secondLeg.slippageBps / 10_000)) * 10_000,
     ),
-    priceImpactPct: compound(op1.priceImpactPct, op2.priceImpactPct),
-    provider: op1.provider,
+    priceImpactPct: compound(firstLeg.priceImpactPct, secondLeg.priceImpactPct),
+    provider: firstLeg.provider,
   };
 }
 
@@ -244,16 +245,16 @@ function blockhashOf(leg: BridgedSwapLeg): string {
 
 /**
  * Compose an already-built first leg and a caller-built second leg into one atomic bridged-swap
- * bundle. Owns the flow-agnostic mechanics — op1-effect projection, separate-crank composition, and
- * quote merging (see module doc for the invariants). Returns null if op2 can't be quoted or the
+ * bundle. Owns the flow-agnostic mechanics — first-leg-effect projection, separate-crank composition, and
+ * quote merging (see module doc for the invariants). Returns null if the second leg can't be quoted or the
  * bundle doesn't fit; the caller treats that as "this bridge candidate didn't work, try the next".
  */
 export async function composeBridgedSwap(
   params: ComposeBridgedSwapParams,
 ): Promise<ComposeBridgedSwapResult | null> {
   const {
-    op1,
-    buildOp2,
+    firstLeg,
+    buildSecondLeg,
     marginfiAccount,
     program,
     banksMap,
@@ -262,27 +263,27 @@ export async function composeBridgedSwap(
     maxBundleTxs = MAX_BRIDGED_BUNDLE_TXS,
   } = params;
 
-  if (!op1.quoteResponse) return null;
+  if (!firstLeg.quoteResponse) return null;
 
-  const projectedAccount = projectOp1Effect(
+  const projectedAccount = projectAccountAfterFirstLeg(
     marginfiAccount,
-    classify(op1.transactions).flashloans,
+    classifyTxs(firstLeg.transactions).flashloans,
     program,
     banksMap,
     assetShareValueMultiplierByBank,
   );
 
-  const op2 = await buildOp2(projectedAccount);
-  if (!op2.quoteResponse) return null;
+  const secondLeg = await buildSecondLeg(projectedAccount);
+  if (!secondLeg.quoteResponse) return null;
 
   const transactions = composeBundle(
-    op1.transactions,
-    op2.transactions,
+    firstLeg.transactions,
+    secondLeg.transactions,
     feePayer,
-    blockhashOf(op1),
+    blockhashOf(firstLeg),
     maxBundleTxs,
   );
   if (!transactions) return null;
 
-  return { transactions, op1Quote: op1.quoteResponse, op2Quote: op2.quoteResponse };
+  return { transactions, firstLegQuote: firstLeg.quoteResponse, secondLegQuote: secondLeg.quoteResponse };
 }
