@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0-alpha.8
+
+### Minor Changes
+
+- Add bridge/double-hop swap composer (`composeBridgedSwap`, `mergeBridgeQuotes`) for collateral and loop-deposit flows. Also removes jitoDontFront accounts from Titan swap routes before signing.
+
 ## 2.3.0-alpha.7
 
 ### Patch Changes
