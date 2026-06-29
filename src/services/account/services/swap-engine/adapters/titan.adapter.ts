@@ -79,12 +79,22 @@ async function buildCandidates(
         swapMode: SwapMode.ExactIn,
         slippageBps: req.slippageBps,
         onlyDirectRoutes: req.directRoutesOnly,
+        // Exclude vote-account venues — they touch validator vote accounts that Jito won't bundle, so a
+        // route through them would make the swap unlandable inside our flashloan / double-hop bundles
+        // (same reason we strip `jito*` markers in vendor/titan/helpers).
+        noVoteAccounts: true,
         providers: TITAN_COMPOSABLE_PROVIDERS,
         transactionTemplate: template,
       },
       transaction: {
         userPublicKey: req.taker.toBytes(),
         outputAccount: req.destinationTokenAccount.toBytes(),
+        // Keep a wSOL output wrapped in the destination ATA (the analog of
+        // Jupiter's `wrapAndUnwrapSol: false`). Our flashloan flows consume the
+        // output with a subsequent marginfi ix built with `wrapAndUnwrapSol:
+        // false`, so the wSOL must NOT be unwrapped to native lamports. Ignored
+        // by Titan when the output mint isn't wSOL.
+        outputWsol: true,
         titanSwapVersion: SwapVersion.V3,
         ...(fee !== undefined && feeAccount
           ? { feeBps: fee, feeAccount: new PublicKey(feeAccount).toBytes() }

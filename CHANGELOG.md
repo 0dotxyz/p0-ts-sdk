@@ -1,5 +1,59 @@
 # Changelog
 
+## 2.3.0-alpha.9
+
+### Patch Changes
+
+- Add `noVoteAccounts` parameter to Titan swap requests to exclude vote accounts from routing.
+
+## 2.3.0-alpha.8
+
+### Minor Changes
+
+- Add bridge/double-hop swap composer (`composeBridgedSwap`, `mergeBridgeQuotes`) for collateral and loop-deposit flows. Also removes jitoDontFront accounts from Titan swap routes before signing.
+
+## 2.3.0-alpha.7
+
+### Patch Changes
+
+- Fix Titan swap adapter: add SOL unwrapping and wrapping around Titan swaps so native-SOL input/output is handled correctly.
+
+## 2.3.0-alpha.6
+
+### Patch Changes
+
+- Implement LUT groups: deposit, borrow, withdraw, and repay actions now select address-lookup-table entries by group, reducing transaction size and improving account-loading reliability.
+
+## 2.3.0-alpha.5
+
+### Patch Changes
+
+- PT roll-up now drives the Exponent CLMM directly (vendor IDL + instruction wiring) instead of routing through an intermediate swap, removing an extra round-trip and improving reliability.
+
+## 2.3.0-alpha.4
+
+### Patch Changes
+
+- PT roll-up now routes through the multi-provider swap engine (Titan + Jupiter) instead of Jupiter-only.
+
+## 2.3.0-alpha.3
+
+### Minor Changes
+
+- Add PT roll-up support: roll an existing Exponent PT position into a longer-dated PT in a single transaction. Includes Exponent `strip` instruction wiring, expanded market/vault/strip type coverage, additional resolve utilities, and example scripts (`15-roll-pt.ts`, `17-roll-pt-strip-simulate.ts`, `create-pt-roll-lut.ts`).
+
+## 2.3.0-alpha.2
+
+### Patch Changes
+
+- fix:resolveExponentMergeContext
+
+## 2.3.0-alpha.1
+
+### Patch Changes
+
+- exponent vendor & pt rollover
+
 ## 2.3.0-alpha.0
 
 ### Minor Changes

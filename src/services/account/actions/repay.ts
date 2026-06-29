@@ -24,6 +24,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForBanks,
   splitInstructionsToFitTransactions,
   TransactionType,
   getWritableAccountKeys,
@@ -186,10 +187,13 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTr
   const tx = new Transaction().add(...ixs.instructions);
   tx.feePayer = params.authority;
 
+  // Repays don't add health remaining-accounts, so only the target bank matters.
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.REPAY,
     signers: ixs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }
@@ -366,7 +370,7 @@ async function buildRepayWithCollatFlashloanTx({
   const swapNeeded = !repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint);
   let amountToRepay = swapNeeded ? 0 : withdrawOpts.withdrawAmount;
   let swapInstructions: TransactionInstruction[] = [];
-  const setupInstructions: TransactionInstruction[] = [];
+  let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
   let sizeConstraintUsed = 0;
@@ -614,6 +618,7 @@ async function buildRepayWithCollatFlashloanTx({
         ? repayOpts.totalPositionAmount
         : outAmountThreshold;
     swapInstructions = engineResult.swapInstructions;
+    setupInstructions = engineResult.setupInstructions;
     swapLookupTables = engineResult.swapLuts;
     swapQuote = engineResult.quoteResponse;
   }

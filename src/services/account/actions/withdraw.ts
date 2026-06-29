@@ -23,6 +23,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeUnwrapSolIx,
+  selectLutsForAccountAction,
   TransactionType,
 } from "~/services/transaction";
 import {
@@ -208,6 +209,13 @@ export async function makeDriftWithdrawTx(
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, ...withdrawIxParams } = params;
 
+  const selectedLuts = selectLutsForAccountAction(
+    luts,
+    withdrawIxParams.bank,
+    params.marginfiAccount.balances,
+    params.bankMap
+  );
+
   const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
     return balance.liabilityShares.gt(0);
   });
@@ -288,7 +296,7 @@ export async function makeDriftWithdrawTx(
         ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: [
@@ -297,7 +305,7 @@ export async function makeDriftWithdrawTx(
         ...updateJupLendRateIxs.keys,
         ...withdrawIxs.keys,
       ],
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
   );
@@ -553,6 +561,15 @@ export async function makeWithdrawTx(
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, ...withdrawIxParams } = params;
 
+  // Pick the lean native-stake LUT subset when every involved bank (target + the
+  // account's active positions) is STAKED/SOL.
+  const selectedLuts = selectLutsForAccountAction(
+    luts,
+    withdrawIxParams.bank,
+    params.marginfiAccount.balances,
+    params.bankMap
+  );
+
   const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
     return balance.liabilityShares.gt(0);
   });
@@ -633,7 +650,7 @@ export async function makeWithdrawTx(
         ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: [
@@ -642,7 +659,7 @@ export async function makeWithdrawTx(
         ...updateJupLendRateIxs.keys,
         ...withdrawIxs.keys,
       ],
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
   );
@@ -656,6 +673,13 @@ export async function makeKaminoWithdrawTx(
   params: MakeKaminoWithdrawTxParams
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, amount, assetShareValueMultiplierByBank, ...withdrawIxParams } = params;
+
+  const selectedLuts = selectLutsForAccountAction(
+    luts,
+    withdrawIxParams.bank,
+    params.marginfiAccount.balances,
+    params.bankMap
+  );
 
   if (!withdrawIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
@@ -742,7 +766,7 @@ export async function makeKaminoWithdrawTx(
         ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: [
@@ -751,7 +775,7 @@ export async function makeKaminoWithdrawTx(
         ...updateJupLendRateIxs.keys,
         ...withdrawIxs.keys,
       ],
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
   );
@@ -898,6 +922,13 @@ export async function makeJuplendWithdrawTx(
 ): Promise<TransactionBuilderResult> {
   const { luts, connection, ...withdrawIxParams } = params;
 
+  const selectedLuts = selectLutsForAccountAction(
+    luts,
+    withdrawIxParams.bank,
+    params.marginfiAccount.balances,
+    params.bankMap
+  );
+
   const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
     return balance.liabilityShares.gt(0);
   });
@@ -978,11 +1009,11 @@ export async function makeJuplendWithdrawTx(
         ],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: [...refreshIxs.keys, ...withdrawIxs.keys],
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
   );

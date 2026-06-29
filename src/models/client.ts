@@ -10,7 +10,10 @@ import {
   Wallet,
 } from "~/types";
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
-import { ADDRESS_LOOKUP_TABLE_FOR_GROUP } from "~/constants";
+import {
+  ADDRESS_LOOKUP_TABLE_FOR_GROUP,
+  ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
+} from "~/constants";
 import { fetchOracleData, OraclePrice } from "~/services/price";
 import { fetchProgramForMints } from "~/services/misc";
 import {
@@ -45,6 +48,11 @@ export class Project0Client {
     public readonly assetShareValueMultiplierByBank: Map<string, BigNumber>,
     public readonly oraclePriceByBank: Map<string, OraclePrice>,
     public readonly mintDataByBank: Map<string, MintData>,
+    /**
+     * Combined LUT set (general group followed by native-stake group). The functional
+     * action builders partition this and embed the right subset per transaction via
+     * `selectLutsForBanks`, so consumers only ever pass this one array.
+     */
     public readonly addressLookupTables: AddressLookupTableAccount[],
     public readonly emodePairs: EmodePair[]
   ) {}
@@ -262,16 +270,26 @@ export class Project0Client {
       }
     });
 
-    // fetch address lookup tables
-    const lutKeys = ADDRESS_LOOKUP_TABLE_FOR_GROUP[groupPk.toBase58()];
-    let addressLookupTables: AddressLookupTableAccount[] = [];
-    if (lutKeys) {
-      addressLookupTables = (
-        await Promise.all(lutKeys.map((lut) => connection.getAddressLookupTable(lut)))
+    // fetch address lookup tables (general + native-stake sets)
+    const fetchLuts = async (
+      keys?: PublicKey[]
+    ): Promise<AddressLookupTableAccount[]> => {
+      if (!keys || keys.length === 0) return [];
+      return (
+        await Promise.all(keys.map((lut) => connection.getAddressLookupTable(lut)))
       )
         .map((response) => response?.value ?? null)
-        .filter((table) => table !== null);
-    }
+        .filter((table): table is AddressLookupTableAccount => table !== null);
+    };
+
+    const [generalLuts, nativeStakeLuts] = await Promise.all([
+      fetchLuts(ADDRESS_LOOKUP_TABLE_FOR_GROUP[groupPk.toBase58()]),
+      fetchLuts(ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE[groupPk.toBase58()]),
+    ]);
+
+    // General first so that general transactions never reference a native-stake LUT
+    // for shared keys (the builders partition this combined array per transaction).
+    const addressLookupTables = [...generalLuts, ...nativeStakeLuts];
 
     // fetch bank integration metadata (Kamino reserves/obligations, etc.)
     const bankIntegrationMap = await fetchBankIntegrationMetadata({

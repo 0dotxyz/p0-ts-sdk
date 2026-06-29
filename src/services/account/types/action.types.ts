@@ -515,6 +515,73 @@ export interface MakeSwapCollateralTxParams {
   swapEngineRunner?: SwapEngineRunner;
 }
 
+/**
+ * Params for {@link makeRollPtTx} — rolling a matured Exponent PT collateral position into
+ * its next-maturity PT, so the **full deposit ends up as new PT** (no leftover), in one
+ * flash-loan-wrapped bundle:
+ *   1. withdraw the old PT, then Exponent `merge` (redeem PT → SY, post-maturity, 1:1)
+ *   2. buy the new PT with that SY directly on the successor's **CLMM** (`MarketThree`) PT/SY
+ *      pool via `trade_pt` — no base-token round-trip, no external aggregator
+ *   3. deposit the new PT.
+ *
+ * The buy is liquidity-bounded by the successor pool's depth. The SY → PT price is quoted by
+ * simulating the redeem + trade (reading the CLMM `TradePtEvent.amount_out`), so the deposit
+ * is sized to the guaranteed minimum out.
+ */
+export interface MakeRollPtTxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  connection: Connection;
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  withdrawOpts: {
+    totalPositionAmount: number;
+    withdrawAmount?: number;
+    /** The expiring (matured) PT bank. */
+    withdrawBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  depositOpts: {
+    /** The successor (next-maturity) PT bank. */
+    depositBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  /** Exponent redeem (`merge`) + successor-CLMM buy config for the matured PT. */
+  rollOpts: RollPtOpts;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: {
+    group?: PublicKey;
+    authority?: PublicKey;
+  };
+  crossbarUrl?: string;
+}
+
+/**
+ * Exponent roll config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's
+ * `merge` accounts and the successor pool's CLMM `trade_pt` accounts internally from these
+ * addresses — the caller never assembles Exponent accounts/ixs.
+ */
+export interface RollPtOpts {
+  /** The matured PT's Exponent `MarketTwo` — its `vault` is read (one of market/vault required). */
+  maturedMarket?: PublicKey;
+  /** …or the matured vault directly. */
+  maturedVault?: PublicKey;
+  /** The successor maturity's **CLMM** (`MarketThree`) pool — where the new PT trades (SY → PT). */
+  successorMarket: PublicKey;
+  /** Slippage tolerance (bps) for the SY → PT CLMM swap. Defaults to 50. */
+  slippageBps?: number;
+  /** Token program for the shared SY mint (defaults to the classic Token program). */
+  syTokenProgram?: PublicKey;
+  /**
+   * Optional dedicated PT-roll address lookup table (fetched internally) that compresses the
+   * merge + CLMM-swap flashloan bytes (see `examples/create-pt-roll-lut.ts`). Account *locks*
+   * are already bounded by the compact, fixed CLMM footprint.
+   */
+  lookupTable?: PublicKey;
+}
+
 export interface MakeSwapDebtTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;

@@ -17,6 +17,7 @@ import {
 import { Encoder, decode } from "@msgpack/msgpack";
 
 import type { Instruction as TitanWireInstruction, SwapRoute, SwapQuotes } from "./types";
+import { isJitoDontFront } from "./helpers";
 
 const msgpackEncoder = new Encoder({ useBigInt64: true });
 
@@ -270,11 +271,13 @@ export function deserializeTitanWireInstruction(
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(ix.p),
-    keys: ix.a.map((account) => ({
-      pubkey: new PublicKey(account.p),
-      isSigner: account.s,
-      isWritable: account.w,
-    })),
+    keys: ix.a
+      .map((account) => ({
+        pubkey: new PublicKey(account.p),
+        isSigner: account.s,
+        isWritable: account.w,
+      }))
+      .filter((key) => !isJitoDontFront(key.pubkey)),
     data: Buffer.from(ix.d),
   });
 }
