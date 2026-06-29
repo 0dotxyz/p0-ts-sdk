@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.3.0
+## 2.3.1
 
-This release consolidates the `2.3.0-alpha.0` → `2.3.0-alpha.9` cycle into a stable release. Highlights:
+First stable release of the 2.3 line, consolidating the `2.3.0-alpha.0` → `2.3.0-alpha.9` cycle. (`2.3.0` was burned on npm — published and unpublished before the alpha cycle began — so the stable ships as `2.3.1`.) Highlights:
 
 - **Multi-provider swap engine** — flashloan flows (loop, swap-collateral, swap-debt, repay-with-collateral) now fan out across Titan Swap V3 and the Jupiter Router in parallel and pick the best-output route that fits the flashloan budget.
 - **PT roll-up** — roll an existing Exponent PT position into a longer-dated PT in a single transaction, driving the Exponent CLMM directly.
