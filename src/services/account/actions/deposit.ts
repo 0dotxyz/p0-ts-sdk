@@ -25,6 +25,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForBanks,
   TransactionType,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
@@ -185,6 +186,8 @@ export async function makeDriftDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   if (!depositIxParams.bank.driftIntegrationAccounts) {
     throw new Error("Bank has no drift integration accounts");
   }
@@ -204,11 +207,11 @@ export async function makeDriftDepositTx(
         instructions: [...depositIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: depositIxs.keys,
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.DEPOSIT,
     }
   );
@@ -216,7 +219,7 @@ export async function makeDriftDepositTx(
   const solanaTx = addTransactionMetadata(depositTx, {
     type: TransactionType.DEPOSIT,
     signers: depositIxs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }
@@ -388,6 +391,8 @@ export async function makeKaminoDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   if (!depositIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
   }
@@ -430,11 +435,11 @@ export async function makeKaminoDepositTx(
         instructions: [...refreshIxs, ...depositIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: depositIxs.keys,
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.DEPOSIT,
     }
   );
@@ -442,7 +447,7 @@ export async function makeKaminoDepositTx(
   const solanaTx = addTransactionMetadata(depositTx, {
     type: TransactionType.DEPOSIT,
     signers: depositIxs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }
@@ -569,10 +574,13 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Extend
   const tx = new Transaction().add(...ixs.instructions);
   tx.feePayer = params.authority;
 
+  // Deposits don't add health remaining-accounts, so only the target bank matters.
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.DEPOSIT,
     signers: ixs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }
@@ -707,6 +715,8 @@ export async function makeJuplendDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   if (!depositIxParams.bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
   }
@@ -726,11 +736,11 @@ export async function makeJuplendDepositTx(
         instructions: [...depositIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
-      }).compileToV0Message(luts)
+      }).compileToV0Message(selectedLuts)
     ),
     {
       signers: depositIxs.keys,
-      addressLookupTables: luts,
+      addressLookupTables: selectedLuts,
       type: TransactionType.DEPOSIT,
     }
   );
@@ -738,7 +748,7 @@ export async function makeJuplendDepositTx(
   const solanaTx = addTransactionMetadata(depositTx, {
     type: TransactionType.DEPOSIT,
     signers: depositIxs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }

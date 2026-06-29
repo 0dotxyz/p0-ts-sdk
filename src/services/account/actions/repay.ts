@@ -24,6 +24,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForBanks,
   splitInstructionsToFitTransactions,
   TransactionType,
   getWritableAccountKeys,
@@ -48,10 +49,14 @@ import {
 } from "../types";
 import {
   isWholePosition,
-  getSwapIxsForFlashloan,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
 } from "../utils";
+import {
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
 
 import {
   makeDriftWithdrawIx,
@@ -182,10 +187,13 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTr
   const tx = new Transaction().add(...ixs.instructions);
   tx.feePayer = params.authority;
 
+  // Repays don't add health remaining-accounts, so only the target bank matters.
+  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.REPAY,
     signers: ixs.keys,
-    addressLookupTables: luts,
+    addressLookupTables: selectedLuts,
   });
   return solanaTx;
 }
@@ -348,82 +356,24 @@ async function buildRepayWithCollatFlashloanTx({
   swapOpts,
   overrideInferAccounts,
   blockhash,
+  swapEngineRunner,
 }: MakeRepayWithCollatTxParams & { blockhash: string }) {
   const cuRequestIxs = [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
   ];
 
-  let amountToRepay: number;
+  // Deferred-swap: when a swap is needed, withdraw token A is swapped (ExactIn) into
+  // the repay token; the repay amount comes from the swap output. The input here is
+  // the known withdraw amount, so no ExactOut estimate is needed. The engine call is
+  // deferred until after the withdraw ixs exist (they form part of the footprint).
+  const swapNeeded = !repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint);
+  let amountToRepay = swapNeeded ? 0 : withdrawOpts.withdrawAmount;
   let swapInstructions: TransactionInstruction[] = [];
   let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
   let swapQuote: SwapQuoteResult | undefined;
   let sizeConstraintUsed = 0;
-
-  if (repayOpts.repayBank.mint.equals(withdrawOpts.withdrawBank.mint)) {
-    // No swap needed, you just withdraw and repay the same mint
-    amountToRepay = withdrawOpts.withdrawAmount;
-  } else {
-    const destinationTokenAccount = getAssociatedTokenAddressSync(
-      new PublicKey(repayOpts.repayBank.mint),
-      marginfiAccount.authority,
-      true,
-      repayOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-    );
-
-    const swapConstraints = await computeFlashloanSwapConstraints({
-      program,
-      marginfiAccount,
-      bankMap,
-      bankMetadataMap,
-      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
-      primaryIx: {
-        type: "withdraw",
-        bank: withdrawOpts.withdrawBank,
-        tokenProgram: withdrawOpts.tokenProgram,
-      },
-      secondaryIx: {
-        type: "repay",
-        bank: repayOpts.repayBank,
-        tokenProgram: repayOpts.tokenProgram,
-      },
-      overrideInferAccounts,
-    });
-
-    // Get swap instructions using provider router
-    const swapResponse = await getSwapIxsForFlashloan({
-      inputMint: withdrawOpts.withdrawBank.mint.toBase58(),
-      outputMint: repayOpts.repayBank.mint.toBase58(),
-      amount: uiToNative(
-        withdrawOpts.withdrawAmount,
-        withdrawOpts.withdrawBank.mintDecimals
-      ).toNumber(),
-      swapMode: "ExactIn",
-      authority: marginfiAccount.authority,
-      connection,
-      destinationTokenAccount,
-      swapOpts,
-      sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-    });
-    sizeConstraintUsed = swapConstraints.sizeConstraint;
-
-    const { quoteResponse } = swapResponse;
-    const outAmount = nativeToUi(quoteResponse.outAmount, repayOpts.repayBank.mintDecimals);
-    const outAmountThreshold = nativeToUi(
-      quoteResponse.otherAmountThreshold,
-      repayOpts.repayBank.mintDecimals
-    );
-
-    amountToRepay =
-      outAmount > repayOpts.totalPositionAmount
-        ? repayOpts.totalPositionAmount
-        : outAmountThreshold;
-    swapInstructions = swapResponse.swapInstructions;
-    swapLookupTables = swapResponse.addressLookupTableAddresses;
-    swapQuote = quoteResponse;
-  }
 
   let withdrawIxs: InstructionsWrapper;
 
@@ -584,6 +534,93 @@ async function buildRepayWithCollatFlashloanTx({
       });
       break;
     }
+  }
+
+  if (swapNeeded) {
+    const destinationTokenAccount = getAssociatedTokenAddressSync(
+      new PublicKey(repayOpts.repayBank.mint),
+      marginfiAccount.authority,
+      true,
+      repayOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
+    );
+
+    const swapConstraints = await computeFlashloanSwapConstraints({
+      program,
+      marginfiAccount,
+      bankMap,
+      bankMetadataMap,
+      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+      primaryIx: {
+        type: "withdraw",
+        bank: withdrawOpts.withdrawBank,
+        tokenProgram: withdrawOpts.tokenProgram,
+      },
+      secondaryIx: {
+        type: "repay",
+        bank: repayOpts.repayBank,
+        tokenProgram: repayOpts.tokenProgram,
+      },
+      overrideInferAccounts,
+    });
+    sizeConstraintUsed = swapConstraints.sizeConstraint;
+
+    // Placeholder repay ix for the engine footprint (its size is amount-independent);
+    // the real repay ix below uses the swap-derived amountToRepay.
+    const footprintRepayIxs = await makeRepayIx({
+      program,
+      bank: repayOpts.repayBank,
+      tokenProgram: repayOpts.tokenProgram,
+      amount: withdrawOpts.withdrawAmount,
+      accountAddress: marginfiAccount.address,
+      authority: marginfiAccount.authority,
+      isSync: false,
+      opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
+    });
+
+    const runEngine = swapEngineRunner ?? runSwapEngine;
+    const engineResult = await runEngine({
+      inputMint: withdrawOpts.withdrawBank.mint.toBase58(),
+      outputMint: repayOpts.repayBank.mint.toBase58(),
+      amountNative: uiToNative(
+        withdrawOpts.withdrawAmount,
+        withdrawOpts.withdrawBank.mintDecimals
+      ).toNumber(),
+      inputDecimals: withdrawOpts.withdrawBank.mintDecimals,
+      outputDecimals: repayOpts.repayBank.mintDecimals,
+      ...swapEngineQuoteFieldsFromOpts(swapOpts),
+      taker: marginfiAccount.authority,
+      destinationTokenAccount,
+      connection,
+      footprint: {
+        instructions: [
+          ...cuRequestIxs,
+          ...withdrawIxs.instructions,
+          ...footprintRepayIxs.instructions,
+        ],
+        luts: addressLookupTableAccounts ?? [],
+        payer: marginfiAccount.authority,
+        sizeConstraint: swapConstraints.sizeConstraint,
+        maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+      },
+      providers: swapEngineProvidersFromOpts(swapOpts),
+    });
+
+    const outAmount = nativeToUi(
+      engineResult.quoteResponse.outAmount,
+      repayOpts.repayBank.mintDecimals
+    );
+    const outAmountThreshold = nativeToUi(
+      engineResult.quoteResponse.otherAmountThreshold,
+      repayOpts.repayBank.mintDecimals
+    );
+    amountToRepay =
+      outAmount > repayOpts.totalPositionAmount
+        ? repayOpts.totalPositionAmount
+        : outAmountThreshold;
+    swapInstructions = engineResult.swapInstructions;
+    setupInstructions = engineResult.setupInstructions;
+    swapLookupTables = engineResult.swapLuts;
+    swapQuote = engineResult.quoteResponse;
   }
 
   const repayIxs = await makeRepayIx({

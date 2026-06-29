@@ -16,6 +16,7 @@ import { SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
+import type { SwapEngineRunner } from "../services/swap-engine/types";
 
 export enum SwapProvider {
   JUPITER = "JUPITER",
@@ -25,6 +26,10 @@ export enum SwapProvider {
 
 export interface SwapApiConfig {
   basePath?: string;
+  /** WebSocket endpoint (e.g. `wss://<host>/api/v1/ws`). Used by the Titan V3
+   *  adapter, which sends the full footprint template inline over the socket to
+   *  avoid the gateway GET's URL-length limit. */
+  wsUrl?: string;
   apiKey?: string;
   headers?: Record<string, string>;
 }
@@ -388,11 +393,15 @@ export interface MakeLoopTxParams {
     depositBank: BankType;
     tokenProgram: PublicKey;
     loopMode: "DEPOSIT" | "BORROW";
+    // market price (USD per token, UI units) used for the no-slippage deposit estimate
+    marketPrice: number;
   };
   borrowOpts: {
     borrowAmount: number;
     borrowBank: BankType;
     tokenProgram: PublicKey;
+    // market price (USD per token, UI units) used for the no-slippage deposit estimate
+    marketPrice: number;
   };
   swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
@@ -402,6 +411,40 @@ export interface MakeLoopTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /**
+   * Optional override for how the swap engine runs. Defaults to the in-process
+   * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
+   * so the multi-provider fan-out happens server-side.
+   */
+  swapEngineRunner?: SwapEngineRunner;
+}
+
+/**
+ * Describes a loop flashloan that has been built up to — but not including — the swap.
+ * Handed off to the swap engine, which selects a route against the remaining tx budget
+ * and returns the swap instruction(s) to splice into `innerIxs` at `swapSlotIndex`.
+ *
+ * The flashloan wrapper (begin/end-FL) is intentionally NOT part of `innerIxs`; its size
+ * and account cost are already accounted for in `sizeConstraint` / `maxSwapTotalAccounts`.
+ */
+export interface LoopFlashloanDescriptor {
+  // Inner instructions in final order: [cuRequest..., borrow..., <swap slot>, deposit...]
+  innerIxs: TransactionInstruction[];
+  // Array index in `innerIxs` where the swap instruction(s) should be inserted
+  swapSlotIndex: number;
+  // Index of the deposit instruction in `innerIxs` (for the post-swap amount byte-patch)
+  depositIxIndex: number;
+  inputMint: string;
+  outputMint: string;
+  inputDecimals: number;
+  outputDecimals: number;
+  // Borrow amount in native (base) units — the swap input amount (ExactIn)
+  inAmountNative: number;
+  destinationTokenAccount: PublicKey;
+  // Remaining tx budget for the swap, already net of the flashloan wrapper cost
+  sizeConstraint: number;
+  maxSwapTotalAccounts: number;
+  luts: AddressLookupTableAccount[];
 }
 
 export interface MakeRepayWithCollatTxParams {
@@ -436,6 +479,8 @@ export interface MakeRepayWithCollatTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSwapCollateralTxParams {
@@ -466,6 +511,75 @@ export interface MakeSwapCollateralTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
+}
+
+/**
+ * Params for {@link makeRollPtTx} — rolling a matured Exponent PT collateral position into
+ * its next-maturity PT, so the **full deposit ends up as new PT** (no leftover), in one
+ * flash-loan-wrapped bundle:
+ *   1. withdraw the old PT, then Exponent `merge` (redeem PT → SY, post-maturity, 1:1)
+ *   2. buy the new PT with that SY directly on the successor's **CLMM** (`MarketThree`) PT/SY
+ *      pool via `trade_pt` — no base-token round-trip, no external aggregator
+ *   3. deposit the new PT.
+ *
+ * The buy is liquidity-bounded by the successor pool's depth. The SY → PT price is quoted by
+ * simulating the redeem + trade (reading the CLMM `TradePtEvent.amount_out`), so the deposit
+ * is sized to the guaranteed minimum out.
+ */
+export interface MakeRollPtTxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  connection: Connection;
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  withdrawOpts: {
+    totalPositionAmount: number;
+    withdrawAmount?: number;
+    /** The expiring (matured) PT bank. */
+    withdrawBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  depositOpts: {
+    /** The successor (next-maturity) PT bank. */
+    depositBank: BankType;
+    tokenProgram: PublicKey;
+  };
+  /** Exponent redeem (`merge`) + successor-CLMM buy config for the matured PT. */
+  rollOpts: RollPtOpts;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: {
+    group?: PublicKey;
+    authority?: PublicKey;
+  };
+  crossbarUrl?: string;
+}
+
+/**
+ * Exponent roll config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's
+ * `merge` accounts and the successor pool's CLMM `trade_pt` accounts internally from these
+ * addresses — the caller never assembles Exponent accounts/ixs.
+ */
+export interface RollPtOpts {
+  /** The matured PT's Exponent `MarketTwo` — its `vault` is read (one of market/vault required). */
+  maturedMarket?: PublicKey;
+  /** …or the matured vault directly. */
+  maturedVault?: PublicKey;
+  /** The successor maturity's **CLMM** (`MarketThree`) pool — where the new PT trades (SY → PT). */
+  successorMarket: PublicKey;
+  /** Slippage tolerance (bps) for the SY → PT CLMM swap. Defaults to 50. */
+  slippageBps?: number;
+  /** Token program for the shared SY mint (defaults to the classic Token program). */
+  syTokenProgram?: PublicKey;
+  /**
+   * Optional dedicated PT-roll address lookup table (fetched internally) that compresses the
+   * merge + CLMM-swap flashloan bytes (see `examples/create-pt-roll-lut.ts`). Account *locks*
+   * are already bounded by the compact, fixed CLMM footprint.
+   */
+  lookupTable?: PublicKey;
 }
 
 export interface MakeSwapDebtTxParams {
@@ -484,11 +598,15 @@ export interface MakeSwapDebtTxParams {
     repayAmount?: number;
     repayBank: BankType;
     tokenProgram: PublicKey;
+    // Market price (USD per token, UI units) used to size the borrow amount.
+    marketPrice: number;
   };
   // Destination debt (what we're borrowing)
   borrowOpts: {
     borrowBank: BankType;
     tokenProgram: PublicKey;
+    // Market price (USD per token, UI units) used to size the borrow amount.
+    marketPrice: number;
   };
   swapOpts: SwapOpts;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
@@ -498,6 +616,8 @@ export interface MakeSwapDebtTxParams {
   };
   additionalIxs?: TransactionInstruction[];
   crossbarUrl?: string;
+  /** See `MakeLoopTxParams.swapEngineRunner`. */
+  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSetupIxParams {

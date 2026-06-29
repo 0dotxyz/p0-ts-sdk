@@ -370,7 +370,10 @@ export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIx
     const userAtaAis = await connection.getMultipleAccountsInfo(userAtas);
 
     for (const [i, userAta] of userAtaAis.entries()) {
-      const token = tokens[i];
+      // Index against `uniqueTokens` (which `userAtas` was derived from) — not `tokens` — so a
+      // duplicate mint in the input doesn't misalign the ATA address with the mint and produce
+      // an invalid-seeds create.
+      const token = uniqueTokens[i];
       const userAtaAddress = userAtas[i];
       if (userAta === null && token && userAtaAddress) {
         ixs.push(

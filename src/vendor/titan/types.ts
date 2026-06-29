@@ -26,6 +26,28 @@ export interface Instruction {
   d: Uint8Array;
 }
 
+/** An address lookup table referenced by a transaction template (key + inner addresses). */
+export interface TransactionTemplateLut {
+  /** ALT account address. */
+  p: Pubkey;
+  /** Addresses stored inside the ALT, in order. */
+  a: Pubkey[];
+}
+
+/**
+ * Footprint of the instructions/ALTs surrounding the swap, so the router sizes
+ * routes to fit alongside them. Wire format uses single-letter fields: `i`
+ * instructions, `a` ALTs, `m` extra account metas. See the gateway helper
+ * `buildTitanTemplate`. Over the WebSocket this is sent as a native msgpack
+ * object (no base64) — unlike the gateway GET there is no URL-length limit, so
+ * large ALTs are fine.
+ */
+export interface TransactionTemplate {
+  i: Instruction[];
+  a: TransactionTemplateLut[];
+  m: AccountMeta[];
+}
+
 export enum SwapMode {
   ExactIn = "ExactIn",
   ExactOut = "ExactOut",
@@ -58,6 +80,12 @@ export interface SwapParams {
   slippageBps?: number;
   dexes?: string[];
   excludeDexes?: string[];
+  /**
+   * Exclude the server-configured "vote account" venues from routing. Those venues touch validator
+   * vote accounts, which Jito refuses to bundle — so a swap that routes through them can't land inside
+   * our flashloan/double-hop Jito bundles. Set `true` for bundled flows. Available since Titan v1.6.
+   */
+  noVoteAccounts?: boolean;
   onlyDirectRoutes?: boolean;
   addSizeConstraint?: boolean;
   sizeConstraint?: number;
@@ -66,6 +94,12 @@ export interface SwapParams {
   accountsLimitTotal?: number;
   /** Limit writable accounts used by routes. Default: 64. Available since v1.1. */
   accountsLimitWritable?: number;
+  /**
+   * Reserve room for the surrounding (non-swap) instructions + ALTs so the
+   * router sizes routes to fit. Mutually exclusive with `sizeConstraint` /
+   * `accountsLimitTotal` / `accountsLimitWritable`. Available since v1.2.
+   */
+  transactionTemplate?: TransactionTemplate;
 }
 
 export interface TransactionParams {
@@ -77,6 +111,12 @@ export interface TransactionParams {
   feeFromInputMint?: boolean;
   outputAccount?: Pubkey;
   titanSwapVersion?: SwapVersion;
+  /**
+   * `true` leaves a wSOL output as wrapped SOL (the wSOL SPL token) instead of
+   * unwrapping it to native lamports. Default `false`. Only has an effect when
+   * `outputMint == wSOL`; ignored otherwise. Requires `titanSwapVersion=3`.
+   */
+  outputWsol?: boolean;
 }
 
 export enum SwapVersion {
@@ -153,6 +193,8 @@ export interface SwapQuotes {
   swapMode: SwapMode;
   amount: number;
   quotes: { [key: string]: SwapRoute };
+  /** Present when DART is enabled; names the route Titan recommends. */
+  metadata?: { ExpectedWinner?: string };
 }
 
 export interface SwapRoute {

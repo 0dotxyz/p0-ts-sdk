@@ -243,6 +243,11 @@ export type ExactOutEstimateResult = {
   quoteResult: SwapQuoteResult;
 };
 
+/**
+ * @deprecated Do not use provider ExactOut quotes — they are unreliable and the
+ * Jupiter Router (`/build`) is ExactIn-only. Size a target-output swap from a
+ * market-price calculation and route ExactIn instead (see `makeSwapDebtTx`).
+ */
 export const getExactOutEstimate = async (
   params: GetExactOutEstimateParams
 ): Promise<ExactOutEstimateResult> => {

@@ -1,0 +1,19 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.2.7"
+  },
+  "changesets": [
+    "bridge-swap-jito",
+    "fifty-spoons-invent",
+    "light-toes-move",
+    "lut-groups",
+    "multi-provider-swap-engine",
+    "pt-roll-clmm-direct",
+    "pt-roll-titan-swap",
+    "pt-roll-up",
+    "titan-novoteaccounts",
+    "titan-sol-wrap"
+  ]
+}

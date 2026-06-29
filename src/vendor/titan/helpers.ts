@@ -45,16 +45,27 @@ export interface TitanProxyExactOutResponse {
 
 // --- Deserialization ---
 
+/**
+ * Titan's router stamps a read-only `jitodontfront…` MEV-guard account onto the
+ * swap instruction. Jito refuses to bundle any transaction that touches a `jito*`
+ * marker, so we drop it to keep the swap landable inside a Jito bundle (our
+ * flashloan swaps are bundled).
+ */
+export const isJitoDontFront = (pubkey: PublicKey) =>
+  pubkey.toBase58().startsWith("jitodontfront");
+
 export function deserializeSerializedInstruction(
   ix: SerializedInstruction,
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(Buffer.from(ix.p, "base64")),
-    keys: ix.a.map((account) => ({
-      pubkey: new PublicKey(Buffer.from(account.p, "base64")),
-      isSigner: account.s,
-      isWritable: account.w,
-    })),
+    keys: ix.a
+      .map((account) => ({
+        pubkey: new PublicKey(Buffer.from(account.p, "base64")),
+        isSigner: account.s,
+        isWritable: account.w,
+      }))
+      .filter((key) => !isJitoDontFront(key.pubkey)),
     data: Buffer.from(ix.d, "base64"),
   });
 }
@@ -90,22 +101,26 @@ export interface TitanSwapQuoteResult {
 
 export function buildSwapQuoteResult(
   route: {
-    inAmount: number;
-    outAmount: number;
+    inAmount: number | bigint;
+    outAmount: number | bigint;
     slippageBps: number;
-    platformFee?: { amount: number; fee_bps: number };
+    platformFee?: { amount: number | bigint; fee_bps: number };
     contextSlot?: number;
     timeTaken?: number;
   },
   swapMode: "ExactIn" | "ExactOut",
 ): TitanSwapQuoteResult {
   const slippageBps = route.slippageBps;
+  // The WebSocket/protobuf path decodes int64 amounts as BigInt; token amounts fit safely in a
+  // JS number, so coerce for the slippage float math (BigInt × number throws).
+  const outAmount = Number(route.outAmount);
+  const inAmount = Number(route.inAmount);
 
   let otherAmountThreshold: string;
   if (swapMode === "ExactIn") {
-    otherAmountThreshold = String(Math.floor(route.outAmount * (1 - slippageBps / 10000)));
+    otherAmountThreshold = String(Math.floor(outAmount * (1 - slippageBps / 10000)));
   } else {
-    otherAmountThreshold = String(Math.ceil(route.inAmount * (1 + slippageBps / 10000)));
+    otherAmountThreshold = String(Math.ceil(inAmount * (1 + slippageBps / 10000)));
   }
 
   return {

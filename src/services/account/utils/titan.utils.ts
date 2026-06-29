@@ -5,6 +5,7 @@ import {
   type TitanProxySwapQuoteResponse,
   type TitanProxyExactOutResponse,
   deserializeSerializedInstruction,
+  isJitoDontFront,
   selectBestRoute,
   buildSwapQuoteResult,
   resolveLookupTables,
@@ -26,7 +27,7 @@ const getTitanFeeAccount = (mint: PublicKey): PublicKey => {
   return getAssociatedTokenAddressSync(mint, TITAN_FEE_WALLET, true);
 };
 
-const checkTitanFeeAccount = async (
+export const checkTitanFeeAccount = async (
   connection: Connection,
   mint: PublicKey
 ): Promise<{ feeAccount: PublicKey; hasFeeAccount: boolean; feeWallet: PublicKey }> => {
@@ -40,11 +41,13 @@ const checkTitanFeeAccount = async (
 function deserializeTitanInstruction(ix: TitanInstruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(ix.p),
-    keys: ix.a.map((account) => ({
-      pubkey: new PublicKey(account.p),
-      isSigner: account.s,
-      isWritable: account.w,
-    })),
+    keys: ix.a
+      .map((account) => ({
+        pubkey: new PublicKey(account.p),
+        isSigner: account.s,
+        isWritable: account.w,
+      }))
+      .filter((key) => !isJitoDontFront(key.pubkey)),
     data: Buffer.from(ix.d),
   });
 }
@@ -317,6 +320,10 @@ async function getTitanSwapIxsViaHttpProxy(
 
 // --- ExactOut estimate: public API ---
 
+/**
+ * @deprecated Provider ExactOut quotes are unreliable; size target-output swaps
+ * from a market-price calculation and route ExactIn instead.
+ */
 export const getTitanExactOutEstimate = async (
   params: GetTitanExactOutEstimateParams
 ): Promise<{ otherAmountThreshold: string; quoteResult: SwapQuoteResult }> => {

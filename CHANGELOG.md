@@ -1,5 +1,84 @@
 # Changelog
 
+## 2.3.0-alpha.9
+
+### Patch Changes
+
+- Add `noVoteAccounts` parameter to Titan swap requests to exclude vote accounts from routing.
+
+## 2.3.0-alpha.8
+
+### Minor Changes
+
+- Add bridge/double-hop swap composer (`composeBridgedSwap`, `mergeBridgeQuotes`) for collateral and loop-deposit flows. Also removes jitoDontFront accounts from Titan swap routes before signing.
+
+## 2.3.0-alpha.7
+
+### Patch Changes
+
+- Fix Titan swap adapter: add SOL unwrapping and wrapping around Titan swaps so native-SOL input/output is handled correctly.
+
+## 2.3.0-alpha.6
+
+### Patch Changes
+
+- Implement LUT groups: deposit, borrow, withdraw, and repay actions now select address-lookup-table entries by group, reducing transaction size and improving account-loading reliability.
+
+## 2.3.0-alpha.5
+
+### Patch Changes
+
+- PT roll-up now drives the Exponent CLMM directly (vendor IDL + instruction wiring) instead of routing through an intermediate swap, removing an extra round-trip and improving reliability.
+
+## 2.3.0-alpha.4
+
+### Patch Changes
+
+- PT roll-up now routes through the multi-provider swap engine (Titan + Jupiter) instead of Jupiter-only.
+
+## 2.3.0-alpha.3
+
+### Minor Changes
+
+- Add PT roll-up support: roll an existing Exponent PT position into a longer-dated PT in a single transaction. Includes Exponent `strip` instruction wiring, expanded market/vault/strip type coverage, additional resolve utilities, and example scripts (`15-roll-pt.ts`, `17-roll-pt-strip-simulate.ts`, `create-pt-roll-lut.ts`).
+
+## 2.3.0-alpha.2
+
+### Patch Changes
+
+- fix:resolveExponentMergeContext
+
+## 2.3.0-alpha.1
+
+### Patch Changes
+
+- exponent vendor & pt rollover
+
+## 2.3.0-alpha.0
+
+### Minor Changes
+
+- 5b9557b: Add a multi-provider swap engine for flashloan flows (loop, swap-collateral, swap-debt).
+  - New `services/account/swap-engine` module: `runSwapEngine` fans out to all configured
+    providers in parallel (Titan Swap V3 + Jupiter Router `/swap/v2/build` at a maxAccounts
+    ladder), keeps only routes that fit the remaining flashloan budget, and returns the
+    highest-output route. Adding a provider = one adapter + one registry entry.
+  - Titan upgraded to Swap V3 with a full-footprint `transactionTemplate` for precise route
+    sizing (`vendor/titan/gateway.ts`); Jupiter upgraded from Metis to the Router `/build`
+    endpoint (`vendor/jupiter`).
+  - `makeLoopTx` / `makeSwapCollateralTx` / `makeSwapDebtTx` route their swap through the
+    engine. They accept an optional `swapEngineRunner` (default in-process) so the provider
+    fan-out can be executed server-side; `serialize*`/`deserialize*` helpers support that seam.
+  - `makeLoopTx` `depositOpts`/`borrowOpts` now require `marketPrice` (USD/UI) to seed the
+    pre-swap deposit estimate.
+  - All four flashloan-swap flows (loop, swap-collateral, swap-debt, repay-with-collateral)
+    route through the engine and accept `swapEngineRunner`.
+  - **Removed provider ExactOut.** Jupiter Router `/build` is ExactIn-only and provider
+    ExactOut quotes are unreliable, so swap-debt now sizes the borrow from a market-price
+    calculation (`repayOpts`/`borrowOpts.marketPrice`) and routes ExactIn. The engine's
+    ExactOut path + provider ExactOut adapter methods are removed; `getExactOutEstimate` /
+    `getTitanExactOutEstimate` are deprecated.
+
 ## 2.2.7
 
 ### Patch Changes

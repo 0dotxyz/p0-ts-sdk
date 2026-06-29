@@ -9,12 +9,88 @@ import {
 } from "@solana/web3.js";
 
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
-import { MAX_TX_SIZE } from "~/constants";
+import {
+  MAX_TX_SIZE,
+  ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
+} from "~/constants";
+import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
 import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
 
 import { decodeInstruction, decompileV0Transaction } from "./decode";
 import { getTxSize } from "./tx-size";
+
+/** Base58 keys of every native-stake LUT across all groups (group-agnostic membership test). */
+const NATIVE_STAKE_LUT_KEYS = new Set(
+  Object.values(ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE)
+    .flat()
+    .map((key) => key.toBase58())
+);
+
+/**
+ * Picks the lean native-stake LUT subset when every involved bank is STAKED or SOL,
+ * otherwise the general subset. Operates on a combined `luts` array (general +
+ * native-stake) by partitioning it against the SDK's known native-stake LUT keys, so
+ * callers only ever pass one array and the right subset is embedded per transaction.
+ *
+ * Native-stake accounts can only supply native-stake positions and borrow SOL, so such
+ * transactions are fully served by the lean set; any non-(STAKED|SOL) bank falls back to
+ * the general set. Degrades gracefully: if the array wasn't split (e.g. only the general
+ * set was provided), it returns the input unchanged.
+ *
+ * @param luts - Combined LUT accounts available to the transaction
+ * @param banks - Every bank the transaction touches (target bank + health-check banks)
+ */
+export function selectLutsForBanks(
+  luts: AddressLookupTableAccount[],
+  banks: BankType[]
+): AddressLookupTableAccount[] {
+  const nativeStakeLuts = luts.filter((lut) =>
+    NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58())
+  );
+  const generalLuts = luts.filter(
+    (lut) => !NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58())
+  );
+
+  const allStakedOrSol =
+    banks.length > 0 &&
+    banks.every(
+      (bank) =>
+        bank.config.assetTag === AssetTag.STAKED ||
+        bank.config.assetTag === AssetTag.SOL
+    );
+
+  if (allStakedOrSol && nativeStakeLuts.length > 0) {
+    return nativeStakeLuts;
+  }
+  return generalLuts.length > 0 ? generalLuts : luts;
+}
+
+/**
+ * Convenience wrapper over {@link selectLutsForBanks} for account actions: collects the
+ * banks a transaction touches (the target bank, the account's active-position banks, and
+ * any extra health-check banks) and selects the matching LUT subset. Uses structural
+ * typing for `balances` to avoid an import cycle with the account module.
+ */
+export function selectLutsForAccountAction(
+  luts: AddressLookupTableAccount[],
+  targetBank: BankType,
+  balances: { active: boolean; bankPk: PublicKey }[],
+  bankMap: Map<string, BankType>,
+  extraBankAddresses: PublicKey[] = []
+): AddressLookupTableAccount[] {
+  const banks: BankType[] = [targetBank];
+  for (const balance of balances) {
+    if (!balance.active) continue;
+    const bank = bankMap.get(balance.bankPk.toBase58());
+    if (bank) banks.push(bank);
+  }
+  for (const address of extraBankAddresses) {
+    const bank = bankMap.get(address.toBase58());
+    if (bank) banks.push(bank);
+  }
+  return selectLutsForBanks(luts, banks);
+}
 
 /**
  * Determines if a given transaction is a VersionedTransaction.
