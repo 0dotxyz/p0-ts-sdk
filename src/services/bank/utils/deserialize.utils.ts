@@ -34,6 +34,14 @@ import {
   EmodeSettingsRaw,
   EmodeSettingsRawDto,
   BankConfigRawDto,
+  BankRateLimiterRaw,
+  RateLimitWindowRaw,
+  BankRateLimiterType,
+  RateLimitWindowType,
+  BankRateLimiterDto,
+  RateLimitWindowDto,
+  BankRateLimiterRawDto,
+  RateLimitWindowRawDto,
 } from "../types";
 
 /*
@@ -68,6 +76,23 @@ export function parseEmodeSettingsRaw(emodeSettingsRaw: EmodeSettingsRaw): Emode
   };
 
   return emodeSettings;
+}
+
+function parseRateLimitWindowRaw(window: RateLimitWindowRaw): RateLimitWindowType {
+  return {
+    maxOutflow: new BigNumber(window.maxOutflow.toString()),
+    windowDuration: window.windowDuration.toNumber(),
+    windowStart: window.windowStart.toNumber(),
+    prevWindowOutflow: new BigNumber(window.prevWindowOutflow.toString()),
+    curWindowOutflow: new BigNumber(window.curWindowOutflow.toString()),
+  };
+}
+
+export function parseBankRateLimiterRaw(rateLimiter: BankRateLimiterRaw): BankRateLimiterType {
+  return {
+    hourly: parseRateLimitWindowRaw(rateLimiter.hourly),
+    daily: parseRateLimitWindowRaw(rateLimiter.daily),
+  };
 }
 
 interface BankMetadata {
@@ -127,8 +152,15 @@ export function parseBankRaw(
     ? wrappedI80F48toBigNumber(accountParsed.emissionsRemaining)
     : new BigNumber(0);
 
+  const collectedProgramFeesOutstanding = accountParsed.collectedProgramFeesOutstanding
+    ? wrappedI80F48toBigNumber(accountParsed.collectedProgramFeesOutstanding)
+    : new BigNumber(0);
+
   const { oracleKey } = { oracleKey: config.oracleKeys[0]! };
   const emode = parseEmodeSettingsRaw(accountParsed.emode);
+  const rateLimiter = accountParsed.rateLimiter
+    ? parseBankRateLimiterRaw(accountParsed.rateLimiter)
+    : undefined;
 
   const tokenSymbol = bankMetadata?.tokenSymbol;
 
@@ -203,11 +235,13 @@ export function parseBankRaw(
     emissionsRate,
     emissionsMint,
     emissionsRemaining,
+    collectedProgramFeesOutstanding,
     oracleKey,
     feesDestinationAccount,
     lendingPositionCount,
     borrowingPositionCount,
     emode,
+    rateLimiter,
     tokenSymbol,
     kaminoIntegrationAccounts,
     driftIntegrationAccounts,
@@ -248,8 +282,10 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     emissionsRate: bankDto.emissionsRate,
     emissionsMint: new PublicKey(bankDto.emissionsMint),
     emissionsRemaining: new BigNumber(bankDto.emissionsRemaining),
+    collectedProgramFeesOutstanding: new BigNumber(bankDto.collectedProgramFeesOutstanding ?? "0"),
     oracleKey: new PublicKey(bankDto.oracleKey),
     emode: dtoToEmodeSettings(bankDto.emode),
+    rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiter(bankDto.rateLimiter) : undefined,
     tokenSymbol: bankDto.tokenSymbol,
     feesDestinationAccount: bankDto.feesDestinationAccount
       ? new PublicKey(bankDto.feesDestinationAccount)
@@ -286,6 +322,23 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
           jupFTokenAta: new PublicKey(bankDto.jupLendIntegrationAccounts.jupFTokenAta),
         }
       : undefined,
+  };
+}
+
+function dtoToRateLimitWindow(window: RateLimitWindowDto): RateLimitWindowType {
+  return {
+    maxOutflow: new BigNumber(window.maxOutflow),
+    windowDuration: window.windowDuration,
+    windowStart: window.windowStart,
+    prevWindowOutflow: new BigNumber(window.prevWindowOutflow),
+    curWindowOutflow: new BigNumber(window.curWindowOutflow),
+  };
+}
+
+export function dtoToBankRateLimiter(rateLimiter: BankRateLimiterDto): BankRateLimiterType {
+  return {
+    hourly: dtoToRateLimitWindow(rateLimiter.hourly),
+    daily: dtoToRateLimitWindow(rateLimiter.daily),
   };
 }
 
@@ -380,6 +433,8 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
     emissionsRate: new BN(bankDto.emissionsRate),
     emissionsRemaining: bankDto.emissionsRemaining,
     emissionsMint: new PublicKey(bankDto.emissionsMint),
+    collectedProgramFeesOutstanding: bankDto.collectedProgramFeesOutstanding,
+    rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiterRaw(bankDto.rateLimiter) : undefined,
     feesDestinationAccount: bankDto.feesDestinationAccount
       ? new PublicKey(bankDto.feesDestinationAccount)
       : undefined,
@@ -394,6 +449,23 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
     integrationAcc1: new PublicKey(bankDto.integrationAcc1),
     integrationAcc2: new PublicKey(bankDto.integrationAcc2),
     integrationAcc3: new PublicKey(bankDto.integrationAcc3),
+  };
+}
+
+function dtoToRateLimitWindowRaw(window: RateLimitWindowRawDto): RateLimitWindowRaw {
+  return {
+    maxOutflow: new BN(window.maxOutflow),
+    windowDuration: new BN(window.windowDuration),
+    windowStart: new BN(window.windowStart),
+    prevWindowOutflow: new BN(window.prevWindowOutflow),
+    curWindowOutflow: new BN(window.curWindowOutflow),
+  };
+}
+
+export function dtoToBankRateLimiterRaw(rateLimiter: BankRateLimiterRawDto): BankRateLimiterRaw {
+  return {
+    hourly: dtoToRateLimitWindowRaw(rateLimiter.hourly),
+    daily: dtoToRateLimitWindowRaw(rateLimiter.daily),
   };
 }
 

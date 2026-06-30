@@ -42,6 +42,11 @@ interface BankRaw {
   emissionsMint: PublicKey;
 
   /**
+   * Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s canonical ATA for `mint`
+   */
+  collectedProgramFeesOutstanding?: WrappedI80F48;
+
+  /**
    * Integration account slot 1 (default Pubkey for non-integrations).
    * - Kamino: reserve
    * - Drift: spot market
@@ -58,8 +63,15 @@ interface BankRaw {
   /**
    * Integration account slot 3 (default Pubkey for non-integrations).
    * - Drift: user stats
+   * - JupLend: withdraw intermediary ATA (ATA of liquidity_vault_authority for bank mint)
    */
   integrationAcc3: PublicKey;
+
+  /**
+   * Rate limiter for controlling withdraw/borrow outflow.
+   * Tracks net outflow (outflows - inflows) in native tokens.
+   */
+  rateLimiter?: BankRateLimiterRaw;
 
   emode: EmodeSettingsRaw;
   feesDestinationAccount?: PublicKey;
@@ -74,6 +86,31 @@ interface BankCacheRaw {
   borrowingRate: number;
   interestAccumulatedFor: number;
   accumulatedSinceLastUpdate: WrappedI80F48;
+  lastOraclePrice: WrappedI80F48;
+  lastOraclePriceTimestamp: BN;
+  lastOraclePriceConfidence: WrappedI80F48;
+  liqCacheFlags: number;
+  liquidationPriceRt: WrappedI80F48;
+  liquidationPriceRtConfidence: WrappedI80F48;
+  liquidationPriceTwap: WrappedI80F48;
+  liquidationPriceTwapConfidence: WrappedI80F48;
+}
+
+/**
+ * A sliding window rate limiter that tracks net outflow over a time window.
+ * Net outflow = (withdraws + borrows) - (deposits + repays).
+ */
+interface RateLimitWindowRaw {
+  maxOutflow: BN;
+  windowDuration: BN;
+  windowStart: BN;
+  prevWindowOutflow: BN;
+  curWindowOutflow: BN;
+}
+
+interface BankRateLimiterRaw {
+  hourly: RateLimitWindowRaw;
+  daily: RateLimitWindowRaw;
 }
 
 interface BankConfigRaw {
@@ -228,6 +265,8 @@ export interface EmodeConfigRaw {
 
 export type {
   BankRaw,
+  BankRateLimiterRaw,
+  RateLimitWindowRaw,
   BankConfigRaw,
   BankConfigCompactRaw,
   BankMetadataRaw,

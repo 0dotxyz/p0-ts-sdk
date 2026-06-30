@@ -69,6 +69,19 @@ export interface BankConfigDto {
   fixedPrice: string;
 }
 
+export interface RateLimitWindowDto {
+  maxOutflow: string;
+  windowDuration: number;
+  windowStart: number;
+  prevWindowOutflow: string;
+  curWindowOutflow: string;
+}
+
+export interface BankRateLimiterDto {
+  hourly: RateLimitWindowDto;
+  daily: RateLimitWindowDto;
+}
+
 export interface EmodeEntryDto {
   collateralBankEmodeTag: EmodeTag;
   flags: EmodeEntryFlags[];
@@ -119,10 +132,12 @@ export interface BankTypeDto {
   emissionsRate: number;
   emissionsMint: string;
   emissionsRemaining: string;
+  collectedProgramFeesOutstanding?: string;
 
   oracleKey: string;
   pythShardId?: number;
   emode: EmodeSettingsDto;
+  rateLimiter?: BankRateLimiterDto;
   feesDestinationAccount?: string;
   lendingPositionCount?: string;
   borrowingPositionCount?: string;
@@ -188,11 +203,26 @@ export interface BankRawDto {
   emissionsRate: string;
   emissionsRemaining: WrappedI80F48;
   emissionsMint: string;
+  collectedProgramFeesOutstanding?: WrappedI80F48;
+  rateLimiter?: BankRateLimiterRawDto;
   feesDestinationAccount?: string;
   lendingPositionCount?: string;
   borrowingPositionCount?: string;
 
   emode: EmodeSettingsRawDto;
+}
+
+export interface RateLimitWindowRawDto {
+  maxOutflow: string;
+  windowDuration: string;
+  windowStart: string;
+  prevWindowOutflow: string;
+  curWindowOutflow: string;
+}
+
+export interface BankRateLimiterRawDto {
+  hourly: RateLimitWindowRawDto;
+  daily: RateLimitWindowRawDto;
 }
 
 export interface BankConfigRawDto {

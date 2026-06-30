@@ -47,6 +47,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "example:swap-engine": "tsx examples/swap-engine.ts",
+    "example:mint-holders": "tsx examples/18-mint-holders.ts",
     "docs": "typedoc",
     "changeset": "changeset",
     "version": "changeset version",

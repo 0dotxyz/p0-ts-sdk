@@ -25,6 +25,8 @@ import {
   makeCreateMarginfiAccountTx,
   makeCreateAccountIxWithProjection,
   fetchMarginfiAccountAddresses,
+  fetchMarginfiAccountAddressesHoldingBank,
+  fetchMarginfiAccountActiveBalancesForBank,
   MarginfiAccountRaw,
   getEmodePairs,
   computeLowestEmodeWeights,
@@ -33,11 +35,26 @@ import { EmodePair } from "~/services/bank";
 
 import { MarginfiGroup } from "./group";
 import { Bank } from "./bank";
+import { Balance } from "./balance";
 import { MarginfiAccount } from "./account";
 import { MarginfiAccountWrapper } from "./account-wrapper";
 import { AssetTag } from "../services";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
 import { computeStakedBankMultipliers } from "~/services/native-stake";
+
+/**
+ * An authority's active balance in a specific bank for a queried mint. One row per
+ * (account, bank): a single account can appear multiple times if it holds the mint across
+ * several banks (e.g. a DEFAULT and a Kamino bank for the same mint). Amounts are in UI units
+ * (token decimals + share multiplier applied).
+ */
+export type MintAuthorityBalance = {
+  authority: PublicKey;
+  accountAddress: PublicKey;
+  bank: PublicKey;
+  assets: BigNumber;
+  liabilities: BigNumber;
+};
 
 export class Project0Client {
   constructor(
@@ -169,6 +186,80 @@ export class Project0Client {
    */
   async getAccountAddresses(authority: PublicKey): Promise<PublicKey[]> {
     return fetchMarginfiAccountAddresses(this.program, authority, this.group.address);
+  }
+
+  /**
+   * Fetches the addresses of all marginfi accounts in the group that hold a position in a
+   * specific bank.
+   *
+   * Because a marginfi account holds up to 16 balance slots (sorted descending by bank, so the
+   * target can be at any slot), this scans all 16 slots in parallel via filtered
+   * `getProgramAccounts` calls. It returns only addresses (no account data is transferred),
+   * which keeps it viable across the group's ~500k accounts. Hydrate any address you care about
+   * with `fetchAccount`.
+   *
+   * @param bank - The bank public key to search for in account balances
+   * @param options - Optional settings:
+   *   - `concurrency`: max number of the 16 slot scans to run at once. Omit to fire all 16 in
+   *     parallel; pass a smaller value (e.g. 4) to batch them and avoid RPC rate limits.
+   * @returns Deduplicated array of account addresses holding the bank
+   */
+  async getAccountAddressesHoldingBank(
+    bank: PublicKey,
+    options?: { concurrency?: number }
+  ): Promise<PublicKey[]> {
+    return fetchMarginfiAccountAddressesHoldingBank(
+      this.program,
+      this.group.address,
+      bank,
+      options
+    );
+  }
+
+  /**
+   * Fetches every account's active balance for a given mint, with its authority, account
+   * address, and the deposited/borrowed amounts in UI units.
+   *
+   * A mint can map to multiple banks (e.g. DEFAULT + Kamino), so this resolves all matching
+   * banks via {@link getBanksByMint}, scans each for accounts holding it, and emits one row per
+   * (account, bank). An account that holds the mint in several banks yields several rows.
+   *
+   * Amounts are computed with each bank's share multiplier (`assetShareValueMultiplierByBank`)
+   * and the bank's mint decimals, matching `Balance.computeQuantityUi`.
+   *
+   * @param mint - The mint to search account balances for
+   * @param options - Optional settings:
+   *   - `assetTag`: restrict to banks with this asset tag (e.g. only Kamino banks for the mint)
+   *   - `concurrency`: max number of the 16 slot scans to run at once per bank (see
+   *     {@link getAccountAddressesHoldingBank})
+   * @returns One row per (account, bank) holding the mint
+   */
+  async getAuthorityBalancesForMint(
+    mint: PublicKey,
+    options?: { assetTag?: AssetTag; concurrency?: number }
+  ): Promise<MintAuthorityBalance[]> {
+    const banks = this.getBanksByMint(mint, options?.assetTag);
+
+    const rows: MintAuthorityBalance[] = [];
+    for (const bank of banks) {
+      const multiplier = this.assetShareValueMultiplierByBank.get(bank.address.toBase58());
+      const balances = await fetchMarginfiAccountActiveBalancesForBank(
+        this.program,
+        this.group.address,
+        bank.address,
+        { concurrency: options?.concurrency }
+      );
+
+      for (const { accountAddress, authority, balance } of balances) {
+        const { assets, liabilities } = Balance.fromBalanceType(balance).computeQuantityUi(
+          bank,
+          multiplier
+        );
+        rows.push({ authority, accountAddress, bank: bank.address, assets, liabilities });
+      }
+    }
+
+    return rows;
   }
 
   /**

@@ -27,6 +27,14 @@ import {
   EmodeSettingsRawDto,
   InterestRateConfigOptRaw,
   InterestRateConfigRaw,
+  BankRateLimiterType,
+  RateLimitWindowType,
+  BankRateLimiterDto,
+  RateLimitWindowDto,
+  BankRateLimiterRaw,
+  RateLimitWindowRaw,
+  BankRateLimiterRawDto,
+  RateLimitWindowRawDto,
 } from "../types";
 
 function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
@@ -229,8 +237,10 @@ function toBankDto(bank: BankType): BankTypeDto {
     emissionsRate: bank.emissionsRate,
     emissionsMint: bank.emissionsMint.toBase58(),
     emissionsRemaining: bank.emissionsRemaining.toString(),
+    collectedProgramFeesOutstanding: bank.collectedProgramFeesOutstanding.toString(),
     oracleKey: bank.oracleKey.toBase58(),
     emode: toEmodeSettingsDto(bank.emode),
+    rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
     feesDestinationAccount: bank.feesDestinationAccount?.toBase58(),
     lendingPositionCount: bank.lendingPositionCount?.toString(),
@@ -261,6 +271,23 @@ function toBankDto(bank: BankType): BankTypeDto {
           jupFTokenAta: bank.jupLendIntegrationAccounts.jupFTokenAta.toBase58(),
         }
       : undefined,
+  };
+}
+
+function toRateLimitWindowDto(window: RateLimitWindowType): RateLimitWindowDto {
+  return {
+    maxOutflow: window.maxOutflow.toString(),
+    windowDuration: window.windowDuration,
+    windowStart: window.windowStart,
+    prevWindowOutflow: window.prevWindowOutflow.toString(),
+    curWindowOutflow: window.curWindowOutflow.toString(),
+  };
+}
+
+function toBankRateLimiterDto(rateLimiter: BankRateLimiterType): BankRateLimiterDto {
+  return {
+    hourly: toRateLimitWindowDto(rateLimiter.hourly),
+    daily: toRateLimitWindowDto(rateLimiter.daily),
   };
 }
 
@@ -353,6 +380,8 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     emissionsRate: bankRaw.emissionsRate.toString(),
     emissionsRemaining: bankRaw.emissionsRemaining,
     emissionsMint: bankRaw.emissionsMint.toBase58(),
+    collectedProgramFeesOutstanding: bankRaw.collectedProgramFeesOutstanding,
+    rateLimiter: bankRaw.rateLimiter ? bankRateLimiterRawToDto(bankRaw.rateLimiter) : undefined,
     feesDestinationAccount: bankRaw?.feesDestinationAccount?.toBase58(),
     lendingPositionCount: bankRaw?.lendingPositionCount?.toString(),
     borrowingPositionCount: bankRaw?.borrowingPositionCount?.toString(),
@@ -361,6 +390,23 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     integrationAcc1: bankRaw.integrationAcc1.toBase58(),
     integrationAcc2: bankRaw.integrationAcc2.toBase58(),
     integrationAcc3: bankRaw.integrationAcc3.toBase58(),
+  };
+}
+
+function rateLimitWindowRawToDto(window: RateLimitWindowRaw): RateLimitWindowRawDto {
+  return {
+    maxOutflow: window.maxOutflow.toString(),
+    windowDuration: window.windowDuration.toString(),
+    windowStart: window.windowStart.toString(),
+    prevWindowOutflow: window.prevWindowOutflow.toString(),
+    curWindowOutflow: window.curWindowOutflow.toString(),
+  };
+}
+
+export function bankRateLimiterRawToDto(rateLimiter: BankRateLimiterRaw): BankRateLimiterRawDto {
+  return {
+    hourly: rateLimitWindowRawToDto(rateLimiter.hourly),
+    daily: rateLimitWindowRawToDto(rateLimiter.daily),
   };
 }
 

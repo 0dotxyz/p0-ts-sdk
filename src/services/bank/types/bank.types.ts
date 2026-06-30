@@ -161,9 +161,11 @@ export interface BankType {
   emissionsRate: number;
   emissionsMint: PublicKey;
   emissionsRemaining: BigNumber;
+  collectedProgramFeesOutstanding: BigNumber;
 
   oracleKey: PublicKey;
   emode: EmodeSettingsType;
+  rateLimiter?: BankRateLimiterType;
   feesDestinationAccount?: PublicKey;
   lendingPositionCount?: BigNumber;
   borrowingPositionCount?: BigNumber;
@@ -186,6 +188,28 @@ export interface BankType {
     jupFTokenVault: PublicKey;
     jupFTokenAta: PublicKey;
   };
+}
+
+/**
+ * A sliding window rate limiter that tracks net outflow over a time window.
+ * Net outflow = (withdraws + borrows) - (deposits + repays).
+ */
+export interface RateLimitWindowType {
+  /** Maximum net outflow allowed per window (0 = disabled), in native tokens */
+  maxOutflow: BigNumber;
+  /** Window duration in seconds (e.g., 3600 for hourly, 86400 for daily) */
+  windowDuration: number;
+  /** Unix timestamp when the current window started */
+  windowStart: number;
+  /** Net outflow accumulated in the previous window (signed) */
+  prevWindowOutflow: BigNumber;
+  /** Net outflow accumulated in the current window (signed) */
+  curWindowOutflow: BigNumber;
+}
+
+export interface BankRateLimiterType {
+  hourly: RateLimitWindowType;
+  daily: RateLimitWindowType;
 }
 
 /**
