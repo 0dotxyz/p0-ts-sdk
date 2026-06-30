@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.2
+
+### Patch Changes
+
+- Add `fetchMintHolders` client method to query all accounts holding a given mint. Includes bank caps support with updated bank types (raw, DTO, model), deserializer/serializer updates, and an example script (`18-mint-holders.ts`).
+
 ## 2.3.1
 
 First stable release of the 2.3 line, consolidating the `2.3.0-alpha.0` → `2.3.0-alpha.9` cycle. (`2.3.0` was burned on npm — published and unpublished before the alpha cycle began — so the stable ships as `2.3.1`.) Highlights:
