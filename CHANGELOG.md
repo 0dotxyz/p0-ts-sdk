@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.3
+
+### Patch Changes
+
+- Add bridge utilities (`bridge.utils.ts`) and swap-collateral / swap-debt example scripts (`10-swap-collateral.ts`, `11-swap-debt.ts`). Includes flashloan-size helpers, bank-metrics updates, and a new `TransactionBuildingError` class.
+
 ## 2.3.2
 
 ### Patch Changes
