@@ -24,31 +24,39 @@ import {
   MarginfiAccount,
   simulateBundle,
   Bank,
+  makeSwapCollateralTx,
+  composeBridgedSwap,
+  mergeBridgeQuotes,
+  resolveBridgeBanks,
+  isStandardDepositable,
+  isDecomposableSwapError,
+  type BridgedSwapLeg,
+  type MarginfiAccountType,
 } from "../src";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import {
   getConnection,
   getMarginfiConfig,
   getAccountAddress,
   getWalletPubkey,
+  getSwapConfig,
   MINTS,
+  UNIVERSAL_BRIDGE_MINTS,
 } from "./config";
 
 // ============================================================================
 // Configuration - Edit these to test different scenarios
 // ============================================================================
 
-// Source collateral: null = use first active collateral position
-const SOURCE_MINT: PublicKey | null = null;
+// Source collateral: null = use first active collateral position (override with SOURCE_MINT env)
+const SOURCE_MINT: PublicKey | null = process.env.SOURCE_MINT
+  ? new PublicKey(process.env.SOURCE_MINT)
+  : null;
 
-// Destination collateral: the mint to swap into
-const DESTINATION_MINT = MINTS.SOL;
-
-// Jupiter swap options
-const SLIPPAGE_MODE: "DYNAMIC" | "FIXED" = "DYNAMIC";
-const SLIPPAGE_BPS = 50; // 0.5% slippage
-const PLATFORM_FEE_BPS = 0;
-const DIRECT_ROUTES_ONLY = false;
+// Destination collateral: the mint to swap into (override with DESTINATION_MINT env)
+const DESTINATION_MINT = process.env.DESTINATION_MINT
+  ? new PublicKey(process.env.DESTINATION_MINT)
+  : MINTS.SOL;
 
 // ============================================================================
 // Main Example
@@ -131,6 +139,10 @@ async function swapCollateralExample() {
     }
   }
 
+  if (!sourceBalance) {
+    throw new Error("Failed to resolve source collateral balance");
+  }
+
   // Calculate the token amount from shares
   const sourceTokenAmount = sourceBank.getAssetQuantity(sourceBalance.assetShares);
   const sourceUiAmount = sourceTokenAmount.div(Math.pow(10, sourceBank.mintDecimals)).toNumber();
@@ -146,11 +158,17 @@ async function swapCollateralExample() {
   // --------------------------------------------------------------------------
   console.log("\n🏦 Selecting destination bank...");
 
-  // Find a bank for the destination mint
-  const destinationBanks = client.banks.filter((bank) => bank.mint.equals(DESTINATION_MINT));
+  // Find a depositable bank for the destination mint. isStandardDepositable encodes the on-chain
+  // invariant: only DEFAULT/SOL asset-tag, Operational banks accept deposits (excludes ReduceOnly
+  // banks and Kamino/Drift/JupLend wrappers — depositing into those reverts with 6017/6200).
+  const destinationBanks = client.banks.filter(
+    (bank) => bank.mint.equals(DESTINATION_MINT) && isStandardDepositable(bank)
+  );
 
   if (destinationBanks.length === 0) {
-    throw new Error(`No bank found for destination mint: ${DESTINATION_MINT.toBase58()}`);
+    throw new Error(
+      `No depositable bank found for destination mint: ${DESTINATION_MINT.toBase58()}`
+    );
   }
 
   const destinationBank = destinationBanks[0];
@@ -183,50 +201,85 @@ async function swapCollateralExample() {
   } else {
     console.log(`   From mint: ${sourceBank.mint.toBase58()}`);
     console.log(`   To mint: ${destinationBank.mint.toBase58()}`);
-    console.log(
-      `   Slippage: ${SLIPPAGE_MODE === "DYNAMIC" ? "Dynamic" : `${SLIPPAGE_BPS / 100}%`}`
-    );
+    console.log(`   Slippage: per swap-engine config (see getSwapConfig / .env)`);
   }
 
   // Get token programs for both banks
   const sourceMintData = await wrappedAccount.getMintDataFromBank(sourceBank);
   const destinationMintData = await wrappedAccount.getMintDataFromBank(destinationBank);
 
-  const result = await wrappedAccount.makeSwapCollateralTx({
-    connection,
-    withdrawOpts: {
-      totalPositionAmount: sourceUiAmount,
-      withdrawBank: sourceBank,
-      tokenProgram: sourceMintData.tokenProgram,
-    },
-    depositOpts: {
-      depositBank: destinationBank,
-      tokenProgram: destinationMintData.tokenProgram,
-    },
-    swapOpts: {
-      jupiterOptions: {
-        slippageMode: SLIPPAGE_MODE,
-        slippageBps: SLIPPAGE_BPS,
-        platformFeeBps: PLATFORM_FEE_BPS,
-        directRoutesOnly: DIRECT_ROUTES_ONLY,
+  // Multi-provider swap-engine config (TITAN primary + JUPITER fallback), exactly like the app.
+  const swapOpts = { swapConfig: getSwapConfig() };
+
+  // Build the swap. We try the direct single-route build first; if the route won't fit the
+  // flashloan tx (size) or can't be quoted, we fall back to a bridged DOUBLE-HOP (A → bridge →
+  // C) submitted as one atomic Jito bundle — the same fallback the app performs.
+  let transactions;
+  let displayQuote; // single-route quote, or the merged quote across the two bridged legs
+  let actionTxIndex: number | undefined;
+  let isBridged = false;
+
+  try {
+    const direct = await wrappedAccount.makeSwapCollateralTx({
+      connection,
+      withdrawOpts: {
+        totalPositionAmount: sourceUiAmount,
+        withdrawBank: sourceBank,
+        tokenProgram: sourceMintData.tokenProgram,
       },
-    },
-  });
+      depositOpts: {
+        depositBank: destinationBank,
+        tokenProgram: destinationMintData.tokenProgram,
+      },
+      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
+      swapOpts,
+    });
+    transactions = direct.transactions;
+    actionTxIndex = direct.actionTxIndex;
+    displayQuote = direct.quoteResponse;
+    console.log(`✅ Direct swap built (${transactions.length} txs, action index ${actionTxIndex})`);
+  } catch (e) {
+    // Only a too-big (size) or unquotable route is decomposable into a bridge hop. Anything else
+    // (insufficient health, etc.) is a real failure — rethrow. The SDK predicate narrows `e` to a
+    // typed TransactionBuildingError (the engine now classifies oversized routes at the source, so
+    // there's no raw `encoding overruns` RangeError to message-match anymore).
+    if (!isDecomposableSwapError(e)) throw e;
+    console.log(`\n⚠️  Direct route didn't fit (${e.code}). Trying a bridged double-hop...`);
 
-  console.log(`✅ Transaction built successfully`);
-  console.log(`   Total transactions: ${result.transactions.length}`);
-  console.log(`   Action transaction index: ${result.actionTxIndex}`);
+    const bridged = await buildBridgedCollateralSwap({
+      client,
+      wrappedAccount,
+      account,
+      connection,
+      feePayer: walletPubkey,
+      sourceBank,
+      sourceUiAmount,
+      sourceTokenProgram: sourceMintData.tokenProgram,
+      destinationBank,
+      destinationTokenProgram: destinationMintData.tokenProgram,
+    });
+    if (!bridged) {
+      throw new Error(
+        "No bridged route fit either. Try a different pair, a smaller size, or other bridges."
+      );
+    }
+    transactions = bridged.transactions;
+    displayQuote = bridged.mergedQuote;
+    isBridged = true;
+    console.log(`✅ Bridged double-hop built (${transactions.length} txs, 2 legs)`);
+  }
 
-  if (result.quoteResponse) {
+  // Quote display
+  if (displayQuote) {
     const expectedOutput =
-      Number(result.quoteResponse.outAmount) / Math.pow(10, destinationBank.mintDecimals);
-    console.log(`\n📈 Jupiter quote:`);
+      Number(displayQuote.outAmount) / Math.pow(10, destinationBank.mintDecimals);
+    console.log(`\n📈 ${isBridged ? "Merged bridged" : "Swap-engine"} quote:`);
     console.log(
       `   Expected output: ~${expectedOutput.toFixed(6)} ${destinationBank.tokenSymbol || "tokens"}`
     );
-    console.log(`   Price impact: ${result.quoteResponse.priceImpactPct || "N/A"}%`);
+    console.log(`   Price impact: ${displayQuote.priceImpactPct ?? "N/A"}%`);
   } else if (isSameMint) {
-    console.log(`\n📈 Same mint (no Jupiter swap needed):`);
+    console.log(`\n📈 Same mint (no swap needed):`);
     console.log(`   Amount: ${sourceUiAmount.toFixed(6)} ${sourceBank.tokenSymbol || "tokens"}`);
   }
 
@@ -236,16 +289,17 @@ async function swapCollateralExample() {
   console.log("\n🔄 Simulating transaction bundle...");
 
   try {
-    const simulationResults = await simulateBundle(connection.rpcEndpoint, result.transactions);
+    const simulationResults = await simulateBundle(connection.rpcEndpoint, transactions);
 
     console.log("\n✅ Bundle simulation results:");
     let allSuccessful = true;
 
     simulationResults.forEach((simResult, index) => {
-      const txType =
-        index === result.actionTxIndex
+      const txType = isBridged
+        ? `BUNDLE ${index + 1}/${simulationResults.length}`
+        : index === actionTxIndex
           ? "SWAP COLLATERAL"
-          : index < result.actionTxIndex
+          : actionTxIndex !== undefined && index < actionTxIndex
             ? "SETUP"
             : "CLEANUP";
 
@@ -267,7 +321,8 @@ async function swapCollateralExample() {
     if (allSuccessful) {
       console.log("\n✅ All transactions simulated successfully!");
       console.log(
-        "\n💡 To execute this swap, you would sign and send these transactions in order."
+        "\n💡 To execute this swap, you would sign and send these transactions in order" +
+          (isBridged ? " as ONE atomic Jito bundle (both legs)." : ".")
       );
     } else {
       console.log("\n⚠️  Some transactions failed simulation. Check errors above.");
@@ -276,6 +331,129 @@ async function swapCollateralExample() {
     console.error("\n❌ Simulation error:", error);
     throw error;
   }
+}
+
+// ============================================================================
+// Bridge double-hop fallback (mirrors the app's tryBridgeCollateralSwap)
+// ============================================================================
+
+/**
+ * Decompose `source → destination` collateral swap into `source → bridge` + `bridge →
+ * destination` through a high-liquidity bridge token, composed into one atomic bundle by the
+ * SDK's `composeBridgedSwap`. Returns the bundle + a merged user-facing quote, or null if no
+ * bridge candidate fit (caller treats that as a hard failure).
+ *
+ * Bridge SELECTION is product policy (app-owned in production). Here we hand the universal bridge
+ * mints to the SDK's `resolveBridgeBanks`, which picks a standard-depositable bank per mint and
+ * skips any the account has an opposite-side (liability) position in — collateral deposits the
+ * bridge, and marginfi forbids asset+liability on one bank.
+ */
+async function buildBridgedCollateralSwap(args: {
+  client: Project0Client;
+  wrappedAccount: MarginfiAccountWrapper;
+  account: MarginfiAccount;
+  connection: Connection;
+  feePayer: PublicKey;
+  sourceBank: Bank;
+  sourceUiAmount: number;
+  sourceTokenProgram: PublicKey;
+  destinationBank: Bank;
+  destinationTokenProgram: PublicKey;
+}) {
+  const { client, wrappedAccount, account, connection, feePayer } = args;
+  const { sourceBank, sourceUiAmount, sourceTokenProgram } = args;
+  const { destinationBank, destinationTokenProgram } = args;
+
+  const swapOpts = { swapConfig: getSwapConfig() };
+
+  // Universal bridge mints (high liquidity); never bridge through the source/destination itself.
+  const orderedBridgeMints = UNIVERSAL_BRIDGE_MINTS.filter(
+    (m) => !m.equals(sourceBank.mint) && !m.equals(destinationBank.mint)
+  );
+
+  // Let the SDK resolve mints → standard-depositable banks and drop opposite-side conflicts.
+  const { bridges } = resolveBridgeBanks({
+    orderedBridgeMints,
+    banks: client.banks,
+    marginfiAccount: account,
+    side: "deposit",
+  });
+
+  for (const bridgeBank of bridges) {
+    const bridgeMintData = await wrappedAccount.getMintDataFromBank(bridgeBank);
+
+    // Leg 1: source → bridge, built against the real account.
+    const leg1 = await wrappedAccount.makeSwapCollateralTx({
+      connection,
+      withdrawOpts: {
+        totalPositionAmount: sourceUiAmount,
+        withdrawBank: sourceBank,
+        tokenProgram: sourceTokenProgram,
+      },
+      depositOpts: { depositBank: bridgeBank, tokenProgram: bridgeMintData.tokenProgram },
+      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
+      swapOpts,
+    });
+    if (!leg1.quoteResponse) continue; // need a quote to size leg 2
+
+    const firstLeg: BridgedSwapLeg = {
+      transactions: leg1.transactions,
+      quoteResponse: leg1.quoteResponse,
+    };
+
+    // Size leg 2 from leg 1's GUARANTEED bridge output (min-out), so first-leg slippage can't make
+    // leg 2 attempt to withdraw more bridge than actually arrived.
+    const bridgeUiAmount =
+      Number(leg1.quoteResponse.otherAmountThreshold) / Math.pow(10, bridgeBank.mintDecimals);
+
+    // Leg 2: bridge → destination, built against the account AFTER leg 1. composeBridgedSwap
+    // replays leg 1's effect onto a clone and passes us that projected account.
+    const buildSecondLeg = async (
+      projectedAccount: MarginfiAccountType
+    ): Promise<BridgedSwapLeg> => {
+      const leg2 = await makeSwapCollateralTx({
+        program: client.program,
+        marginfiAccount: projectedAccount,
+        connection,
+        bankMap: client.bankMap,
+        oraclePrices: client.oraclePriceByBank,
+        assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
+        bankMetadataMap: client.bankIntegrationMap,
+        withdrawOpts: {
+          totalPositionAmount: bridgeUiAmount,
+          withdrawBank: bridgeBank,
+          tokenProgram: bridgeMintData.tokenProgram,
+        },
+        depositOpts: { depositBank: destinationBank, tokenProgram: destinationTokenProgram },
+        swapOpts,
+        addressLookupTableAccounts: client.addressLookupTables,
+      });
+      return { transactions: leg2.transactions, quoteResponse: leg2.quoteResponse };
+    };
+
+    const composed = await composeBridgedSwap({
+      firstLeg,
+      buildSecondLeg,
+      marginfiAccount: account,
+      program: client.program,
+      banksMap: client.bankMap,
+      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
+      feePayer,
+    });
+    if (!composed) continue; // bundle didn't fit (e.g. > 5 txs) → try the next bridge
+
+    console.log(
+      `   ✅ Bridged via ${bridgeBank.tokenSymbol ?? bridgeBank.mint.toBase58()}: ` +
+        `${sourceBank.tokenSymbol ?? "src"} → ${bridgeBank.tokenSymbol ?? "bridge"} → ` +
+        `${destinationBank.tokenSymbol ?? "dst"}`
+    );
+    return {
+      transactions: composed.transactions,
+      mergedQuote: mergeBridgeQuotes(composed.firstLegQuote, composed.secondLegQuote),
+    };
+  }
+
+  return null;
 }
 
 // ============================================================================

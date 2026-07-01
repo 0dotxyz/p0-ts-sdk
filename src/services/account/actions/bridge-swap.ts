@@ -214,11 +214,14 @@ function composeBundle(
 }
 
 /**
- * Merge two leg quotes into one user-facing quote for the "in = first-leg input, out = second-leg output" shape
- * (collateral-swap, loop-deposit): A in → C out, with compounded slippage and price-impact. Flows
- * with different semantics (debt-swap: old-debt in → new-debt out) build their own.
+ * Compound two legs' slippage and price-impact into the combined risk of the bridged route. Both are
+ * "fraction of value lost" quantities, so they compound multiplicatively: `1 - (1 - a)(1 - b)`.
+ * Shared by all three merge shapes below.
  */
-export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+function compoundQuoteRisk(
+  firstLeg: SwapQuoteResult,
+  secondLeg: SwapQuoteResult,
+): { slippageBps: number; priceImpactPct: string | undefined } {
   const compound = (a?: string, b?: string): string | undefined => {
     if (a == null && b == null) return undefined;
     const x = Number(a ?? 0);
@@ -226,13 +229,53 @@ export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuot
     return String(1 - (1 - x) * (1 - y));
   };
   return {
-    inAmount: firstLeg.inAmount,
-    outAmount: secondLeg.outAmount,
-    otherAmountThreshold: secondLeg.otherAmountThreshold,
     slippageBps: Math.round(
       (1 - (1 - firstLeg.slippageBps / 10_000) * (1 - secondLeg.slippageBps / 10_000)) * 10_000,
     ),
     priceImpactPct: compound(firstLeg.priceImpactPct, secondLeg.priceImpactPct),
+  };
+}
+
+/**
+ * Merge two leg quotes for the "in = first-leg input, out = second-leg output" shape
+ * (collateral-swap, loop-deposit): A in → C out, with compounded slippage and price-impact.
+ */
+export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+  return {
+    inAmount: firstLeg.inAmount,
+    outAmount: secondLeg.outAmount,
+    otherAmountThreshold: secondLeg.otherAmountThreshold,
+    ...compoundQuoteRisk(firstLeg, secondLeg),
+    provider: firstLeg.provider,
+  };
+}
+
+/**
+ * Merge two leg quotes for a bridged DEBT swap (repay A → borrow bridge, then repay bridge → borrow
+ * C). The user-facing quote maps old-debt-repaid (first leg's *output*) → new-debt-borrowed (second
+ * leg's *input*).
+ */
+export function mergeBridgeQuotesDebt(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+  return {
+    inAmount: firstLeg.outAmount,
+    outAmount: secondLeg.inAmount,
+    otherAmountThreshold: secondLeg.inAmount,
+    ...compoundQuoteRisk(firstLeg, secondLeg),
+    provider: firstLeg.provider,
+  };
+}
+
+/**
+ * Merge two leg quotes for a bridged LOOP (loop-deposit borrowing the bridge, then debt-swap bridge
+ * → X). The user-facing quote maps new-debt-borrowed (second leg's *input*) → collateral-deposited
+ * (first leg's *output*).
+ */
+export function mergeBridgeQuotesLoop(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+  return {
+    inAmount: secondLeg.inAmount,
+    outAmount: firstLeg.outAmount,
+    otherAmountThreshold: firstLeg.otherAmountThreshold,
+    ...compoundQuoteRisk(firstLeg, secondLeg),
     provider: firstLeg.provider,
   };
 }

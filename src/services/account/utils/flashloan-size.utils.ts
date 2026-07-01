@@ -57,6 +57,11 @@ const SWAP_MERGE_OVERHEAD = 150;
 // compiles without FL IXs, so we add this constant to get an accurate estimate.
 const FL_IX_OVERHEAD = 52;
 
+// Stand-in raw size for a tx too large for `serialize()` to even encode (it throws a RangeError).
+// Any value comfortably over MAX_TX_SIZE works — it only needs to make `overshoot` positive so the
+// route is scored as "doesn't fit" instead of crashing.
+const OVERSIZED_TX_SENTINEL = MAX_TX_SIZE * 4;
+
 // ============================================================================
 // V0 TX size estimator (simulates V0 message compilation key resolution)
 // ============================================================================
@@ -333,7 +338,18 @@ export function compileFlashloanPrecheck({
     instructions: allIxs,
   }).compileToV0Message(luts);
 
-  const rawSize = new VersionedTransaction(msg).serialize().length;
+  // `serialize()` (via @solana/buffer-layout) throws `RangeError: encoding overruns Uint8Array`
+  // when the compiled message is too large to even fit its wire buffer. That just means the tx is
+  // grossly oversized, so treat it as a large positive overshoot (route "doesn't fit") rather than
+  // letting the RangeError escape — callers (e.g. the swap engine's annotateFit) score on
+  // `overshoot`, and an uncaught throw would short-circuit clean size classification.
+  let rawSize: number;
+  try {
+    rawSize = new VersionedTransaction(msg).serialize().length;
+  } catch (e) {
+    if (!(e instanceof RangeError)) throw e;
+    rawSize = OVERSIZED_TX_SENTINEL;
+  }
   const fullTxSize = rawSize + FL_IX_OVERHEAD;
   const overshoot = fullTxSize - MAX_TX_SIZE;
 

@@ -10,3 +10,4 @@ export * from "./swap.utils";
 export * from "./misc.utils";
 export * from "./flashloan-size.utils";
 export * from "./ix-patch.utils";
+export * from "./bridge.utils";

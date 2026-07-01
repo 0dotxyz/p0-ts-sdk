@@ -245,3 +245,25 @@ export class TransactionBuildingError<
     return new TransactionBuildingError(code, message, details);
   }
 }
+
+/** Error codes that mean a single-route swap couldn't be built directly but can be decomposed. */
+const DECOMPOSABLE_SWAP_ERROR_CODES = new Set<TransactionBuildingErrorCode>([
+  TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP,
+  TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_REPAY,
+  TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_POSITION_SWAP,
+  TransactionBuildingErrorCode.SWAP_QUOTE_FAILED,
+]);
+
+/**
+ * Whether a build failure is a *decomposable* swap failure — i.e. the single-route swap couldn't be
+ * built (no route/quote, or the route doesn't fit the per-tx size/account limits), but the swap
+ * could still succeed when split into two legs through a bridge token (a double-hop).
+ *
+ * This is the predicate a caller's catch→retry uses to decide whether to attempt a bridged swap
+ * (see {@link composeBridgedSwap}). Size overflows surface as `SWAP_SIZE_EXCEEDED_*` and no-route /
+ * unquotable failures as `SWAP_QUOTE_FAILED`; the swap engine also classifies an oversized route
+ * (which would otherwise throw a raw serialization `RangeError`) as `SWAP_SIZE_EXCEEDED_LOOP`.
+ */
+export function isDecomposableSwapError(e: unknown): e is TransactionBuildingError {
+  return e instanceof TransactionBuildingError && DECOMPOSABLE_SWAP_ERROR_CODES.has(e.code);
+}
