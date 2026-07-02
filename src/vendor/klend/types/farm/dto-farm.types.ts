@@ -14,6 +14,7 @@ export interface KaminoFarmTokenInfoJSON {
 
 export interface KaminoFarmRewardInfoJSON {
   token: KaminoFarmTokenInfoJSON;
+  rewardsAvailable: string;
   rewardsPerSecondDecimals: number;
   rewardScheduleCurve: KaminoRewardScheduleCurveJSON;
 }

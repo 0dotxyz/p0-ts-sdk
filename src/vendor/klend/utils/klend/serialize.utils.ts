@@ -62,6 +62,8 @@ export function kaminoReserveToDto(reserve: KaminoReserve): KaminoReserveJSON {
     config: {
       protocolTakeRatePct: reserve.config.protocolTakeRatePct,
       hostFixedInterestRateBps: reserve.config.hostFixedInterestRateBps,
+      depositLimit: reserve.config.depositLimit.toString(),
+      borrowLimit: reserve.config.borrowLimit.toString(),
       borrowRateCurve: {
         points: reserve.config.borrowRateCurve.points.map((item) => ({
           utilizationRateBps: item.utilizationRateBps,

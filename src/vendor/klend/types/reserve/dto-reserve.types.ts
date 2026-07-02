@@ -30,6 +30,8 @@ export interface KaminoReserveCollateralJSON {
 export interface KaminoReserveConfigJSON {
   protocolTakeRatePct: number;
   hostFixedInterestRateBps: number;
+  depositLimit: string;
+  borrowLimit: string;
   borrowRateCurve: KaminoBorrowRateCurveJSON;
   tokenInfo: KaminoReserveTokenInfoJSON;
 }

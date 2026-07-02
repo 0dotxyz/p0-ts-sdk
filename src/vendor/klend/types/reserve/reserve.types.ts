@@ -54,6 +54,10 @@ export interface KaminoReserveConfig {
   protocolTakeRatePct: number;
   /** Flat rate that goes to the host */
   hostFixedInterestRateBps: number;
+  /** Maximum deposit limit of liquidity in native units, u64::MAX for inf */
+  depositLimit: BN;
+  /** Maximum amount borrowed, u64::MAX for inf, 0 to disable borrows (protected deposits) */
+  borrowLimit: BN;
   /** Borrow rate curve based on utilization */
   borrowRateCurve: KaminoBorrowRateCurve;
   /** Oracle configurations */

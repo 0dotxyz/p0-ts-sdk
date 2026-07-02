@@ -20,6 +20,7 @@ export function kaminoFarmStateToDto(
         mint: item.token.mint.toBase58(),
         decimals: item.token.decimals.toString(),
       },
+      rewardsAvailable: item.rewardsAvailable.toString(),
       rewardsPerSecondDecimals: item.rewardsPerSecondDecimals,
       rewardScheduleCurve: {
         points: item.rewardScheduleCurve.points.map((p) => ({

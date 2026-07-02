@@ -294,12 +294,13 @@ export function dtoToKaminoObligation(
   return {
     lendingMarket: new PublicKey(obligationDto.lendingMarket),
     owner: new PublicKey(obligationDto.owner),
-    deposits: obligationDto.deposits.map((item) => ({
+    // Hosted endpoints may prune empty position arrays from the payload
+    deposits: (obligationDto.deposits ?? []).map((item) => ({
       depositReserve: new PublicKey(item.depositReserve),
       depositedAmount: new BN(item.depositedAmount),
       marketValueSf: new BN(item.marketValueSf),
     })),
-    borrows: obligationDto.borrows.map((item) => ({
+    borrows: (obligationDto.borrows ?? []).map((item) => ({
       borrowReserve: new PublicKey(item.borrowReserve),
       borrowedAmountSf: new BN(item.borrowedAmountSf),
       marketValueSf: new BN(item.marketValueSf),
@@ -333,6 +334,8 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
     config: {
       protocolTakeRatePct: reserveDto.config.protocolTakeRatePct,
       hostFixedInterestRateBps: reserveDto.config.hostFixedInterestRateBps,
+      depositLimit: new BN(reserveDto.config.depositLimit),
+      borrowLimit: new BN(reserveDto.config.borrowLimit),
       borrowRateCurve: {
         points: reserveDto.config.borrowRateCurve.points.map((item) => ({
           utilizationRateBps: item.utilizationRateBps,

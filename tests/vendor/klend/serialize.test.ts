@@ -38,6 +38,8 @@ const reserve: KaminoReserve = {
   config: {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,
+    depositLimit: new BN("10000000000000000"),
+    borrowLimit: new BN("9000000000000000"),
     borrowRateCurve: {
       points: [
         { utilizationRateBps: 0, borrowRateBps: 100 },
@@ -69,6 +71,7 @@ const farmState: KaminoFarmState = {
   rewardInfos: [
     {
       token: { mint: pk(15), decimals: new BN(9) },
+      rewardsAvailable: new BN("123456"),
       rewardsPerSecondDecimals: 8,
       rewardScheduleCurve: {
         points: [
@@ -91,6 +94,15 @@ describe("klend curated type round-trips", () => {
 
   it("round-trips KaminoFarmState through its DTO", () => {
     expect(dtoToKaminoFarmState(kaminoFarmStateToDto(farmState))).toEqual(farmState);
+  });
+
+  it("tolerates obligation DTOs with pruned empty position arrays", () => {
+    const dto = kaminoObligationToDto(obligation);
+    const { deposits, borrows, ...pruned } = dto;
+    const decoded = dtoToKaminoObligation(pruned as typeof dto);
+    expect(decoded.deposits).toEqual([]);
+    expect(decoded.borrows).toEqual([]);
+    expect(decoded.owner).toEqual(obligation.owner);
   });
 
   it("trims extra raw fields at the DTO boundary via structural typing", () => {

@@ -19,6 +19,8 @@ export interface KaminoFarmTokenInfo {
 
 export interface KaminoFarmRewardInfo {
   token: KaminoFarmTokenInfo;
+  /** Amount of rewards remaining in the rewards vault */
+  rewardsAvailable: BN;
   rewardsPerSecondDecimals: number;
   rewardScheduleCurve: KaminoRewardScheduleCurve;
 }

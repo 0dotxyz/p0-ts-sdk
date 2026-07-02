@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.1
+
+### Patch Changes
+
+- Widen curated Kamino types with fields consumed downstream: `KaminoReserveConfig.depositLimit` / `borrowLimit` and `KaminoFarmRewardInfo.rewardsAvailable` (plus their JSON DTO mirrors and converter mappings).
+- `dtoToKaminoObligation` now tolerates DTOs with pruned empty `deposits`/`borrows` arrays (hosted integration endpoints omit them), defaulting to `[]`.
+
 ## 2.4.0
 
 ### Minor Changes

@@ -113,6 +113,7 @@ export function dtoToKaminoFarmState(dto: KaminoFarmStateJSON): KaminoFarmState 
         mint: new PublicKey(item.token.mint),
         decimals: new BN(item.token.decimals),
       },
+      rewardsAvailable: new BN(item.rewardsAvailable),
       rewardsPerSecondDecimals: item.rewardsPerSecondDecimals,
       rewardScheduleCurve: {
         points: item.rewardScheduleCurve.points.map((p) => ({
