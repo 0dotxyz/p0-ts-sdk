@@ -1,9 +1,9 @@
 import Decimal from "decimal.js";
-import { FarmStateRaw, ReserveRaw, RewardInfoFields } from "../../types";
+import { KaminoFarmRewardInfo, KaminoFarmState, KaminoReserve } from "../../types";
 import { PublicKey } from "@solana/web3.js";
 import { getKaminoTotalSupply } from "../klend/interest-rate.utils";
 
-export function getRewardPerTimeUnitSecond(reward: RewardInfoFields) {
+export function getRewardPerTimeUnitSecond(reward: KaminoFarmRewardInfo) {
   const now = new Decimal(new Date().getTime()).div(1000);
   let rewardPerTimeUnitSecond = new Decimal(0);
   for (let i = 0; i < reward.rewardScheduleCurve.points.length - 1; i++) {
@@ -44,12 +44,12 @@ export function getRewardPerTimeUnitSecond(reward: RewardInfoFields) {
 
 export async function getReserveRewardsApy(
   priceByMint: Record<string, number>,
-  farmState: FarmStateRaw,
-  reserveState: ReserveRaw
+  farmState: KaminoFarmState,
+  reserveState: KaminoReserve
 ) {
   const rewardApys: {
     rewardApy: Decimal;
-    rewardInfo: RewardInfoFields;
+    rewardInfo: KaminoFarmRewardInfo;
     rewardApr: Decimal;
   }[] = [];
 
@@ -82,8 +82,8 @@ export async function getReserveRewardsApy(
 
 export function calculateRewardApy(
   priceByMint: Record<string, number>,
-  reserve: ReserveRaw,
-  rewardInfo: RewardInfoFields
+  reserve: KaminoReserve,
+  rewardInfo: KaminoFarmRewardInfo
 ) {
   const decimals = reserve.liquidity.mintDecimals.toNumber();
   const totalSupply = getKaminoTotalSupply(reserve);

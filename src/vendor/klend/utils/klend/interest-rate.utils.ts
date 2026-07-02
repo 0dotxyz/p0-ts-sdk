@@ -13,7 +13,7 @@ import {
   SLOTS_PER_SECOND,
   DEFAULT_RECENT_SLOT_DURATION_MS,
 } from "../../constants";
-import { CurvePointFields, ReserveRaw } from "../../types";
+import { KaminoBorrowRateCurvePoint, KaminoReserve } from "../../types";
 import Decimal from "decimal.js";
 import { Fraction } from "../../classes";
 import * as vendor from "../../..";
@@ -120,7 +120,7 @@ export function calculateAPYFromAPR(apr: number): number {
  * @param reserve - The Kamino reserve
  * @returns Total supply in lamports
  */
-export function getKaminoTotalSupply(reserve: ReserveRaw): Decimal {
+export function getKaminoTotalSupply(reserve: KaminoReserve): Decimal {
   const liquidityAvailableAmount = new Decimal(reserve.liquidity.availableAmount.toString());
   const borrowedAmount = new Fraction(reserve.liquidity.borrowedAmountSf).toDecimal();
   const accumulatedProtocolFee = new Fraction(
@@ -144,7 +144,7 @@ export function getKaminoTotalSupply(reserve: ReserveRaw): Decimal {
  * @param reserve - The Kamino reserve
  * @returns Utilization ratio (0-1, e.g., 0.75 = 75% utilized)
  */
-export function calculateUtilizationRatio(reserve: ReserveRaw): number {
+export function calculateUtilizationRatio(reserve: KaminoReserve): number {
   const totalBorrows = new Fraction(reserve.liquidity.borrowedAmountSf).toDecimal();
   const totalSupply = getKaminoTotalSupply(reserve);
   if (totalSupply.eq(0)) {
@@ -174,7 +174,7 @@ export function slotAdjustmentFactor(
  * Source: klend-sdk/src/classes/reserve.ts line 672
  */
 export function calculateSlotAdjustmentFactor(
-  reserve: ReserveRaw,
+  reserve: KaminoReserve,
   recentSlotDurationMs: number
 ): number {
   return 1000 / vendor.SLOTS_PER_SECOND / recentSlotDurationMs;
@@ -191,7 +191,7 @@ export function calculateSlotAdjustmentFactor(
  * @returns Borrow rate as decimal (e.g., 0.05 = 5%)
  */
 export function calculateKaminoEstimatedBorrowRate(
-  reserve: ReserveRaw,
+  reserve: KaminoReserve,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
   const slotAdjFactor = slotAdjustmentFactor(recentSlotDurationMs);
@@ -208,7 +208,7 @@ export function calculateKaminoEstimatedBorrowRate(
  * @returns Supply rate as decimal (e.g., 0.03 = 3%)
  */
 export function calculateKaminoEstimatedSupplyRate(
-  reserve: ReserveRaw,
+  reserve: KaminoReserve,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
   const borrowRate = calculateKaminoEstimatedBorrowRate(reserve, recentSlotDurationMs);
@@ -227,7 +227,7 @@ export function calculateKaminoEstimatedSupplyRate(
  * @returns Supply APY as decimal (e.g., 0.0512 = 5.12% APY)
  */
 export function calculateKaminoSupplyAPY(
-  reserve: ReserveRaw,
+  reserve: KaminoReserve,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
   const currentUtilization = calculateUtilizationRatio(reserve);
@@ -236,7 +236,7 @@ export function calculateKaminoSupplyAPY(
   return calculateAPYFromAPR(currentUtilization * borrowRate * protocolTakeRatePct);
 }
 
-export function scaledSupplies(state: ReserveRaw): [Decimal, Decimal] {
+export function scaledSupplies(state: KaminoReserve): [Decimal, Decimal] {
   const liqMintDecimals = new Decimal(state.liquidity.mintDecimals.toString());
   const totalSupplyLamports = getKaminoTotalSupply(state);
   const mintTotalSupplyLam = new Decimal(state.collateral.mintTotalSupply.toString());
@@ -258,7 +258,7 @@ export function scaledSupplies(state: ReserveRaw): [Decimal, Decimal] {
  * Convert raw curve points to normalized [utilization, rate] pairs
  * Truncates curve at 100% utilization
  */
-export const truncateBorrowCurve = (points: CurvePointFields[]): [number, number][] => {
+export const truncateBorrowCurve = (points: KaminoBorrowRateCurvePoint[]): [number, number][] => {
   const curve: [number, number][] = [];
   for (const { utilizationRateBps, borrowRateBps } of points) {
     curve.push([
@@ -277,14 +277,14 @@ export const truncateBorrowCurve = (points: CurvePointFields[]): [number, number
  * Get fixed host interest rate from reserve config (1:1 with Kamino SDK)
  * Source: klend-sdk/src/classes/reserve.ts line 209
  */
-export function getFixedHostInterestRate(reserve: ReserveRaw): number {
+export function getFixedHostInterestRate(reserve: KaminoReserve): number {
   return reserve.config.hostFixedInterestRateBps / 10_000;
 }
 
 /**
  * Get protocol take rate percentage from reserve config
  */
-export function getProtocolTakeRatePct(reserve: ReserveRaw): number {
+export function getProtocolTakeRatePct(reserve: KaminoReserve): number {
   return 1 - reserve.config.protocolTakeRatePct / 100;
 }
 
@@ -302,7 +302,7 @@ export function getProtocolTakeRatePct(reserve: ReserveRaw): number {
  * @returns Array of curve points with utilization, borrow APY, and supply APY
  */
 export function generateKaminoReserveCurve(
-  curvePoints: CurvePointFields[],
+  curvePoints: KaminoBorrowRateCurvePoint[],
   slotAdjustmentFactor: number,
   fixedHostInterestRate: number,
   protocolTakeRatePct: number

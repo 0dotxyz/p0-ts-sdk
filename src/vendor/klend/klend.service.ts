@@ -3,12 +3,12 @@ import { PublicKey } from "@solana/web3.js";
 
 import { KlendIdlType } from "./idl";
 import klendInstructions from "./instructions";
-import { ReserveRaw } from "./types";
+import { KaminoReserve } from "./types";
 
 type MakeRefreshingIxsParams = {
   klendProgram: Program<KlendIdlType>;
   // A "bank" in Kamino parlance
-  reserve: ReserveRaw;
+  reserve: KaminoReserve;
   reserveKey: PublicKey;
   obligationKey: PublicKey;
   program: Program<KlendIdlType>;

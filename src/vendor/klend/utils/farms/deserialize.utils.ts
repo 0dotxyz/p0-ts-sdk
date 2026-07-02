@@ -1,7 +1,8 @@
 import { struct, publicKey, u64, array, u8, u128, u32 } from "@coral-xyz/borsh";
 
 import { FarmStateRaw } from "../../types/farm/raw-farm.types";
-import { FarmStateJSON } from "../../types/farm/dto-farm.types";
+import { KaminoFarmState } from "../../types/farm/farm.types";
+import { KaminoFarmStateJSON } from "../../types/farm/dto-farm.types";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
@@ -101,77 +102,24 @@ export function decodeFarmDataRaw(data: Buffer): FarmStateRaw {
   return dec;
 }
 
-export function dtoToFarmRaw(dto: FarmStateJSON): FarmStateRaw {
+export function dtoToKaminoFarmState(dto: KaminoFarmStateJSON): KaminoFarmState {
   return {
-    farmAdmin: new PublicKey(dto.farmAdmin),
-    globalConfig: new PublicKey(dto.globalConfig),
     token: {
       mint: new PublicKey(dto.token.mint),
       decimals: new BN(dto.token.decimals),
-      tokenProgram: new PublicKey(dto.token.tokenProgram),
-      padding: dto.token.padding.map((item) => new BN(item)),
     },
     rewardInfos: dto.rewardInfos.map((item) => ({
       token: {
         mint: new PublicKey(item.token.mint),
         decimals: new BN(item.token.decimals),
-        tokenProgram: new PublicKey(item.token.tokenProgram),
-        padding: item.token.padding.map((p) => new BN(p)),
       },
-      rewardsVault: new PublicKey(item.rewardsVault),
-      rewardsAvailable: new BN(item.rewardsAvailable),
+      rewardsPerSecondDecimals: item.rewardsPerSecondDecimals,
       rewardScheduleCurve: {
         points: item.rewardScheduleCurve.points.map((p) => ({
           tsStart: new BN(p.tsStart),
           rewardPerTimeUnit: new BN(p.rewardPerTimeUnit),
         })),
       },
-      minClaimDurationSeconds: new BN(item.minClaimDurationSeconds),
-      lastIssuanceTs: new BN(item.lastIssuanceTs),
-      rewardsIssuedUnclaimed: new BN(item.rewardsIssuedUnclaimed),
-      rewardsIssuedCumulative: new BN(item.rewardsIssuedCumulative),
-      rewardPerShareScaled: new BN(item.rewardPerShareScaled),
-      placeholder0: new BN(item.placeholder0),
-      rewardType: item.rewardType,
-      rewardsPerSecondDecimals: item.rewardsPerSecondDecimals,
-      padding0: item.padding0,
-      padding1: item.padding1.map((p) => new BN(p)),
     })),
-    numRewardTokens: new BN(dto.numRewardTokens),
-    numUsers: new BN(dto.numUsers),
-    totalStakedAmount: new BN(dto.totalStakedAmount),
-    farmVault: new PublicKey(dto.farmVault),
-    farmVaultsAuthority: new PublicKey(dto.farmVaultsAuthority),
-    farmVaultsAuthorityBump: new BN(dto.farmVaultsAuthorityBump),
-    delegateAuthority: new PublicKey(dto.delegateAuthority),
-    timeUnit: dto.timeUnit,
-    isFarmFrozen: dto.isFarmFrozen,
-    isFarmDelegated: dto.isFarmDelegated,
-    padding0: dto.padding0,
-    withdrawAuthority: new PublicKey(dto.withdrawAuthority),
-    depositWarmupPeriod: dto.depositWarmupPeriod,
-    withdrawalCooldownPeriod: dto.withdrawalCooldownPeriod,
-    totalActiveStakeScaled: new BN(dto.totalActiveStakeScaled),
-    totalPendingStakeScaled: new BN(dto.totalPendingStakeScaled),
-    totalPendingAmount: new BN(dto.totalPendingAmount),
-    slashedAmountCurrent: new BN(dto.slashedAmountCurrent),
-    slashedAmountCumulative: new BN(dto.slashedAmountCumulative),
-    slashedAmountSpillAddress: new PublicKey(dto.slashedAmountSpillAddress),
-    lockingMode: new BN(dto.lockingMode),
-    lockingStartTimestamp: new BN(dto.lockingStartTimestamp),
-    lockingDuration: new BN(dto.lockingDuration),
-    lockingEarlyWithdrawalPenaltyBps: new BN(
-      dto.lockingEarlyWithdrawalPenaltyBps
-    ),
-    depositCapAmount: new BN(dto.depositCapAmount),
-    scopePrices: new PublicKey(dto.scopePrices),
-    scopeOraclePriceId: new BN(dto.scopeOraclePriceId),
-    scopeOracleMaxAge: new BN(dto.scopeOracleMaxAge),
-    pendingFarmAdmin: new PublicKey(dto.pendingFarmAdmin),
-    strategyId: new PublicKey(dto.strategyId),
-    delegatedRpsAdmin: new PublicKey(dto.delegatedRpsAdmin),
-    vaultId: new PublicKey(dto.vaultId),
-    secondDelegatedAuthority: new PublicKey(dto.secondDelegatedAuthority),
-    padding: dto.padding.map((item) => new BN(item)),
   };
 }

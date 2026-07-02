@@ -14,8 +14,12 @@ import {
   DriftUserJSON,
   DriftUserStats,
   DriftUserStatsJSON,
-  FarmStateJSON,
-  FarmStateRaw,
+  KaminoFarmState,
+  KaminoFarmStateJSON,
+  KaminoObligation,
+  KaminoObligationJSON,
+  KaminoReserve,
+  KaminoReserveJSON,
   JupLendingRewardsRateModel,
   JupLendingRewardsRateModelJSON,
   JupLendingState,
@@ -24,10 +28,6 @@ import {
   JupRateModelJSON,
   JupTokenReserve,
   JupTokenReserveJSON,
-  ObligationJSON,
-  ObligationRaw,
-  ReserveJSON,
-  ReserveRaw,
 } from "./vendor";
 
 // Define MintData here to break circular dependencies
@@ -85,16 +85,16 @@ export enum AccountType {
 }
 
 export type KaminoStates = {
-  reserveState: ReserveRaw;
-  obligationState: ObligationRaw;
-  farmState?: FarmStateRaw;
+  reserveState: KaminoReserve;
+  obligationState: KaminoObligation;
+  farmState?: KaminoFarmState;
 };
 
 export type BankIntegrationMetadata = {
   kaminoStates?: {
-    reserveState: ReserveRaw;
-    obligationState: ObligationRaw;
-    farmState?: FarmStateRaw;
+    reserveState: KaminoReserve;
+    obligationState: KaminoObligation;
+    farmState?: KaminoFarmState;
   };
   driftStates?: {
     spotMarketState: DriftSpotMarket;
@@ -113,9 +113,9 @@ export type BankIntegrationMetadata = {
 
 export type BankIntegrationMetadataDto = {
   kaminoStates?: {
-    reserveState: ReserveJSON;
-    obligationState: ObligationJSON;
-    farmState?: FarmStateJSON;
+    reserveState: KaminoReserveJSON;
+    obligationState: KaminoObligationJSON;
+    farmState?: KaminoFarmStateJSON;
   };
   driftStates?: {
     spotMarketState: DriftSpotMarketJSON;

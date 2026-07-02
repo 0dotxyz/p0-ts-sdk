@@ -7,7 +7,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { ReserveRaw } from "~/vendor/klend";
+import { KaminoReserve } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { BankType } from "~/services/bank";
@@ -136,7 +136,7 @@ export interface MakeKaminoDepositIxParams {
   accountAddress: PublicKey;
   authority: PublicKey;
   group: PublicKey;
-  reserve: ReserveRaw;
+  reserve: KaminoReserve;
   isSync?: boolean;
   opts?: MakeDepositIxOpts;
 }
@@ -224,7 +224,7 @@ export interface MakeKaminoWithdrawIxParams {
   cTokenAmount: Amount;
   marginfiAccount: MarginfiAccountType;
   authority: PublicKey;
-  reserve: ReserveRaw;
+  reserve: KaminoReserve;
   bankMetadataMap: BankIntegrationMetadataMap;
   isSync?: boolean;
   withdrawAll?: boolean;

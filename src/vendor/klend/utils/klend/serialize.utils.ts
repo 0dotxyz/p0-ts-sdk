@@ -1,301 +1,88 @@
 import {
-  ObligationCollateralFields,
-  ObligationCollateralJSON,
-  ObligationJSON,
-  ObligationLiquidityFields,
-  ObligationLiquidityJSON,
-  ObligationOrderFields,
-  ObligationOrderJSON,
-  ObligationRaw,
-  ReserveConfigFields,
-  ReserveConfigJSON,
-  ReserveJSON,
-  ReserveLiquidityFields,
-  ReserveLiquidityJSON,
-  ReserveRaw,
-  TokenInfoFields,
-  TokenInfoJSON,
-  WithdrawalCapsFields,
-  WithdrawalCapsJSON,
+  KaminoObligation,
+  KaminoObligationJSON,
+  KaminoReserve,
+  KaminoReserveJSON,
 } from "../../types";
 
-export function obligationRawToDto(
-  obligationRaw: ObligationRaw
-): ObligationJSON {
+/**
+ * Serialize a Kamino Obligation to its JSON DTO.
+ *
+ * The parameter is typed as the curated {@link KaminoObligation}, so a
+ * freshly decoded `ObligationRaw` is accepted structurally and trimmed
+ * down to the curated shape here.
+ */
+export function kaminoObligationToDto(
+  obligation: KaminoObligation
+): KaminoObligationJSON {
   return {
-    tag: obligationRaw.tag.toString(),
-    lastUpdate: {
-      slot: obligationRaw.lastUpdate.slot.toString(),
-      stale: obligationRaw.lastUpdate.stale,
-      priceStatus: obligationRaw.lastUpdate.priceStatus,
-      placeholder: obligationRaw.lastUpdate.placeholder,
-    },
-    lendingMarket: obligationRaw.lendingMarket.toBase58(),
-    owner: obligationRaw.owner.toBase58(),
-    deposits: obligationRaw.deposits.map((item) =>
-      obligationCollateralToDto(item)
-    ),
-    lowestReserveDepositLiquidationLtv:
-      obligationRaw.lowestReserveDepositLiquidationLtv.toString(),
-    depositedValueSf: obligationRaw.depositedValueSf.toString(),
-    borrows: obligationRaw.borrows.map((item) =>
-      obligationLiquidityToDto(item)
-    ),
-    borrowFactorAdjustedDebtValueSf:
-      obligationRaw.borrowFactorAdjustedDebtValueSf.toString(),
-    borrowedAssetsMarketValueSf:
-      obligationRaw.borrowedAssetsMarketValueSf.toString(),
-    allowedBorrowValueSf: obligationRaw.allowedBorrowValueSf.toString(),
-    unhealthyBorrowValueSf: obligationRaw.unhealthyBorrowValueSf.toString(),
-    depositsAssetTiers: obligationRaw.depositsAssetTiers,
-    borrowsAssetTiers: obligationRaw.borrowsAssetTiers,
-    elevationGroup: obligationRaw.elevationGroup,
-    numOfObsoleteDepositReserves: obligationRaw.numOfObsoleteDepositReserves,
-    hasDebt: obligationRaw.hasDebt,
-    referrer: obligationRaw.referrer.toBase58(),
-    borrowingDisabled: obligationRaw.borrowingDisabled,
-    autodeleverageTargetLtvPct: obligationRaw.autodeleverageTargetLtvPct,
-    lowestReserveDepositMaxLtvPct: obligationRaw.lowestReserveDepositMaxLtvPct,
-    numOfObsoleteBorrowReserves: obligationRaw.numOfObsoleteBorrowReserves,
-    reserved: obligationRaw.reserved,
-    highestBorrowFactorPct: obligationRaw.highestBorrowFactorPct.toString(),
-    autodeleverageMarginCallStartedTimestamp:
-      obligationRaw.autodeleverageMarginCallStartedTimestamp.toString(),
-    orders: obligationRaw.orders.map((item) => obligationOrderToDto(item)),
-    padding3: obligationRaw.padding3.map((item) => item.toString()),
+    lendingMarket: obligation.lendingMarket.toBase58(),
+    owner: obligation.owner.toBase58(),
+    deposits: obligation.deposits.map((item) => ({
+      depositReserve: item.depositReserve.toBase58(),
+      depositedAmount: item.depositedAmount.toString(),
+      marketValueSf: item.marketValueSf.toString(),
+    })),
+    borrows: obligation.borrows.map((item) => ({
+      borrowReserve: item.borrowReserve.toBase58(),
+      borrowedAmountSf: item.borrowedAmountSf.toString(),
+      marketValueSf: item.marketValueSf.toString(),
+    })),
   };
 }
 
-export function reserveRawToDto(reserveRaw: ReserveRaw): ReserveJSON {
+/**
+ * Serialize a Kamino Reserve to its JSON DTO.
+ *
+ * The parameter is typed as the curated {@link KaminoReserve}, so a
+ * freshly decoded `ReserveRaw` is accepted structurally and trimmed
+ * down to the curated shape here.
+ */
+export function kaminoReserveToDto(reserve: KaminoReserve): KaminoReserveJSON {
   return {
-    version: reserveRaw.version.toString(),
-    lastUpdate: {
-      slot: reserveRaw.lastUpdate.slot.toString(),
-      stale: reserveRaw.lastUpdate.stale,
-      priceStatus: reserveRaw.lastUpdate.priceStatus,
-      placeholder: reserveRaw.lastUpdate.placeholder,
+    lendingMarket: reserve.lendingMarket.toBase58(),
+    farmCollateral: reserve.farmCollateral.toBase58(),
+    liquidity: {
+      mintPubkey: reserve.liquidity.mintPubkey.toBase58(),
+      supplyVault: reserve.liquidity.supplyVault.toBase58(),
+      mintDecimals: reserve.liquidity.mintDecimals.toString(),
+      availableAmount: reserve.liquidity.availableAmount.toString(),
+      borrowedAmountSf: reserve.liquidity.borrowedAmountSf.toString(),
+      accumulatedProtocolFeesSf:
+        reserve.liquidity.accumulatedProtocolFeesSf.toString(),
+      accumulatedReferrerFeesSf:
+        reserve.liquidity.accumulatedReferrerFeesSf.toString(),
+      pendingReferrerFeesSf: reserve.liquidity.pendingReferrerFeesSf.toString(),
     },
-    lendingMarket: reserveRaw.lendingMarket.toBase58(),
-    farmCollateral: reserveRaw.farmCollateral.toBase58(),
-    farmDebt: reserveRaw.farmDebt.toBase58(),
-    liquidity: reserveLiquidityFieldsToDto(reserveRaw.liquidity),
-    reserveLiquidityPadding: reserveRaw.reserveLiquidityPadding.map((item) =>
-      item.toString()
-    ),
     collateral: {
-      mintPubkey: reserveRaw.collateral.mintPubkey.toBase58(),
-      mintTotalSupply: reserveRaw.collateral.mintTotalSupply.toString(),
-      supplyVault: reserveRaw.collateral.supplyVault.toBase58(),
-      padding1: reserveRaw.collateral.padding1.map((item) => item.toString()),
-      padding2: reserveRaw.collateral.padding2.map((item) => item.toString()),
+      mintPubkey: reserve.collateral.mintPubkey.toBase58(),
+      mintTotalSupply: reserve.collateral.mintTotalSupply.toString(),
+      supplyVault: reserve.collateral.supplyVault.toBase58(),
     },
-    reserveCollateralPadding: reserveRaw.reserveCollateralPadding.map((item) =>
-      item.toString()
-    ),
-    config: reserveConfigFieldsToDto(reserveRaw.config),
-    configPadding: reserveRaw.configPadding.map((item) => item.toString()),
-    borrowedAmountOutsideElevationGroup:
-      reserveRaw.borrowedAmountOutsideElevationGroup.toString(),
-    borrowedAmountsAgainstThisReserveInElevationGroups:
-      reserveRaw.borrowedAmountsAgainstThisReserveInElevationGroups.map(
-        (item) => item.toString()
-      ),
-    padding: reserveRaw.padding.map((item) => item.toString()),
-  };
-}
-
-function reserveLiquidityFieldsToDto(
-  reserveLiquidityFields: ReserveLiquidityFields
-): ReserveLiquidityJSON {
-  return {
-    mintPubkey: reserveLiquidityFields.mintPubkey.toBase58(),
-    supplyVault: reserveLiquidityFields.supplyVault.toBase58(),
-    feeVault: reserveLiquidityFields.feeVault.toBase58(),
-    availableAmount: reserveLiquidityFields.availableAmount.toString(),
-    borrowedAmountSf: reserveLiquidityFields.borrowedAmountSf.toString(),
-    marketPriceSf: reserveLiquidityFields.marketPriceSf.toString(),
-    marketPriceLastUpdatedTs:
-      reserveLiquidityFields.marketPriceLastUpdatedTs.toString(),
-    mintDecimals: reserveLiquidityFields.mintDecimals.toString(),
-    depositLimitCrossedTimestamp:
-      reserveLiquidityFields.depositLimitCrossedTimestamp.toString(),
-    borrowLimitCrossedTimestamp:
-      reserveLiquidityFields.borrowLimitCrossedTimestamp.toString(),
-    cumulativeBorrowRateBsf: {
-      value: reserveLiquidityFields.cumulativeBorrowRateBsf.value.map((item) =>
-        item.toString()
-      ),
-      padding: reserveLiquidityFields.cumulativeBorrowRateBsf.padding.map(
-        (item) => item.toString()
-      ),
+    config: {
+      protocolTakeRatePct: reserve.config.protocolTakeRatePct,
+      hostFixedInterestRateBps: reserve.config.hostFixedInterestRateBps,
+      borrowRateCurve: {
+        points: reserve.config.borrowRateCurve.points.map((item) => ({
+          utilizationRateBps: item.utilizationRateBps,
+          borrowRateBps: item.borrowRateBps,
+        })),
+      },
+      tokenInfo: {
+        scopeConfiguration: {
+          priceFeed:
+            reserve.config.tokenInfo.scopeConfiguration.priceFeed.toBase58(),
+        },
+        switchboardConfiguration: {
+          priceAggregator:
+            reserve.config.tokenInfo.switchboardConfiguration.priceAggregator.toBase58(),
+          twapAggregator:
+            reserve.config.tokenInfo.switchboardConfiguration.twapAggregator.toBase58(),
+        },
+        pythConfiguration: {
+          price: reserve.config.tokenInfo.pythConfiguration.price.toBase58(),
+        },
+      },
     },
-    accumulatedProtocolFeesSf:
-      reserveLiquidityFields.accumulatedProtocolFeesSf.toString(),
-    accumulatedReferrerFeesSf:
-      reserveLiquidityFields.accumulatedReferrerFeesSf.toString(),
-    pendingReferrerFeesSf:
-      reserveLiquidityFields.pendingReferrerFeesSf.toString(),
-    absoluteReferralRateSf:
-      reserveLiquidityFields.absoluteReferralRateSf.toString(),
-    tokenProgram: reserveLiquidityFields.tokenProgram.toBase58(),
-    padding2: reserveLiquidityFields.padding2.map((item) => item.toString()),
-    padding3: reserveLiquidityFields.padding3.map((item) => item.toString()),
-  };
-}
-
-function reserveConfigFieldsToDto(
-  reserveConfigFields: ReserveConfigFields
-): ReserveConfigJSON {
-  return {
-    status: reserveConfigFields.status,
-    assetTier: reserveConfigFields.assetTier,
-    hostFixedInterestRateBps: reserveConfigFields.hostFixedInterestRateBps,
-    reserved2: reserveConfigFields.reserved2,
-    protocolOrderExecutionFeePct:
-      reserveConfigFields.protocolOrderExecutionFeePct,
-    protocolTakeRatePct: reserveConfigFields.protocolTakeRatePct,
-    protocolLiquidationFeePct: reserveConfigFields.protocolLiquidationFeePct,
-    loanToValuePct: reserveConfigFields.loanToValuePct,
-    liquidationThresholdPct: reserveConfigFields.liquidationThresholdPct,
-    minLiquidationBonusBps: reserveConfigFields.minLiquidationBonusBps,
-    maxLiquidationBonusBps: reserveConfigFields.maxLiquidationBonusBps,
-    badDebtLiquidationBonusBps: reserveConfigFields.badDebtLiquidationBonusBps,
-    deleveragingMarginCallPeriodSecs:
-      reserveConfigFields.deleveragingMarginCallPeriodSecs.toString(),
-    deleveragingThresholdDecreaseBpsPerDay:
-      reserveConfigFields.deleveragingThresholdDecreaseBpsPerDay.toString(),
-    fees: {
-      borrowFeeSf: reserveConfigFields.fees.borrowFeeSf.toString(),
-      flashLoanFeeSf: reserveConfigFields.fees.flashLoanFeeSf.toString(),
-      padding: reserveConfigFields.fees.padding,
-    },
-    borrowRateCurve: {
-      points: reserveConfigFields.borrowRateCurve.points.map((item) => ({
-        utilizationRateBps: item.utilizationRateBps,
-        borrowRateBps: item.borrowRateBps,
-      })),
-    },
-    borrowFactorPct: reserveConfigFields.borrowFactorPct.toString(),
-    depositLimit: reserveConfigFields.depositLimit.toString(),
-    borrowLimit: reserveConfigFields.borrowLimit.toString(),
-    tokenInfo: tokenInfoFieldsToDto(reserveConfigFields.tokenInfo),
-    depositWithdrawalCap: withdrawalCapsFieldsToDto(
-      reserveConfigFields.depositWithdrawalCap
-    ),
-    debtWithdrawalCap: withdrawalCapsFieldsToDto(
-      reserveConfigFields.debtWithdrawalCap
-    ),
-    elevationGroups: reserveConfigFields.elevationGroups,
-    disableUsageAsCollOutsideEmode:
-      reserveConfigFields.disableUsageAsCollOutsideEmode,
-    utilizationLimitBlockBorrowingAbovePct:
-      reserveConfigFields.utilizationLimitBlockBorrowingAbovePct,
-    autodeleverageEnabled: reserveConfigFields.autodeleverageEnabled,
-    reserved1: reserveConfigFields.reserved1,
-    borrowLimitOutsideElevationGroup:
-      reserveConfigFields.borrowLimitOutsideElevationGroup.toString(),
-    borrowLimitAgainstThisCollateralInElevationGroup:
-      reserveConfigFields.borrowLimitAgainstThisCollateralInElevationGroup.map(
-        (item) => item.toString()
-      ),
-    deleveragingBonusIncreaseBpsPerDay:
-      reserveConfigFields.deleveragingBonusIncreaseBpsPerDay.toString(),
-  };
-}
-
-function tokenInfoFieldsToDto(tokenInfoFields: TokenInfoFields): TokenInfoJSON {
-  return {
-    name: tokenInfoFields.name,
-    heuristic: {
-      lower: tokenInfoFields.heuristic.lower.toString(),
-      upper: tokenInfoFields.heuristic.upper.toString(),
-      exp: tokenInfoFields.heuristic.exp.toString(),
-    },
-    maxTwapDivergenceBps: tokenInfoFields.maxTwapDivergenceBps.toString(),
-    maxAgePriceSeconds: tokenInfoFields.maxAgePriceSeconds.toString(),
-    maxAgeTwapSeconds: tokenInfoFields.maxAgeTwapSeconds.toString(),
-    scopeConfiguration: {
-      priceFeed: tokenInfoFields.scopeConfiguration.priceFeed.toBase58(),
-      priceChain: tokenInfoFields.scopeConfiguration.priceChain,
-      twapChain: tokenInfoFields.scopeConfiguration.twapChain,
-    },
-    switchboardConfiguration: {
-      priceAggregator:
-        tokenInfoFields.switchboardConfiguration.priceAggregator.toBase58(),
-      twapAggregator:
-        tokenInfoFields.switchboardConfiguration.twapAggregator.toBase58(),
-    },
-    pythConfiguration: {
-      price: tokenInfoFields.pythConfiguration.price.toBase58(),
-    },
-    blockPriceUsage: tokenInfoFields.blockPriceUsage,
-    reserved: tokenInfoFields.reserved,
-    padding: tokenInfoFields.padding.map((item) => item.toString()),
-  };
-}
-
-function withdrawalCapsFieldsToDto(
-  withdrawalCapsFields: WithdrawalCapsFields
-): WithdrawalCapsJSON {
-  return {
-    configCapacity: withdrawalCapsFields.configCapacity.toString(),
-    currentTotal: withdrawalCapsFields.currentTotal.toString(),
-    lastIntervalStartTimestamp:
-      withdrawalCapsFields.lastIntervalStartTimestamp.toString(),
-    configIntervalLengthSeconds:
-      withdrawalCapsFields.configIntervalLengthSeconds.toString(),
-  };
-}
-
-function obligationCollateralToDto(
-  obligationCollateralFields: ObligationCollateralFields
-): ObligationCollateralJSON {
-  return {
-    depositReserve: obligationCollateralFields.depositReserve.toBase58(),
-    depositedAmount: obligationCollateralFields.depositedAmount.toString(),
-    marketValueSf: obligationCollateralFields.marketValueSf.toString(),
-    borrowedAmountAgainstThisCollateralInElevationGroup:
-      obligationCollateralFields.borrowedAmountAgainstThisCollateralInElevationGroup.toString(),
-    padding: obligationCollateralFields.padding.map((item) => item.toString()),
-  };
-}
-
-function obligationLiquidityToDto(
-  obligationLiquidityFields: ObligationLiquidityFields
-): ObligationLiquidityJSON {
-  return {
-    borrowReserve: obligationLiquidityFields.borrowReserve.toBase58(),
-    cumulativeBorrowRateBsf: {
-      value: obligationLiquidityFields.cumulativeBorrowRateBsf.value.map(
-        (item) => item.toString()
-      ),
-      padding: obligationLiquidityFields.cumulativeBorrowRateBsf.padding.map(
-        (item) => item.toString()
-      ),
-    },
-    padding: obligationLiquidityFields.padding.toString(),
-    borrowedAmountSf: obligationLiquidityFields.borrowedAmountSf.toString(),
-    marketValueSf: obligationLiquidityFields.marketValueSf.toString(),
-    borrowFactorAdjustedMarketValueSf:
-      obligationLiquidityFields.borrowFactorAdjustedMarketValueSf.toString(),
-    borrowedAmountOutsideElevationGroups:
-      obligationLiquidityFields.borrowedAmountOutsideElevationGroups.toString(),
-    padding2: obligationLiquidityFields.padding2.map((item) => item.toString()),
-  };
-}
-
-function obligationOrderToDto(
-  obligationOrderFields: ObligationOrderFields
-): ObligationOrderJSON {
-  return {
-    conditionThresholdSf: obligationOrderFields.conditionThresholdSf.toString(),
-    opportunityParameterSf:
-      obligationOrderFields.opportunityParameterSf.toString(),
-    minExecutionBonusBps: obligationOrderFields.minExecutionBonusBps,
-    maxExecutionBonusBps: obligationOrderFields.maxExecutionBonusBps,
-    conditionType: obligationOrderFields.conditionType,
-    opportunityType: obligationOrderFields.opportunityType,
-    padding1: obligationOrderFields.padding1,
-    padding2: obligationOrderFields.padding2.map((item) => item.toString()),
   };
 }

@@ -1,23 +1,11 @@
 import BN from "bn.js";
 import {
-  ObligationCollateralFields,
-  ObligationCollateralJSON,
-  ObligationJSON,
-  ObligationLiquidityFields,
-  ObligationLiquidityJSON,
-  ObligationOrderFields,
-  ObligationOrderJSON,
+  KaminoObligation,
+  KaminoObligationJSON,
+  KaminoReserve,
+  KaminoReserveJSON,
   ObligationRaw,
-  ReserveConfigFields,
-  ReserveConfigJSON,
-  ReserveJSON,
-  ReserveLiquidityFields,
-  ReserveLiquidityJSON,
   ReserveRaw,
-  TokenInfoFields,
-  TokenInfoJSON,
-  WithdrawalCapsFields,
-  WithdrawalCapsJSON,
 } from "../../types";
 import { PublicKey } from "@solana/web3.js";
 import { BorshCoder, Idl } from "@coral-xyz/anchor";
@@ -300,291 +288,77 @@ export function decodeKlendObligationData(data: Buffer): ObligationRaw {
   return dec;
 }
 
-export function dtoToObligationRaw(
-  obligationDto: ObligationJSON
-): ObligationRaw {
+export function dtoToKaminoObligation(
+  obligationDto: KaminoObligationJSON
+): KaminoObligation {
   return {
-    tag: new BN(obligationDto.tag),
-    lastUpdate: {
-      slot: new BN(obligationDto.lastUpdate.slot),
-      stale: obligationDto.lastUpdate.stale,
-      priceStatus: obligationDto.lastUpdate.priceStatus,
-      placeholder: obligationDto.lastUpdate.placeholder,
-    },
     lendingMarket: new PublicKey(obligationDto.lendingMarket),
     owner: new PublicKey(obligationDto.owner),
-    deposits: obligationDto.deposits.map((item) =>
-      dtoToObligationCollateralFields(item)
-    ),
-    lowestReserveDepositLiquidationLtv: new BN(
-      obligationDto.lowestReserveDepositLiquidationLtv
-    ),
-    depositedValueSf: new BN(obligationDto.depositedValueSf),
-    borrows: obligationDto.borrows.map((item) =>
-      dtoToObligationLiquidityFields(item)
-    ),
-    borrowFactorAdjustedDebtValueSf: new BN(
-      obligationDto.borrowFactorAdjustedDebtValueSf
-    ),
-    borrowedAssetsMarketValueSf: new BN(
-      obligationDto.borrowedAssetsMarketValueSf
-    ),
-    allowedBorrowValueSf: new BN(obligationDto.allowedBorrowValueSf),
-    unhealthyBorrowValueSf: new BN(obligationDto.unhealthyBorrowValueSf),
-    depositsAssetTiers: obligationDto.depositsAssetTiers,
-    borrowsAssetTiers: obligationDto.borrowsAssetTiers,
-    elevationGroup: obligationDto.elevationGroup,
-    numOfObsoleteDepositReserves: obligationDto.numOfObsoleteDepositReserves,
-    hasDebt: obligationDto.hasDebt,
-    referrer: new PublicKey(obligationDto.referrer),
-    borrowingDisabled: obligationDto.borrowingDisabled,
-    autodeleverageTargetLtvPct: obligationDto.autodeleverageTargetLtvPct,
-    lowestReserveDepositMaxLtvPct: obligationDto.lowestReserveDepositMaxLtvPct,
-    numOfObsoleteBorrowReserves: obligationDto.numOfObsoleteBorrowReserves,
-    reserved: obligationDto.reserved,
-    highestBorrowFactorPct: new BN(obligationDto.highestBorrowFactorPct),
-    autodeleverageMarginCallStartedTimestamp: new BN(
-      obligationDto.autodeleverageMarginCallStartedTimestamp
-    ),
-    orders: obligationDto.orders.map((item) =>
-      dtoToObligationOrderFields(item)
-    ),
-    padding3: obligationDto.padding3.map((item) => new BN(item)),
+    deposits: obligationDto.deposits.map((item) => ({
+      depositReserve: new PublicKey(item.depositReserve),
+      depositedAmount: new BN(item.depositedAmount),
+      marketValueSf: new BN(item.marketValueSf),
+    })),
+    borrows: obligationDto.borrows.map((item) => ({
+      borrowReserve: new PublicKey(item.borrowReserve),
+      borrowedAmountSf: new BN(item.borrowedAmountSf),
+      marketValueSf: new BN(item.marketValueSf),
+    })),
   };
 }
 
-export function dtoToReserveRaw(reserveDto: ReserveJSON): ReserveRaw {
+export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve {
   return {
-    version: new BN(reserveDto.version),
-    lastUpdate: {
-      slot: new BN(reserveDto.lastUpdate.slot),
-      stale: reserveDto.lastUpdate.stale,
-      priceStatus: reserveDto.lastUpdate.priceStatus,
-      placeholder: reserveDto.lastUpdate.placeholder,
-    },
     lendingMarket: new PublicKey(reserveDto.lendingMarket),
     farmCollateral: new PublicKey(reserveDto.farmCollateral),
-    farmDebt: new PublicKey(reserveDto.farmDebt),
-    liquidity: dtoToReserveLiquidityFields(reserveDto.liquidity),
-    reserveLiquidityPadding: reserveDto.reserveLiquidityPadding.map(
-      (item) => new BN(item)
-    ),
+    liquidity: {
+      mintPubkey: new PublicKey(reserveDto.liquidity.mintPubkey),
+      supplyVault: new PublicKey(reserveDto.liquidity.supplyVault),
+      mintDecimals: new BN(reserveDto.liquidity.mintDecimals),
+      availableAmount: new BN(reserveDto.liquidity.availableAmount),
+      borrowedAmountSf: new BN(reserveDto.liquidity.borrowedAmountSf),
+      accumulatedProtocolFeesSf: new BN(
+        reserveDto.liquidity.accumulatedProtocolFeesSf
+      ),
+      accumulatedReferrerFeesSf: new BN(
+        reserveDto.liquidity.accumulatedReferrerFeesSf
+      ),
+      pendingReferrerFeesSf: new BN(reserveDto.liquidity.pendingReferrerFeesSf),
+    },
     collateral: {
       mintPubkey: new PublicKey(reserveDto.collateral.mintPubkey),
       mintTotalSupply: new BN(reserveDto.collateral.mintTotalSupply),
       supplyVault: new PublicKey(reserveDto.collateral.supplyVault),
-      padding1: reserveDto.collateral.padding1.map((item) => new BN(item)),
-      padding2: reserveDto.collateral.padding2.map((item) => new BN(item)),
     },
-    reserveCollateralPadding: reserveDto.reserveCollateralPadding.map(
-      (item) => new BN(item)
-    ),
-    config: dtoToReserveConfigFields(reserveDto.config),
-    configPadding: reserveDto.configPadding.map((item) => new BN(item)),
-    borrowedAmountOutsideElevationGroup: new BN(
-      reserveDto.borrowedAmountOutsideElevationGroup
-    ),
-    borrowedAmountsAgainstThisReserveInElevationGroups:
-      reserveDto.borrowedAmountsAgainstThisReserveInElevationGroups.map(
-        (item) => new BN(item)
-      ),
-    padding: reserveDto.padding.map((item) => new BN(item)),
-  };
-}
-
-function dtoToReserveLiquidityFields(
-  reserveDto: ReserveLiquidityJSON
-): ReserveLiquidityFields {
-  return {
-    mintPubkey: new PublicKey(reserveDto.mintPubkey),
-    supplyVault: new PublicKey(reserveDto.supplyVault),
-    feeVault: new PublicKey(reserveDto.feeVault),
-    availableAmount: new BN(reserveDto.availableAmount),
-    borrowedAmountSf: new BN(reserveDto.borrowedAmountSf),
-    marketPriceSf: new BN(reserveDto.marketPriceSf),
-    marketPriceLastUpdatedTs: new BN(reserveDto.marketPriceLastUpdatedTs),
-    mintDecimals: new BN(reserveDto.mintDecimals),
-    depositLimitCrossedTimestamp: new BN(
-      reserveDto.depositLimitCrossedTimestamp
-    ),
-    borrowLimitCrossedTimestamp: new BN(reserveDto.borrowLimitCrossedTimestamp),
-    cumulativeBorrowRateBsf: {
-      value: reserveDto.cumulativeBorrowRateBsf.value.map(
-        (item) => new BN(item)
-      ),
-      padding: reserveDto.cumulativeBorrowRateBsf.padding.map(
-        (item) => new BN(item)
-      ),
+    config: {
+      protocolTakeRatePct: reserveDto.config.protocolTakeRatePct,
+      hostFixedInterestRateBps: reserveDto.config.hostFixedInterestRateBps,
+      borrowRateCurve: {
+        points: reserveDto.config.borrowRateCurve.points.map((item) => ({
+          utilizationRateBps: item.utilizationRateBps,
+          borrowRateBps: item.borrowRateBps,
+        })),
+      },
+      tokenInfo: {
+        scopeConfiguration: {
+          priceFeed: new PublicKey(
+            reserveDto.config.tokenInfo.scopeConfiguration.priceFeed
+          ),
+        },
+        switchboardConfiguration: {
+          priceAggregator: new PublicKey(
+            reserveDto.config.tokenInfo.switchboardConfiguration.priceAggregator
+          ),
+          twapAggregator: new PublicKey(
+            reserveDto.config.tokenInfo.switchboardConfiguration.twapAggregator
+          ),
+        },
+        pythConfiguration: {
+          price: new PublicKey(
+            reserveDto.config.tokenInfo.pythConfiguration.price
+          ),
+        },
+      },
     },
-    accumulatedProtocolFeesSf: new BN(reserveDto.accumulatedProtocolFeesSf),
-    accumulatedReferrerFeesSf: new BN(reserveDto.accumulatedReferrerFeesSf),
-    pendingReferrerFeesSf: new BN(reserveDto.pendingReferrerFeesSf),
-    absoluteReferralRateSf: new BN(reserveDto.absoluteReferralRateSf),
-    tokenProgram: new PublicKey(reserveDto.tokenProgram),
-    padding2: reserveDto.padding2.map((item) => new BN(item)),
-    padding3: reserveDto.padding3.map((item) => new BN(item)),
-  };
-}
-
-function dtoToReserveConfigFields(
-  reserveDto: ReserveConfigJSON
-): ReserveConfigFields {
-  return {
-    status: reserveDto.status,
-    assetTier: reserveDto.assetTier,
-    hostFixedInterestRateBps: reserveDto.hostFixedInterestRateBps,
-    reserved2: reserveDto.reserved2,
-    protocolOrderExecutionFeePct: reserveDto.protocolOrderExecutionFeePct,
-    protocolTakeRatePct: reserveDto.protocolTakeRatePct,
-    protocolLiquidationFeePct: reserveDto.protocolLiquidationFeePct,
-    loanToValuePct: reserveDto.loanToValuePct,
-    liquidationThresholdPct: reserveDto.liquidationThresholdPct,
-    minLiquidationBonusBps: reserveDto.minLiquidationBonusBps,
-    maxLiquidationBonusBps: reserveDto.maxLiquidationBonusBps,
-    badDebtLiquidationBonusBps: reserveDto.badDebtLiquidationBonusBps,
-    deleveragingMarginCallPeriodSecs: new BN(
-      reserveDto.deleveragingMarginCallPeriodSecs
-    ),
-    deleveragingThresholdDecreaseBpsPerDay: new BN(
-      reserveDto.deleveragingThresholdDecreaseBpsPerDay
-    ),
-    fees: {
-      borrowFeeSf: new BN(reserveDto.fees.borrowFeeSf),
-      flashLoanFeeSf: new BN(reserveDto.fees.flashLoanFeeSf),
-      padding: reserveDto.fees.padding,
-    },
-    borrowRateCurve: {
-      points: reserveDto.borrowRateCurve.points.map((item) => ({
-        utilizationRateBps: item.utilizationRateBps,
-        borrowRateBps: item.borrowRateBps,
-      })),
-    },
-    borrowFactorPct: new BN(reserveDto.borrowFactorPct),
-    depositLimit: new BN(reserveDto.depositLimit),
-    borrowLimit: new BN(reserveDto.borrowLimit),
-    tokenInfo: dtoToTokenInfoFields(reserveDto.tokenInfo),
-    depositWithdrawalCap: dtoToWithdrawalCapsFields(
-      reserveDto.depositWithdrawalCap
-    ),
-    debtWithdrawalCap: dtoToWithdrawalCapsFields(reserveDto.debtWithdrawalCap),
-    elevationGroups: reserveDto.elevationGroups,
-    disableUsageAsCollOutsideEmode: reserveDto.disableUsageAsCollOutsideEmode,
-    utilizationLimitBlockBorrowingAbovePct:
-      reserveDto.utilizationLimitBlockBorrowingAbovePct,
-    autodeleverageEnabled: reserveDto.autodeleverageEnabled,
-    reserved1: reserveDto.reserved1,
-    borrowLimitOutsideElevationGroup: new BN(
-      reserveDto.borrowLimitOutsideElevationGroup
-    ),
-    borrowLimitAgainstThisCollateralInElevationGroup:
-      reserveDto.borrowLimitAgainstThisCollateralInElevationGroup.map(
-        (item) => new BN(item)
-      ),
-    deleveragingBonusIncreaseBpsPerDay: new BN(
-      reserveDto.deleveragingBonusIncreaseBpsPerDay
-    ),
-  };
-}
-
-function dtoToTokenInfoFields(tokenInfoDto: TokenInfoJSON): TokenInfoFields {
-  return {
-    name: tokenInfoDto.name,
-    heuristic: {
-      lower: new BN(tokenInfoDto.heuristic.lower),
-      upper: new BN(tokenInfoDto.heuristic.upper),
-      exp: new BN(tokenInfoDto.heuristic.exp),
-    },
-    maxTwapDivergenceBps: new BN(tokenInfoDto.maxTwapDivergenceBps),
-    maxAgePriceSeconds: new BN(tokenInfoDto.maxAgePriceSeconds),
-    maxAgeTwapSeconds: new BN(tokenInfoDto.maxAgeTwapSeconds),
-    scopeConfiguration: {
-      priceFeed: new PublicKey(tokenInfoDto.scopeConfiguration.priceFeed),
-      priceChain: tokenInfoDto.scopeConfiguration.priceChain,
-      twapChain: tokenInfoDto.scopeConfiguration.twapChain,
-    },
-    switchboardConfiguration: {
-      priceAggregator: new PublicKey(
-        tokenInfoDto.switchboardConfiguration.priceAggregator
-      ),
-      twapAggregator: new PublicKey(
-        tokenInfoDto.switchboardConfiguration.twapAggregator
-      ),
-    },
-    pythConfiguration: {
-      price: new PublicKey(tokenInfoDto.pythConfiguration.price),
-    },
-    blockPriceUsage: tokenInfoDto.blockPriceUsage,
-    reserved: tokenInfoDto.reserved,
-    padding: tokenInfoDto.padding.map((item) => new BN(item)),
-  };
-}
-
-function dtoToWithdrawalCapsFields(
-  withdrawalCapsDto: WithdrawalCapsJSON
-): WithdrawalCapsFields {
-  return {
-    configCapacity: new BN(withdrawalCapsDto.configCapacity),
-    currentTotal: new BN(withdrawalCapsDto.currentTotal),
-    lastIntervalStartTimestamp: new BN(
-      withdrawalCapsDto.lastIntervalStartTimestamp
-    ),
-    configIntervalLengthSeconds: new BN(
-      withdrawalCapsDto.configIntervalLengthSeconds
-    ),
-  };
-}
-
-function dtoToObligationCollateralFields(
-  obligationCollateralDto: ObligationCollateralJSON
-): ObligationCollateralFields {
-  return {
-    depositReserve: new PublicKey(obligationCollateralDto.depositReserve),
-    depositedAmount: new BN(obligationCollateralDto.depositedAmount),
-    marketValueSf: new BN(obligationCollateralDto.marketValueSf),
-    borrowedAmountAgainstThisCollateralInElevationGroup: new BN(
-      obligationCollateralDto.borrowedAmountAgainstThisCollateralInElevationGroup
-    ),
-    padding: obligationCollateralDto.padding.map((item) => new BN(item)),
-  };
-}
-
-function dtoToObligationLiquidityFields(
-  obligationLiquidityDto: ObligationLiquidityJSON
-): ObligationLiquidityFields {
-  return {
-    borrowReserve: new PublicKey(obligationLiquidityDto.borrowReserve),
-    cumulativeBorrowRateBsf: {
-      value: obligationLiquidityDto.cumulativeBorrowRateBsf.value.map(
-        (item) => new BN(item)
-      ),
-      padding: obligationLiquidityDto.cumulativeBorrowRateBsf.padding.map(
-        (item) => new BN(item)
-      ),
-    },
-    padding: new BN(obligationLiquidityDto.padding),
-    borrowedAmountSf: new BN(obligationLiquidityDto.borrowedAmountSf),
-    marketValueSf: new BN(obligationLiquidityDto.marketValueSf),
-    borrowFactorAdjustedMarketValueSf: new BN(
-      obligationLiquidityDto.borrowFactorAdjustedMarketValueSf
-    ),
-    borrowedAmountOutsideElevationGroups: new BN(
-      obligationLiquidityDto.borrowedAmountOutsideElevationGroups
-    ),
-    padding2: obligationLiquidityDto.padding2.map((item) => new BN(item)),
-  };
-}
-
-function dtoToObligationOrderFields(
-  obligationOrderDto: ObligationOrderJSON
-): ObligationOrderFields {
-  return {
-    conditionThresholdSf: new BN(obligationOrderDto.conditionThresholdSf),
-    opportunityParameterSf: new BN(obligationOrderDto.opportunityParameterSf),
-    minExecutionBonusBps: obligationOrderDto.minExecutionBonusBps,
-    maxExecutionBonusBps: obligationOrderDto.maxExecutionBonusBps,
-    conditionType: obligationOrderDto.conditionType,
-    opportunityType: obligationOrderDto.opportunityType,
-    padding1: obligationOrderDto.padding1,
-    padding2: obligationOrderDto.padding2.map((item) => new BN(item)),
   };
 }
