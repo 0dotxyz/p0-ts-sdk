@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.0
+
+### Minor Changes
+
+- **Breaking (Kamino/klend raw state consumers):** Refactor Kamino integration — raw klend obligation, reserve, and farm DTO types have been restructured. Consumers accessing `dto-obligation.types`, `dto-reserve.types`, or `dto-farm.types` directly must migrate to the new type shapes. High-level SDK actions (deposit, borrow, loop, etc.) are unaffected.
+
+  Includes klend serializer/deserializer cleanup (-1300 lines), separated raw vs. domain types for obligations/reserves/farms, updated interest-rate and reward utilities, and added klend serialize tests.
+
 ## 2.3.3
 
 ### Patch Changes
