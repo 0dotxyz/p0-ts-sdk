@@ -1,7 +1,7 @@
-import { ReserveRaw } from "../../types";
+import { KaminoReserve } from "../../types";
 import { calculateUtilizationRatio } from "./interest-rate.utils";
 
-function calculateSupplyAPR(reserve: ReserveRaw, referralFeeBps: number) {
+function calculateSupplyAPR(reserve: KaminoReserve, referralFeeBps: number) {
   const currentUtilization = calculateUtilizationRatio(reserve);
 
   //   const borrowRate = this.calculateEstimatedBorrowRate(slot, referralFeeBps);

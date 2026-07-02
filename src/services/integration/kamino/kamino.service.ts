@@ -4,26 +4,26 @@ import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
-  ObligationRaw,
-  ReserveRaw,
-  FarmStateRaw,
+  KaminoObligation,
+  KaminoReserve,
+  KaminoFarmState,
   decodeKlendReserveData,
   decodeKlendObligationData,
   decodeFarmDataRaw,
-  reserveRawToDto,
-  obligationRawToDto,
-  farmRawToDto,
-  dtoToReserveRaw,
-  dtoToObligationRaw,
-  dtoToFarmRaw,
+  kaminoReserveToDto,
+  kaminoObligationToDto,
+  kaminoFarmStateToDto,
+  dtoToKaminoReserve,
+  dtoToKaminoObligation,
+  dtoToKaminoFarmState,
 } from "~/vendor/klend";
 import { KaminoStateJsonByBank } from "./kamino.types";
 
 export interface KaminoMetadata {
   kaminoStates: {
-    reserveState: ReserveRaw;
-    obligationState: ObligationRaw;
-    farmState?: FarmStateRaw;
+    reserveState: KaminoReserve;
+    obligationState: KaminoObligation;
+    farmState?: KaminoFarmState;
   };
 }
 
@@ -84,9 +84,9 @@ export async function getKaminoMetadata(
   for (const [bankAddress, state] of Object.entries(kaminoStates)) {
     kaminoMetadataMap.set(bankAddress, {
       kaminoStates: {
-        reserveState: dtoToReserveRaw(state.reserveState),
-        obligationState: dtoToObligationRaw(state.obligationState),
-        farmState: state.farmState ? dtoToFarmRaw(state.farmState) : undefined,
+        reserveState: dtoToKaminoReserve(state.reserveState),
+        obligationState: dtoToKaminoObligation(state.obligationState),
+        farmState: state.farmState ? dtoToKaminoFarmState(state.farmState) : undefined,
       },
     });
   }
@@ -137,8 +137,8 @@ export async function getKaminoStatesDto(
     }
 
     kaminoStatesMap[bank.bankAddress] = {
-      reserveState: reserveRawToDto(reserveState),
-      obligationState: obligationRawToDto(obligationState),
+      reserveState: kaminoReserveToDto(reserveState),
+      obligationState: kaminoObligationToDto(obligationState),
     };
   }
 
@@ -169,7 +169,7 @@ export async function getKaminoStatesDto(
 
       kaminoStatesMap[bankKey] = {
         ...kaminoState,
-        farmState: farmRawToDto(decodedFarmState),
+        farmState: kaminoFarmStateToDto(decodedFarmState),
       };
     }
   }

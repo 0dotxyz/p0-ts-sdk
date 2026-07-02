@@ -41,7 +41,7 @@ import { Balance } from "./balance";
 import { HealthCache } from "./health-cache";
 import { Bank } from "./bank";
 import { NATIVE_MINT } from "~/vendor/spl";
-import { ReserveRaw } from "~/vendor/klend";
+import { KaminoReserve } from "~/vendor/klend";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 
 /**
@@ -642,7 +642,7 @@ export class MarginfiAccountWrapper {
   async makeKaminoDepositTx(
     bankAddress: PublicKey,
     amount: Amount,
-    reserve: ReserveRaw,
+    reserve: KaminoReserve,
     opts: MakeDepositIxOpts = {}
   ): Promise<ExtendedV0Transaction> {
     // Try to get bank from client, fallback to fetching it

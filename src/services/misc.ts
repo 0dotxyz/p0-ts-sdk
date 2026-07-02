@@ -28,20 +28,20 @@ import {
   dtoToDriftSpotMarketRaw,
   dtoToDriftUserRaw,
   dtoToDriftUserStatsRaw,
-  dtoToFarmRaw,
+  dtoToKaminoFarmState,
   dtoToJupLendingRewardsRateModelRaw,
   dtoToJupLendingStateRaw,
   dtoToJupRateModelRaw,
   dtoToJupTokenReserveRaw,
-  dtoToObligationRaw,
-  dtoToReserveRaw,
-  farmRawToDto,
+  dtoToKaminoObligation,
+  dtoToKaminoReserve,
+  kaminoFarmStateToDto,
   jupLendingRewardsRateModelRawToDto,
   jupLendingStateRawToDto,
   jupRateModelRawToDto,
   jupTokenReserveRawToDto,
-  obligationRawToDto,
-  reserveRawToDto,
+  kaminoObligationToDto,
+  kaminoReserveToDto,
 } from "../vendor";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
@@ -73,10 +73,10 @@ export function dtoToBankMetadata(
   return {
     kaminoStates: bankMetadataDto.kaminoStates
       ? {
-          reserveState: dtoToReserveRaw(bankMetadataDto.kaminoStates.reserveState),
-          obligationState: dtoToObligationRaw(bankMetadataDto.kaminoStates.obligationState),
+          reserveState: dtoToKaminoReserve(bankMetadataDto.kaminoStates.reserveState),
+          obligationState: dtoToKaminoObligation(bankMetadataDto.kaminoStates.obligationState),
           farmState: bankMetadataDto.kaminoStates.farmState
-            ? dtoToFarmRaw(bankMetadataDto.kaminoStates.farmState)
+            ? dtoToKaminoFarmState(bankMetadataDto.kaminoStates.farmState)
             : undefined,
         }
       : undefined,
@@ -114,10 +114,10 @@ export function bankMetadataToDto(
   return {
     kaminoStates: bankMetadata.kaminoStates
       ? {
-          reserveState: reserveRawToDto(bankMetadata.kaminoStates.reserveState),
-          obligationState: obligationRawToDto(bankMetadata.kaminoStates.obligationState),
+          reserveState: kaminoReserveToDto(bankMetadata.kaminoStates.reserveState),
+          obligationState: kaminoObligationToDto(bankMetadata.kaminoStates.obligationState),
           farmState: bankMetadata.kaminoStates.farmState
-            ? farmRawToDto(bankMetadata.kaminoStates.farmState)
+            ? kaminoFarmStateToDto(bankMetadata.kaminoStates.farmState)
             : undefined,
         }
       : undefined,

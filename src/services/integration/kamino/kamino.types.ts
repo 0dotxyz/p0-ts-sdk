@@ -1,26 +1,26 @@
 import type {
-  FarmStateJSON,
-  FarmStateRaw,
-  ObligationJSON,
-  ObligationRaw,
-  ReserveJSON,
-  ReserveRaw,
+  KaminoFarmState,
+  KaminoFarmStateJSON,
+  KaminoObligation,
+  KaminoObligationJSON,
+  KaminoReserve,
+  KaminoReserveJSON,
 } from "~/vendor/klend";
 
 export type KaminoStateJsonByBank = Record<
   string,
   {
-    reserveState: ReserveJSON;
-    obligationState: ObligationJSON;
-    farmState?: FarmStateJSON;
+    reserveState: KaminoReserveJSON;
+    obligationState: KaminoObligationJSON;
+    farmState?: KaminoFarmStateJSON;
   }
 >;
 
 export type KaminoStateByBank = Record<
   string,
   {
-    reserveState: ReserveRaw;
-    obligationState: ObligationRaw;
-    farmState?: FarmStateRaw;
+    reserveState: KaminoReserve;
+    obligationState: KaminoObligation;
+    farmState?: KaminoFarmState;
   }
 >;
