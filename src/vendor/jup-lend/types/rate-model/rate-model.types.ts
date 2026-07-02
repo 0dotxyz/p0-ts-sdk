@@ -1,11 +1,9 @@
-import { PublicKey } from "@solana/web3.js";
-
 /**
- * Curated RateModel — identical to raw since all fields are primitives + PublicKey.
+ * Curated RateModel used throughout the codebase.
+ *
+ * Interest-rate curve parameters (all bps values).
  */
 export interface JupRateModel {
-  pubkey: PublicKey;
-  mint: PublicKey;
   version: number;
   rateAtZero: number;
   kink1Utilization: number;

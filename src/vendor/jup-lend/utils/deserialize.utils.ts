@@ -209,23 +209,15 @@ export function dtoToJupLendingStateRaw(dto: JupLendingStateJSON): JupLendingSta
 export function dtoToJupTokenReserveRaw(dto: JupTokenReserveJSON): JupTokenReserve {
   return {
     pubkey: new PublicKey(dto.pubkey),
-    mint: new PublicKey(dto.mint),
-    vault: new PublicKey(dto.vault),
     borrowRate: dto.borrowRate,
     feeOnInterest: dto.feeOnInterest,
     lastUtilization: dto.lastUtilization,
-    lastUpdateTimestamp: new BN(dto.lastUpdateTimestamp),
     supplyExchangePrice: new BN(dto.supplyExchangePrice),
     borrowExchangePrice: new BN(dto.borrowExchangePrice),
-    maxUtilization: dto.maxUtilization,
     totalSupplyWithInterest: new BN(dto.totalSupplyWithInterest),
     totalSupplyInterestFree: new BN(dto.totalSupplyInterestFree),
     totalBorrowWithInterest: new BN(dto.totalBorrowWithInterest),
     totalBorrowInterestFree: new BN(dto.totalBorrowInterestFree),
-    totalClaimAmount: new BN(dto.totalClaimAmount),
-    interactingProtocol: new PublicKey(dto.interactingProtocol),
-    interactingTimestamp: new BN(dto.interactingTimestamp),
-    interactingBalance: new BN(dto.interactingBalance),
   };
 }
 
@@ -233,21 +225,15 @@ export function dtoToJupLendingRewardsRateModelRaw(
   dto: JupLendingRewardsRateModelJSON
 ): JupLendingRewardsRateModel {
   return {
-    pubkey: new PublicKey(dto.pubkey),
-    mint: new PublicKey(dto.mint),
     startTvl: new BN(dto.startTvl),
     duration: new BN(dto.duration),
     startTime: new BN(dto.startTime),
     yearlyReward: new BN(dto.yearlyReward),
-    nextDuration: new BN(dto.nextDuration),
-    nextRewardAmount: new BN(dto.nextRewardAmount),
   };
 }
 
 export function dtoToJupRateModelRaw(dto: JupRateModelJSON): JupRateModel {
   return {
-    pubkey: new PublicKey(dto.pubkey),
-    mint: new PublicKey(dto.mint),
     version: dto.version,
     rateAtZero: dto.rateAtZero,
     kink1Utilization: dto.kink1Utilization,

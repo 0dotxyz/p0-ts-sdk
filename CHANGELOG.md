@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.2
+
+### Patch Changes
+
+- **Breaking (jup-lend DTO consumers):** trim curated jup-lend types and DTOs to the fields actually consumed, mirroring the klend curation. `JupTokenReserve`/`JupTokenReserveJSON` drop `mint`, `vault`, `lastUpdateTimestamp`, `maxUtilization`, `totalClaimAmount`, `interactingProtocol`, `interactingTimestamp`, `interactingBalance`; `JupRateModel`/`JupRateModelJSON` drop `pubkey`, `mint`; `JupLendingRewardsRateModel`/`JupLendingRewardsRateModelJSON` drop `pubkey`, `mint`, `nextDuration`, `nextRewardAmount` (and optional `bump`). Raw types and decoders are unchanged; raw remains structurally assignable to curated. `JupLendingState` is untouched.
+
 ## 2.4.1
 
 ### Patch Changes

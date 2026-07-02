@@ -9,21 +9,13 @@ import BN from "bn.js";
  */
 export interface JupTokenReserve {
   pubkey: PublicKey;
-  mint: PublicKey;
-  vault: PublicKey;
   borrowRate: number;
   feeOnInterest: number;
   lastUtilization: number;
-  lastUpdateTimestamp: BN;
   supplyExchangePrice: BN;
   borrowExchangePrice: BN;
-  maxUtilization: number;
   totalSupplyWithInterest: BN;
   totalSupplyInterestFree: BN;
   totalBorrowWithInterest: BN;
   totalBorrowInterestFree: BN;
-  totalClaimAmount: BN;
-  interactingProtocol: PublicKey;
-  interactingTimestamp: BN;
-  interactingBalance: BN;
 }

@@ -1,10 +1,7 @@
 /**
- * JSON-serializable DTO for the RateModel account.
- * PublicKey → string.
+ * JSON-serializable DTO for the curated RateModel.
  */
 export interface JupRateModelJSON {
-  pubkey: string;
-  mint: string;
   version: number;
   rateAtZero: number;
   kink1Utilization: number;
