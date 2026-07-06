@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.4.2"
+  },
+  "changesets": [
+    "program-1-9-upgrade"
+  ]
+}
