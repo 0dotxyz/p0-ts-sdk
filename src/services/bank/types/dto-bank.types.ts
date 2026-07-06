@@ -26,10 +26,16 @@ export interface RatePointDto {
 }
 
 export interface InterestRateConfigDto {
-  // Curve Params
-  optimalUtilizationRate: string;
-  plateauInterestRate: string;
-  maxInterestRate: string;
+  // DEPRECATED legacy 3-point curve params (see InterestRateConfig in bank.types.ts)
+  placeholder0: string;
+  placeholder1: string;
+  placeholder2: string;
+  /** @deprecated pre-0.1.9 name for placeholder0 — only present on old serialized DTOs */
+  optimalUtilizationRate?: string;
+  /** @deprecated pre-0.1.9 name for placeholder1 — only present on old serialized DTOs */
+  plateauInterestRate?: string;
+  /** @deprecated pre-0.1.9 name for placeholder2 — only present on old serialized DTOs */
+  maxInterestRate?: string;
 
   // Fees
   insuranceFeeFixedApr: string;
@@ -134,6 +140,9 @@ export interface BankTypeDto {
   emissionsRemaining: string;
   collectedProgramFeesOutstanding?: string;
 
+  stakedOracleDisabled?: boolean;
+  stakedOracleUsesOnramp?: boolean;
+
   oracleKey: string;
   pythShardId?: number;
   emode: EmodeSettingsDto;
@@ -159,6 +168,9 @@ export interface BankTypeDto {
     jupLendingState: string;
     jupFTokenVault: string;
     jupFTokenAta: string;
+  };
+  stakedIntegrationAccounts?: {
+    validatorVoteAccount: string;
   };
 }
 

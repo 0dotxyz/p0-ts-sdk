@@ -5,6 +5,7 @@ import { BorshInstructionCoder } from "@coral-xyz/anchor";
 import { BankType, getAssetShares, getLiabilityShares, AssetTag } from "~/services/bank";
 import { MarginfiProgram } from "~/types";
 import { composeRemainingAccounts } from "~/utils";
+import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
 
 import { BalanceType } from "../../types";
 
@@ -94,6 +95,8 @@ export function computeHealthCheckAccounts(
  *
  * @param banksToInclude - Array of banks to include in health check
  * @param enableSorting - Whether to sort/optimize account order (default: true)
+ * @param trailingBanks - Banks whose accounts are appended unsorted after the health pack
+ *   (e.g., the withdrawn bank on withdraw-all, for the 1.9 rate-limiter price fetch)
  * @returns Flattened array of public keys for health check accounts
  *
  * @example
@@ -107,39 +110,71 @@ export function computeHealthCheckAccounts(
  */
 export function computeHealthAccountMetas(
   banksToInclude: BankType[],
-  enableSorting = true
+  enableSorting = true,
+  trailingBanks: BankType[] = []
 ): PublicKey[] {
   let wrapperFn = enableSorting
     ? composeRemainingAccounts
     : (banksAndOracles: PublicKey[][]) => banksAndOracles.flat();
 
-  const accounts = wrapperFn(
-    banksToInclude.map((bank) => {
-      let keys = [];
-      if (bank.oracleKey.equals(PublicKey.default)) {
-        keys = [bank.address];
-      } else {
-        keys = [bank.address, bank.oracleKey];
-      }
+  const accounts = wrapperFn(banksToInclude.map(computeBankRiskAccountKeys));
 
-      if (
-        bank.config.assetTag === AssetTag.KAMINO ||
-        bank.config.assetTag === AssetTag.DRIFT ||
-        bank.config.assetTag === AssetTag.SOLEND ||
-        bank.config.assetTag === AssetTag.JUPLEND
-      ) {
-        keys.push(bank.config.oracleKeys[1]);
-      }
-
-      if (bank.config.assetTag === AssetTag.STAKED) {
-        keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
-      }
-
-      return keys;
-    })
-  );
+  // Trailing banks are appended AFTER the sorted health pack so the risk engine's strict
+  // in-order matching of active balances never consumes them (unconsumed trailing accounts
+  // are ignored by both the 1.8 and 1.9 programs). Used for withdraw-all: the withdrawn
+  // bank's balance is closed by the instruction so it must not sit inside the health pack,
+  // but the 1.9 rate-limiter/receivership price fetch searches the whole slice for the
+  // bank key followed by its oracle accounts.
+  for (const bank of trailingBanks) {
+    accounts.push(...computeBankRiskAccountKeys(bank));
+  }
 
   return accounts;
+}
+
+/**
+ * Builds the ordered account keys the program expects for a single bank in a risk/health
+ * remaining-accounts slice: bank, oracle, then per-asset-tag extras.
+ */
+function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
+  let keys = [];
+  if (bank.oracleKey.equals(PublicKey.default)) {
+    keys = [bank.address];
+  } else {
+    keys = [bank.address, bank.oracleKey];
+  }
+
+  if (
+    bank.config.assetTag === AssetTag.KAMINO ||
+    bank.config.assetTag === AssetTag.DRIFT ||
+    bank.config.assetTag === AssetTag.SOLEND ||
+    bank.config.assetTag === AssetTag.JUPLEND
+  ) {
+    keys.push(bank.config.oracleKeys[1]);
+  }
+
+  if (bank.config.assetTag === AssetTag.STAKED) {
+    keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
+    // 0.1.9 SVSP transition: the 1.9 program requires the pool's on-ramp as a 4th staked
+    // risk account. The canonical source is oracle_keys[3], written by the permissionless
+    // backfill (and by add_pool_permissionless for new banks) — nothing writes it on 1.8,
+    // so a non-default key implies 1.9 is live. If the on-ramp pricing flag (bank flags
+    // bit 10) is set before the key is backfilled, the program derives the on-ramp from
+    // the validator vote account, so we do the same as a fallback.
+    const onrampKey = bank.config.oracleKeys[3];
+    if (onrampKey && !onrampKey.equals(PublicKey.default)) {
+      keys.push(onrampKey);
+    } else if (
+      bank.stakedOracleUsesOnramp &&
+      bank.stakedIntegrationAccounts &&
+      !bank.stakedIntegrationAccounts.validatorVoteAccount.equals(PublicKey.default)
+    ) {
+      const pool = findPoolAddress(bank.stakedIntegrationAccounts.validatorVoteAccount);
+      keys.push(findPoolOnRampAddress(pool));
+    }
+  }
+
+  return keys;
 }
 
 /**
@@ -227,7 +262,10 @@ export function computeProjectedActiveBanksNoCpi(
           );
         }
 
-        if (ixArgs.repayAll || ixArgs.withdrawAll) {
+        // kaminoWithdraw packs withdraw-all as bit 0 of its `flags` arg since 0.1.9
+        const isKaminoWithdrawAll =
+          decoded.name === "kaminoWithdraw" && ((ixArgs.flags ?? 0) & 1) > 0;
+        if (ixArgs.repayAll || ixArgs.withdrawAll || isKaminoWithdrawAll) {
           targetBalance.active = false;
           targetBalance.bankPk = PublicKey.default;
         }
@@ -288,6 +326,12 @@ export function computeProjectedActiveBalancesNoCpi(
   projectedBalances: BalanceType[];
   impactedAssetsBanks: string[];
   impactedLiabilityBanks: string[];
+  /**
+   * Banks targeted by a withdraw instruction (partial or final). When the group
+   * rate limiter is enabled, the program requires a fresh oracle for these banks
+   * in the withdraw's remaining accounts — even if the position closes.
+   */
+  withdrawnBanks: string[];
 } {
   // Deep clone all balances to avoid mutating original
   let projectedBalances: BalanceType[] = balances.map((b) => ({
@@ -301,6 +345,7 @@ export function computeProjectedActiveBalancesNoCpi(
 
   const impactedAssetsBanks = new Set<string>();
   const impactedLiabilityBanks = new Set<string>();
+  const withdrawnBanks = new Set<string>();
 
   for (let index = 0; index < instructions.length; index++) {
     const ix = instructions[index];
@@ -447,6 +492,7 @@ export function computeProjectedActiveBalancesNoCpi(
       case "juplendWithdraw": {
         const targetBank = new PublicKey(ix.keys[3]!.pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
+        withdrawnBanks.add(targetBank.toBase58());
 
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
 
@@ -459,7 +505,12 @@ export function computeProjectedActiveBalancesNoCpi(
         }
 
         // Check if this is a full withdraw
-        if (ixArgs.withdrawAll) {
+        // (kaminoWithdraw packs withdraw-all as bit 0 of its `flags` arg since 0.1.9)
+        const isWithdrawAll =
+          decoded.name === "kaminoWithdraw"
+            ? ((ixArgs.flags ?? 0) & 1) > 0
+            : Boolean(ixArgs.withdrawAll);
+        if (isWithdrawAll) {
           targetBalance.assetShares = new BigNumber(0);
 
           // If no assets and no liabilities, close the balance
@@ -509,5 +560,6 @@ export function computeProjectedActiveBalancesNoCpi(
     projectedBalances,
     impactedAssetsBanks: Array.from(impactedAssetsBanks),
     impactedLiabilityBanks: Array.from(impactedLiabilityBanks),
+    withdrawnBanks: Array.from(withdrawnBanks),
   };
 }

@@ -1,6 +1,8 @@
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { BankRateLimiterRaw } from "~/services/bank";
+
 // ----------------------------------------------------------------------------
 // On-chain types
 // ----------------------------------------------------------------------------
@@ -112,6 +114,12 @@ interface MarginfiGroupRaw {
 
   /** Can modify a Bank's metadata, and nothing else */
   metadataAdmin: PublicKey;
+
+  /**
+   * Group-level net-outflow rate limiter, denominated in USD (bank rate limiters
+   * use native tokens). Same window struct as the bank rate limiter.
+   */
+  rateLimiter?: BankRateLimiterRaw;
 
   /** Reserved for future use */
   padding0: BN[][];

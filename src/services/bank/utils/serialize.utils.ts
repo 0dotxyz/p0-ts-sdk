@@ -81,9 +81,9 @@ function serializeInterestRateConfig(
   interestRateConfig: InterestRateConfig
 ): InterestRateConfigRaw {
   return {
-    optimalUtilizationRate: bigNumberToWrappedI80F48(interestRateConfig.optimalUtilizationRate),
-    plateauInterestRate: bigNumberToWrappedI80F48(interestRateConfig.plateauInterestRate),
-    maxInterestRate: bigNumberToWrappedI80F48(interestRateConfig.maxInterestRate),
+    placeholder0: bigNumberToWrappedI80F48(interestRateConfig.placeholder0),
+    placeholder1: bigNumberToWrappedI80F48(interestRateConfig.placeholder1),
+    placeholder2: bigNumberToWrappedI80F48(interestRateConfig.placeholder2),
 
     insuranceFeeFixedApr: bigNumberToWrappedI80F48(interestRateConfig.insuranceFeeFixedApr),
     insuranceIrFee: bigNumberToWrappedI80F48(interestRateConfig.insuranceIrFee),
@@ -234,6 +234,8 @@ function toBankDto(bank: BankType): BankTypeDto {
     totalLiabilityShares: bank.totalLiabilityShares.toString(),
     emissionsActiveBorrowing: bank.emissionsActiveBorrowing,
     emissionsActiveLending: bank.emissionsActiveLending,
+    stakedOracleDisabled: bank.stakedOracleDisabled,
+    stakedOracleUsesOnramp: bank.stakedOracleUsesOnramp,
     emissionsRate: bank.emissionsRate,
     emissionsMint: bank.emissionsMint.toBase58(),
     emissionsRemaining: bank.emissionsRemaining.toString(),
@@ -271,6 +273,11 @@ function toBankDto(bank: BankType): BankTypeDto {
           jupFTokenAta: bank.jupLendIntegrationAccounts.jupFTokenAta.toBase58(),
         }
       : undefined,
+    stakedIntegrationAccounts: bank.stakedIntegrationAccounts
+      ? {
+          validatorVoteAccount: bank.stakedIntegrationAccounts.validatorVoteAccount.toBase58(),
+        }
+      : undefined,
   };
 }
 
@@ -284,7 +291,7 @@ function toRateLimitWindowDto(window: RateLimitWindowType): RateLimitWindowDto {
   };
 }
 
-function toBankRateLimiterDto(rateLimiter: BankRateLimiterType): BankRateLimiterDto {
+export function toBankRateLimiterDto(rateLimiter: BankRateLimiterType): BankRateLimiterDto {
   return {
     hourly: toRateLimitWindowDto(rateLimiter.hourly),
     daily: toRateLimitWindowDto(rateLimiter.daily),
@@ -331,9 +338,9 @@ function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
 
 function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): InterestRateConfigDto {
   return {
-    optimalUtilizationRate: interestRateConfig.optimalUtilizationRate.toString(),
-    plateauInterestRate: interestRateConfig.plateauInterestRate.toString(),
-    maxInterestRate: interestRateConfig.maxInterestRate.toString(),
+    placeholder0: interestRateConfig.placeholder0.toString(),
+    placeholder1: interestRateConfig.placeholder1.toString(),
+    placeholder2: interestRateConfig.placeholder2.toString(),
     insuranceFeeFixedApr: interestRateConfig.insuranceFeeFixedApr.toString(),
     insuranceIrFee: interestRateConfig.insuranceIrFee.toString(),
     protocolFixedFeeApr: interestRateConfig.protocolFixedFeeApr.toString(),

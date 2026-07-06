@@ -180,6 +180,8 @@ async function makeKaminoDepositIx(
   },
   args: {
     amount: BN;
+    /** 0.1.9-only: refresh the reserve in-instruction. Ignored by the 1.8 program. */
+    refreshReserve?: boolean;
   },
   remainingAccounts: AccountMeta[] = []
 ) {
@@ -199,7 +201,7 @@ async function makeKaminoDepositIx(
   } = accounts;
 
   return mfProgram.methods
-    .kaminoDeposit(args.amount)
+    .kaminoDeposit(args.amount, args.refreshReserve ?? null)
     .accounts(accounts)
     .accountsPartial(optionalAccounts)
     .remainingAccounts(remainingAccounts)
@@ -438,6 +440,11 @@ async function makeKaminoWithdrawIx(
   args: {
     amount: BN;
     isFinalWithdrawal: boolean;
+    /**
+     * 0.1.9-only: refresh the reserve via batch refresh (flags bit 1). Do NOT set while the
+     * 1.8 program is deployed — its `Option<bool>` decoder rejects flag bytes above 1.
+     */
+    refreshReserve?: boolean;
   },
   remainingAccounts: AccountMeta[] = []
 ) {
@@ -456,8 +463,13 @@ async function makeKaminoWithdrawIx(
     ...optionalAccounts
   } = accounts;
 
+  // flags bit 0 = withdraw all, bit 1 = batch refresh. `isFinalWithdrawal ? 1 : null` is
+  // byte-identical to the pre-0.1.9 `withdrawAll: Option<bool>` encoding, so it lands on
+  // both the 1.8 and 1.9 programs.
+  const flags = (args.isFinalWithdrawal ? 1 : 0) | (args.refreshReserve ? 2 : 0);
+
   return mfProgram.methods
-    .kaminoWithdraw(args.amount, args.isFinalWithdrawal)
+    .kaminoWithdraw(args.amount, flags === 0 ? null : flags)
     .accounts({
       marginfiAccount,
       bank,
@@ -583,22 +595,6 @@ function makeLendingAccountLiquidateIx(
     })
     .accountsPartial(optionalAccounts)
     .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-function makeLendingAccountClearEmissionsIx(
-  mfiProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-  }
-) {
-  return mfiProgram.methods
-    .lendingAccountClearEmissions()
-    .accounts({
-      marginfiAccount: accounts.marginfiAccount,
-      bank: accounts.bank,
-    })
     .instruction();
 }
 
@@ -782,7 +778,11 @@ async function makePoolAddPermissionlessStakedBankIx(
     feePayer: PublicKey;
     bankMint: PublicKey;
     solPool: PublicKey;
+    /** The SVSP on-ramp account, derived from the stake pool (0.1.9+ program only) */
+    poolOnramp: PublicKey;
     stakePool: PublicKey;
+    /** The validator vote account backing the stake pool (0.1.9+ program only) */
+    validatorVoteAccount: PublicKey;
     // Optional accounts - to override inference
     marginfiGroup?: PublicKey;
     /**
@@ -812,7 +812,9 @@ async function makePoolAddPermissionlessStakedBankIx(
     feePayer,
     bankMint,
     solPool,
+    poolOnramp,
     stakePool,
+    validatorVoteAccount,
     tokenProgram = TOKEN_PROGRAM_ID,
     ...optionalAccounts
   } = accounts;
@@ -824,7 +826,9 @@ async function makePoolAddPermissionlessStakedBankIx(
       feePayer,
       bankMint,
       solPool,
+      poolOnramp,
       stakePool,
+      validatorVoteAccount,
       tokenProgram,
     })
     .accountsPartial(optionalAccounts)
@@ -938,7 +942,6 @@ const instructions = {
   makeInitMarginfiAccountIx,
   makeInitMarginfiAccountPdaIx,
   makeLendingAccountLiquidateIx,
-  makeLendingAccountClearEmissionsIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
   makeBeginFlashLoanIx,

@@ -57,7 +57,6 @@ import {
   MakeRollPtTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
-  makeClearEmissionsIx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
   makeWithdrawTx,
@@ -531,27 +530,6 @@ class MarginfiAccount implements MarginfiAccountType {
       marginfiAccount: this,
       authority: this.authority,
     });
-  }
-
-  /**
-   * Creates a withdraw emissions instruction.
-   *
-   * @deprecated Rewards are now distributed offchain. If you wish to get access to emission data, please reach out.
-   *
-   * @param program - The Marginfi program instance
-   * @param banks - Map of all available banks
-   * @param bankAddress - The bank to clear emissions for
-   *
-   * @returns Promise resolving to InstructionsWrapper containing the clear emissions instructions
-   *
-   * @see {@link makeClearEmissionsIx} for implementation
-   */
-  async makeClearEmissionsIx(
-    program: MarginfiProgram,
-    banks: Map<string, Bank>,
-    bankAddress: PublicKey
-  ): Promise<InstructionsWrapper> {
-    return makeClearEmissionsIx(program, this, banks, bankAddress);
   }
 
   /**

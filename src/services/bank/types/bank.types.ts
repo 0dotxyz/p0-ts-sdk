@@ -11,6 +11,9 @@ export enum OperationalState {
   Operational = "Operational",
   ReduceOnly = "ReduceOnly",
   KilledByBankruptcy = "KilledByBankruptcy",
+  /** Awaiting a JupLend seed deposit; all operations blocked (0.1.9+) */
+  Uninitialized = "Uninitialized",
+  ReduceOnlyWithBorrowingPower = "ReduceOnlyWithBorrowingPower",
 }
 
 export interface RatePoint {
@@ -19,10 +22,12 @@ export interface RatePoint {
 }
 
 export interface InterestRateConfig {
-  // Curve Params
-  optimalUtilizationRate: BigNumber;
-  plateauInterestRate: BigNumber;
-  maxInterestRate: BigNumber;
+  // DEPRECATED legacy 3-point curve params, dead on-chain since 0.1.9. Banks that never
+  // migrated to the 7-point curve (curveType 0) still hold their old values in these slots:
+  // placeholder0 = optimal utilization, placeholder1 = plateau rate, placeholder2 = max rate.
+  placeholder0: BigNumber;
+  placeholder1: BigNumber;
+  placeholder2: BigNumber;
 
   // Fees
   insuranceFeeFixedApr: BigNumber;
@@ -39,7 +44,7 @@ export interface InterestRateConfig {
 
 export interface InterestRateConfigOpt extends Omit<
   InterestRateConfig,
-  "optimalUtilizationRate" | "plateauInterestRate" | "maxInterestRate" | "curveType"
+  "placeholder0" | "placeholder1" | "placeholder2" | "curveType"
 > {}
 
 export enum OracleSetup {
@@ -163,6 +168,14 @@ export interface BankType {
   emissionsRemaining: BigNumber;
   collectedProgramFeesOutstanding: BigNumber;
 
+  /** Flags bit 9: staked oracle pricing is temporarily disabled (SVSP transition) */
+  stakedOracleDisabled?: boolean;
+  /**
+   * Flags bit 10: staked oracle pricing includes the SPL single-pool on-ramp in NAV.
+   * When set, staked banks require the on-ramp as a 4th risk account.
+   */
+  stakedOracleUsesOnramp?: boolean;
+
   oracleKey: PublicKey;
   emode: EmodeSettingsType;
   rateLimiter?: BankRateLimiterType;
@@ -187,6 +200,10 @@ export interface BankType {
     jupLendingState: PublicKey;
     jupFTokenVault: PublicKey;
     jupFTokenAta: PublicKey;
+  };
+  stakedIntegrationAccounts?: {
+    /** Default pubkey on banks created before the 0.1.9 backfill */
+    validatorVoteAccount: PublicKey;
   };
 }
 
