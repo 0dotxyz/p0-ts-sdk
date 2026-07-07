@@ -96,7 +96,11 @@ export async function makeDriftWithdrawIx({
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
   } else {
-    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
+    // its accounts are appended at the end: the 1.9 program searches the slice for the
+    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
+    // accounts are ignored by 1.8).
+    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
     remainingAccounts.push(...accountMetas);
   }
 
@@ -379,7 +383,11 @@ export async function makeKaminoWithdrawIx({
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
   } else {
-    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
+    // its accounts are appended at the end: the 1.9 program searches the slice for the
+    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
+    // accounts are ignored by 1.8).
+    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
     remainingAccounts.push(...accountMetas);
   }
 
@@ -504,7 +512,11 @@ export async function makeWithdrawIx({
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
   } else {
-    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
+    // its accounts are appended at the end: the 1.9 program searches the slice for the
+    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
+    // accounts are ignored by 1.8).
+    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
     remainingAccounts.push(...accountMetas);
   }
 
@@ -864,7 +876,11 @@ export async function makeJuplendWithdrawIx({
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
   } else {
-    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
+    // its accounts are appended at the end: the 1.9 program searches the slice for the
+    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
+    // accounts are ignored by 1.8).
+    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
     remainingAccounts.push(...accountMetas);
   }
 

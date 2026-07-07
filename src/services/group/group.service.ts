@@ -88,7 +88,9 @@ export async function makeAddPermissionlessStakedBankIx(
       feePayer: feePayer,
       bankMint: lstMint,
       solPool,
+      poolOnramp: onRampAddress,
       stakePool: poolAddress,
+      validatorVoteAccount: voteAccountAddress,
     },
     remainingKeys.map((key) => ({
       pubkey: key,

@@ -170,22 +170,25 @@ export function computeBaseInterestRate(bank: BankType): BigNumber {
   const utilizationRate = computeUtilizationRate(bank);
   const curveType = interestRateConfig.curveType;
 
-  // verify 1 is indeed the only curve type for multipoint
-  if (curveType === 1) {
-    return computeMultipointCurve(
-      utilizationRate,
-      interestRateConfig.zeroUtilRate,
-      interestRateConfig.hundredUtilRate,
-      interestRateConfig.points
-    );
-  } else {
+  // curveType 0 banks never migrated to the 7-point curve; their legacy 3-point params
+  // still live in the (now deprecated) placeholder slots. Only read the placeholders on a
+  // strict curveType === 0 check — the program team may repurpose those slots for future
+  // curve types, so any other value must take the multipoint path.
+  if (curveType === 0) {
     return computeLegacyCurve(
       utilizationRate,
-      interestRateConfig.optimalUtilizationRate,
-      interestRateConfig.plateauInterestRate,
-      interestRateConfig.maxInterestRate
+      interestRateConfig.placeholder0,
+      interestRateConfig.placeholder1,
+      interestRateConfig.placeholder2
     );
   }
+
+  return computeMultipointCurve(
+    utilizationRate,
+    interestRateConfig.zeroUtilRate,
+    interestRateConfig.hundredUtilRate,
+    interestRateConfig.points
+  );
 }
 
 export function computeUtilizationRate(bank: BankType): BigNumber {

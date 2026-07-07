@@ -174,7 +174,9 @@ type OperationalStateRaw =
   | { paused: {} }
   | { operational: {} }
   | { reduceOnly: {} }
-  | { killedByBankruptcy: {} };
+  | { killedByBankruptcy: {} }
+  | { uninitialized: {} }
+  | { reduceOnlyWithBorrowingPower: {} };
 
 interface RatePointRaw {
   util: number;
@@ -182,10 +184,10 @@ interface RatePointRaw {
 }
 
 interface InterestRateConfigRaw {
-  // Curve Params
-  optimalUtilizationRate: WrappedI80F48;
-  plateauInterestRate: WrappedI80F48;
-  maxInterestRate: WrappedI80F48;
+  // DEPRECATED legacy 3-point curve params (see InterestRateConfig in bank.types.ts)
+  placeholder0: WrappedI80F48;
+  placeholder1: WrappedI80F48;
+  placeholder2: WrappedI80F48;
 
   // Fees
   insuranceFeeFixedApr: WrappedI80F48;
@@ -202,7 +204,7 @@ interface InterestRateConfigRaw {
 
 interface InterestRateConfigCompactRaw extends Omit<
   InterestRateConfigRaw,
-  "optimalUtilizationRate" | "plateauInterestRate" | "maxInterestRate" | "curveType"
+  "placeholder0" | "placeholder1" | "placeholder2" | "curveType"
 > {}
 
 interface InterestRateConfigOptRaw extends InterestRateConfigCompactRaw {}

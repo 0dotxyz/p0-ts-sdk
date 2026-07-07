@@ -301,15 +301,6 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Creates a clear emissions instruction with auto-injected client data.
-   *
-   * @param bankAddress - Bank address to clear emissions for
-   */
-  async makeClearEmissionsIx(bankAddress: PublicKey): Promise<InstructionsWrapper> {
-    return this.account.makeClearEmissionsIx(this.client.program, this.client.bankMap, bankAddress);
-  }
-
-  /**
    * Creates a begin flash loan instruction.
    *
    * @param endIndex - End index for the flash loan

@@ -6,6 +6,7 @@ import { AccountType, MarginfiProgram } from "../types";
 import {
   BankConfigOpt,
   BankConfigOptRaw,
+  BankRateLimiterType,
   fetchMultipleBanks,
   InstructionsWrapper,
   makeAddPermissionlessStakedBankIx,
@@ -13,6 +14,7 @@ import {
   makePoolConfigureBankIx,
   MarginfiGroupRaw,
   MarginfiGroupType,
+  parseBankRateLimiterRaw,
 } from "../services";
 
 import { Bank } from "./bank";
@@ -24,10 +26,13 @@ import { Bank } from "./bank";
 class MarginfiGroup implements MarginfiGroupType {
   public address: PublicKey;
   public admin: PublicKey;
+  /** Group-level net-outflow rate limiter (USD windows); see isGroupRateLimiterEnabled */
+  public rateLimiter?: BankRateLimiterType;
 
-  constructor(admin: PublicKey, address: PublicKey) {
+  constructor(admin: PublicKey, address: PublicKey, rateLimiter?: BankRateLimiterType) {
     this.admin = admin;
     this.address = address;
+    this.rateLimiter = rateLimiter;
   }
 
   static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiGroup> {
@@ -55,10 +60,12 @@ class MarginfiGroup implements MarginfiGroupType {
   // ----------------------------------------------------------------------------
 
   static fromAccountParsed(address: PublicKey, accountData: MarginfiGroupRaw): MarginfiGroup {
-    const marginfiGroup = {
-      admin: accountData.admin,
-    };
-    return new MarginfiGroup(marginfiGroup.admin, address);
+    // rateLimiter is camelCased by anchor's Program account client; decoding via the raw
+    // BorshCoder (fromBuffer) yields snake_case fields and leaves it undefined here.
+    const rateLimiter = accountData.rateLimiter
+      ? parseBankRateLimiterRaw(accountData.rateLimiter)
+      : undefined;
+    return new MarginfiGroup(accountData.admin, address, rateLimiter);
   }
 
   static fromBuffer(address: PublicKey, rawData: Buffer, idl: MarginfiIdlType) {

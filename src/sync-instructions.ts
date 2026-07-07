@@ -44,6 +44,13 @@ function encodeOptionBool(value: boolean | null | undefined): Buffer {
   return Buffer.concat([Buffer.from([1]), encodeBool(value)]);
 }
 
+function encodeOptionU8(value: number | null | undefined): Buffer {
+  if (value === null || value === undefined) {
+    return Buffer.from([0]);
+  }
+  return Buffer.concat([Buffer.from([1]), encodeU8(value)]);
+}
+
 function encodePublicKey(pubkey: PublicKey): Buffer {
   return Buffer.from(pubkey.toBytes());
 }
@@ -61,7 +68,6 @@ const DISCRIMINATORS = {
   LENDING_ACCOUNT_WITHDRAW: Buffer.from([36, 72, 74, 19, 210, 210, 192, 192]),
   LENDING_ACCOUNT_BORROW: Buffer.from([4, 126, 116, 53, 48, 5, 212, 31]),
   LENDING_ACCOUNT_LIQUIDATE: Buffer.from([214, 169, 151, 213, 251, 167, 86, 219]),
-  LENDING_ACCOUNT_CLEAR_EMISSIONS: Buffer.from([239, 4, 221, 98, 45, 167, 201, 244]),
   LENDING_POOL_ADD_BANK: Buffer.from([215, 68, 72, 78, 208, 218, 103, 182]),
   LENDING_POOL_CONFIGURE_BANK: Buffer.from([121, 173, 156, 40, 93, 148, 56, 237]),
   LENDING_ACCOUNT_START_FLASHLOAN: Buffer.from([14, 131, 33, 220, 81, 186, 180, 107]),
@@ -371,6 +377,8 @@ function makeKaminoDepositIx(
   },
   args: {
     amount: BN;
+    /** 0.1.9-only: refresh the reserve in-instruction. Ignored by the 1.8 program. */
+    refreshReserve?: boolean;
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
@@ -444,7 +452,11 @@ function makeKaminoDepositIx(
 
   keys.push(...remainingAccounts);
 
-  const data = Buffer.concat([DISCRIMINATORS.KAMINO_DEPOSIT, encodeU64(args.amount)]);
+  const data = Buffer.concat([
+    DISCRIMINATORS.KAMINO_DEPOSIT,
+    encodeU64(args.amount),
+    encodeOptionBool(args.refreshReserve ?? null),
+  ]);
 
   return new TransactionInstruction({ keys, programId, data });
 }
@@ -472,6 +484,11 @@ function makeKaminoWithdrawIx(
   args: {
     amount: BN;
     isFinalWithdrawal: boolean;
+    /**
+     * 0.1.9-only: refresh the reserve via batch refresh (flags bit 1). Do NOT set while the
+     * 1.8 program is deployed — its `Option<bool>` decoder rejects flag bytes above 1.
+     */
+    refreshReserve?: boolean;
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
@@ -549,10 +566,15 @@ function makeKaminoWithdrawIx(
 
   keys.push(...remainingAccounts);
 
+  // flags bit 0 = withdraw all, bit 1 = batch refresh. `isFinalWithdrawal ? 1 : null` is
+  // byte-identical to the pre-0.1.9 `withdrawAll: Option<bool>` encoding, so it lands on
+  // both the 1.8 and 1.9 programs.
+  const flags = (args.isFinalWithdrawal ? 1 : 0) | (args.refreshReserve ? 2 : 0);
+
   const data = Buffer.concat([
     DISCRIMINATORS.KAMINO_WITHDRAW,
     encodeU64(args.amount),
-    encodeOptionBool(args.isFinalWithdrawal),
+    encodeOptionU8(flags === 0 ? null : flags),
   ]);
 
   return new TransactionInstruction({ keys, programId, data });
@@ -614,25 +636,6 @@ function makeLendingAccountLiquidateIx(
   ]);
 
   return new TransactionInstruction({ keys, programId, data });
-}
-
-function makeLendingAccountClearEmissionsIx(
-  programId: PublicKey,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-  }
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
-    { pubkey: accounts.bank, isSigner: false, isWritable: false },
-  ];
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data: DISCRIMINATORS.LENDING_ACCOUNT_CLEAR_EMISSIONS,
-  });
 }
 
 function makeCloseAccountIx(
@@ -1088,7 +1091,9 @@ function makePoolAddPermissionlessStakedBankIx(
     feePayer: PublicKey;
     bankMint: PublicKey;
     solPool: PublicKey;
+    poolOnramp: PublicKey; // SVSP on-ramp, derived from the stake pool (0.1.9+ program only)
     stakePool: PublicKey;
+    validatorVoteAccount: PublicKey; // vote account backing the stake pool (0.1.9+ program only)
     bank: PublicKey; // PDA - caller must derive using seeds: [marginfiGroup, bankMint, bankSeed]
     liquidityVaultAuthority: PublicKey; // PDA - caller must derive
     liquidityVault: PublicKey; // PDA - caller must derive
@@ -1109,7 +1114,9 @@ function makePoolAddPermissionlessStakedBankIx(
     { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
     { pubkey: accounts.bankMint, isSigner: false, isWritable: false },
     { pubkey: accounts.solPool, isSigner: false, isWritable: false },
+    { pubkey: accounts.poolOnramp, isSigner: false, isWritable: false },
     { pubkey: accounts.stakePool, isSigner: false, isWritable: false },
+    { pubkey: accounts.validatorVoteAccount, isSigner: false, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
     {
       pubkey: accounts.liquidityVaultAuthority,
@@ -1158,7 +1165,6 @@ const syncInstructions = {
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeLendingAccountLiquidateIx,
-  makeLendingAccountClearEmissionsIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
   makeBeginFlashLoanIx,

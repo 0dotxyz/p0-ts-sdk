@@ -38,6 +38,15 @@ export interface SmartCrankParams {
   program: MarginfiProgram;
   connection?: Connection;
   crossbarUrl?: string;
+  /**
+   * Whether the group's net-outflow rate limiter is enabled (see
+   * `isGroupRateLimiterEnabled(group.rateLimiter)`). While enabled, the program
+   * requires a fresh oracle for every withdrawn bank in the withdraw instruction's
+   * remaining accounts — including withdraw-all, where the bank drops out of the
+   * health pack. When set, those oracles are always cranked and block if
+   * uncrankable. Defaults to false (no behavior change).
+   */
+  groupRateLimiterEnabled?: boolean;
 }
 
 /**
@@ -76,32 +85,87 @@ export async function computeSmartCrank({
   connection,
   crossbarUrl,
   assetShareValueMultiplierByBank,
+  groupRateLimiterEnabled = false,
 }: SmartCrankParams): Promise<SmartCrankResult> {
   // Step 0: Determine projected active balances after transaction
-  const { projectedBalances, impactedAssetsBanks, impactedLiabilityBanks } =
-    computeProjectedActiveBalancesNoCpi(
-      marginfiAccount.balances,
-      instructions,
-      program,
-      bankMap,
-      assetShareValueMultiplierByBank
+  const { projectedBalances, withdrawnBanks } = computeProjectedActiveBalancesNoCpi(
+    marginfiAccount.balances,
+    instructions,
+    program,
+    bankMap,
+    assetShareValueMultiplierByBank
+  );
+
+  // Helper to check if bank is Switchboard
+  const isSwitchboard = (bank: BankType) => getOracleSourceFromBank(bank).key === "switchboard";
+
+  // While the group rate limiter is enabled, every withdraw (partial or final) needs a
+  // fresh oracle for the withdrawn bank in remaining accounts — independent of health.
+  // These oracles must always be cranked, and an uncrankable one blocks the transaction
+  // outright (the on-chain price fetch would fail).
+  const rateLimitBanks = groupRateLimiterEnabled
+    ? withdrawnBanks
+        .map((pk) => bankMap.get(pk))
+        .filter((bank): bank is BankType => bank !== undefined)
+        .filter(isSwitchboard)
+    : [];
+
+  let rateLimitOracles: Array<{ key: PublicKey; price: OraclePrice }> = [];
+  let uncrankableRateLimitBanks: Array<{ bank: BankType; reason: string }> = [];
+  if (rateLimitBanks.length > 0) {
+    const rateLimitCrankability = await checkMultipleOraclesCrankability(
+      rateLimitBanks,
+      oraclePrices,
+      connection,
+      crossbarUrl
     );
+    const partitioned = partitionBanksByCrankability(rateLimitBanks, rateLimitCrankability);
+    uncrankableRateLimitBanks = partitioned.uncrankable.map(({ bank, reason }) => ({
+      bank,
+      reason: `Rate-limited withdraw requires a fresh oracle: ${reason}`,
+    }));
+    const seenOracles = new Set<string>();
+    rateLimitOracles = partitioned.crankable
+      .map((bank) => ({
+        key: bank.oracleKey,
+        price: oraclePrices.get(bank.address.toBase58()),
+      }))
+      .filter((o): o is { key: PublicKey; price: OraclePrice } => o.price !== undefined)
+      .filter((o) => {
+        const key = o.key.toBase58();
+        if (seenOracles.has(key)) return false;
+        seenOracles.add(key);
+        return true;
+      });
+  }
+
+  /** Merges rate-limit oracle requirements into a result, forcing a block if any are uncrankable */
+  const withRateLimitCranks = (result: SmartCrankResult): SmartCrankResult => {
+    if (rateLimitBanks.length === 0) return result;
+    const existingKeys = new Set(result.requiredOracles.map((o) => o.key.toBase58()));
+    return {
+      ...result,
+      requiredOracles: [
+        ...result.requiredOracles,
+        ...rateLimitOracles.filter((o) => !existingKeys.has(o.key.toBase58())),
+      ],
+      uncrankableAssets: [...result.uncrankableAssets, ...uncrankableRateLimitBanks],
+      isCrankable: result.isCrankable && uncrankableRateLimitBanks.length === 0,
+    };
+  };
 
   const liabilityBalances = projectedBalances.filter((b) => b.liabilityShares.gt(0));
   const assetBalances = projectedBalances.filter((b) => b.assetShares.gt(0));
 
-  // No liabilities means no risk, no cranking needed
+  // No liabilities means no risk, no cranking needed (beyond rate-limit oracles)
   if (liabilityBalances.length === 0) {
-    return {
+    return withRateLimitCranks({
       requiredOracles: [],
       uncrankableLiabilities: [],
       uncrankableAssets: [],
       isCrankable: true,
-    };
+    });
   }
-
-  // Helper to check if bank is Switchboard
-  const isSwitchboard = (bank: BankType) => getOracleSourceFromBank(bank).key === "switchboard";
 
   // Get banks from balances
   const getBanks = (balances: typeof projectedBalances) =>
@@ -109,20 +173,32 @@ export async function computeSmartCrank({
       .map((b) => bankMap.get(b.bankPk.toBase58()))
       .filter((bank): bank is BankType => bank !== undefined);
 
-  const assetBanks = getBanks(assetBalances);
+  const projectedAssetBanks = getBanks(assetBalances);
   const liabilityBanks = getBanks(liabilityBalances);
+
+  // SVSP transition (0.1.9): staked banks with oracle pricing disabled (flags bit 9)
+  // cannot be priced on-chain, so their collateral cannot back the health check.
+  // Exclude them from priceable assets and surface them as uncrankable assets.
+  const assetBanks = projectedAssetBanks.filter((bank) => !bank.stakedOracleDisabled);
+  const disabledStakedAssets = projectedAssetBanks
+    .filter((bank) => bank.stakedOracleDisabled)
+    .map((bank) => ({
+      bank,
+      reason: "Staked oracle pricing disabled (SVSP transition)",
+    }));
+
   const allActiveBanks = [...liabilityBanks, ...assetBanks];
 
   // Only Switchboard Pull oracles need cranking
   const allActiveSwbBanks = allActiveBanks.filter(isSwitchboard);
 
   if (allActiveSwbBanks.length === 0) {
-    return {
+    return withRateLimitCranks({
       requiredOracles: [],
       uncrankableLiabilities: [],
-      uncrankableAssets: [],
+      uncrankableAssets: disabledStakedAssets,
       isCrankable: true,
-    };
+    });
   }
 
   // Check crankability for all Switchboard banks
@@ -142,9 +218,10 @@ export async function computeSmartCrank({
   const uncrankableLiabilities = uncrankable.filter((uc) =>
     liabilityBanks.some((lb) => lb.address.equals(uc.bank.address))
   );
-  const uncrankableAssets = uncrankable.filter((uc) =>
-    assetBanks.some((ab) => ab.address.equals(uc.bank.address))
-  );
+  const uncrankableAssets = [
+    ...uncrankable.filter((uc) => assetBanks.some((ab) => ab.address.equals(uc.bank.address))),
+    ...disabledStakedAssets,
+  ];
 
   // Get all available assets (both Switchboard and non-Switchboard)
   const allAvailableAssets = assetBanks.filter(
@@ -157,12 +234,12 @@ export async function computeSmartCrank({
       "\n✗ BLOCKED: Uncrankable liabilities:",
       uncrankableLiabilities.map((l) => l.bank.tokenSymbol)
     );
-    return {
+    return withRateLimitCranks({
       requiredOracles: [],
       uncrankableLiabilities,
       uncrankableAssets,
       isCrankable: false,
-    };
+    });
   }
   // Helper to collect unique oracle keys with prices from banks
   const getOracleKeys = (banks: PublicKey[]): Array<{ key: PublicKey; price: OraclePrice }> => {
@@ -211,12 +288,12 @@ export async function computeSmartCrank({
 
     if (healthDiff.gt(0)) {
       console.log("\n✓ Pyth assets cover liabilities, cranking only liability SWB banks");
-      return {
+      return withRateLimitCranks({
         requiredOracles: getOracleKeys(liabilityBankAddresses),
         uncrankableLiabilities: [],
         uncrankableAssets,
         isCrankable: true,
-      };
+      });
     }
   }
 
@@ -263,21 +340,21 @@ export async function computeSmartCrank({
     console.log("✗ Assets don't cover liabilities even with all cranked");
     // If there are uncrankable assets, they're blocking a potentially healthy transaction
     if (uncrankableAssets.length > 0) {
-      return {
+      return withRateLimitCranks({
         requiredOracles: [],
         uncrankableLiabilities: [],
         uncrankableAssets,
         isCrankable: false,
-      };
+      });
     }
 
     // If no uncrankable assets, this is a bug - fallback to cranking everything
-    return {
+    return withRateLimitCranks({
       requiredOracles: getOracleKeys(allActiveSwbBanks.map((bank) => bank.address)),
       uncrankableLiabilities: [],
       uncrankableAssets: [],
       isCrankable: true,
-    };
+    });
   }
 
   // Add full crank combination as fallback
@@ -341,18 +418,18 @@ export async function computeSmartCrank({
     console.error(
       "BUG: No valid crank combination found. Falling back to crank all available oracles."
     );
-    return {
+    return withRateLimitCranks({
       requiredOracles: getOracleKeys(crankable.map((bank) => bank.address)),
       uncrankableLiabilities: [],
       uncrankableAssets: [],
       isCrankable: true,
-    };
+    });
   }
 
-  return {
+  return withRateLimitCranks({
     requiredOracles: bestCombination.oracleKeys,
     uncrankableLiabilities: [],
     uncrankableAssets,
     isCrankable: true,
-  };
+  });
 }

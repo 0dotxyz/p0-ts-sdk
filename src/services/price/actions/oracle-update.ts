@@ -28,6 +28,12 @@ type MakeSmartCrankSwbFeedIxParams = {
   program: MarginfiProgram;
   connection: Connection;
   crossbarUrl?: string;
+  /**
+   * Pass `isGroupRateLimiterEnabled(group.rateLimiter)`. While the group rate limiter
+   * is enabled, withdrawn banks' switchboard oracles are always cranked (the program
+   * requires a fresh price for every withdraw, even withdraw-all).
+   */
+  groupRateLimiterEnabled?: boolean;
 };
 
 export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxParams): Promise<{
