@@ -7,6 +7,9 @@ import { MarginfiAccountType } from "~/services/account/types";
 import {
   computeAssetHealthComponent,
   computeLiabilityHealthComponent,
+  computeActiveEmodePairs,
+  computeLowestEmodeWeights,
+  getEmodePairs,
 } from "~/services/account/utils";
 import { computeProjectedActiveBalancesNoCpi, MarginRequirementType } from "~/services/account";
 
@@ -167,6 +170,19 @@ export async function computeSmartCrank({
     });
   }
 
+  // The on-chain health check applies emode asset weights whenever the account's
+  // projected positions activate an emode pair. Derive them from the projected
+  // balances (not the pre-transaction account state) so the health estimates below
+  // match the program — otherwise emode-dependent accounts look under-collateralized
+  // and the crank aborts with a false "assets don't cover liabilities".
+  const activeEmodeWeightsByBank = computeLowestEmodeWeights(
+    computeActiveEmodePairs(
+      getEmodePairs(Array.from(bankMap.values())),
+      liabilityBalances.map((b) => b.bankPk),
+      assetBalances.map((b) => b.bankPk)
+    )
+  );
+
   // Get banks from balances
   const getBanks = (balances: typeof projectedBalances) =>
     balances
@@ -282,6 +298,7 @@ export async function computeSmartCrank({
       assetBanks: nonSWBAssets.map((b) => b.address),
       marginRequirement: MarginRequirementType.Initial,
       assetShareValueMultiplierByBank,
+      activeEmodeWeightsByBank,
     });
 
     const healthDiff = nonSWBAssetsHealth.minus(totalLiabilitiesInitHealth);
@@ -332,6 +349,7 @@ export async function computeSmartCrank({
     assetBanks: allAvailableAssetAddresses,
     marginRequirement: MarginRequirementType.Initial,
     assetShareValueMultiplierByBank,
+    activeEmodeWeightsByBank,
   });
   const healthWithAllAssets = allAssetsHealth.minus(totalLiabilitiesInitHealth);
 
@@ -380,6 +398,7 @@ export async function computeSmartCrank({
         assetBanks: [...nonSWBAssetAddresses, ...comboAddresses],
         marginRequirement: MarginRequirementType.Initial,
         assetShareValueMultiplierByBank,
+        activeEmodeWeightsByBank,
       });
 
       const health = comboHealth.minus(totalLiabilitiesInitHealth);
