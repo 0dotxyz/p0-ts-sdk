@@ -1,6 +1,12 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { decodeGammaLpVaultData, GammaLpVaultRaw } from "~/vendor/gamma";
+import {
+  decodeGammaLpVaultData,
+  decodeGammaWithdrawReceiptData,
+  deriveGammaWithdrawReceipt,
+  GammaLpVaultRaw,
+  GammaWithdrawReceiptRaw,
+} from "~/vendor/gamma";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /** Fetch and decode a Gamma `LpVault` account. Throws if it does not exist. */
@@ -13,6 +19,25 @@ export async function fetchGammaLpVault(
     throw new Error(`Gamma LpVault account not found: ${lpVault.toBase58()}`);
   }
   return decodeGammaLpVaultData(info.data, lpVault);
+}
+
+/**
+ * Fetch and decode a user's `WithdrawReceipt` for a Gamma LP vault. The receipt
+ * is a singleton PDA per (user, vault) that tracks a queued withdrawal
+ * (`pendingShares` awaiting keeper fulfillment → `claimableShares`/
+ * `claimableAssets` once fulfilled). Returns `null` when no account exists,
+ * i.e. the user has no active withdrawal (the common case — withdrawals only
+ * queue when the vault is temporarily illiquid).
+ */
+export async function fetchGammaWithdrawReceipt(
+  connection: Connection,
+  user: PublicKey,
+  lpVault: PublicKey
+): Promise<GammaWithdrawReceiptRaw | null> {
+  const [receipt] = deriveGammaWithdrawReceipt(user, lpVault);
+  const info = await connection.getAccountInfo(receipt);
+  if (!info) return null;
+  return decodeGammaWithdrawReceiptData(info.data, receipt);
 }
 
 /**

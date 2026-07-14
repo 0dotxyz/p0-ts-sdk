@@ -1,6 +1,7 @@
 import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 
 import { Amount } from "~/types";
+import type { SwapOpts, SwapEngineRunner } from "~/services/account";
 
 // -- Gamma Vault Actions ----
 
@@ -38,3 +39,17 @@ export interface MakeVaultCompleteWithdrawalIxParams extends VaultActionBasePara
 export interface MakeVaultCompleteWithdrawalTxParams
   extends MakeVaultCompleteWithdrawalIxParams,
     VaultTxExtras {}
+
+/**
+ * Zap-deposit: swap `inputMint` into the vault's asset mint, then deposit.
+ * `inputAmount` is a UI amount of `inputMint`.
+ */
+export interface MakeVaultDepositWithSwapTxParams
+  extends VaultActionBaseParams,
+    VaultTxExtras {
+  inputMint: string;
+  inputAmount: Amount;
+  inputDecimals: number;
+  swapOpts: SwapOpts;
+  swapEngineRunner?: SwapEngineRunner;
+}
