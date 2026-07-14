@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0-alpha.0
+
+### Minor Changes
+
+- Add Gamma vaults support: new `services/vaults` module with `deposit`, `withdraw`, and `depositWithSwap` actions, vault action types, and fetch utilities. Includes vendored Gamma constants under `vendor/gamma`.
+
 ## 2.5.5
 
 ### Patch Changes
