@@ -12,12 +12,15 @@ import {
   deriveGammaWithdrawalPolicy,
   makeGammaDepositIx,
 } from "~/vendor/gamma";
+import { createAssociatedTokenAccountIdempotentInstruction } from "~/vendor/spl";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
   InstructionsWrapper,
+  makeWrapSolIxs,
   TransactionType,
 } from "~/services/transaction";
+import { WSOL_MINT } from "~/constants";
 
 import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
 import type { MakeVaultDepositIxParams, MakeVaultDepositTxParams } from "../types";
@@ -45,6 +48,25 @@ export async function makeVaultDepositIx(
 
   const amountNative = new BN(new BigNumber(amount).toFixed(0));
 
+  // Native-SOL vault: the deposit spends WSOL from the user's asset ATA, but the
+  // user holds native SOL (no WSOL ATA → "AccountOwnedByWrongProgram"). Wrap the
+  // deposit amount into the WSOL ATA first (idempotent create + fund + sync).
+  // `makeWrapSolIxs` takes a UI amount; the asset is WSOL (9 decimals).
+  const wrapIxs: TransactionInstruction[] = vault.assetsMint.equals(WSOL_MINT)
+    ? makeWrapSolIxs(user, new BigNumber(amountNative.toString()).shiftedBy(-9))
+    : [];
+
+  // The Gamma deposit ix does NOT create the user's share ATA — a first-time
+  // depositor has none, so the (System-owned) account fails the deposit's token
+  // constraint with "AccountOwnedByWrongProgram". Idempotently create it first.
+  const createShareAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+    user,
+    userShareAta,
+    user,
+    vault.sharesMint,
+    tokenProgram
+  );
+
   const ix = makeGammaDepositIx(
     {
       user,
@@ -61,7 +83,11 @@ export async function makeVaultDepositIx(
     amountNative
   );
 
-  const instructions: TransactionInstruction[] = [ix];
+  const instructions: TransactionInstruction[] = [
+    ...wrapIxs,
+    createShareAtaIx,
+    ix,
+  ];
 
   return { instructions, keys: [] };
 }
