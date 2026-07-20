@@ -15,7 +15,7 @@ import { getOracleSourceFromOracleSetup } from "../utils";
  * Implements intelligent routing based on oracle type and risk tier:
  * - Zero oracles: Returns 0 price immediately
  * - Isolated assets: Uses enriched bank price (no external calls)
- * - Collateral assets: Uses Pyth/Switchboard with Birdeye fallback
+ * - Collateral assets: Uses Pyth/Switchboard with price fallback
  *
  * @param banks - Array of bank objects
  * @param opts - Optional configuration including API endpoint usage, connection, and enriched banks
@@ -203,7 +203,7 @@ function handleIsolatedAssetBanks(
 }
 
 /**
- * Handles banks using existing oracle infrastructure (Pyth + Switchboard + Birdeye fallback)
+ * Handles banks using existing oracle infrastructure (Pyth + Switchboard + price fallback)
  * @param banks - Array of banks
  * @param opts - Optional configuration
  * @returns Map of bank addresses to oracle prices from external oracle providers
