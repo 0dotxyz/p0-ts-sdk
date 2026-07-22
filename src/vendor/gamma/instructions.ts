@@ -32,6 +32,7 @@ export interface GammaDepositAccounts {
   user: PublicKey;
   lpVault: PublicKey;
   withdrawalPolicy: PublicKey;
+  depositPolicy: PublicKey;
   assetsAccount: PublicKey;
   userAssetAta: PublicKey;
   userShareAta: PublicKey;
@@ -58,6 +59,7 @@ export function makeGammaDepositIx(
     meta(accounts.user, true, true),
     meta(accounts.lpVault, false, true),
     meta(accounts.withdrawalPolicy, false, true),
+    meta(accounts.depositPolicy, false, false),
     meta(accounts.assetsAccount, false, true),
     meta(accounts.userAssetAta, false, true),
     meta(accounts.userShareAta, false, true),
