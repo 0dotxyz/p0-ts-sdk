@@ -147,6 +147,13 @@ export interface BuildGetRequest {
   payer?: string;
   wrapAndUnwrapSol?: boolean;
   destinationTokenAccount?: string;
+  /**
+   * Set to true if the transaction will be submitted as part of a Jito bundle.
+   * Excludes DEXes that are incompatible with Jito bundles (their routes can
+   * lock vote accounts, which Jito rejects with "bundles cannot lock any vote
+   * accounts"). Defaults to false on the API side.
+   */
+  forJitoBundle?: boolean;
 }
 
 /** Response from `GET /swap/v2/build`. */

@@ -100,6 +100,10 @@ async function buildCandidates(
         mode: "fast",
         maxAccounts,
         wrapAndUnwrapSol: false,
+        // The swap engine always executes inside a Jito bundle; without this
+        // the Router may route through DEXes whose swaps lock vote accounts,
+        // which Jito rejects ("bundles cannot lock any vote accounts").
+        forJitoBundle: true,
         destinationTokenAccount: req.destinationTokenAccount.toBase58(),
         platformFeeBps: useFee ? req.platformFeeBps : undefined,
         feeAccount: useFee ? feeAccount : undefined,
