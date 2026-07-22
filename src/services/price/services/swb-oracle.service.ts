@@ -11,7 +11,7 @@ import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
 import {
-  getBirdeyeFallbackPricesByFeedId,
+  getFallbackPricesByFeedId,
   mapBrokenFeedsToOraclePrices,
   mapSwbBanksToOraclePrices,
   getOracleSourceFromOracleSetup,
@@ -37,6 +37,11 @@ type FetchSwbOracleApiOpts = {
     endpoint: string;
     queryKey?: string;
   };
+  priceFallback?: {
+    endpoint: string;
+    queryKey?: string;
+  };
+  /** @deprecated Renamed to `priceFallback` — the endpoint is no longer Birdeye-backed. */
   birdeyeFallback?: {
     endpoint: string;
     queryKey?: string;
@@ -113,18 +118,19 @@ export const fetchSwbOracleData = async (
 
   // Step 5: Fetch oracle prices
   let crossbarResponse: Record<string, FeedResponse | undefined>;
-  let birdeyeResponse: Record<string, number> = {};
+  let fallbackPricesByFeedId: Record<string, number> = {};
   if (opts.mode === "api") {
     crossbarResponse = await fetchSwbOraclePricesFromAPI(
       swbFeedIds,
       opts.swbCrossbarPrice.endpoint,
       { queryKey: opts.swbCrossbarPrice.queryKey }
     );
-    if (brokenSwbFeeds.length > 0 && opts.birdeyeFallback) {
-      birdeyeResponse = await getBirdeyeFallbackPricesByFeedId(
+    const priceFallback = opts.priceFallback ?? opts.birdeyeFallback;
+    if (brokenSwbFeeds.length > 0 && priceFallback) {
+      fallbackPricesByFeedId = await getFallbackPricesByFeedId(
         brokenSwbFeeds,
-        opts.birdeyeFallback.endpoint,
-        { queryKey: opts.birdeyeFallback.queryKey }
+        priceFallback.endpoint,
+        { queryKey: priceFallback.queryKey }
       );
     }
   } else {
@@ -134,7 +140,7 @@ export const fetchSwbOracleData = async (
       opts.crossbarEndpoint || "https://crossbar.0.xyz",
       "https://crossbar.switchboard.xyz"
     );
-    birdeyeResponse = {};
+    fallbackPricesByFeedId = {};
   }
 
   // Step 6: Map switchboardBanks to oracle prices
@@ -148,7 +154,7 @@ export const fetchSwbOracleData = async (
   const brokenFeedOraclePriceMap = mapBrokenFeedsToOraclePrices(
     switchboardBanks,
     swbOracleAiDataByKey,
-    birdeyeResponse
+    fallbackPricesByFeedId
   );
 
   // Step 8: Combine bank oracle prices and broken feed oracle prices

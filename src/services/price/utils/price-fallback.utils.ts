@@ -1,4 +1,4 @@
-interface BirdeyeTokenPriceResponse {
+interface TokenPriceResponse {
   success: boolean;
   data: Record<
     string,
@@ -7,7 +7,8 @@ interface BirdeyeTokenPriceResponse {
 }
 
 /**
- * Fetches Birdeye prices for specific mint addresses using the existing /api/tokens/multi endpoint.
+ * Fetches fallback token prices for specific mint addresses using the app's
+ * token price endpoint (e.g. /api/tokens/multi).
  *
  * @param mintAddresses - Array of mint addresses to fetch prices for
  * @param apiEndpoint - Base API endpoint URL (without query parameters)
@@ -15,7 +16,7 @@ interface BirdeyeTokenPriceResponse {
  * @param opts.queryKey - Query parameter name for mint list (defaults to "mintList")
  * @returns Promise resolving to a record mapping mint addresses to their price values
  */
-export async function getBirdeyePricesForMints(
+export async function getFallbackPricesForMints(
   mintAddresses: string[],
   apiEndpoint: string,
   opts?: { queryKey?: string }
@@ -29,7 +30,7 @@ export async function getBirdeyePricesForMints(
       throw new Error("Response is not ok");
     }
 
-    const data = (await response.json()) as BirdeyeTokenPriceResponse;
+    const data = (await response.json()) as TokenPriceResponse;
     if (!data.success) {
       throw new Error("Success field is false");
     }
@@ -43,17 +44,23 @@ export async function getBirdeyePricesForMints(
     return extractedPrices;
   } catch (error) {
     // TODO: add sentry logging
-    console.warn("Error fetching Birdeye prices for static feeds:", error);
+    console.warn("Error fetching fallback prices for static feeds:", error);
     return {};
   }
 }
 
 /**
- * Fetches Birdeye fallback prices and maps them by feed ID
+ * @deprecated Renamed to {@link getFallbackPricesForMints} — the endpoint is
+ * no longer Birdeye-backed.
+ */
+export const getBirdeyePricesForMints = getFallbackPricesForMints;
+
+/**
+ * Fetches fallback prices and maps them by feed ID
  * @param feedMint - Array of objects containing feedId and mintAddress pairs
  * @returns Promise resolving to record of prices indexed by feed ID
  */
-export const getBirdeyeFallbackPricesByFeedId = async (
+export const getFallbackPricesByFeedId = async (
   feedMint: {
     feedId: string;
     mintAddress: string;
@@ -62,7 +69,7 @@ export const getBirdeyeFallbackPricesByFeedId = async (
   opts?: { queryKey?: string }
 ): Promise<Record<string, number>> => {
   const mintAddresses = feedMint.map((feedMint) => feedMint.mintAddress);
-  const prices = await getBirdeyePricesForMints(
+  const prices = await getFallbackPricesForMints(
     mintAddresses,
     apiEndpoint,
     opts
@@ -81,3 +88,9 @@ export const getBirdeyeFallbackPricesByFeedId = async (
 
   return priceByFeedId;
 };
+
+/**
+ * @deprecated Renamed to {@link getFallbackPricesByFeedId} — the endpoint is
+ * no longer Birdeye-backed.
+ */
+export const getBirdeyeFallbackPricesByFeedId = getFallbackPricesByFeedId;

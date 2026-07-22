@@ -50,16 +50,16 @@ export const mapSwbBanksToOraclePrices = (
 };
 
 /**
- * Maps broken Switchboard feeds to oracle prices using Birdeye fallback data
+ * Maps broken Switchboard feeds to oracle prices using fallback price data
  * @param banks - Array of bank objects
  * @param swbOracleAiDataByKey - Oracle account information indexed by oracle key
- * @param birdeyeResponse - Birdeye price data indexed by feed ID
- * @returns Map of bank addresses to their corresponding oracle prices from Birdeye fallback
+ * @param fallbackPricesByFeedId - Fallback price data indexed by feed ID
+ * @returns Map of bank addresses to their corresponding oracle prices from the price fallback
  */
 export const mapBrokenFeedsToOraclePrices = (
   banks: BankType[],
   swbOracleAiDataByKey: SwbOracleAiDataByKey,
-  birdeyeResponse: Record<string, number>
+  fallbackPricesByFeedId: Record<string, number>
 ): Map<string, OraclePrice> => {
   const bankOraclePriceMap = new Map<string, OraclePrice>();
 
@@ -67,12 +67,12 @@ export const mapBrokenFeedsToOraclePrices = (
     const oracleKey = bank.config.oracleKeys[0]!.toBase58();
     const oracleData = swbOracleAiDataByKey[oracleKey];
     const oracleFeed = oracleData?.feedHash;
-    const birdeyeData = oracleFeed ? birdeyeResponse[oracleFeed] : undefined;
-    if (oracleFeed && oracleData && birdeyeData) {
+    const fallbackPrice = oracleFeed ? fallbackPricesByFeedId[oracleFeed] : undefined;
+    if (oracleFeed && oracleData && fallbackPrice) {
       const timestamp = new Date().getTime().toString();
 
       const oraclePrice = parseSwbOraclePriceData(
-        [birdeyeData],
+        [fallbackPrice],
         new BN(oracleData.stdev),
         timestamp,
         oracleData
@@ -81,7 +81,7 @@ export const mapBrokenFeedsToOraclePrices = (
         bankOraclePriceMap.set(bank.address.toBase58(), oraclePrice);
       }
     } else {
-      // Bank not found in birdeye fallback skipping
+      // Bank not found in price fallback, skipping
     }
   });
 
