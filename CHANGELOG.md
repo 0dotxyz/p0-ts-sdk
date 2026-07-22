@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.2
+
+### Patch Changes
+
+- 59cb37d: chore: rename birdeye fallback to generic naming
+
 ## 2.5.2-alpha.0
 
 ### Patch Changes
