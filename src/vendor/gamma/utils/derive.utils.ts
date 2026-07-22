@@ -8,6 +8,7 @@ import {
 
 import {
   GAMMA_VAULT_PROGRAM_ID,
+  SEED_DEPOSIT_POLICY,
   SEED_DEPOSIT_RECEIPT,
   SEED_WITHDRAW_ESCROW,
   SEED_WITHDRAW_RECEIPT,
@@ -24,6 +25,20 @@ export function deriveGammaWithdrawalPolicy(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from(SEED_WITHDRAWAL_POLICY), lpVault.toBuffer()],
+    programId
+  );
+}
+
+/**
+ * Derive the DepositPolicy PDA for a vault.
+ * Seeds: ["deposit_policy", lpVault]
+ */
+export function deriveGammaDepositPolicy(
+  lpVault: PublicKey,
+  programId: PublicKey = GAMMA_VAULT_PROGRAM_ID
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(SEED_DEPOSIT_POLICY), lpVault.toBuffer()],
     programId
   );
 }
