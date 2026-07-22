@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0-alpha.2
+
+### Patch Changes
+
+- rebase
+
 ## 2.6.0-alpha.1
 
 ### Patch Changes

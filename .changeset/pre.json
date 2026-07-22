@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.5.1"
   },
   "changesets": [
+    "brown-ads-do",
     "gamma-idl-v2",
     "gamma-vaults"
   ]
