@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.3
+
+### Patch Changes
+
+- Swap engine: Jupiter adapter now requests routes with `forJitoBundle: true`, preventing the router from selecting DEXes whose swap instructions lock vote accounts (which Jito rejects with "bundles cannot lock any vote accounts"). Ensures Jupiter swaps executed inside a Jito bundle land reliably.
+
 ## 2.5.2
 
 ### Patch Changes
