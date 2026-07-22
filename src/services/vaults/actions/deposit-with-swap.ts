@@ -9,6 +9,7 @@ import BN from "bn.js";
 
 import {
   deriveGammaAta,
+  deriveGammaDepositPolicy,
   deriveGammaDepositReceipt,
   deriveGammaWithdrawalPolicy,
   makeGammaDepositIx,
@@ -88,6 +89,7 @@ export async function makeVaultDepositWithSwapTx(
   const assetDecimals = mintInfo.data[44]!;
 
   const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
+  const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
   const [depositReceipt] = deriveGammaDepositReceipt(user, lpVault);
   const userAssetAta = deriveGammaAta(vault.assetsMint, user, tokenProgram);
   const userShareAta = deriveGammaAta(vault.sharesMint, user, tokenProgram);
@@ -107,6 +109,7 @@ export async function makeVaultDepositWithSwapTx(
     user,
     lpVault,
     withdrawalPolicy,
+    depositPolicy,
     assetsAccount: vault.assetsAccount,
     userAssetAta,
     userShareAta,
