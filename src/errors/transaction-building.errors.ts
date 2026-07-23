@@ -11,6 +11,10 @@ export enum TransactionBuildingErrorCode {
   JUPLEND_STATE_NOT_FOUND = "JUPLEND_STATE_NOT_FOUND",
   SWITCHBOARD_FEED_UPDATE_FAILED = "SWITCHBOARD_FEED_UPDATE_FAILED",
   SWAP_QUOTE_FAILED = "SWAP_QUOTE_FAILED",
+  TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
+  TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
+  TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
+  TRANSFER_POSITIONS_BANK_RATE_LIMIT = "TRANSFER_POSITIONS_BANK_RATE_LIMIT",
 }
 
 /**
@@ -70,6 +74,29 @@ export interface TransactionBuildingErrorDetails {
     inputMint: string;
     outputMint: string;
     reason: string;
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION]: {
+    reason: string;
+    bankAddresses: string[];
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK]: {
+    bankAddress: string;
+    assetTag: number;
+    bankSymbol?: string;
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE]: {
+    reason: string;
+    marginUsd: string;
+    netMovedUsd: string;
+    positionValueUsd?: string;
+    bankAddress?: string;
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT]: {
+    bankAddress: string;
+    bankSymbol?: string;
+    requiredNative: string;
+    remainingNative: string;
+    window: "hourly" | "daily";
   };
 }
 
@@ -231,6 +258,75 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.SWAP_QUOTE_FAILED,
       `${provider} swap quote failed for ${inputMint} → ${outputMint}: ${reason}`,
       { provider, inputMint, outputMint, reason }
+    );
+  }
+
+  /**
+   * The requested set of positions to transfer is invalid (inactive bank on the source,
+   * destination overlap, capacity/slot conflict, group/authority mismatch, etc.).
+   */
+  static transferPositionsInvalidSelection(
+    reason: string,
+    bankAddresses: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION,
+      `Invalid transfer-positions selection: ${reason}`,
+      { reason, bankAddresses }
+    );
+  }
+
+  /**
+   * A selected position lives in a bank whose asset tag is not supported by transfer-positions
+   * (v1 supports DEFAULT and STAKED only).
+   */
+  static transferPositionsUnsupportedBank(
+    bankAddress: string,
+    assetTag: number,
+    bankSymbol?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK,
+      `Bank ${bankSymbol ?? bankAddress} (asset tag ${assetTag}) is not supported by transfer-positions`,
+      { bankAddress, assetTag, bankSymbol }
+    );
+  }
+
+  /**
+   * The requested transfer cannot be split into transactions that each keep both accounts
+   * healthy at their flashloan boundaries (e.g. a debt position whose value exceeds the
+   * source account's health margin and can't be paired with offsetting collateral in one tx).
+   */
+  static transferPositionsUnsplittable(
+    reason: string,
+    marginUsd: string,
+    netMovedUsd: string,
+    positionValueUsd?: string,
+    bankAddress?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE,
+      `Transfer cannot be split into healthy transactions: ${reason}`,
+      { reason, marginUsd, netMovedUsd, positionValueUsd, bankAddress }
+    );
+  }
+
+  /**
+   * Borrowing the moved debt on the destination account before the offsetting repay lands
+   * would exceed the debt bank's on-chain rate-limit window. Retryable: split the transfer
+   * smaller or wait for the window to advance.
+   */
+  static transferPositionsBankRateLimit(
+    bankAddress: string,
+    requiredNative: string,
+    remainingNative: string,
+    window: "hourly" | "daily",
+    bankSymbol?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT,
+      `Transferring this debt would exceed the ${window} rate limit on bank ${bankSymbol ?? bankAddress}; split it smaller or retry next window`,
+      { bankAddress, bankSymbol, requiredNative, remainingNative, window }
     );
   }
 

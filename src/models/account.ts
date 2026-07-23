@@ -73,6 +73,9 @@ import {
   makeDriftDepositTx,
   MakeDriftWithdrawTxParams,
   makeDriftWithdrawTx,
+  makeTransferPositionsTx,
+  MakeTransferPositionsTxParams,
+  TransferPositionsResult,
   SwapQuoteResult,
 } from "~/services/account";
 import {
@@ -784,6 +787,26 @@ class MarginfiAccount implements MarginfiAccountType {
     quoteResponse: SwapQuoteResult | undefined;
   }> {
     return makeLoopTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Atomically move a selected set of positions from this account to a destination account
+   * (same authority, same group) using flashloans, auto-splitting across transactions as needed.
+   *
+   * @see {@link makeTransferPositionsTx} for detailed implementation
+   */
+  async makeTransferPositionsTx(
+    params: Omit<MakeTransferPositionsTxParams, "marginfiAccount">
+  ): Promise<TransferPositionsResult> {
+    return makeTransferPositionsTx({
       ...params,
       marginfiAccount: this,
       overrideInferAccounts: {

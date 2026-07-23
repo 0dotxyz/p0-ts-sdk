@@ -12,7 +12,7 @@ import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
-import { SolanaTransaction } from "~/services/transaction";
+import { ExtendedV0Transaction, SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
@@ -377,6 +377,68 @@ export interface MakeFlashLoanTxParams {
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   isSync?: boolean;
   signers?: Signer[];
+}
+
+export type TransferPositionSide = "collateral" | "debt";
+
+/** One position selected to move from the source account to the destination account. */
+export interface TransferPositionPlanItem {
+  bankAddress: PublicKey;
+  side: TransferPositionSide;
+  /** UI amount of the position (collateral: deposited to B; debt: repaid on A). */
+  uiAmount: BigNumber;
+  /** Initial-weight, price-biased USD magnitude of the position (always >= 0). */
+  initUsdValue: BigNumber;
+}
+
+/** A set of positions that move together in a single flashloan transaction. */
+export interface TransferBundle {
+  positions: TransferPositionPlanItem[];
+  /** Cumulative net moved initial-weight USD (moved collateral − moved debt) after this tx. */
+  cumulativeNetMovedUsd: BigNumber;
+}
+
+export interface MakeTransferPositionsTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  /** Source account A (positions move out of this account). */
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose A-positions to move; the side is inferred from A's balance. */
+  bankAddresses: PublicKey[];
+  /** Destination account B. Omit to create a fresh account inside the first flashloan tx. */
+  destinationAccount?: MarginfiAccountType;
+  /** Only used when `destinationAccount` is omitted. */
+  createDestinationOpts?: { accountIndex?: number; thirdPartyId?: number };
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  /** Token program per transferred bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  /** Head-room added to each borrow over the estimated debt for interest accrual. Default 10 bps. */
+  borrowPaddingBps?: number;
+  /** Feasibility safety margin (USD) applied at each transaction boundary. Default derived. */
+  boundaryEpsilonUsd?: number;
+  /** Optional emode weight overrides by bank address (used for initial-weight pricing). */
+  activeEmodeWeightsByBank?: Map<
+    string,
+    { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }
+  >;
+  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  groupRateLimiterEnabled?: boolean;
+  crossbarUrl?: string;
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface TransferPositionsResult {
+  /** Ordered for sequential execution: [setup/crank txs…, flashloan txs…]. */
+  transactions: ExtendedV0Transaction[];
+  /** Index of the first flashloan tx in `transactions`. */
+  actionTxIndex: number;
+  /** The destination account (passed-in, or the projected account created in the first tx). */
+  destinationAccount: MarginfiAccountType;
+  bundles: TransferBundle[];
 }
 
 export interface MakeLoopTxParams {
