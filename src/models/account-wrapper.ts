@@ -19,12 +19,15 @@ import {
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
   MakeWithdrawIxOpts,
+  MakeTransferPositionsTxParams,
   MarginRequirementType,
   SwapQuoteResult,
   TransactionBuilderResult,
+  TransferPositionsResult,
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
 } from "~/services/account";
+import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
 import {
   BankType,
@@ -406,6 +409,52 @@ export class MarginfiAccountWrapper {
       addressLookupTableAccounts: this.client.addressLookupTables,
     };
     return this.account.makeLoopTx(fullParams);
+  }
+
+  /**
+   * Atomically move a selected set of positions from this account to a destination account with
+   * auto-injected client data.
+   *
+   * Auto-injects: program, connection, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
+   * assetShareValueMultiplierByBank, addressLookupTables, tokenProgramsByBank, groupRateLimiterEnabled.
+   */
+  async makeTransferPositionsTx(
+    params: Omit<
+      MakeTransferPositionsTxParams,
+      | "program"
+      | "connection"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "assetShareValueMultiplierByBank"
+      | "addressLookupTableAccounts"
+      | "tokenProgramsByBank"
+      | "groupRateLimiterEnabled"
+    >
+  ): Promise<TransferPositionsResult> {
+    const tokenProgramsByBank = new Map<string, PublicKey>();
+    for (const bankAddress of params.bankAddresses) {
+      const bank = this.client.bankMap.get(bankAddress.toBase58());
+      if (!bank) throw new Error(`Bank ${bankAddress.toBase58()} not found`);
+      const mintData = await this.getMintDataFromBank(bank);
+      tokenProgramsByBank.set(bankAddress.toBase58(), mintData.tokenProgram);
+    }
+
+    const fullParams: MakeTransferPositionsTxParams = {
+      ...params,
+      program: this.client.program,
+      connection: this.client.program.provider.connection,
+      marginfiAccount: this.account,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+      tokenProgramsByBank,
+      groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
+    };
+    return this.account.makeTransferPositionsTx(fullParams);
   }
 
   /**
