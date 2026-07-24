@@ -2,21 +2,14 @@ import { BigNumber } from "bignumber.js";
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
-  Connection,
   PublicKey,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
 
+import { AssetTag, BankType, RiskTier } from "~/services/bank";
 import {
-  AssetTag,
-  BankType,
-  RiskTier,
-  computeRateLimitRemainingCapacity,
-} from "~/services/bank";
-import {
-  OraclePrice,
   makeSmartCrankSwbFeedIx,
   makeRefreshKaminoBanksIxs,
   makeUpdateJupLendRateIxs,
@@ -32,22 +25,14 @@ import {
 import { TransactionBuildingError } from "~/errors";
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { MarginfiProgram, BankIntegrationMetadataMap } from "~/types";
-import { uiToNative } from "~/utils";
 
 import {
   MakeTransferPositionsTxParams,
-  TransferBundle,
-  TransferPositionPlanItem,
+  TransferPositionSide,
   TransferPositionsResult,
 } from "../types";
-import { MarginfiAccountType, MarginRequirementType } from "../types/account.types";
-import {
-  computeHealthAccountMetas,
-  computeHealthComponentsFromBalances,
-  computeQuantityUi,
-  computeV0TxSize,
-  getBalanceUsdValueWithPriceBias,
-} from "../utils";
+import { MarginfiAccountType } from "../types/account.types";
+import { computeHealthAccountMetas, computeQuantityUi } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
 import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
@@ -60,8 +45,8 @@ import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecy
 /** Fixed marginfi balance slots per account. */
 const MAX_BALANCES = 16;
 
-/** Safety margin (bytes) kept below the hard cap when probing whether a bundle fits. */
-const TRANSFER_SIZE_MARGIN = 32;
+/** Default hard cap on positions moved in one transfer. Keeps the whole transfer inside one tx. */
+const DEFAULT_MAX_TRANSFER_POSITIONS = 5;
 
 const DEFAULT_BORROW_PADDING_BPS = 10;
 
@@ -71,118 +56,14 @@ const CU_IXS = () => [
 ];
 
 // --------------------------------------------------------------------------------------
-// Pure bundle planner
+// Classification
 // --------------------------------------------------------------------------------------
 
-/**
- * Partition the selected positions into flashloan bundles that each keep both accounts healthy
- * at their transaction boundary.
- *
- * Feasibility corridor: let `W` be the cumulative net moved initial-weight USD (moved collateral
- * minus moved debt). At every tx boundary the destination's borrow health check requires the moved
- * bundle to be init-healthy (`W >= 0`) and the source's end-of-flashloan check requires its
- * remainder healthy (`W <= M`, where `M` is the source's health margin). We keep intermediate
- * boundaries strictly inside `[epsilon, M - epsilon]`; the final boundary is relaxed to the fully
- * validated `W_total`. Inside a single tx `W` may swing freely, which is what lets a debt larger
- * than `M` ride alongside its offsetting collateral.
- *
- * `fitsInTx(candidate, bundleIndex)` reports whether a candidate set of positions fits one v0 tx
- * (bytes + account locks). Injected so the planner stays pure and unit-testable.
- */
-export function planTransferBundles(args: {
-  positions: TransferPositionPlanItem[];
-  marginUsd: BigNumber;
-  epsilonUsd: BigNumber;
-  fitsInTx: (candidate: TransferPositionPlanItem[], bundleIndex: number) => boolean;
-}): TransferBundle[] {
-  const { positions, marginUsd, epsilonUsd, fitsInTx } = args;
-
-  const signed = (p: TransferPositionPlanItem) =>
-    p.side === "collateral" ? p.initUsdValue : p.initUsdValue.negated();
-
-  const byValueDesc = (a: TransferPositionPlanItem, b: TransferPositionPlanItem) =>
-    b.initUsdValue.comparedTo(a.initUsdValue) ?? 0;
-
-  const colls = positions.filter((p) => p.side === "collateral").sort(byValueDesc);
-  const debts = positions.filter((p) => p.side === "debt").sort(byValueDesc);
-
-  const lowB = epsilonUsd;
-  const highB = marginUsd.minus(epsilonUsd);
-  const mid = lowB.plus(highB).div(2);
-
-  const bundles: TransferBundle[] = [];
-  let W = new BigNumber(0);
-  let ci = 0;
-  let di = 0;
-
-  while (ci < colls.length || di < debts.length) {
-    const bundle: TransferPositionPlanItem[] = [];
-    let w = W;
-
-    // Grow the bundle, greedily balancing so the running boundary W stays near the corridor centre.
-    while (ci < colls.length || di < debts.length) {
-      const coll = ci < colls.length ? colls[ci] : null;
-      const debt = di < debts.length ? debts[di] : null;
-
-      const collFits = coll ? fitsInTx([...bundle, coll], bundles.length) : false;
-      const debtFits = debt ? fitsInTx([...bundle, debt], bundles.length) : false;
-      if (!collFits && !debtFits) break;
-
-      let choice: "coll" | "debt";
-      if (collFits && debtFits && coll && debt) {
-        const wIfColl = w.plus(signed(coll));
-        const wIfDebt = w.plus(signed(debt));
-        choice = wIfColl.minus(mid).abs().lte(wIfDebt.minus(mid).abs()) ? "coll" : "debt";
-      } else {
-        choice = collFits ? "coll" : "debt";
-      }
-
-      if (choice === "coll" && coll) {
-        bundle.push(coll);
-        w = w.plus(signed(coll));
-        ci++;
-      } else if (debt) {
-        bundle.push(debt);
-        w = w.plus(signed(debt));
-        di++;
-      }
-    }
-
-    if (bundle.length === 0) {
-      // The next single position does not fit an empty transaction on its own.
-      const stuck = ci < colls.length ? colls[ci] : debts[di];
-      throw TransactionBuildingError.transferPositionsUnsplittable(
-        "a single position does not fit one transaction",
-        marginUsd.toString(),
-        W.toString(),
-        stuck?.initUsdValue.toString(),
-        stuck?.bankAddress.toBase58()
-      );
-    }
-
-    const allConsumed = ci >= colls.length && di >= debts.length;
-    if (!allConsumed) {
-      if (w.lt(lowB) || w.gt(highB)) {
-        throw TransactionBuildingError.transferPositionsUnsplittable(
-          "cannot keep both accounts healthy at a transaction boundary; source health margin is too thin to split this transfer",
-          marginUsd.toString(),
-          w.toString()
-        );
-      }
-    }
-
-    bundles.push({ positions: bundle, cumulativeNetMovedUsd: w });
-    W = w;
-  }
-
-  return bundles;
-}
-
-// --------------------------------------------------------------------------------------
-// Classification + pricing
-// --------------------------------------------------------------------------------------
-
-export interface ClassifiedPosition extends TransferPositionPlanItem {
+export interface ClassifiedPosition {
+  bankAddress: PublicKey;
+  side: TransferPositionSide;
+  /** UI amount of the position (collateral: withdrawn from A / deposited to B; debt: repaid on A). */
+  uiAmount: BigNumber;
   bank: BankType;
   tokenProgram: PublicKey;
 }
@@ -213,26 +94,30 @@ function requireTokenProgram(
 }
 
 /**
- * Validate the selection, infer each position's side, and price it at initial weights.
- * Returns the classified positions plus the source account's health margin `M`.
+ * Validate the selection, infer each position's side, and resolve its UI amount. Correctness of the
+ * transfer itself (both accounts staying healthy) is enforced on-chain by the flashloan's end health
+ * check on A and each borrow's health check on B — so no client-side health/USD math is needed.
  */
-function classifyAndPrice(params: MakeTransferPositionsTxParams): {
-  positions: ClassifiedPosition[];
-  marginUsd: BigNumber;
-} {
+export function classifyAndValidate(params: MakeTransferPositionsTxParams): ClassifiedPosition[] {
   const {
     marginfiAccount: accountA,
     destinationAccount: accountB,
     bankAddresses,
     bankMap,
-    oraclePrices,
     tokenProgramsByBank,
     assetShareValueMultiplierByBank,
-    activeEmodeWeightsByBank,
   } = params;
+
+  const maxPositions = params.maxPositions ?? DEFAULT_MAX_TRANSFER_POSITIONS;
 
   if (bankAddresses.length === 0) {
     throw TransactionBuildingError.transferPositionsInvalidSelection("no positions selected", []);
+  }
+  if (bankAddresses.length > maxPositions) {
+    throw TransactionBuildingError.transferPositionsInvalidSelection(
+      `cannot transfer ${bankAddresses.length} positions in one transaction (max ${maxPositions}); select fewer and transfer in batches`,
+      bankAddresses.map((b) => b.toBase58())
+    );
   }
 
   const activeBalancesA = accountA.balances.filter((b) => b.active);
@@ -250,34 +135,14 @@ function classifyAndPrice(params: MakeTransferPositionsTxParams): {
       );
     }
 
-    const side = balance.assetShares.gt(0) ? "collateral" : "debt";
-
-    const oraclePrice = oraclePrices.get(bankAddress.toBase58());
-    if (!oraclePrice) {
-      throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `oracle price for bank ${bankAddress.toBase58()} not found`,
-        [bankAddress.toBase58()]
-      );
-    }
-
+    const side: TransferPositionSide = balance.assetShares.gt(0) ? "collateral" : "debt";
     const multiplier = assetShareValueMultiplierByBank.get(bankAddress.toBase58());
-    const emodeWeights = activeEmodeWeightsByBank?.get(bankAddress.toBase58());
-
     const qty = computeQuantityUi(balance, bank, multiplier);
-    const usd = getBalanceUsdValueWithPriceBias({
-      balance,
-      bank,
-      oraclePrice,
-      marginRequirement: MarginRequirementType.Initial,
-      assetShareValueMultiplier: multiplier,
-      activeEmodeWeights: emodeWeights,
-    });
 
     positions.push({
       bankAddress,
       side,
       uiAmount: side === "collateral" ? qty.assets : qty.liabilities,
-      initUsdValue: side === "collateral" ? usd.assets : usd.liabilities,
       bank,
       tokenProgram,
     });
@@ -289,7 +154,9 @@ function classifyAndPrice(params: MakeTransferPositionsTxParams): {
   );
   if (isolatedDebts.length > 0) {
     const otherDebts = positions.filter((p) => p.side === "debt").length > 1;
-    const destHasLiabilities = (accountB?.balances ?? []).some((b) => b.active && b.liabilityShares.gt(0));
+    const destHasLiabilities = (accountB?.balances ?? []).some(
+      (b) => b.active && b.liabilityShares.gt(0)
+    );
     if (isolatedDebts.length > 1 || otherDebts || destHasLiabilities) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         "an isolated-tier debt can only be transferred as the destination account's sole liability",
@@ -330,56 +197,7 @@ function classifyAndPrice(params: MakeTransferPositionsTxParams): {
     }
   }
 
-  const health = computeHealthComponentsFromBalances({
-    activeBalances: activeBalancesA,
-    marginRequirement: MarginRequirementType.Initial,
-    banksMap: bankMap,
-    oraclePricesByBank: oraclePrices,
-    assetShareValueMultiplierByBank,
-    activeEmodeWeightsByBank,
-  });
-  const marginUsd = health.assets.minus(health.liabilities);
-
-  return { positions, marginUsd };
-}
-
-// --------------------------------------------------------------------------------------
-// Bank rate-limit precheck (debt legs)
-// --------------------------------------------------------------------------------------
-
-/**
- * The destination borrow of a moved debt records a native outflow on the debt bank *before* the
- * offsetting repay on the source releases it. Reject transfers whose borrow would exceed the bank's
- * remaining rate-limit window. Retryable: split smaller or wait for the window to advance.
- */
-function precheckBankRateLimits(positions: ClassifiedPosition[], borrowPaddingBps: number): void {
-  const nowTs = Math.floor(Date.now() / 1000);
-  const remainingByBank = new Map<string, BigNumber>();
-
-  for (const position of positions) {
-    if (position.side !== "debt") continue;
-
-    const key = position.bankAddress.toBase58();
-    const capacity = computeRateLimitRemainingCapacity(position.bank.rateLimiter, nowTs);
-    if (capacity.combined === null || capacity.bindingWindow === null) continue;
-
-    const borrowUi = position.uiAmount.times(1 + borrowPaddingBps / 10_000);
-    const borrowNative = new BigNumber(
-      uiToNative(borrowUi, position.bank.mintDecimals).toString()
-    );
-
-    const remaining = remainingByBank.get(key) ?? capacity.combined;
-    if (borrowNative.gt(remaining)) {
-      throw TransactionBuildingError.transferPositionsBankRateLimit(
-        position.bankAddress.toBase58(),
-        borrowNative.toString(),
-        remaining.toString(),
-        capacity.bindingWindow,
-        position.bank.tokenSymbol
-      );
-    }
-    remainingByBank.set(key, remaining.minus(borrowNative));
-  }
+  return positions;
 }
 
 // --------------------------------------------------------------------------------------
@@ -392,12 +210,9 @@ function precheckBankRateLimits(positions: ClassifiedPosition[], borrowPaddingBp
  * act on refreshed. JupLend deposit/withdraw self-refresh their own bank, so only *other* JupLend
  * banks that stay in a health pack need the permissionless rate crank.
  *
- * Following the swap-collateral / repay-with-collateral precedent these ride in transactions that
- * precede the flashloans rather than inside them: the builders return no signer keys, and keeping
- * them out of the flashloan preserves the byte/lock budget the bundle planner packs against. The
- * trade-off is that, across a multi-transaction transfer, later flashloans read a reserve/rate
- * refreshed a few slots earlier — immaterial drift (`skipPriceUpdates` refreshes only accrue
- * interest; klend does not reject a marginfi CPI over it), but see the action's runtime notes.
+ * Following the swap-collateral / repay-with-collateral precedent these ride in a transaction that
+ * precedes the flashloan rather than inside it: the builders return no signer keys, and keeping them
+ * out of the flashloan preserves its byte/lock budget.
  */
 function buildIntegrationRefreshIxs(args: {
   accountA: MarginfiAccountType;
@@ -580,8 +395,7 @@ export async function buildCollateralLegIxs(
 
   // Standard banks (DEFAULT/SOL/STAKED) move with the plain lending ixs. Any other tag is an
   // integration we don't yet have a collateral-leg builder for (DRIFT/SOLEND, or a future tag).
-  // This switch is the single place that defines what `transfer-positions` supports — adding an
-  // integration means adding one branch above, nothing elsewhere.
+  // Adding an integration means adding one branch above, nothing elsewhere.
   if (tag !== AssetTag.DEFAULT && tag !== AssetTag.SOL && tag !== AssetTag.STAKED) {
     throw TransactionBuildingError.transferPositionsUnsupportedBank(key, tag, bank.tokenSymbol);
   }
@@ -619,23 +433,21 @@ export async function buildCollateralLegIxs(
 }
 
 /**
- * Build the inner instructions for one bundle:
+ * Build the flashloan's inner instructions for the whole selection:
  *   [cu…, withdraws(A)…, deposits(B)…, borrows(B)…, repays(A)…]
  * All deposits precede all borrows so every intermediate destination state is healthier than the
  * transaction-final one. Withdraws and repays carry no health accounts (A is inside the flashloan);
  * withdraws only gain the withdrawn bank's oracle when the group limiter is enabled. Each borrow
  * carries the destination's health pack for its banks active at that point.
  */
-async function buildBundleInnerIxs(
+async function buildInnerIxs(
   ctx: BuildContext,
-  bundle: TransferPositionPlanItem[],
-  bankOf: Map<string, ClassifiedPosition>,
+  positions: ClassifiedPosition[],
   isSync: boolean
 ): Promise<TransactionInstruction[]> {
-  const collateral = bundle.filter((p) => p.side === "collateral");
-  const debts = bundle.filter((p) => p.side === "debt");
-
-  const collateralBanks = collateral.map((p) => bankOf.get(p.bankAddress.toBase58())!.bank);
+  const collateral = positions.filter((p) => p.side === "collateral");
+  const debts = positions.filter((p) => p.side === "debt");
+  const collateralBanks = collateral.map((p) => p.bank);
 
   const withdrawIxs: TransactionInstruction[] = [];
   const depositIxs: TransactionInstruction[] = [];
@@ -643,25 +455,22 @@ async function buildBundleInnerIxs(
   const repayIxs: TransactionInstruction[] = [];
 
   for (const position of collateral) {
-    const classified = bankOf.get(position.bankAddress.toBase58())!;
-
     // A is flagged: no health pack. Group off ⇒ no oracle either. Group on ⇒ trailing bank oracle.
     const observationBanksOverride = ctx.groupRateLimiterEnabled
-      ? computeHealthAccountMetas([], true, [classified.bank])
+      ? computeHealthAccountMetas([], true, [position.bank])
       : [];
 
-    const legs = await buildCollateralLegIxs(ctx, classified, isSync, observationBanksOverride);
+    const legs = await buildCollateralLegIxs(ctx, position, isSync, observationBanksOverride);
     withdrawIxs.push(...legs.withdrawIxs);
     depositIxs.push(...legs.depositIxs);
   }
 
   const borrowedSoFar: BankType[] = [];
   for (const position of debts) {
-    const classified = bankOf.get(position.bankAddress.toBase58())!;
-    const { bank, tokenProgram } = classified;
+    const { bank, tokenProgram } = position;
     borrowedSoFar.push(bank);
 
-    // Destination banks active at this borrow: pre-existing + all bundle collateral + debts so far.
+    // Destination banks active at this borrow: pre-existing + all collateral + debts so far.
     const activeBanks = dedupeBanks([
       ...ctx.destPreexistingBanks,
       ...collateralBanks,
@@ -709,7 +518,7 @@ async function buildBundleInnerIxs(
 }
 
 /**
- * Wrap a bundle's inner instructions in a single flashloan on the source account.
+ * Wrap the inner instructions in a single flashloan on the source account.
  * Order: `[preIxs…, beginFL(A), inner…, endFL(A)]`; the begin ix points at the end ix.
  */
 async function buildTransferFlashloanTx(args: {
@@ -744,232 +553,6 @@ async function buildTransferFlashloanTx(args: {
   });
 }
 
-// --------------------------------------------------------------------------------------
-// Size probing
-// --------------------------------------------------------------------------------------
-
-/**
- * Build synchronous probe instructions for a single position (used only for size measurement).
- * The borrow probe pack is a conservative superset (all selected collateral banks + this debt bank),
- * so a bundle's real per-borrow packs are never larger than what was probed.
- */
-async function buildPositionProbeIxs(
-  ctx: BuildContext,
-  position: ClassifiedPosition,
-  allCollateralBanks: BankType[]
-): Promise<TransactionInstruction[]> {
-  if (position.side === "collateral") {
-    const observationBanksOverride = ctx.groupRateLimiterEnabled
-      ? computeHealthAccountMetas([], true, [position.bank])
-      : [];
-    const legs = await buildCollateralLegIxs(ctx, position, true, observationBanksOverride);
-    return [...legs.withdrawIxs, ...legs.depositIxs];
-  }
-
-  const pack = computeHealthAccountMetas(
-    dedupeBanks([...ctx.destPreexistingBanks, ...allCollateralBanks, position.bank])
-  );
-  const borrowUi = position.uiAmount.times(1 + ctx.borrowPaddingBps / 10_000);
-  const borrow = await makeBorrowIx({
-    program: ctx.program,
-    bank: position.bank,
-    bankMap: ctx.bankMap,
-    tokenProgram: position.tokenProgram,
-    amount: borrowUi,
-    marginfiAccount: ctx.accountB,
-    authority: ctx.accountA.authority,
-    isSync: true,
-    opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
-      overrideInferAccounts: ctx.overrideInferAccounts,
-      observationBanksOverride: pack,
-    },
-  });
-  const repay = await makeRepayIx({
-    program: ctx.program,
-    bank: position.bank,
-    tokenProgram: position.tokenProgram,
-    amount: position.uiAmount,
-    accountAddress: ctx.accountA.address,
-    authority: ctx.accountA.authority,
-    repayAll: true,
-    isSync: true,
-    opts: { wrapAndUnwrapSol: false, overrideInferAccounts: ctx.overrideInferAccounts },
-  });
-  return [...borrow.instructions, ...repay.instructions];
-}
-
-async function buildProbe(args: {
-  ctx: BuildContext;
-  positions: ClassifiedPosition[];
-  createIx?: TransactionInstruction;
-  luts: AddressLookupTableAccount[];
-}): Promise<{
-  fitsInTx: (candidate: TransferPositionPlanItem[], bundleIndex: number) => boolean;
-  measure: (
-    candidate: TransferPositionPlanItem[],
-    bundleIndex: number
-  ) => { size: number; accountCount: number };
-}> {
-  const { ctx, positions, createIx, luts } = args;
-
-  const allCollateralBanks = positions
-    .filter((p) => p.side === "collateral")
-    .map((p) => p.bank);
-
-  // Pre-build each position's probe instructions once (async), keyed by bank.
-  const probeByBank = new Map<string, TransactionInstruction[]>();
-  for (const position of positions) {
-    probeByBank.set(
-      position.bankAddress.toBase58(),
-      await buildPositionProbeIxs(ctx, position, allCollateralBanks)
-    );
-  }
-
-  // Conservative endFL(A) metas: the source's full original active banks (largest possible pack).
-  const originalActiveBanksA = dedupeBanks(
-    ctx.accountA.balances
-      .filter((b) => b.active)
-      .map((b) => requireBank(ctx.bankMap, b.bankPk))
-  );
-
-  const begin = await makeBeginFlashLoanIx(
-    ctx.program,
-    ctx.accountA.address,
-    999,
-    ctx.accountA.authority,
-    true
-  );
-  const end = await makeEndFlashLoanIx(
-    ctx.program,
-    ctx.accountA.address,
-    originalActiveBanksA,
-    ctx.accountA.authority,
-    true
-  );
-
-  const measure = (
-    candidate: TransferPositionPlanItem[],
-    bundleIndex: number
-  ): { size: number; accountCount: number } => {
-    const inner: TransactionInstruction[] = [...CU_IXS()];
-    for (const position of candidate) {
-      const ixs = probeByBank.get(position.bankAddress.toBase58());
-      if (ixs) inner.push(...ixs);
-    }
-    const preIxs = bundleIndex === 0 && createIx ? [createIx] : [];
-    const all = [...preIxs, ...begin.instructions, ...inner, ...end.instructions];
-    return computeV0TxSizeSafe(all, ctx.accountA.authority, luts);
-  };
-
-  const fitsInTx = (candidate: TransferPositionPlanItem[], bundleIndex: number): boolean => {
-    const { size, accountCount } = measure(candidate, bundleIndex);
-    return size <= MAX_TX_SIZE - TRANSFER_SIZE_MARGIN && accountCount <= MAX_ACCOUNT_LOCKS;
-  };
-
-  return { fitsInTx, measure };
-}
-
-// computeV0TxSize can throw a RangeError for a message that overflows the compact-array encoding;
-// treat that as "does not fit".
-function computeV0TxSizeSafe(
-  ixs: TransactionInstruction[],
-  payer: PublicKey,
-  luts: AddressLookupTableAccount[]
-): { size: number; accountCount: number } {
-  try {
-    const { size, accountCount } = computeV0TxSize(ixs, payer, luts);
-    return { size, accountCount };
-  } catch {
-    return { size: Number.MAX_SAFE_INTEGER, accountCount: Number.MAX_SAFE_INTEGER };
-  }
-}
-
-// --------------------------------------------------------------------------------------
-// Public: max positions per tx
-// --------------------------------------------------------------------------------------
-
-/**
- * How many of the given positions (in order) fit in a single dual-account flashloan tx, given the
- * current balances and LUT coverage. The binding constraint is usually the 64 account-lock cap.
- */
-export async function computeMaxTransferPositionsPerTx(params: {
-  program: MarginfiProgram;
-  marginfiAccount: MarginfiAccountType;
-  destinationAccount?: MarginfiAccountType;
-  candidateBankAddresses: PublicKey[];
-  bankMap: Map<string, BankType>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  oraclePrices: Map<string, OraclePrice>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  tokenProgramsByBank: Map<string, PublicKey>;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  includeCreateAccountIx?: boolean;
-  groupRateLimiterEnabled?: boolean;
-}): Promise<{ maxPositions: number; bytesAtLimit: number; locksAtLimit: number }> {
-  const luts = params.addressLookupTableAccounts ?? [];
-
-  const { positions } = classifyAndPrice({
-    program: params.program,
-    connection: undefined as unknown as Connection,
-    marginfiAccount: params.marginfiAccount,
-    destinationAccount: params.destinationAccount,
-    bankAddresses: params.candidateBankAddresses,
-    bankMap: params.bankMap,
-    oraclePrices: params.oraclePrices,
-    bankMetadataMap: params.bankMetadataMap,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    tokenProgramsByBank: params.tokenProgramsByBank,
-  });
-
-  const destB = params.destinationAccount ?? params.marginfiAccount;
-  const ctx: BuildContext = {
-    program: params.program,
-    accountA: params.marginfiAccount,
-    accountB: destB,
-    bankMap: params.bankMap,
-    bankMetadataMap: params.bankMetadataMap,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    borrowPaddingBps: DEFAULT_BORROW_PADDING_BPS,
-    groupRateLimiterEnabled: params.groupRateLimiterEnabled ?? false,
-    destPreexistingBanks: destPreexistingBanksOf(params.destinationAccount, params.bankMap),
-  };
-
-  const dummyCreateIx = params.includeCreateAccountIx
-    ? new TransactionInstruction({
-        programId: params.program.programId,
-        keys: [
-          { pubkey: params.marginfiAccount.address, isSigner: false, isWritable: true },
-          { pubkey: params.marginfiAccount.authority, isSigner: true, isWritable: true },
-        ],
-        data: Buffer.alloc(16),
-      })
-    : undefined;
-
-  const { fitsInTx, measure } = await buildProbe({ ctx, positions, createIx: dummyCreateIx, luts });
-
-  let maxPositions = 0;
-  let bytesAtLimit = 0;
-  let locksAtLimit = 0;
-  const ordered: TransferPositionPlanItem[] = positions.map((p) => ({
-    bankAddress: p.bankAddress,
-    side: p.side,
-    uiAmount: p.uiAmount,
-    initUsdValue: p.initUsdValue,
-  }));
-  for (let k = 1; k <= ordered.length; k++) {
-    const candidate = ordered.slice(0, k);
-    if (!fitsInTx(candidate, 0)) break;
-    maxPositions = k;
-    const { size, accountCount } = measure(candidate, 0);
-    bytesAtLimit = size;
-    locksAtLimit = accountCount;
-  }
-
-  return { maxPositions, bytesAtLimit, locksAtLimit };
-}
-
 function destPreexistingBanksOf(
   account: MarginfiAccountType | undefined,
   bankMap: Map<string, BankType>
@@ -988,21 +571,27 @@ function destPreexistingBanksOf(
 // --------------------------------------------------------------------------------------
 
 /**
- * Atomically move a selected set of positions from account A to account B using flashloans, split
- * across as many transactions as needed. Returns unsigned transactions ordered for sequential
- * execution (setup/crank first, then the flashloan txs); the caller signs and sends them.
+ * Atomically move a selected set of positions from account A to account B in a single flashloan.
+ * Per position: collateral → `withdraw(A)` + `deposit(B)`; debt → `borrow(B)` + `repay(A)`. Returns
+ * unsigned transactions ordered for sequential execution (setup/refresh + crank first, then the
+ * flashloan); the caller signs and sends them.
+ *
+ * The whole transfer must fit one v0 transaction — the selection is capped at `maxPositions`
+ * (default 5), and the built flashloan is size-checked, throwing `TRANSFER_POSITIONS_UNSPLITTABLE`
+ * if it still overflows (possible with several integration positions). Transfer larger sets in
+ * batches. Correctness (both accounts staying healthy) is enforced on-chain: `endFL(A)` checks A's
+ * remainder and each `borrow(B)` checks B — no client-side health prediction.
  *
  * Supported asset tags: `DEFAULT`/`SOL`/`STAKED` on either leg, and the collateral-only integrations
- * `KAMINO`/`JUPLEND` on the collateral leg (they move via their dedicated withdraw/deposit builders
- * with a preceding reserve/rate refresh). `DRIFT`/`SOLEND` are rejected.
+ * `KAMINO`/`JUPLEND` on the collateral leg (dedicated builders + a preceding reserve/rate refresh).
+ * `DRIFT`/`SOLEND` are rejected.
  *
  * Runtime notes:
  *  - Each borrow-before-repay transiently spikes the debt bank's rate-limit window; a bank near its
- *    cap can still revert (`BankHourly/DailyRateLimitExceeded`) — treat that as retryable.
- *  - Integration (Kamino/JupLend) reserve/rate refresh rides in the prelude transactions. Across a
- *    multi-transaction transfer the later flashloans read state refreshed a few slots earlier; the
- *    drift is interest-only and does not fail the CPI, but requires `bankMetadataMap` to carry fresh
- *    `kaminoStates`/`jupLendStates` and is worth an on-chain smoke test for integration-heavy splits.
+ *    cap can revert with `BankHourly/DailyRateLimitExceeded`. The whole flashloan reverts atomically,
+ *    so this is safe and retryable — treat it as such.
+ *  - Integration (Kamino/JupLend) reserve/rate refresh rides in the prelude transaction and requires
+ *    `bankMetadataMap` to carry fresh `kaminoStates`/`jupLendStates`.
  *  - All transactions share one blockhash; execute them in order within its validity window.
  *  - Dust (borrow padding minus accrued interest; withdraw-all/cToken-conversion excess) remains in
  *    the wallet ATAs.
@@ -1027,13 +616,7 @@ export async function makeTransferPositionsTx(
   const borrowPaddingBps = params.borrowPaddingBps ?? DEFAULT_BORROW_PADDING_BPS;
   const groupRateLimiterEnabled = params.groupRateLimiterEnabled ?? false;
 
-  const { positions, marginUsd } = classifyAndPrice(params);
-
-  // Reject transfers that would trip a debt bank's rate-limit window.
-  precheckBankRateLimits(positions, borrowPaddingBps);
-
-  const bankOf = new Map<string, ClassifiedPosition>();
-  for (const p of positions) bankOf.set(p.bankAddress.toBase58(), p);
+  const positions = classifyAndValidate(params);
 
   // Resolve / create the destination account.
   let accountB = params.destinationAccount;
@@ -1071,70 +654,41 @@ export async function makeTransferPositionsTx(
     destPreexistingBanks: destPreexistingBanksOf(params.destinationAccount, bankMap),
   };
 
-  // Plan the split (conservative size probe drives `fitsInTx`).
-  const { fitsInTx } = await buildProbe({ ctx, positions, createIx, luts });
-  const epsilonUsd =
-    params.boundaryEpsilonUsd !== undefined
-      ? new BigNumber(params.boundaryEpsilonUsd)
-      : BigNumber.max(new BigNumber("0.01"), marginUsd.times(0.0001));
-  const bundles = planTransferBundles({
-    positions: positions.map((p) => ({
-      bankAddress: p.bankAddress,
-      side: p.side,
-      uiAmount: p.uiAmount,
-      initUsdValue: p.initUsdValue,
-    })),
-    marginUsd,
-    epsilonUsd,
-    fitsInTx,
-  });
+  const innerIxs = await buildInnerIxs(ctx, positions, false);
+
+  // endFL(A) health pack: A's remaining active banks after the whole selection leaves.
+  const transferred = new Set(positions.map((p) => p.bankAddress.toBase58()));
+  const projectedActiveBanksA = dedupeBanks(
+    accountA.balances
+      .filter((b) => b.active && !transferred.has(b.bankPk.toBase58()))
+      .map((b) => requireBank(bankMap, b.bankPk))
+  );
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
-  // Build each bundle's flashloan tx, threading the cumulative transferred set for endFL(A) metas.
-  const originalActiveBanksA = accountA.balances.filter((b) => b.active).map((b) => b.bankPk);
-  const transferred = new Set<string>();
-  const flashloanTxs: ExtendedV0Transaction[] = [];
-  const allInnerIxs: TransactionInstruction[] = [];
+  const preIxs = createIx ? [createIx] : [];
+  const flashloanTx = await buildTransferFlashloanTx({
+    program,
+    accountA,
+    projectedActiveBanksA,
+    innerIxs,
+    preIxs,
+    blockhash,
+    luts,
+  });
 
-  for (let i = 0; i < bundles.length; i++) {
-    const bundle = bundles[i];
-    for (const p of bundle.positions) transferred.add(p.bankAddress.toBase58());
-
-    const innerIxs = await buildBundleInnerIxs(ctx, bundle.positions, bankOf, false);
-    allInnerIxs.push(...innerIxs);
-
-    const projectedActiveBanksA = dedupeBanks(
-      originalActiveBanksA
-        .filter((pk) => !transferred.has(pk.toBase58()))
-        .map((pk) => requireBank(bankMap, pk))
+  const size = getTxSize(flashloanTx);
+  const keys = getTotalAccountKeys(flashloanTx);
+  if (size > MAX_TX_SIZE || keys > MAX_ACCOUNT_LOCKS) {
+    throw TransactionBuildingError.transferPositionsUnsplittable(
+      `built transaction exceeds size limits (${size} bytes, ${keys} accounts); transfer fewer positions`,
+      size,
+      keys
     );
-
-    const preIxs = i === 0 && createIx ? [createIx] : [];
-    const tx = await buildTransferFlashloanTx({
-      program,
-      accountA,
-      projectedActiveBanksA,
-      innerIxs,
-      preIxs,
-      blockhash,
-      luts,
-    });
-
-    const size = getTxSize(tx);
-    const keys = getTotalAccountKeys(tx);
-    if (size > MAX_TX_SIZE || keys > MAX_ACCOUNT_LOCKS) {
-      throw TransactionBuildingError.transferPositionsUnsplittable(
-        `built transaction exceeds size limits (${size} bytes, ${keys} accounts)`,
-        marginUsd.toString(),
-        bundle.cumulativeNetMovedUsd.toString()
-      );
-    }
-    flashloanTxs.push(tx);
   }
 
   // Setup ATAs for every transferred mint, then refresh integration reserves/rates. Both must land
-  // before the flashloans (the withdraw legs send to these ATAs and read the refreshed state).
+  // before the flashloan (the withdraw legs send to these ATAs and read the refreshed state).
   const setupIxs = await makeSetupIx({
     connection,
     authority: accountA.authority,
@@ -1163,13 +717,13 @@ export async function makeTransferPositionsTx(
     );
   }
 
-  // Crank switchboard feeds for the banks priced by the endFL health checks.
+  // Crank switchboard feeds for the banks priced by the endFL health check.
   const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
     marginfiAccount: accountA,
     bankMap,
     oraclePrices,
     assetShareValueMultiplierByBank,
-    instructions: allInnerIxs,
+    instructions: innerIxs,
     program,
     connection,
     crossbarUrl,
@@ -1188,11 +742,10 @@ export async function makeTransferPositionsTx(
     );
   }
 
-  const transactions = [...additionalTxs, ...flashloanTxs];
+  const transactions = [...additionalTxs, flashloanTx];
   return {
     transactions,
     actionTxIndex: additionalTxs.length,
     destinationAccount: accountB,
-    bundles,
   };
 }

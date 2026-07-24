@@ -14,7 +14,6 @@ export enum TransactionBuildingErrorCode {
   TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
   TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
   TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
-  TRANSFER_POSITIONS_BANK_RATE_LIMIT = "TRANSFER_POSITIONS_BANK_RATE_LIMIT",
 }
 
 /**
@@ -86,17 +85,8 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE]: {
     reason: string;
-    marginUsd: string;
-    netMovedUsd: string;
-    positionValueUsd?: string;
-    bankAddress?: string;
-  };
-  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT]: {
-    bankAddress: string;
-    bankSymbol?: string;
-    requiredNative: string;
-    remainingNative: string;
-    window: "hourly" | "daily";
+    sizeBytes?: number;
+    accountCount?: number;
   };
 }
 
@@ -293,40 +283,19 @@ export class TransactionBuildingError<
   }
 
   /**
-   * The requested transfer cannot be split into transactions that each keep both accounts
-   * healthy at their flashloan boundaries (e.g. a debt position whose value exceeds the
-   * source account's health margin and can't be paired with offsetting collateral in one tx).
+   * The built transfer transaction exceeds the v0 size / account-lock limits even at the position
+   * cap (most likely several integration positions whose reserve accounts overflow the 64-lock cap).
+   * Retry with fewer positions in the selection.
    */
   static transferPositionsUnsplittable(
     reason: string,
-    marginUsd: string,
-    netMovedUsd: string,
-    positionValueUsd?: string,
-    bankAddress?: string
+    sizeBytes?: number,
+    accountCount?: number
   ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE> {
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE,
-      `Transfer cannot be split into healthy transactions: ${reason}`,
-      { reason, marginUsd, netMovedUsd, positionValueUsd, bankAddress }
-    );
-  }
-
-  /**
-   * Borrowing the moved debt on the destination account before the offsetting repay lands
-   * would exceed the debt bank's on-chain rate-limit window. Retryable: split the transfer
-   * smaller or wait for the window to advance.
-   */
-  static transferPositionsBankRateLimit(
-    bankAddress: string,
-    requiredNative: string,
-    remainingNative: string,
-    window: "hourly" | "daily",
-    bankSymbol?: string
-  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT> {
-    return new TransactionBuildingError(
-      TransactionBuildingErrorCode.TRANSFER_POSITIONS_BANK_RATE_LIMIT,
-      `Transferring this debt would exceed the ${window} rate limit on bank ${bankSymbol ?? bankAddress}; split it smaller or retry next window`,
-      { bankAddress, bankSymbol, requiredNative, remainingNative, window }
+      `Transfer does not fit one transaction: ${reason}`,
+      { reason, sizeBytes, accountCount }
     );
   }
 
