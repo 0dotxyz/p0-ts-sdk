@@ -4,127 +4,72 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
-
 import {
-  planTransferBundles,
   buildCollateralLegIxs,
+  classifyAndValidate,
   BuildContext,
   ClassifiedPosition,
 } from "~/services/account/actions/transfer-positions";
-import { TransferPositionPlanItem } from "~/services/account/types";
+import { MakeTransferPositionsTxParams } from "~/services/account/types";
 import { MarginfiAccountType } from "~/services/account/types/account.types";
 import { AssetTag, BankType } from "~/services/bank";
 import { KaminoReserve } from "~/vendor/klend";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 
-function pos(side: "collateral" | "debt", usd: number): TransferPositionPlanItem {
-  return {
-    bankAddress: PublicKey.unique(),
-    side,
-    uiAmount: new BigNumber(usd),
-    initUsdValue: new BigNumber(usd),
-  };
-}
+const pk = (seed: number) =>
+  new PublicKey(Buffer.from(Array.from({ length: 32 }, (_, i) => (seed + i) % 256)));
 
-/** A `fitsInTx` that caps the number of positions per transaction. */
-const maxPerTx = (n: number) => (candidate: TransferPositionPlanItem[]) => candidate.length <= n;
+// --------------------------------------------------------------------------------------
+// Hard cap on positions per transfer
+// --------------------------------------------------------------------------------------
 
-const EPS = new BigNumber("0.01");
+describe("classifyAndValidate (position cap)", () => {
+  // The cap check fires before any balance/oracle lookup, so minimal params suffice.
+  const capParams = (bankCount: number, maxPositions?: number): MakeTransferPositionsTxParams =>
+    ({
+      program: {} as unknown as MarginfiProgram,
+      connection: {} as never,
+      marginfiAccount: {
+        address: pk(30),
+        authority: pk(31),
+        group: pk(32),
+        balances: [],
+      } as unknown as MarginfiAccountType,
+      bankAddresses: Array.from({ length: bankCount }, (_, i) => pk(100 + i)),
+      bankMap: new Map(),
+      oraclePrices: new Map(),
+      bankMetadataMap: {} as BankIntegrationMetadataMap,
+      assetShareValueMultiplierByBank: new Map(),
+      tokenProgramsByBank: new Map(),
+      maxPositions,
+    }) as MakeTransferPositionsTxParams;
 
-describe("planTransferBundles", () => {
-  it("splits a balanced selection into bundles that respect the size cap", () => {
-    const positions = [pos("collateral", 100), pos("debt", 40), pos("collateral", 80), pos("debt", 30)];
-    const bundles = planTransferBundles({
-      positions,
-      marginUsd: new BigNumber(200),
-      epsilonUsd: EPS,
-      fitsInTx: maxPerTx(2),
-    });
-
-    expect(bundles.length).toBe(2);
-    for (const b of bundles) expect(b.positions.length).toBeLessThanOrEqual(2);
-    // Every position is placed exactly once.
-    const placed = bundles.flatMap((b) => b.positions.map((p) => p.bankAddress.toBase58()));
-    expect(new Set(placed).size).toBe(positions.length);
-  });
-
-  it("keeps a debt larger than the source margin in the same tx as its offsetting collateral", () => {
-    // Margin is only 50 but the debt is 90; the two must ride together so W dips only inside the tx.
-    const positions = [pos("collateral", 100), pos("debt", 90)];
-    const bundles = planTransferBundles({
-      positions,
-      marginUsd: new BigNumber(50),
-      epsilonUsd: EPS,
-      fitsInTx: maxPerTx(2),
-    });
-
-    expect(bundles.length).toBe(1);
-    expect(bundles[0].positions.length).toBe(2);
-    expect(bundles[0].cumulativeNetMovedUsd.toString()).toBe("10");
-  });
-
-  it("relaxes the final boundary when the source account empties (W_total == M)", () => {
-    const positions = [pos("collateral", 100), pos("debt", 60)];
-    const bundles = planTransferBundles({
-      positions,
-      marginUsd: new BigNumber(40), // == 100 - 60
-      epsilonUsd: EPS,
-      fitsInTx: maxPerTx(2),
-    });
-
-    expect(bundles.length).toBe(1);
-    expect(bundles[0].cumulativeNetMovedUsd.toString()).toBe("40");
-  });
-
-  it("throws UNSPLITTABLE when a thin margin forces an unhealthy intermediate boundary", () => {
-    // Only one position fits per tx, but leaving the collateral's counterpart for a later tx
-    // pushes W above the source's margin at the first boundary.
-    const positions = [pos("collateral", 100), pos("debt", 90)];
+  it("throws INVALID_SELECTION when the selection exceeds the default cap of 5", () => {
     try {
-      planTransferBundles({
-        positions,
-        marginUsd: new BigNumber(50),
-        epsilonUsd: EPS,
-        fitsInTx: maxPerTx(1),
-      });
+      classifyAndValidate(capParams(6));
       expect.unreachable("should have thrown");
     } catch (e) {
       expect(e).toBeInstanceOf(TransactionBuildingError);
       expect((e as TransactionBuildingError).code).toBe(
-        TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE
+        TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION
       );
     }
   });
 
-  it("throws UNSPLITTABLE when a single position does not fit one tx", () => {
-    const positions = [pos("collateral", 100)];
+  it("respects a custom maxPositions", () => {
+    expect(() => classifyAndValidate(capParams(3, 2))).toThrow(/cannot transfer 3 positions/);
+  });
+
+  it("throws INVALID_SELECTION on an empty selection", () => {
     try {
-      planTransferBundles({
-        positions,
-        marginUsd: new BigNumber(200),
-        epsilonUsd: EPS,
-        fitsInTx: () => false,
-      });
+      classifyAndValidate(capParams(0));
       expect.unreachable("should have thrown");
     } catch (e) {
-      expect(e).toBeInstanceOf(TransactionBuildingError);
       expect((e as TransactionBuildingError).code).toBe(
-        TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE
+        TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION
       );
     }
-  });
-
-  it("places every position when the whole selection fits one tx", () => {
-    const positions = [pos("collateral", 100), pos("debt", 30), pos("collateral", 50)];
-    const bundles = planTransferBundles({
-      positions,
-      marginUsd: new BigNumber(500),
-      epsilonUsd: EPS,
-      fitsInTx: maxPerTx(10),
-    });
-    expect(bundles.length).toBe(1);
-    expect(bundles[0].positions.length).toBe(3);
   });
 });
 
@@ -132,9 +77,6 @@ describe("planTransferBundles", () => {
 // Integration collateral-leg dispatch (Kamino sync path; JupLend withdraw is async-only so its
 // success path needs an IDL-backed program and is covered by an on-chain smoke test instead).
 // --------------------------------------------------------------------------------------
-
-const pk = (seed: number) =>
-  new PublicKey(Buffer.from(Array.from({ length: 32 }, (_, i) => (seed + i) % 256)));
 
 const KAMINO_BANK_PK = pk(20);
 const PROGRAM_PK = pk(99);
@@ -204,7 +146,6 @@ const kaminoPosition: ClassifiedPosition = {
   bankAddress: KAMINO_BANK_PK,
   side: "collateral",
   uiAmount: new BigNumber(100),
-  initUsdValue: new BigNumber(100),
   bank: kaminoBank,
   tokenProgram: TOKEN_PROGRAM_ID,
 };
