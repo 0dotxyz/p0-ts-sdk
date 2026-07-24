@@ -57,32 +57,6 @@ import { makeRepayIx } from "./repay";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
 
-/**
- * Asset tags this action can transfer. `DEFAULT`/`SOL`/`STAKED` move with the standard
- * withdraw/deposit/borrow/repay ixs; `KAMINO`/`JUPLEND` are collateral-only integrations that move
- * via their dedicated withdraw/deposit builders plus a preceding reserve/rate refresh (see
- * `buildCollateralLegIxs` and `buildIntegrationRefreshIxs`). `DRIFT`/`SOLEND` remain unsupported.
- * Evaluated at call time (not module-init) to avoid a bank↔account barrel import cycle.
- */
-function isSupportedAssetTag(tag: AssetTag): boolean {
-  return (
-    tag === AssetTag.DEFAULT ||
-    tag === AssetTag.SOL ||
-    tag === AssetTag.STAKED ||
-    tag === AssetTag.KAMINO ||
-    tag === AssetTag.JUPLEND
-  );
-}
-
-/**
- * Integration tags that need a dedicated collateral-leg builder and a preceding refresh. These
- * banks are deposit/collateral-only in marginfi (no borrow/repay variant exists), so they can only
- * appear on a transfer's collateral leg, never as debt.
- */
-function isIntegrationAssetTag(tag: AssetTag): boolean {
-  return tag === AssetTag.KAMINO || tag === AssetTag.JUPLEND;
-}
-
 /** Fixed marginfi balance slots per account. */
 const MAX_BALANCES = 16;
 
@@ -268,14 +242,6 @@ function classifyAndPrice(params: MakeTransferPositionsTxParams): {
     const bank = requireBank(bankMap, bankAddress);
     const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress);
 
-    if (!isSupportedAssetTag(bank.config.assetTag)) {
-      throw TransactionBuildingError.transferPositionsUnsupportedBank(
-        bankAddress.toBase58(),
-        bank.config.assetTag,
-        bank.tokenSymbol
-      );
-    }
-
     const balance = activeBalancesA.find((b) => b.bankPk.equals(bankAddress));
     if (!balance) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
@@ -285,16 +251,6 @@ function classifyAndPrice(params: MakeTransferPositionsTxParams): {
     }
 
     const side = balance.assetShares.gt(0) ? "collateral" : "debt";
-
-    // Integration banks are collateral-only in marginfi; a liability in one should be impossible,
-    // but guard so a bad selection fails clearly rather than emitting an unbuildable debt leg.
-    if (isIntegrationAssetTag(bank.config.assetTag) && side === "debt") {
-      throw TransactionBuildingError.transferPositionsUnsupportedBank(
-        bankAddress.toBase58(),
-        bank.config.assetTag,
-        bank.tokenSymbol
-      );
-    }
 
     const oraclePrice = oraclePrices.get(bankAddress.toBase58());
     if (!oraclePrice) {
@@ -515,11 +471,13 @@ export interface BuildContext {
 
 /**
  * Build one collateral position's withdraw-from-A + deposit-into-B instructions, dispatching to the
- * right builder for the bank's asset tag. `DEFAULT`/`SOL`/`STAKED` use the standard withdraw/deposit;
- * `KAMINO`/`JUPLEND` use their dedicated builders (which lock the integration's reserve/vault
- * accounts and, for Kamino, convert the underlying UI amount to cToken units). The reserve/rate
- * state each integration builder needs is read from `bankMetadataMap`; the on-chain reserve/rate
- * refresh those reads depend on is emitted separately in `buildIntegrationRefreshIxs`.
+ * right builder for the bank's asset tag. This is the single place that defines which banks the
+ * action supports: `DEFAULT`/`SOL`/`STAKED` use the standard withdraw/deposit; `KAMINO`/`JUPLEND`
+ * use their dedicated builders (which lock the integration's reserve/vault accounts and, for Kamino,
+ * convert the underlying UI amount to cToken units); anything else throws
+ * `TRANSFER_POSITIONS_UNSUPPORTED_BANK`. The reserve/rate state each integration builder needs is
+ * read from `bankMetadataMap`; the on-chain refresh those reads depend on is emitted separately in
+ * `buildIntegrationRefreshIxs`.
  *
  * `observationBanksOverride` controls the withdraw leg's health pack (empty while A is flashloaned
  * with the group limiter off; the withdrawn bank's oracle when it is on). The deposit leg runs no
@@ -620,7 +578,14 @@ export async function buildCollateralLegIxs(
     return { withdrawIxs: withdraw.instructions, depositIxs: deposit.instructions };
   }
 
-  // DEFAULT / SOL / STAKED
+  // Standard banks (DEFAULT/SOL/STAKED) move with the plain lending ixs. Any other tag is an
+  // integration we don't yet have a collateral-leg builder for (DRIFT/SOLEND, or a future tag).
+  // This switch is the single place that defines what `transfer-positions` supports — adding an
+  // integration means adding one branch above, nothing elsewhere.
+  if (tag !== AssetTag.DEFAULT && tag !== AssetTag.SOL && tag !== AssetTag.STAKED) {
+    throw TransactionBuildingError.transferPositionsUnsupportedBank(key, tag, bank.tokenSymbol);
+  }
+
   const withdraw = await makeWithdrawIx({
     program: ctx.program,
     bank,
