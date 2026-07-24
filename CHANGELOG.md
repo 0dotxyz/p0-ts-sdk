@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.4
+
+### Patch Changes
+
+- Add new `EmodeTag` variants: `SOL_T2` (502), `HYUSD` (47050), and `PT_HYUSD` (8747), with corresponding `parseEmodeTag` cases in the bank deserializer.
+
 ## 2.5.3
 
 ### Patch Changes
