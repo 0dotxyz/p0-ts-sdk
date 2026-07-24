@@ -465,6 +465,24 @@ async function buildInnerIxs(
     depositIxs.push(...legs.depositIxs);
   }
 
+  // Klend re-marks an obligation stale on EVERY mutation, and marginfi's Kamino
+  // obligations are bank-level (pooled) — so a transferred Kamino bank's
+  // withdraw leg invalidates the refresh that preceded it, and the deposit leg
+  // on the same obligation then fails with ObligationStale (6017). Re-refresh
+  // the transferred Kamino banks' reserves + obligations between the two legs.
+  const transferredKaminoPks = collateral
+    .filter((p) => p.bank.config.assetTag === AssetTag.KAMINO)
+    .map((p) => p.bankAddress);
+  const kaminoReRefreshIxs =
+    transferredKaminoPks.length > 0
+      ? makeRefreshKaminoBanksIxs(
+          ctx.accountA,
+          ctx.bankMap,
+          transferredKaminoPks,
+          ctx.bankMetadataMap
+        ).instructions
+      : [];
+
   const borrowedSoFar: BankType[] = [];
   for (const position of debts) {
     const { bank, tokenProgram } = position;
@@ -514,7 +532,14 @@ async function buildInnerIxs(
     repayIxs.push(...repay.instructions);
   }
 
-  return [...CU_IXS(), ...withdrawIxs, ...depositIxs, ...borrowIxs, ...repayIxs];
+  return [
+    ...CU_IXS(),
+    ...withdrawIxs,
+    ...kaminoReRefreshIxs,
+    ...depositIxs,
+    ...borrowIxs,
+    ...repayIxs,
+  ];
 }
 
 /**
