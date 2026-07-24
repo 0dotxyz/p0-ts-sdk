@@ -733,6 +733,8 @@ export function parseEmodeTag(emodeTagRaw: number): EmodeTag {
   switch (emodeTagRaw) {
     case 501:
       return EmodeTag.SOL;
+    case 502:
+      return EmodeTag.SOL_T2;
     case 1571:
       return EmodeTag.LST_T1;
     case 1572:
@@ -749,6 +751,10 @@ export function parseEmodeTag(emodeTagRaw: number): EmodeTag {
       return EmodeTag.BTC_T1;
     case 872:
       return EmodeTag.BTC_T2;
+    case 47050:
+      return EmodeTag.HYUSD;
+    case 8747:
+      return EmodeTag.PT_HYUSD;
     case 0:
     default:
       return EmodeTag.UNSET;

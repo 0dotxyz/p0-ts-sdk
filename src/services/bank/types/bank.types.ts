@@ -269,6 +269,7 @@ export enum EmodeFlags {
 export enum EmodeTag {
   UNSET = 0,
   SOL = 501,
+  SOL_T2 = 502,
   LST_T1 = 1571,
   LST_T2 = 1572,
   LST_PT = 15787,
@@ -277,6 +278,8 @@ export enum EmodeTag {
   STABLE_T2 = 57482,
   BTC_T1 = 871,
   BTC_T2 = 872,
+  HYUSD = 47050,
+  PT_HYUSD = 8747,
 }
 
 export interface EmodeSettingsType {
