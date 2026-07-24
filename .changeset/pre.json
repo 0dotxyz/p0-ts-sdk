@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.5.4"
+  },
+  "changesets": [
+    "transfer-positions"
+  ]
+}
