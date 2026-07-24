@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.5.4"
   },
   "changesets": [
+    "solid-dancers-shake",
     "transfer-positions"
   ]
 }

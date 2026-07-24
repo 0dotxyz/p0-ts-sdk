@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.5-alpha.1
+
+### Patch Changes
+
+- chore: fix kamino obligation refresh
+
 ## 2.5.5-alpha.0
 
 ### Patch Changes
