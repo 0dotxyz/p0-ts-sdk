@@ -742,9 +742,22 @@ export async function makeTransferPositionsTx(
     );
   }
 
-  // Crank switchboard feeds for the banks priced by the endFL health check.
+  // Crank switchboard feeds for the banks priced by the health checks. The borrow
+  // legs run health checks on the DESTINATION account, whose pre-existing
+  // collateral banks' oracles must also be fresh — the smart crank projects from
+  // the passed account's balances, so hand it a merged view of both accounts
+  // (deduped by bank; a new destination has no balances and changes nothing).
+  const destinationOnlyBalances = accountB.balances.filter(
+    (b) =>
+      b.active &&
+      !accountA.balances.some((a) => a.active && a.bankPk.equals(b.bankPk))
+  );
+  const crankBalanceView: MarginfiAccountType = {
+    ...accountA,
+    balances: [...accountA.balances, ...destinationOnlyBalances],
+  };
   const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount: accountA,
+    marginfiAccount: crankBalanceView,
     bankMap,
     oraclePrices,
     assetShareValueMultiplierByBank,
