@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.5-alpha.2
+
+### Patch Changes
+
+- fix: stale-price for debt-moving
+
 ## 2.5.5-alpha.1
 
 ### Patch Changes
