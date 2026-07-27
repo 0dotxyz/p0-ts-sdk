@@ -8,7 +8,13 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 
-import { AssetTag, BankType, RiskTier } from "~/services/bank";
+import {
+  AssetTag,
+  BankType,
+  RiskTier,
+  requireBank,
+  requireTokenProgram,
+} from "~/services/bank";
 import {
   makeSmartCrankSwbFeedIx,
   makeRefreshKaminoBanksIxs,
@@ -68,30 +74,13 @@ export interface ClassifiedPosition {
   tokenProgram: PublicKey;
 }
 
-function requireBank(bankMap: Map<string, BankType>, address: PublicKey): BankType {
-  const bank = bankMap.get(address.toBase58());
-  if (!bank) {
-    throw TransactionBuildingError.transferPositionsInvalidSelection(
-      `bank ${address.toBase58()} not found`,
-      [address.toBase58()]
-    );
-  }
-  return bank;
-}
-
-function requireTokenProgram(
-  tokenProgramsByBank: Map<string, PublicKey>,
-  address: PublicKey
-): PublicKey {
-  const tp = tokenProgramsByBank.get(address.toBase58());
-  if (!tp) {
-    throw TransactionBuildingError.transferPositionsInvalidSelection(
-      `token program for bank ${address.toBase58()} not provided`,
-      [address.toBase58()]
-    );
-  }
-  return tp;
-}
+/** Shared lookups, thrown as INVALID_SELECTION so the copy stays user-facing. */
+const invalidSelection =
+  (address: PublicKey) =>
+  (message: string): Error =>
+    TransactionBuildingError.transferPositionsInvalidSelection(message, [
+      address.toBase58(),
+    ]);
 
 /**
  * Validate the selection, infer each position's side, and resolve its UI amount. Correctness of the
@@ -124,8 +113,8 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
   const positions: ClassifiedPosition[] = [];
 
   for (const bankAddress of bankAddresses) {
-    const bank = requireBank(bankMap, bankAddress);
-    const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress);
+    const bank = requireBank(bankMap, bankAddress, invalidSelection(bankAddress));
+    const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress, invalidSelection(bankAddress));
 
     const balance = activeBalancesA.find((b) => b.bankPk.equals(bankAddress));
     if (!balance) {
@@ -686,7 +675,7 @@ export async function makeTransferPositionsTx(
   const projectedActiveBanksA = dedupeBanks(
     accountA.balances
       .filter((b) => b.active && !transferred.has(b.bankPk.toBase58()))
-      .map((b) => requireBank(bankMap, b.bankPk))
+      .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)))
   );
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
