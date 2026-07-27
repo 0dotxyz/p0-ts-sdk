@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.5-alpha.3
+
+### Patch Changes
+
+- chore: add bulk tx action builders to sdk
+
 ## 2.5.5-alpha.2
 
 ### Patch Changes
