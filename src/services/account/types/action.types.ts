@@ -418,6 +418,45 @@ export interface TransferPositionsResult {
   destinationAccount: MarginfiAccountType;
 }
 
+export interface MakeBulkWithdrawTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose FULL positions to withdraw, in execution order. */
+  bankAddresses: PublicKey[];
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  /** Token program per withdrawn bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  groupRateLimiterEnabled?: boolean;
+  crossbarUrl?: string;
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface MakeBulkRepayTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose FULL debts to repay from the wallet. */
+  bankAddresses: PublicKey[];
+  bankMap: Map<string, BankType>;
+  /** Token program per repaid bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface BulkLendTxsResult {
+  /** Ordered for sequential execution: [setup/crank txs…, action txs…]. */
+  transactions: ExtendedV0Transaction[];
+  /** Index of the first action tx in `transactions`. */
+  actionTxIndex: number;
+}
+
 export interface MakeLoopTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
