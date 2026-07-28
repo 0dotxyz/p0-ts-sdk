@@ -91,13 +91,13 @@ export async function computeSmartCrank({
   groupRateLimiterEnabled = false,
 }: SmartCrankParams): Promise<SmartCrankResult> {
   // Step 0: Determine projected active balances after transaction
-  const { projectedBalances, withdrawnBanks } = computeProjectedActiveBalancesNoCpi(
-    marginfiAccount.balances,
+  const { projectedBalances, withdrawnBanks } = computeProjectedActiveBalancesNoCpi({
+    account: marginfiAccount,
     instructions,
     program,
-    bankMap,
-    assetShareValueMultiplierByBank
-  );
+    banksMap: bankMap,
+    assetShareValueMultiplierByBank,
+  });
 
   // Helper to check if bank is Switchboard
   const isSwitchboard = (bank: BankType) => getOracleSourceFromBank(bank).key === "switchboard";

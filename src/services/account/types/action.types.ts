@@ -430,9 +430,7 @@ export interface MakeBulkWithdrawTxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   /** Token program per withdrawn bank (base58 bank address → token program id). */
   tokenProgramsByBank: Map<string, PublicKey>;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
-  groupRateLimiterEnabled?: boolean;
+  luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }

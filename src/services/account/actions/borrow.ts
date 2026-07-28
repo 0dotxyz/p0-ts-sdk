@@ -14,12 +14,7 @@ import {
   selectLutsForAccountAction,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import syncInstructions from "~/sync-instructions";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
@@ -65,12 +60,11 @@ export async function makeBorrowIx({
   // (e.g., deposit bank in a combined deposit-borrow operation)
   const mandatoryBanks = [bank.address, ...(opts.additionalHealthCheckBanks ?? [])];
 
-  const healthAccounts = computeHealthCheckAccounts(
-    marginfiAccount.balances,
-    bankMap,
+  const healthAccounts = computeHealthCheckAccounts({
+    account: marginfiAccount,
+    banksMap: bankMap,
     mandatoryBanks,
-    []
-  );
+  });
 
   const remainingAccounts: PublicKey[] = [];
 
@@ -80,7 +74,7 @@ export async function makeBorrowIx({
   if (opts?.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
   } else {
-    const accountMetas = computeHealthAccountMetas(healthAccounts);
+    const accountMetas = computeHealthAccountMetas({ banksToInclude: healthAccounts });
     remainingAccounts.push(...accountMetas);
   }
 
@@ -144,21 +138,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     borrowIxParams.opts?.additionalHealthCheckBanks
   );
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [borrowIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [borrowIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [borrowIxParams.bank.address],
@@ -205,18 +185,13 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
   const borrowTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [
-          ...kaminoRefreshIxs.instructions,
-          ...updateDriftMarketIxs.instructions,
-          ...updateJupLendRateIxs.instructions,
-          ...borrowIxs.instructions,
-        ],
+        instructions: [...refreshIntegrationIxs.instructions, ...borrowIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
     ),
     {
-      signers: [...kaminoRefreshIxs.keys, ...borrowIxs.keys],
+      signers: [...refreshIntegrationIxs.keys, ...borrowIxs.keys],
       addressLookupTables: selectedLuts,
       type: TransactionType.BORROW,
     }

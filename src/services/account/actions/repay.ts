@@ -31,12 +31,7 @@ import {
   getTxSize,
   getTotalAccountKeys,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import syncInstructions from "~/sync-instructions";
@@ -230,26 +225,12 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     ],
   });
 
-  const updateJuplendMarketIxs = makeUpdateJupLendRateIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [withdrawOpts.withdrawBank.address],
-    bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    marginfiAccount,
-    bankMap,
-    [withdrawOpts.withdrawBank.address],
-    bankMetadataMap
-  );
-
-  // Will only refresh kamino banks if any banks in the portfolio are kamino
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
-    marginfiAccount,
-    bankMap,
-    [withdrawOpts.withdrawBank.address, repayOpts.repayBank.address],
-    bankMetadataMap
+    bankMetadataMap,
+    [withdrawOpts.withdrawBank.address, repayOpts.repayBank.address]
   );
 
   const { flashloanTx, setupInstructions, swapQuote, amountToRepay, withdrawIxs, repayIxs } =
@@ -295,18 +276,8 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // if atas are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0 ||
-    updateJuplendMarketIxs.instructions.length > 0
-  ) {
-    const ixs = [
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-      ...updateDriftMarketIxs.instructions,
-      ...updateJuplendMarketIxs.instructions,
-    ];
+  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
+    const ixs = [...setupIxs, ...refreshIntegrationIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
