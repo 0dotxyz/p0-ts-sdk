@@ -8,12 +8,7 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
@@ -91,26 +86,14 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     ],
   });
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+  // No jup/drift exclusions here; kamino has no cpi so repay and borrow banks are
+  // included in the refresh
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [],
-    bankMetadataMap
-  );
-
-  // Build Kamino refresh instructions (returns empty if no Kamino banks involved)
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
-    marginfiAccount,
-    bankMap,
-    [repayOpts.repayBank.address, borrowOpts.borrowBank.address],
-    bankMetadataMap
+    bankMetadataMap,
+    [repayOpts.repayBank.address, borrowOpts.borrowBank.address]
   );
 
   const { flashloanTx, setupInstructions, swapQuote, borrowIxs, repayIxs } =
@@ -157,19 +140,8 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0 ||
-    updateJupLendRateIxs.instructions.length > 0
-  ) {
-    const ixs = [
-      ...additionalIxs,
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-      ...updateDriftMarketIxs.instructions,
-      ...updateJupLendRateIxs.instructions,
-    ];
+  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
+    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,

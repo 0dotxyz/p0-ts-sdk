@@ -407,7 +407,12 @@ class MarginfiAccount implements MarginfiAccountType {
     mandatoryBanks: PublicKey[] = [],
     excludedBanks: PublicKey[] = []
   ): BankType[] {
-    return computeHealthCheckAccounts(this.balances, banks, mandatoryBanks, excludedBanks);
+    return computeHealthCheckAccounts({
+      account: this,
+      banksMap: banks,
+      mandatoryBanks,
+      excludedBanks,
+    });
   }
 
   /**
@@ -661,14 +666,7 @@ class MarginfiAccount implements MarginfiAccountType {
     mandatoryBanks: PublicKey[],
     excludedBanks: PublicKey[]
   ) {
-    return makePulseHealthIx(
-      program,
-      this.address,
-      banks,
-      this.balances,
-      mandatoryBanks,
-      excludedBanks
-    );
+    return makePulseHealthIx(program, this, banks, mandatoryBanks, excludedBanks);
   }
 
   /**
@@ -688,7 +686,7 @@ class MarginfiAccount implements MarginfiAccountType {
     program: MarginfiProgram,
     instructions: TransactionInstruction[]
   ): PublicKey[] {
-    return computeProjectedActiveBanksNoCpi(this.balances, instructions, program);
+    return computeProjectedActiveBanksNoCpi({ account: this, instructions, program });
   }
 
   /**
@@ -715,13 +713,13 @@ class MarginfiAccount implements MarginfiAccountType {
     impactedAssetsBanks: string[];
     impactedLiabilityBanks: string[];
   } {
-    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi(
-      this.balances,
+    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi({
+      account: this,
       instructions,
       program,
       banksMap,
-      assetShareValueMultiplierByBank
-    );
+      assetShareValueMultiplierByBank,
+    });
 
     return {
       projectedBalances: projectedBalances.map(Balance.fromBalanceType),

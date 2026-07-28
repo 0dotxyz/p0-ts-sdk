@@ -29,7 +29,6 @@ import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
 
 import {
   BalanceRaw,
-  BalanceType,
   MakeAccountTransferToNewAccountTxParams,
   MakeCloseAccountIxParams,
   MakeCloseAccountTxParams,
@@ -397,14 +396,18 @@ export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIx
 
 export async function makePulseHealthIx(
   program: MarginfiProgram,
-  marginfiAccountPk: PublicKey,
+  marginfiAccount: MarginfiAccountType,
   banks: Map<string, BankType>,
-  balances: BalanceType[],
   mandatoryBanks: PublicKey[],
   excludedBanks: PublicKey[]
 ) {
-  const healthAccounts = computeHealthCheckAccounts(balances, banks, mandatoryBanks, excludedBanks);
-  const accountMetas = computeHealthAccountMetas(healthAccounts);
+  const healthAccounts = computeHealthCheckAccounts({
+    account: marginfiAccount,
+    banksMap: banks,
+    mandatoryBanks,
+    excludedBanks,
+  });
+  const accountMetas = computeHealthAccountMetas({ banksToInclude: healthAccounts });
 
   // const sortIx = await instructions.makeLendingAccountSortBalancesIx(program, {
   //   marginfiAccount: marginfiAccountPk,
@@ -413,7 +416,7 @@ export async function makePulseHealthIx(
   const ix = await instructions.makePulseHealthIx(
     program,
     {
-      marginfiAccount: marginfiAccountPk,
+      marginfiAccount: marginfiAccount.address,
     },
     accountMetas.map((account) => ({
       pubkey: account,

@@ -18,12 +18,7 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { AssetTag } from "~/services/bank";
 import { TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -96,28 +91,14 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     ],
   });
 
-  // Update jup lend rates, depositBank is excluded deposit ix does updates this by default
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+  // depositBank is excluded from the jup/drift updates (deposit ix updates them via CPI);
+  // kamino has no cpi so borrow and deposit banks are included in the refresh
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [depositOpts.depositBank.address],
-    params.bankMetadataMap
-  );
-
-  // Update drift market, depositBank is excluded deposit ix does updates this by default
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [depositOpts.depositBank.address],
-    params.bankMetadataMap
-  );
-
-  // Refresh kamino banks, no cpi here so dposit bank needs to be included
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
-    marginfiAccount,
-    bankMap,
-    [borrowOpts.borrowBank.address, depositOpts.depositBank.address],
-    bankMetadataMap
+    params.bankMetadataMap,
+    [borrowOpts.borrowBank.address, depositOpts.depositBank.address]
   );
 
   const { flashloanTx, setupInstructions, swapQuote, depositIxs, borrowIxs } =
@@ -174,17 +155,9 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   if (
     setupIxs.length > 0 ||
     additionalIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0 ||
-    updateJupLendRateIxs.instructions.length > 0
+    refreshIntegrationIxs.instructions.length > 0
   ) {
-    const ixs = [
-      ...additionalIxs,
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-      ...updateDriftMarketIxs.instructions,
-      ...updateJupLendRateIxs.instructions,
-    ];
+    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -394,7 +367,9 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
 
   const depositIxIndex = innerIxs.findIndex(isDepositIx);
   if (depositIxIndex < 0) {
-    throw new Error("buildLoopNonSwapIxs: could not locate deposit instruction for amount patching");
+    throw new Error(
+      "buildLoopNonSwapIxs: could not locate deposit instruction for amount patching"
+    );
   }
 
   const descriptor: LoopFlashloanDescriptor = {
@@ -419,10 +394,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
 }
 
 /** Builds the deposit instruction(s) for the loop's deposit bank at the given UI amount. */
-async function buildDepositIxs(
-  params: LoopParams,
-  amountUi: number
-): Promise<InstructionsWrapper> {
+async function buildDepositIxs(params: LoopParams, amountUi: number): Promise<InstructionsWrapper> {
   const { program, marginfiAccount, depositOpts, bankMetadataMap, overrideInferAccounts } = params;
 
   switch (depositOpts.depositBank.config.assetTag) {

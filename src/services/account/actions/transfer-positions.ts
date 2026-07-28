@@ -16,7 +16,7 @@ import {
   requireTokenProgram,
 } from "~/services/bank";
 import {
-  makeSmartCrankSwbFeedIx,
+  makeSmartCrankSwbFeedIxForAccounts,
   makeRefreshKaminoBanksIxs,
   makeUpdateJupLendRateIxs,
 } from "~/services/price";
@@ -446,7 +446,7 @@ async function buildInnerIxs(
   for (const position of collateral) {
     // A is flagged: no health pack. Group off ⇒ no oracle either. Group on ⇒ trailing bank oracle.
     const observationBanksOverride = ctx.groupRateLimiterEnabled
-      ? computeHealthAccountMetas([], true, [position.bank])
+      ? computeHealthAccountMetas({ banksToInclude: [], trailingBanks: [position.bank] })
       : [];
 
     const legs = await buildCollateralLegIxs(ctx, position, isSync, observationBanksOverride);
@@ -483,7 +483,7 @@ async function buildInnerIxs(
       ...collateralBanks,
       ...borrowedSoFar,
     ]);
-    const observationBanksOverride = computeHealthAccountMetas(activeBanks);
+    const observationBanksOverride = computeHealthAccountMetas({ banksToInclude: activeBanks });
 
     const borrowUi = position.uiAmount.times(1 + ctx.borrowPaddingBps / 10_000);
     const borrow = await makeBorrowIx({
@@ -732,21 +732,12 @@ export async function makeTransferPositionsTx(
   }
 
   // Crank switchboard feeds for the banks priced by the health checks. The borrow
-  // legs run health checks on the DESTINATION account, whose pre-existing
-  // collateral banks' oracles must also be fresh — the smart crank projects from
-  // the passed account's balances, so hand it a merged view of both accounts
-  // (deduped by bank; a new destination has no balances and changes nothing).
-  const destinationOnlyBalances = accountB.balances.filter(
-    (b) =>
-      b.active &&
-      !accountA.balances.some((a) => a.active && a.bankPk.equals(b.bankPk))
-  );
-  const crankBalanceView: MarginfiAccountType = {
-    ...accountA,
-    balances: [...accountA.balances, ...destinationOnlyBalances],
-  };
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount: crankBalanceView,
+  // legs run health checks on the DESTINATION account, so both accounts are
+  // cranked: A against its withdraws/repays, B against its projected post-transfer
+  // balances (deposits/borrows) — the projection scopes each account to its own
+  // instructions, and overlapping feeds are cranked once.
+  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIxForAccounts({
+    marginfiAccounts: [accountA, accountB],
     bankMap,
     oraclePrices,
     assetShareValueMultiplierByBank,

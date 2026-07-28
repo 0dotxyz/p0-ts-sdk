@@ -166,13 +166,13 @@ function projectAccountAfterFirstLeg(
     ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
   }
 
-  const { projectedBalances } = computeProjectedActiveBalancesNoCpi(
-    account.balances,
-    ixs,
+  const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
+    account,
+    instructions: ixs,
     program,
     banksMap,
-    multipliers,
-  );
+    assetShareValueMultiplierByBank: multipliers,
+  });
 
   return new MarginfiAccount(
     account.address,

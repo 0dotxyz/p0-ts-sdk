@@ -304,9 +304,8 @@ export async function simulateAccountHealthCache(params: {
 
   const healthPulseIxs = await makePulseHealthIx(
     program,
-    marginfiAccount.address,
+    marginfiAccount,
     banksMap,
-    marginfiAccount.balances,
     activeBalances.map((b) => b.bankPk),
     []
   );
@@ -566,9 +565,8 @@ export async function getHealthSimulationTransactions({
 
   const healthPulseIx = await makePulseHealthIx(
     program,
-    marginfiAccount.address,
+    marginfiAccount,
     bankMap,
-    marginfiAccount.balances,
     mandatoryBanks,
     excludedBanks
   );
