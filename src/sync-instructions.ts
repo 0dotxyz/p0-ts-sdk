@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ *                              ⚠️  DISCLAIMER  ⚠️
+ * ============================================================================
+ *
+ * THE INSTRUCTIONS EXPORTED FROM THIS FILE ARE FOR **SIMULATION PURPOSES ONLY**.
+ *
+ * DO NOT USE THESE INSTRUCTIONS TO BUILD REAL, SIGNED TRANSACTIONS THAT WILL
+ * BE SUBMITTED ON-CHAIN. They are intended solely for use with transaction
+ * simulation (e.g. `simulateTransaction`) to preview state changes, compute
+ * expected outputs, or estimate effects — NOT for actual execution.
+ *
+ * Using these instructions in production transactions may result in incorrect
+ * behaviour, loss of funds, or other undefined consequences.
+ *
+ * ============================================================================
+ */
+
 import {
   AccountMeta,
   PublicKey,
