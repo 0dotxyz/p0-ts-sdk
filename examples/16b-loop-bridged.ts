@@ -128,8 +128,12 @@ async function loopExample() {
     throw new Error(`No borrowable bank found for borrow mint: ${BORROW_MINT.toBase58()}`);
   }
 
-  console.log(`✅ Deposit bank: ${depositBank.tokenSymbol} (${depositBank.address.toBase58()})`);
-  console.log(`✅ Borrow bank: ${borrowBank.tokenSymbol} (${borrowBank.address.toBase58()})`);
+  console.log(
+    `✅ Deposit bank: ${depositBank.tokenSymbol ?? depositBank.mint.toBase58()} (${depositBank.address.toBase58()})`
+  );
+  console.log(
+    `✅ Borrow bank: ${borrowBank.tokenSymbol ?? borrowBank.mint.toBase58()} (${borrowBank.address.toBase58()})`
+  );
 
   // --------------------------------------------------------------------------
   // Step 5: Size the Borrow from the Target Leverage
@@ -153,11 +157,11 @@ async function loopExample() {
 
   console.log(`\n📐 Loop sizing:`);
   console.log(
-    `   Principal: ${DEPOSIT_AMOUNT} ${depositBank.tokenSymbol} (~$${(DEPOSIT_AMOUNT * depositPrice).toFixed(2)})`
+    `   Principal: ${DEPOSIT_AMOUNT} ${depositBank.tokenSymbol ?? "tokens"} (~$${(DEPOSIT_AMOUNT * depositPrice).toFixed(2)})`
   );
   console.log(`   Leverage: ${LEVERAGE}x`);
   console.log(
-    `   Borrow: ~${borrowAmount.toFixed(6)} ${borrowBank.tokenSymbol} (~$${(borrowAmount * borrowPrice).toFixed(2)})`
+    `   Borrow: ~${borrowAmount.toFixed(6)} ${borrowBank.tokenSymbol ?? "tokens"} (~$${(borrowAmount * borrowPrice).toFixed(2)})`
   );
 
   // --------------------------------------------------------------------------
@@ -227,8 +231,10 @@ async function loopExample() {
     const depositedUi =
       Number(result.quoteResponse.outAmount) / Math.pow(10, depositBank.mintDecimals);
     console.log(`\n📈 ${isBridged ? "Merged bridged" : "Swap-engine"} quote:`);
-    console.log(`   Borrowed: ~${borrowedUi.toFixed(6)} ${borrowBank.tokenSymbol}`);
-    console.log(`   Extra collateral: ~${depositedUi.toFixed(6)} ${depositBank.tokenSymbol}`);
+    console.log(`   Borrowed: ~${borrowedUi.toFixed(6)} ${borrowBank.tokenSymbol ?? "tokens"}`);
+    console.log(
+      `   Extra collateral: ~${depositedUi.toFixed(6)} ${depositBank.tokenSymbol ?? "tokens"}`
+    );
     console.log(`   Price impact: ${result.quoteResponse.priceImpactPct ?? "N/A"}%`);
   }
 
