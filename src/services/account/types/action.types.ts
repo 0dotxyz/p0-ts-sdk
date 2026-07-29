@@ -51,10 +51,24 @@ export interface SwapProviderConfig {
 
 export interface SwapOpts {
   swapConfig?: SwapProviderConfig;
-  // if swapIxs is provided, it will be used instead of creating instructions
+  /**
+   * Pin an exact, caller-reviewed swap route instead of running the swap engine.
+   *
+   * The caller owns ATA setup for the route, the route's input amount MUST equal the flow's swap
+   * input (e.g. the loop's borrow amount), and the route MUST pay out to the flow's destination
+   * token account. `quoteResponse.otherAmountThreshold` (guaranteed min-out, native units) sizes
+   * the follow-up amount — e.g. the loop's deposit byte-patch — exactly like an engine-selected
+   * route would. For dynamic caller-controlled routing (inspect/veto routes at build time),
+   * prefer `swapEngineRunner`.
+   *
+   * Note: the bridged `makeBridged*Tx` fallbacks are disabled when a pinned route is supplied —
+   * a pinned route belongs to the direct pair and cannot be spliced into SDK-composed legs.
+   */
   swapIxs?: {
     instructions: TransactionInstruction[];
     lookupTables: AddressLookupTableAccount[];
+    /** The pinned route's quote; `otherAmountThreshold` must be the route's min-out (native). */
+    quoteResponse: SwapQuoteResult;
   };
 }
 
@@ -491,6 +505,11 @@ export interface MakeLoopTxParams {
    * Optional override for how the swap engine runs. Defaults to the in-process
    * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
    * so the multi-provider fan-out happens server-side.
+   *
+   * Also the seam for caller-controlled routing: wrap the default runner to inspect, veto, or
+   * replace the selected route before it's spliced into the flashloan (see
+   * `examples/16c-loop-pinned-route.ts`). For a fully static, pre-reviewed route use
+   * `swapOpts.swapIxs` instead.
    */
   swapEngineRunner?: SwapEngineRunner;
 }
