@@ -14,6 +14,7 @@ export enum TransactionBuildingErrorCode {
   TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
   TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
   TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
+  BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
 }
 
 /**
@@ -87,6 +88,16 @@ export interface TransactionBuildingErrorDetails {
     reason: string;
     sizeBytes?: number;
     accountCount?: number;
+  };
+  [TransactionBuildingErrorCode.BRIDGE_CONFLICT]: {
+    /** Bridge-token candidate banks blocked by an existing opposite-side account position. */
+    conflictingBanks: Array<{
+      bankAddress: string;
+      mint: string;
+      symbol?: string;
+    }>;
+    /** Whether the bridge token would have been held as collateral ("deposit") or debt ("borrow"). */
+    bridgeTokenSide: "deposit" | "borrow";
   };
 }
 
@@ -300,6 +311,23 @@ export class TransactionBuildingError<
   }
 
   /**
+   * A bridged (double-hop) swap could not route because every bridge-token candidate bank
+   * conflicts with an existing opposite-side position on the account (marginfi forbids holding an
+   * asset and a liability on the same bank).
+   */
+  static bridgeConflict(
+    conflictingBanks: Array<{ bankAddress: string; mint: string; symbol?: string }>,
+    bridgeTokenSide: "deposit" | "borrow"
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BRIDGE_CONFLICT> {
+    const banksList = conflictingBanks.map((c) => c.symbol ?? c.mint).join(", ");
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BRIDGE_CONFLICT,
+      `Every bridge-token candidate conflicts with an existing opposite-side position: ${banksList}`,
+      { conflictingBanks, bridgeTokenSide }
+    );
+  }
+
+  /**
    * Generic escape hatch for custom errors
    */
   static custom<T extends TransactionBuildingErrorCode>(
@@ -331,4 +359,18 @@ const DECOMPOSABLE_SWAP_ERROR_CODES = new Set<TransactionBuildingErrorCode>([
  */
 export function isDecomposableSwapError(e: unknown): e is TransactionBuildingError {
   return e instanceof TransactionBuildingError && DECOMPOSABLE_SWAP_ERROR_CODES.has(e.code);
+}
+
+/**
+ * Whether a build failure is a bridged-swap conflict: the direct build failed AND every
+ * bridge-token candidate was blocked by an existing opposite-side position on the account.
+ * Narrows to the typed details (`conflictingBanks`, `bridgeTokenSide`) so callers can surface a
+ * "close that position or pick a different pair" message.
+ */
+export function isBridgeConflictError(
+  e: unknown
+): e is TransactionBuildingError<TransactionBuildingErrorCode.BRIDGE_CONFLICT> {
+  return (
+    e instanceof TransactionBuildingError && e.code === TransactionBuildingErrorCode.BRIDGE_CONFLICT
+  );
 }
