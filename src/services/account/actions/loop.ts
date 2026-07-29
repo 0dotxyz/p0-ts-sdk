@@ -36,6 +36,7 @@ import {
   isDepositIx,
   BridgeOpts,
   BridgedTxResult,
+  resolvePinnedSwapRoute,
   resolveTokenProgramForMint,
   selectSwapBridges,
   sharedBridgeLegContext,
@@ -513,20 +514,17 @@ async function runLoopSwapEngine(
 }> {
   const { connection, swapOpts, marginfiAccount, swapEngineRunner } = params;
 
-  // Manual swap-instructions override: deposit the principal only (amount unknown here),
-  // mirroring the pre-engine behavior.
+  // Caller-pinned route override: the pinned quote's min-out sizes the deposit byte-patch,
+  // exactly like an engine-selected route (validated — a pinned route can never silently
+  // produce a zero-collateral deposit).
   if (swapOpts.swapIxs) {
+    const pinned = resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
     return {
-      swapInstructions: swapOpts.swapIxs.instructions,
-      setupInstructions: [],
-      swapLuts: swapOpts.swapIxs.lookupTables,
-      quoteResponse: {
-        inAmount: String(descriptor.inAmountNative),
-        outAmount: "0",
-        otherAmountThreshold: "0",
-        slippageBps: 0,
-      },
-      outputAmountNative: new BN(0),
+      swapInstructions: pinned.swapInstructions,
+      setupInstructions: pinned.setupInstructions,
+      swapLuts: pinned.lookupTables,
+      quoteResponse: pinned.quoteResponse,
+      outputAmountNative: pinned.outputAmountNative,
     };
   }
 
@@ -643,6 +641,9 @@ export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promis
     return await makeLoopTx(loopParams);
   } catch (directError) {
     if (!isDecomposableSwapError(directError)) throw directError;
+    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
+    // SDK-composed legs — never attempt the bridged fallback with one.
+    if (loopParams.swapOpts.swapIxs) throw directError;
     const bridged = await tryBridgedLoop(loopParams, bridgeOpts);
     if (bridged) return bridged;
     throw directError;

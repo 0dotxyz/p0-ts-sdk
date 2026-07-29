@@ -432,6 +432,9 @@ export async function makeBridgedSwapDebtTx(
     return await makeSwapDebtTx(directParams);
   } catch (directError) {
     if (!isDecomposableSwapError(directError)) throw directError;
+    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
+    // SDK-composed legs — never attempt the bridged fallback with one.
+    if (directParams.swapOpts.swapIxs) throw directError;
     const bridged = await tryBridgedDebtSwap(directParams, bridgeOpts);
     if (bridged) return bridged;
     throw directError;

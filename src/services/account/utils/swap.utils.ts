@@ -1,6 +1,8 @@
 import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
-import { Connection, PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { AddressLookupTableAccount } from "@solana/web3.js";
 
 import {
   SwapApiConfig,
@@ -13,6 +15,67 @@ import {
 import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils";
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
 import { TransactionBuildingError } from "~/errors";
+
+/** The canonical shape a resolved pinned route yields — mirrors an engine-selected route. */
+export interface ResolvedPinnedSwapRoute {
+  swapInstructions: TransactionInstruction[];
+  setupInstructions: TransactionInstruction[];
+  lookupTables: AddressLookupTableAccount[];
+  quoteResponse: SwapQuoteResult;
+  /** The route's guaranteed min-out (native) — what sizes the follow-up amount (deposit patch). */
+  outputAmountNative: BN;
+}
+
+/**
+ * Resolve a caller-pinned swap route (`swapOpts.swapIxs`) into the engine-result shape, validating
+ * the quote so a pinned route can never silently size a zero follow-up amount:
+ *
+ * - `otherAmountThreshold` (min-out) must be a positive integer — it becomes the loop's deposit
+ *   byte-patch, exactly like an engine-selected route's min-out.
+ * - `inAmount` must equal the flow's swap input (e.g. the loop's borrow, native units) — a
+ *   mismatch means the route was quoted for a different size than the flow will actually swap.
+ *
+ * Throws plain `Error`s (not `TransactionBuildingError`) so caller-input mistakes are never
+ * classified as decomposable swap failures (which would wrongly engage the bridged fallback).
+ */
+export function resolvePinnedSwapRoute(
+  swapIxs: NonNullable<SwapOpts["swapIxs"]>,
+  expectedInAmountNative: BN | number
+): ResolvedPinnedSwapRoute {
+  const { quoteResponse } = swapIxs;
+  const expectedIn = new BN(expectedInAmountNative);
+
+  let minOut: BN;
+  try {
+    minOut = new BN(quoteResponse.otherAmountThreshold);
+  } catch {
+    minOut = new BN(0);
+  }
+  if (minOut.lten(0)) {
+    throw new Error(
+      `Pinned swap route (swapOpts.swapIxs) has no usable min-out: quoteResponse.otherAmountThreshold ` +
+        `is "${quoteResponse.otherAmountThreshold}". The min-out sizes the follow-up amount (e.g. the ` +
+        `loop's deposit) — without it the flow would deposit zero collateral and fail init health.`
+    );
+  }
+
+  const pinnedIn = new BN(quoteResponse.inAmount);
+  if (!pinnedIn.eq(expectedIn)) {
+    throw new Error(
+      `Pinned swap route (swapOpts.swapIxs) was quoted for a different input amount than the flow ` +
+        `will swap: quote inAmount=${pinnedIn.toString()}, flow swap input=${expectedIn.toString()} ` +
+        `(native units). Re-quote the pinned route for the exact flow amount.`
+    );
+  }
+
+  return {
+    swapInstructions: swapIxs.instructions,
+    setupInstructions: [],
+    lookupTables: swapIxs.lookupTables,
+    quoteResponse,
+    outputAmountNative: minOut,
+  };
+}
 
 // Helper to get swap provider function
 function getSwapProviderFn({
@@ -169,18 +232,14 @@ export const getSwapIxsForFlashloan = async (
     maxSwapTotalAccounts,
   } = params;
 
-  // Manual swap instructions override
+  // Caller-pinned route override — validated so it can never size a zero follow-up amount.
   if (swapOpts.swapIxs) {
+    const pinned = resolvePinnedSwapRoute(swapOpts.swapIxs, amount);
     return {
-      swapInstructions: swapOpts.swapIxs.instructions,
-      setupInstructions: [],
-      addressLookupTableAddresses: swapOpts.swapIxs.lookupTables,
-      quoteResponse: {
-        inAmount: String(amount),
-        outAmount: "0",
-        otherAmountThreshold: "0",
-        slippageBps: 0,
-      },
+      swapInstructions: pinned.swapInstructions,
+      setupInstructions: pinned.setupInstructions,
+      addressLookupTableAddresses: pinned.lookupTables,
+      quoteResponse: pinned.quoteResponse,
     };
   }
 
