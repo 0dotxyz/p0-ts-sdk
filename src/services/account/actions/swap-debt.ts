@@ -67,6 +67,9 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
+   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
+  mustBeAtomicBundle: boolean;
 }> {
   const {
     program,
@@ -188,6 +191,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
   };
 }
 
@@ -532,6 +536,7 @@ async function tryBridgedDebtSwap(
         actionTxIndex: result.transactions.length - 1,
         quoteResponse: mergeBridgeQuotesDebt(result.firstLegQuote, result.secondLegQuote),
         bridgeMint: bridgeBank.mint,
+        mustBeAtomicBundle: true,
       };
     },
   });

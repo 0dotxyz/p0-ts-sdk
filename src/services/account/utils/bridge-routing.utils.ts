@@ -54,6 +54,10 @@ export interface BridgedTxResult {
   quoteResponse: SwapQuoteResult | undefined;
   /** The bridge token's mint — set only when the bridged double-hop path was used. */
   bridgeMint?: PublicKey;
+  /** true → send as ONE atomic Jito bundle (bridged legs are one operation / integration
+   *  refreshes go stale within a slot); false → sequential sends are safe (cranked oracles
+   *  allow ≥ ~1 min staleness). */
+  mustBeAtomicBundle: boolean;
 }
 
 /** A mint's token program: the cache (seedable by the caller), else the mint account's owner. */

@@ -304,8 +304,9 @@ async function swapCollateralExample() {
     if (allSuccessful) {
       console.log("\n✅ All transactions simulated successfully!");
       console.log(
-        "\n💡 To execute this swap, you would sign and send these transactions in order" +
-          (isBridged ? " as ONE atomic Jito bundle (both legs)." : ".")
+        result.mustBeAtomicBundle
+          ? "\n💡 To execute this swap, send these transactions as ONE atomic Jito bundle."
+          : "\n💡 To execute this swap, you can sign and send these transactions sequentially."
       );
     } else {
       console.log("\n⚠️  Some transactions failed simulation. Check errors above.");

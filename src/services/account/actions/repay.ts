@@ -311,7 +311,12 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
   }
 
   const transactions = [...additionalTxs, flashloanTx];
-  return { transactions, swapQuote, amountToRepay };
+  return {
+    transactions,
+    swapQuote,
+    amountToRepay,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+  };
 }
 
 async function buildRepayWithCollatFlashloanTx({

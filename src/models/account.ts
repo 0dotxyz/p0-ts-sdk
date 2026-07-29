@@ -790,6 +790,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeLoopTx({
       ...params,
@@ -945,6 +948,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeRepayWithCollatTx({
       ...params,
@@ -990,6 +996,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeSwapCollateralTx({
       ...params,
@@ -1058,6 +1067,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeSwapDebtTx({
       ...params,
