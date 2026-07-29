@@ -5,11 +5,14 @@
  * 1. Initialize the Project0Client from config
  * 2. Fetch a marginfi account
  * 3. Find an existing debt position
- * 4. Build a swap debt transaction (source debt -> destination debt)
+ * 4. Build the swap in ONE call with `makeBridgedSwapDebtTx` — it tries the direct single-route
+ *    swap first and transparently falls back to a bridged DOUBLE-HOP (repay source → borrow
+ *    bridge token, then repay bridge → borrow destination) as one atomic Jito bundle when the
+ *    direct route doesn't fit one transaction or can't be quoted
  * 5. Simulate the transaction bundle
  *
  * The swap is executed via flash loan, so account health is not affected during the swap.
- * Flow: Borrow new debt -> Jupiter swap -> Repay old debt
+ * Flow: Borrow new debt -> swap -> Repay old debt
  *
  * Setup:
  * 1. Copy .env.example to .env
@@ -25,16 +28,10 @@ import {
   MarginfiAccount,
   simulateBundle,
   Bank,
-  makeSwapDebtTx,
-  composeBridgedSwap,
-  mergeBridgeQuotesDebt,
-  resolveBridgeBanks,
   isStandardBorrowable,
-  isDecomposableSwapError,
-  type BridgedSwapLeg,
-  type MarginfiAccountType,
+  isBridgeConflictError,
 } from "../src";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import {
   getConnection,
   getMarginfiConfig,
@@ -190,7 +187,7 @@ async function swapDebtExample() {
   const isSameMint = sourceBank.mint.equals(destinationBank.mint);
 
   // --------------------------------------------------------------------------
-  // Step 6: Build Swap Debt Transaction
+  // Step 6: Build Swap Debt Transaction (direct, with bridged fallback)
   // --------------------------------------------------------------------------
   console.log("\n📝 Building swap debt transaction...");
 
@@ -201,7 +198,7 @@ async function swapDebtExample() {
   console.log(`   To bank: ${destinationBank.address.toBase58()}`);
 
   if (isSameMint) {
-    console.log(`   (Same mint - no Jupiter swap needed)`);
+    console.log(`   (Same mint - no swap needed)`);
   } else {
     console.log(`   From mint: ${sourceBank.mint.toBase58()}`);
     console.log(`   To mint: ${destinationBank.mint.toBase58()}`);
@@ -214,7 +211,8 @@ async function swapDebtExample() {
 
   // Market prices (USD per token, UI units) size the flashloan borrow. The debt-swap builder has
   // no ExactOut quote, so it estimates the borrow from these oracle prices. Pulled from the
-  // client's realtime oracle prices (same source as 05-oracle-prices.ts).
+  // client's realtime oracle prices (same source as 05-oracle-prices.ts). Bridge legs price
+  // themselves from the same oracle map automatically.
   const repayMarketPrice = client.oraclePriceByBank
     .get(sourceBank.address.toBase58())
     ?.priceRealtime.price.toNumber();
@@ -225,19 +223,14 @@ async function swapDebtExample() {
     throw new Error("Missing oracle price for the source or destination bank");
   }
 
-  // Multi-provider swap-engine config (TITAN primary + JUPITER fallback), exactly like the app.
-  const swapOpts = { swapConfig: getSwapConfig() };
-
-  // Build the swap. Try the direct single-route build first; if the route won't fit the flashloan
-  // tx (size) or can't be quoted, fall back to a bridged DOUBLE-HOP (repay A → borrow bridge, then
-  // repay bridge → borrow C) submitted as one atomic Jito bundle — the same fallback the app does.
-  let transactions;
-  let displayQuote; // single-route quote, or the merged quote across the two bridged legs
-  let actionTxIndex: number | undefined;
-  let isBridged = false;
-
-  try {
-    const direct = await wrappedAccount.makeSwapDebtTx({
+  // ONE call builds the whole thing. The SDK tries the direct single-route swap first; if the
+  // route won't fit the flashloan tx (size / account-locks) or can't be quoted, it transparently
+  // decomposes into two debt swaps through a bridge token (repay source → borrow bridge, then
+  // repay bridge → borrow destination) — one atomic Jito bundle — walking the bridge candidates in
+  // priority order. `bridgeOpts` is optional (defaults to USDC → wSOL → USDT); we pass the
+  // example's universal list to also try JitoSOL.
+  const result = await wrappedAccount
+    .makeBridgedSwapDebtTx({
       connection,
       repayOpts: {
         totalPositionAmount: sourceUiAmount,
@@ -250,54 +243,48 @@ async function swapDebtExample() {
         tokenProgram: destinationMintData.tokenProgram,
         marketPrice: borrowMarketPrice,
       },
-      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
-      swapOpts,
+      swapOpts: { swapConfig: getSwapConfig() },
+      bridgeOpts: { bridgeCandidateMints: UNIVERSAL_BRIDGE_MINTS },
+    })
+    .catch((e) => {
+      // BRIDGE_CONFLICT means the direct route failed AND every bridge candidate is blocked by an
+      // opposite-side position (a token can't be both collateral and debt on one bank). Any other
+      // error is the direct build's failure (health, size with no bridge fitting, etc.).
+      if (isBridgeConflictError(e)) {
+        const blocked = e.details.conflictingBanks.map((b) => b.symbol ?? b.mint).join(", ");
+        throw new Error(
+          `Swap must route through ${blocked}, but the account already supplies them. ` +
+            `Close that position or pick a different pair.`
+        );
+      }
+      throw e;
     });
-    transactions = direct.transactions;
-    actionTxIndex = direct.actionTxIndex;
-    displayQuote = direct.quoteResponse;
-    console.log(`✅ Direct swap built (${transactions.length} txs, action index ${actionTxIndex})`);
-  } catch (e) {
-    // Only a too-big (size) or unquotable route is decomposable into a bridge hop. Anything else
-    // (insufficient health, etc.) is a real failure — rethrow.
-    if (!isDecomposableSwapError(e)) throw e;
-    console.log(`\n⚠️  Direct route didn't fit (${e.code}). Trying a bridged double-hop...`);
 
-    const bridged = await buildBridgedDebtSwap({
-      client,
-      wrappedAccount,
-      account,
-      connection,
-      feePayer: walletPubkey,
-      sourceBank,
-      sourceUiAmount,
-      sourceTokenProgram: sourceMintData.tokenProgram,
-      repayMarketPrice,
-      destinationBank,
-      destinationTokenProgram: destinationMintData.tokenProgram,
-      borrowMarketPrice,
-    });
-    if (!bridged) {
-      throw new Error(
-        "No bridged route fit either. Try a different pair, a smaller size, or other bridges."
-      );
-    }
-    transactions = bridged.transactions;
-    displayQuote = bridged.mergedQuote;
-    isBridged = true;
-    console.log(`✅ Bridged double-hop built (${transactions.length} txs, 2 legs)`);
+  const isBridged = result.bridgeMint !== undefined;
+  if (isBridged) {
+    const bridgeBank = client.banks.find((b) => b.mint.equals(result.bridgeMint!));
+    console.log(
+      `✅ Direct route didn't fit — bridged double-hop built via ` +
+        `${bridgeBank?.tokenSymbol ?? result.bridgeMint!.toBase58()} (${result.transactions.length} txs, 2 legs)`
+    );
+  } else {
+    console.log(
+      `✅ Direct swap built (${result.transactions.length} txs, action index ${result.actionTxIndex})`
+    );
   }
 
   // Quote display. For a debt swap the NEW debt is the borrow (`inAmount`) on the direct quote;
   // the merged bridged quote maps it to `outAmount` (new-debt-borrowed) — see mergeBridgeQuotesDebt.
-  if (displayQuote) {
-    const newDebtNative = isBridged ? displayQuote.outAmount : displayQuote.inAmount;
+  if (result.quoteResponse) {
+    const newDebtNative = isBridged
+      ? result.quoteResponse.outAmount
+      : result.quoteResponse.inAmount;
     const newDebtUi = Number(newDebtNative) / Math.pow(10, destinationBank.mintDecimals);
     console.log(`\n📈 ${isBridged ? "Merged bridged" : "Swap-engine"} quote:`);
     console.log(
       `   New debt amount: ~${newDebtUi.toFixed(6)} ${destinationBank.tokenSymbol || "tokens"}`
     );
-    console.log(`   Price impact: ${displayQuote.priceImpactPct ?? "N/A"}%`);
+    console.log(`   Price impact: ${result.quoteResponse.priceImpactPct ?? "N/A"}%`);
   } else if (isSameMint) {
     console.log(`\n📈 Same mint (no swap needed):`);
     console.log(`   Amount: ${sourceUiAmount.toFixed(6)} ${sourceBank.tokenSymbol || "tokens"}`);
@@ -309,7 +296,7 @@ async function swapDebtExample() {
   console.log("\n🔄 Simulating transaction bundle...");
 
   try {
-    const simulationResults = await simulateBundle(connection.rpcEndpoint, transactions);
+    const simulationResults = await simulateBundle(connection.rpcEndpoint, result.transactions);
 
     console.log("\n✅ Bundle simulation results:");
     let allSuccessful = true;
@@ -317,9 +304,9 @@ async function swapDebtExample() {
     simulationResults.forEach((simResult, index) => {
       const txType = isBridged
         ? `BUNDLE ${index + 1}/${simulationResults.length}`
-        : index === actionTxIndex
+        : index === result.actionTxIndex
           ? "SWAP DEBT"
-          : actionTxIndex !== undefined && index < actionTxIndex
+          : index < result.actionTxIndex
             ? "SETUP"
             : "CLEANUP";
 
@@ -351,146 +338,6 @@ async function swapDebtExample() {
     console.error("\n❌ Simulation error:", error);
     throw error;
   }
-}
-
-// ============================================================================
-// Bridge double-hop fallback (mirrors the app's tryBridgeDebtSwap)
-// ============================================================================
-
-/**
- * Decompose a `source → destination` DEBT swap into two debt swaps through a high-liquidity bridge
- * token: leg 1 repays the source debt and borrows the bridge (A → B), leg 2 repays the bridge debt
- * and borrows the destination (B → C). Both are composed into one atomic bundle by the SDK's
- * `composeBridgedSwap`. Returns the bundle + a merged user-facing quote, or null if no bridge fit.
- *
- * Bridge SELECTION is product policy (app-owned in production). Here we hand the universal bridge
- * mints to the SDK's `resolveBridgeBanks` with `side: "borrow"` — leg 1 BORROWS the bridge, so the
- * bank must be standard-borrowable, and we skip any bridge the account already holds as an ASSET
- * (marginfi forbids asset+liability on one bank).
- */
-async function buildBridgedDebtSwap(args: {
-  client: Project0Client;
-  wrappedAccount: MarginfiAccountWrapper;
-  account: MarginfiAccount;
-  connection: Connection;
-  feePayer: PublicKey;
-  sourceBank: Bank;
-  sourceUiAmount: number;
-  sourceTokenProgram: PublicKey;
-  repayMarketPrice: number;
-  destinationBank: Bank;
-  destinationTokenProgram: PublicKey;
-  borrowMarketPrice: number;
-}) {
-  const { client, wrappedAccount, account, connection, feePayer } = args;
-  const { sourceBank, sourceUiAmount, sourceTokenProgram, repayMarketPrice } = args;
-  const { destinationBank, destinationTokenProgram, borrowMarketPrice } = args;
-
-  const swapOpts = { swapConfig: getSwapConfig() };
-
-  // Universal bridge mints (high liquidity); never bridge through the source/destination itself.
-  const orderedBridgeMints = UNIVERSAL_BRIDGE_MINTS.filter(
-    (m) => !m.equals(sourceBank.mint) && !m.equals(destinationBank.mint)
-  );
-
-  // Let the SDK resolve mints → standard-borrowable banks and drop opposite-side (asset) conflicts.
-  const { bridges } = resolveBridgeBanks({
-    orderedBridgeMints,
-    banks: client.banks,
-    marginfiAccount: account,
-    side: "borrow",
-  });
-
-  for (const bridgeBank of bridges) {
-    const bridgePrice = client.oraclePriceByBank
-      .get(bridgeBank.address.toBase58())
-      ?.priceRealtime.price.toNumber();
-    if (bridgePrice === undefined) continue; // need a market price to size both legs
-
-    const bridgeMintData = await wrappedAccount.getMintDataFromBank(bridgeBank);
-
-    // Leg 1: repay source (A) → borrow bridge (B), built against the real account.
-    const leg1 = await wrappedAccount.makeSwapDebtTx({
-      connection,
-      repayOpts: {
-        totalPositionAmount: sourceUiAmount,
-        repayBank: sourceBank,
-        tokenProgram: sourceTokenProgram,
-        marketPrice: repayMarketPrice,
-      },
-      borrowOpts: {
-        borrowBank: bridgeBank,
-        tokenProgram: bridgeMintData.tokenProgram,
-        marketPrice: bridgePrice,
-      },
-      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
-      swapOpts,
-    });
-    if (!leg1.quoteResponse) continue; // need a quote to size leg 2
-
-    const firstLeg: BridgedSwapLeg = {
-      transactions: leg1.transactions,
-      quoteResponse: leg1.quoteResponse,
-    };
-
-    // Size leg 2 from the EXACT bridge debt leg 1 creates. For a debt swap the engine is ExactIn on
-    // the borrow, so `inAmount` is precisely the amount of bridge borrowed — i.e. the new B debt.
-    const bridgeDebtUiAmount =
-      Number(leg1.quoteResponse.inAmount) / Math.pow(10, bridgeBank.mintDecimals);
-
-    // Leg 2: repay bridge (B) → borrow destination (C), built against the account AFTER leg 1.
-    // composeBridgedSwap replays leg 1's effect onto a clone and passes us that projected account.
-    const buildSecondLeg = async (
-      projectedAccount: MarginfiAccountType
-    ): Promise<BridgedSwapLeg> => {
-      const leg2 = await makeSwapDebtTx({
-        program: client.program,
-        marginfiAccount: projectedAccount,
-        connection,
-        bankMap: client.bankMap,
-        oraclePrices: client.oraclePriceByBank,
-        assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
-        bankMetadataMap: client.bankIntegrationMap,
-        repayOpts: {
-          totalPositionAmount: bridgeDebtUiAmount,
-          repayBank: bridgeBank,
-          tokenProgram: bridgeMintData.tokenProgram,
-          marketPrice: bridgePrice,
-        },
-        borrowOpts: {
-          borrowBank: destinationBank,
-          tokenProgram: destinationTokenProgram,
-          marketPrice: borrowMarketPrice,
-        },
-        swapOpts,
-        addressLookupTableAccounts: client.addressLookupTables,
-      });
-      return { transactions: leg2.transactions, quoteResponse: leg2.quoteResponse };
-    };
-
-    const composed = await composeBridgedSwap({
-      firstLeg,
-      buildSecondLeg,
-      marginfiAccount: account,
-      program: client.program,
-      banksMap: client.bankMap,
-      assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
-      feePayer,
-    });
-    if (!composed) continue; // bundle didn't fit (e.g. > 5 txs) → try the next bridge
-
-    console.log(
-      `   ✅ Bridged via ${bridgeBank.tokenSymbol ?? bridgeBank.mint.toBase58()}: ` +
-        `${sourceBank.tokenSymbol ?? "src"} → ${bridgeBank.tokenSymbol ?? "bridge"} → ` +
-        `${destinationBank.tokenSymbol ?? "dst"}`
-    );
-    return {
-      transactions: composed.transactions,
-      mergedQuote: mergeBridgeQuotesDebt(composed.firstLegQuote, composed.secondLegQuote),
-    };
-  }
-
-  return null;
 }
 
 // ============================================================================

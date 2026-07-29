@@ -6,8 +6,8 @@ import {
   mergeBridgeQuotes,
   mergeBridgeQuotesDebt,
   mergeBridgeQuotesLoop,
-  resolveBridgeBanks,
-  accountConflictsWithBridge,
+  resolveBridgeCandidateBanks,
+  accountConflictsWithBridgeBank,
   SwapQuoteResult,
 } from "~/services/account";
 import {
@@ -69,8 +69,18 @@ function accountWith(
 // ----------------------------------------------------------------------------
 
 describe("bridge quote merges", () => {
-  const first = quote({ inAmount: "100", outAmount: "200", otherAmountThreshold: "190", slippageBps: 100 });
-  const second = quote({ inAmount: "200", outAmount: "300", otherAmountThreshold: "285", slippageBps: 100 });
+  const first = quote({
+    inAmount: "100",
+    outAmount: "200",
+    otherAmountThreshold: "190",
+    slippageBps: 100,
+  });
+  const second = quote({
+    inAmount: "200",
+    outAmount: "300",
+    otherAmountThreshold: "285",
+    slippageBps: 100,
+  });
 
   it("mergeBridgeQuotes maps first.in -> second.out (collateral / loop-deposit)", () => {
     const m = mergeBridgeQuotes(first, second);
@@ -105,25 +115,45 @@ describe("bridge quote merges", () => {
 
 describe("isStandardBorrowable / isStandardDepositable", () => {
   it("native DEFAULT/SOL operational banks are borrowable + depositable", () => {
-    const def = bank({ assetTag: AssetTag.DEFAULT, operationalState: OperationalState.Operational, borrowLimit: 100 });
-    const sol = bank({ assetTag: AssetTag.SOL, operationalState: OperationalState.Operational, borrowLimit: 100 });
+    const def = bank({
+      assetTag: AssetTag.DEFAULT,
+      operationalState: OperationalState.Operational,
+      borrowLimit: 100,
+    });
+    const sol = bank({
+      assetTag: AssetTag.SOL,
+      operationalState: OperationalState.Operational,
+      borrowLimit: 100,
+    });
     expect(isStandardBorrowable(def)).toBe(true);
     expect(isStandardDepositable(def)).toBe(true);
     expect(isStandardBorrowable(sol)).toBe(true);
   });
 
   it("integration wrappers (Kamino/Drift/JupLend) are neither", () => {
-    const kamino = bank({ assetTag: AssetTag.KAMINO, operationalState: OperationalState.Operational, borrowLimit: 0 });
+    const kamino = bank({
+      assetTag: AssetTag.KAMINO,
+      operationalState: OperationalState.Operational,
+      borrowLimit: 0,
+    });
     expect(isStandardBorrowable(kamino)).toBe(false);
     expect(isStandardDepositable(kamino)).toBe(false);
   });
 
   it("ReduceOnly excludes both; zero borrowLimit excludes only borrowable", () => {
-    const reduceOnly = bank({ assetTag: AssetTag.DEFAULT, operationalState: OperationalState.ReduceOnly, borrowLimit: 100 });
+    const reduceOnly = bank({
+      assetTag: AssetTag.DEFAULT,
+      operationalState: OperationalState.ReduceOnly,
+      borrowLimit: 100,
+    });
     expect(isStandardBorrowable(reduceOnly)).toBe(false);
     expect(isStandardDepositable(reduceOnly)).toBe(false);
 
-    const noBorrow = bank({ assetTag: AssetTag.DEFAULT, operationalState: OperationalState.Operational, borrowLimit: 0 });
+    const noBorrow = bank({
+      assetTag: AssetTag.DEFAULT,
+      operationalState: OperationalState.Operational,
+      borrowLimit: 0,
+    });
     expect(isStandardBorrowable(noBorrow)).toBe(false);
     expect(isStandardDepositable(noBorrow)).toBe(true); // deposit doesn't need a borrow limit
   });
@@ -133,63 +163,82 @@ describe("isStandardBorrowable / isStandardDepositable", () => {
 // Conflict + resolution
 // ----------------------------------------------------------------------------
 
-describe("accountConflictsWithBridge", () => {
+describe("accountConflictsWithBridgeBank", () => {
   const bankPk = Keypair.generate().publicKey;
 
   it("deposit-side conflicts with an existing liability, not an asset", () => {
     const liab = accountWith([{ bankPk, assetShares: 0, liabilityShares: 5 }]);
     const asset = accountWith([{ bankPk, assetShares: 5, liabilityShares: 0 }]);
-    expect(accountConflictsWithBridge(liab, bankPk, "deposit")).toBe(true);
-    expect(accountConflictsWithBridge(asset, bankPk, "deposit")).toBe(false);
+    expect(accountConflictsWithBridgeBank(liab, bankPk, "deposit")).toBe(true);
+    expect(accountConflictsWithBridgeBank(asset, bankPk, "deposit")).toBe(false);
   });
 
   it("borrow-side conflicts with an existing asset, not a liability", () => {
     const asset = accountWith([{ bankPk, assetShares: 5, liabilityShares: 0 }]);
     const liab = accountWith([{ bankPk, assetShares: 0, liabilityShares: 5 }]);
-    expect(accountConflictsWithBridge(asset, bankPk, "borrow")).toBe(true);
-    expect(accountConflictsWithBridge(liab, bankPk, "borrow")).toBe(false);
+    expect(accountConflictsWithBridgeBank(asset, bankPk, "borrow")).toBe(true);
+    expect(accountConflictsWithBridgeBank(liab, bankPk, "borrow")).toBe(false);
   });
 
   it("no position on the bank -> no conflict", () => {
     const empty = accountWith([]);
-    expect(accountConflictsWithBridge(empty, bankPk, "deposit")).toBe(false);
+    expect(accountConflictsWithBridgeBank(empty, bankPk, "deposit")).toBe(false);
   });
 });
 
-describe("resolveBridgeBanks", () => {
+describe("resolveBridgeCandidateBanks", () => {
   const usdcMint = Keypair.generate().publicKey;
   const solMint = Keypair.generate().publicKey;
   const wrapperMint = Keypair.generate().publicKey; // only has a non-standard bank
 
-  const usdcBank = bank({ assetTag: AssetTag.DEFAULT, operationalState: OperationalState.Operational, borrowLimit: 100, mint: usdcMint });
-  const solBank = bank({ assetTag: AssetTag.SOL, operationalState: OperationalState.Operational, borrowLimit: 100, mint: solMint });
-  const wrapperBank = bank({ assetTag: AssetTag.KAMINO, operationalState: OperationalState.Operational, borrowLimit: 0, mint: wrapperMint });
+  const usdcBank = bank({
+    assetTag: AssetTag.DEFAULT,
+    operationalState: OperationalState.Operational,
+    borrowLimit: 100,
+    mint: usdcMint,
+  });
+  const solBank = bank({
+    assetTag: AssetTag.SOL,
+    operationalState: OperationalState.Operational,
+    borrowLimit: 100,
+    mint: solMint,
+  });
+  const wrapperBank = bank({
+    assetTag: AssetTag.KAMINO,
+    operationalState: OperationalState.Operational,
+    borrowLimit: 0,
+    mint: wrapperMint,
+  });
   const banks = [usdcBank, solBank, wrapperBank];
 
   it("resolves standard banks in priority order, dedupes, skips mints with no standard bank", () => {
-    const { bridges, conflicts } = resolveBridgeBanks({
-      orderedBridgeMints: [usdcMint, usdcMint, wrapperMint, solMint], // dup + a no-standard-bank mint
-      banks,
+    const { usableBridgeBanks, conflictingBridgeBanks } = resolveBridgeCandidateBanks({
+      prioritizedBridgeCandidateMints: [usdcMint, usdcMint, wrapperMint, solMint], // dup + a no-standard-bank mint
+      groupBanks: banks,
       marginfiAccount: accountWith([]),
-      side: "deposit",
+      bridgeTokenSide: "deposit",
     });
-    expect(bridges.map((b) => b.address.toBase58())).toEqual([
+    expect(usableBridgeBanks.map((b: BankType) => b.address.toBase58())).toEqual([
       usdcBank.address.toBase58(),
       solBank.address.toBase58(),
     ]);
-    expect(conflicts).toHaveLength(0);
+    expect(conflictingBridgeBanks).toHaveLength(0);
   });
 
   it("partitions a conflicting bridge out of the usable set", () => {
     // Account holds SOL as an ASSET -> borrow-side conflict on the SOL bank.
     const account = accountWith([{ bankPk: solBank.address, assetShares: 5, liabilityShares: 0 }]);
-    const { bridges, conflicts } = resolveBridgeBanks({
-      orderedBridgeMints: [usdcMint, solMint],
-      banks,
+    const { usableBridgeBanks, conflictingBridgeBanks } = resolveBridgeCandidateBanks({
+      prioritizedBridgeCandidateMints: [usdcMint, solMint],
+      groupBanks: banks,
       marginfiAccount: account,
-      side: "borrow",
+      bridgeTokenSide: "borrow",
     });
-    expect(bridges.map((b) => b.address.toBase58())).toEqual([usdcBank.address.toBase58()]);
-    expect(conflicts.map((b) => b.address.toBase58())).toEqual([solBank.address.toBase58()]);
+    expect(usableBridgeBanks.map((b: BankType) => b.address.toBase58())).toEqual([
+      usdcBank.address.toBase58(),
+    ]);
+    expect(conflictingBridgeBanks.map((b) => b.address.toBase58())).toEqual([
+      solBank.address.toBase58(),
+    ]);
   });
 });

@@ -43,6 +43,13 @@ import {
   makeKaminoWithdrawTx,
   MakeKaminoWithdrawTxParams,
   makeAccountTransferToNewAccountTx,
+  makeBridgedLoopTx,
+  MakeBridgedLoopTxParams,
+  makeBridgedSwapCollateralTx,
+  MakeBridgedSwapCollateralTxParams,
+  makeBridgedSwapDebtTx,
+  MakeBridgedSwapDebtTxParams,
+  BridgedTxResult,
   makeLoopTx,
   makePulseHealthIx,
   makeRepayIx,
@@ -805,6 +812,95 @@ class MarginfiAccount implements MarginfiAccountType {
     params: Omit<MakeTransferPositionsTxParams, "marginfiAccount">
   ): Promise<TransferPositionsResult> {
     return makeTransferPositionsTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a loop transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeLoopTx} first; if its borrow→deposit swap can't fit one
+   * transaction (size / account-locks) or has no route, it loops the deposit asset against a
+   * value-equivalent borrow of a high-liquidity bridge token, then debt-swaps the bridge debt to
+   * the requested borrow asset — both legs composed into ONE atomic Jito bundle.
+   *
+   * Bridge candidates default to USDC → wSOL → USDT and can be reordered/overridden via
+   * `params.bridgeOpts.bridgeCandidateMints`; `bridgeOpts` also accepts known token programs (skips RPC
+   * lookups), a bundle-size ceiling, and an abort signal. `result.bridgeMint` is set only when the
+   * bridged path was used.
+   *
+   * Intended for existing accounts — a fresh account's loop fits the direct path, so flows that
+   * create the account in the same action should call {@link makeLoopTx} directly.
+   *
+   * @param params - Loop transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedLoopTx} for detailed implementation
+   */
+  async makeBridgedLoopTx(
+    params: Omit<MakeBridgedLoopTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedLoopTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a collateral-swap transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeSwapCollateralTx} first; if the swap `A → C` can't fit
+   * one transaction or has no route, it decomposes into `A → bridge` + `bridge → C` through a
+   * high-liquidity bridge collateral, both legs composed into ONE atomic Jito bundle. See
+   * {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
+   *
+   * @param params - Swap collateral transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedSwapCollateralTx} for detailed implementation
+   */
+  async makeBridgedSwapCollateralTx(
+    params: Omit<MakeBridgedSwapCollateralTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedSwapCollateralTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a debt-swap transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeSwapDebtTx} first; if the swap `A → C` can't fit one
+   * transaction or has no route, the first leg repays A by borrowing a bridge token and the second
+   * leg repays exactly that bridge debt while borrowing C — both legs composed into ONE atomic
+   * Jito bundle. See {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
+   *
+   * @param params - Swap debt transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedSwapDebtTx} for detailed implementation
+   */
+  async makeBridgedSwapDebtTx(
+    params: Omit<MakeBridgedSwapDebtTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedSwapDebtTx({
       ...params,
       marginfiAccount: this,
       overrideInferAccounts: {

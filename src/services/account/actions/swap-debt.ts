@@ -9,7 +9,8 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { TransactionBuildingError } from "~/errors";
+import { BankType } from "~/services/bank";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -22,6 +23,12 @@ import {
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
+  BridgeOpts,
+  BridgedTxResult,
+  resolveTokenProgramForMint,
+  selectSwapBridges,
+  sharedBridgeLegContext,
+  tryBridgeCandidates,
 } from "../utils";
 import {
   computeBorrowEstimateForRepay,
@@ -32,6 +39,7 @@ import {
 import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
+import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeBorrowIx } from "./borrow";
 import { makeRepayIx } from "./repay";
 import { makeFlashLoanTx } from "./flash-loan";
@@ -399,4 +407,129 @@ async function buildSwapDebtFlashloanTx({
     borrowIxs,
     repayIxs,
   };
+}
+
+// ----------------------------------------------------------------------------
+// Bridged (double-hop) fallback
+// ----------------------------------------------------------------------------
+
+export interface MakeBridgedSwapDebtTxParams extends MakeSwapDebtTxParams {
+  bridgeOpts?: BridgeOpts;
+}
+
+/**
+ * {@link makeSwapDebtTx} with a transparent bridged fallback: if the direct debt swap `A → C`
+ * (repay A by borrowing C) can't fit one tx or has no route, decompose it into `A → bridge` +
+ * `bridge → C` through a borrowable bridge debt, as one atomic bundle. The first leg repays A by
+ * borrowing the bridge; the second leg repays exactly the bridge the first leg borrowed and
+ * borrows C.
+ */
+export async function makeBridgedSwapDebtTx(
+  params: MakeBridgedSwapDebtTxParams
+): Promise<BridgedTxResult> {
+  const { bridgeOpts, ...directParams } = params;
+  try {
+    return await makeSwapDebtTx(directParams);
+  } catch (directError) {
+    if (!isDecomposableSwapError(directError)) throw directError;
+    const bridged = await tryBridgedDebtSwap(directParams, bridgeOpts);
+    if (bridged) return bridged;
+    throw directError;
+  }
+}
+
+async function tryBridgedDebtSwap(
+  params: MakeSwapDebtTxParams,
+  bridgeOpts: BridgeOpts | undefined
+): Promise<BridgedTxResult | null> {
+  const sourceBank = params.repayOpts.repayBank;
+  const destinationBank = params.borrowOpts.borrowBank;
+  const repayAmount = params.repayOpts.repayAmount ?? params.repayOpts.totalPositionAmount;
+  // Bridge legs price via the oracle (0 when missing): caller-supplied market prices only cover
+  // the source/destination pair, never the bridge.
+  const oraclePriceOf = (bank: BankType) =>
+    params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
+  // A debt swap BORROWS the bridge → skip any candidate the account is supplying.
+  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
+    sourceMint: sourceBank.mint,
+    destinationMint: destinationBank.mint,
+    bankMap: params.bankMap,
+    marginfiAccount: params.marginfiAccount,
+    bridgeTokenSide: "borrow",
+    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
+  });
+
+  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
+  return tryBridgeCandidates({
+    usableBridgeBanks,
+    conflictingBridgeBanks,
+    bridgeTokenSide: "borrow",
+    abortSignal: bridgeOpts?.abortSignal,
+    buildBundleThroughBridge: async (bridgeBank) => {
+      const bridgeTokenProgram = await resolveTokenProgramForMint(
+        bridgeBank.mint,
+        params.connection,
+        tokenProgramCache
+      );
+
+      // First leg: repay A by borrowing the bridge (debt A → bridge).
+      const firstLeg = await makeSwapDebtTx({
+        ...sharedBridgeLegContext(params),
+        repayOpts: {
+          totalPositionAmount: params.repayOpts.totalPositionAmount,
+          repayAmount,
+          repayBank: sourceBank,
+          tokenProgram: params.repayOpts.tokenProgram,
+          marketPrice: oraclePriceOf(sourceBank),
+        },
+        borrowOpts: {
+          borrowBank: bridgeBank,
+          tokenProgram: bridgeTokenProgram,
+          marketPrice: oraclePriceOf(bridgeBank),
+        },
+      });
+      if (!firstLeg.quoteResponse) return null;
+
+      // The first leg borrowed `inAmount` of the bridge (its swap input). The second leg repays
+      // exactly that bridge debt — exact, so no slippage residual; repay-all clears it (no
+      // partial-leftover deposit conflict).
+      const bridgeBorrowedUi = nativeToUi(firstLeg.quoteResponse.inAmount, bridgeBank.mintDecimals);
+      if (bridgeBorrowedUi <= 0) return null;
+
+      const result = await composeBridgedSwap({
+        firstLeg,
+        buildSecondLeg: (projectedAccount) =>
+          makeSwapDebtTx({
+            ...sharedBridgeLegContext(params),
+            marginfiAccount: projectedAccount,
+            repayOpts: {
+              totalPositionAmount: bridgeBorrowedUi,
+              repayAmount: bridgeBorrowedUi,
+              repayBank: bridgeBank,
+              tokenProgram: bridgeTokenProgram,
+              marketPrice: oraclePriceOf(bridgeBank),
+            },
+            borrowOpts: {
+              borrowBank: destinationBank,
+              tokenProgram: params.borrowOpts.tokenProgram,
+              marketPrice: oraclePriceOf(destinationBank),
+            },
+          }),
+        marginfiAccount: params.marginfiAccount,
+        program: params.program,
+        banksMap: params.bankMap,
+        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
+        maxBundleTxs: bridgeOpts?.maxBundleTxs,
+      });
+      if (!result) return null;
+
+      return {
+        transactions: result.transactions,
+        actionTxIndex: result.transactions.length - 1,
+        quoteResponse: mergeBridgeQuotesDebt(result.firstLegQuote, result.secondLegQuote),
+        bridgeMint: bridgeBank.mint,
+      };
+    },
+  });
 }

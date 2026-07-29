@@ -19,8 +19,8 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { AssetTag } from "~/services/bank";
-import { TransactionBuildingError } from "~/errors";
+import { AssetTag, BankType } from "~/services/bank";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -34,6 +34,12 @@ import {
   compileFlashloanPrecheck,
   patchDepositAmount,
   isDepositIx,
+  BridgeOpts,
+  BridgedTxResult,
+  resolveTokenProgramForMint,
+  selectSwapBridges,
+  sharedBridgeLegContext,
+  tryBridgeCandidates,
 } from "../utils";
 import {
   runSwapEngine,
@@ -51,6 +57,8 @@ import {
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
+import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
+import { makeSwapDebtTx } from "./swap-debt";
 import { uiToNative } from "~/utils";
 
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
@@ -610,4 +618,132 @@ async function finalizeLoopFlashloanTx({
   }
 
   return flashloanTx;
+}
+
+// ----------------------------------------------------------------------------
+// Bridged (double-hop) fallback
+// ----------------------------------------------------------------------------
+
+export interface MakeBridgedLoopTxParams extends MakeLoopTxParams {
+  bridgeOpts?: BridgeOpts;
+}
+
+/**
+ * {@link makeLoopTx} with a transparent bridged fallback: if the direct loop's borrow→deposit swap
+ * can't fit one tx or has no route, loop P borrowing a value-equivalent amount of a bridge token,
+ * then debt-swap the bridge debt → X, as one atomic bundle.
+ *
+ * Intended for existing accounts — a fresh account's loop has a minimal footprint and fits the
+ * direct path, so callers creating the account in the same flow should call {@link makeLoopTx}
+ * directly.
+ */
+export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promise<BridgedTxResult> {
+  const { bridgeOpts, ...loopParams } = params;
+  try {
+    return await makeLoopTx(loopParams);
+  } catch (directError) {
+    if (!isDecomposableSwapError(directError)) throw directError;
+    const bridged = await tryBridgedLoop(loopParams, bridgeOpts);
+    if (bridged) return bridged;
+    throw directError;
+  }
+}
+
+async function tryBridgedLoop(
+  params: MakeLoopTxParams,
+  bridgeOpts: BridgeOpts | undefined
+): Promise<BridgedTxResult | null> {
+  const { depositBank } = params.depositOpts;
+  const { borrowBank } = params.borrowOpts;
+  // A loop BORROWS the bridge → skip any candidate the account is supplying.
+  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
+    sourceMint: depositBank.mint,
+    destinationMint: borrowBank.mint,
+    bankMap: params.bankMap,
+    marginfiAccount: params.marginfiAccount,
+    bridgeTokenSide: "borrow",
+    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
+  });
+
+  // Bridge legs price via the oracle (0 when missing): caller-supplied market prices only cover
+  // the source/destination pair, never the bridge.
+  const oraclePriceOf = (bank: BankType) =>
+    params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
+
+  const borrowBankPrice = oraclePriceOf(borrowBank);
+  if (borrowBankPrice) return null;
+
+  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
+  return tryBridgeCandidates({
+    usableBridgeBanks,
+    conflictingBridgeBanks,
+    bridgeTokenSide: "borrow",
+    abortSignal: bridgeOpts?.abortSignal,
+    buildBundleThroughBridge: async (bridgeBank) => {
+      const birdgeBankPrice = oraclePriceOf(bridgeBank);
+      if (birdgeBankPrice <= 0) return null;
+
+      // Borrow a value-equivalent amount of the bridge instead of X — same leverage / P deposit.
+      const bridgeBorrowUi = (params.borrowOpts.borrowAmount * borrowBankPrice) / birdgeBankPrice;
+      if (bridgeBorrowUi <= 0) return null;
+      const bridgeTokenProgram = await resolveTokenProgramForMint(
+        bridgeBank.mint,
+        params.connection,
+        tokenProgramCache
+      );
+
+      // First leg: loop P borrowing the bridge (borrow bridge, swap bridge→P, deposit P).
+      const firstLeg = await makeLoopTx({
+        ...params,
+        depositOpts: {
+          ...params.depositOpts,
+          marketPrice: oraclePriceOf(depositBank),
+        },
+        borrowOpts: {
+          borrowAmount: bridgeBorrowUi,
+          borrowBank: bridgeBank,
+          tokenProgram: bridgeTokenProgram,
+          marketPrice: birdgeBankPrice,
+        },
+      });
+      if (!firstLeg.quoteResponse) return null;
+
+      const result = await composeBridgedSwap({
+        firstLeg,
+        // Second leg: debt-swap the bridge debt → X (repay exactly the bridge the first leg
+        // borrowed — exact, so no slippage residual; repay-all clears it — and borrow X).
+        buildSecondLeg: (projectedAccount) =>
+          makeSwapDebtTx({
+            ...sharedBridgeLegContext(params),
+            marginfiAccount: projectedAccount,
+            repayOpts: {
+              totalPositionAmount: bridgeBorrowUi,
+              repayAmount: bridgeBorrowUi,
+              repayBank: bridgeBank,
+              tokenProgram: bridgeTokenProgram,
+              marketPrice: birdgeBankPrice,
+            },
+            borrowOpts: {
+              borrowBank,
+              tokenProgram: params.borrowOpts.tokenProgram,
+              marketPrice: borrowBankPrice,
+            },
+          }),
+        marginfiAccount: params.marginfiAccount,
+        program: params.program,
+        banksMap: params.bankMap,
+        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
+        maxBundleTxs: bridgeOpts?.maxBundleTxs,
+      });
+      if (!result) return null; // both legs didn't build / bundle didn't fit — try the next bridge
+
+      return {
+        transactions: result.transactions,
+        actionTxIndex: result.transactions.length - 1,
+        quoteResponse: mergeBridgeQuotesLoop(result.firstLegQuote, result.secondLegQuote),
+        bridgeMint: bridgeBank.mint,
+      };
+    },
+  });
 }
