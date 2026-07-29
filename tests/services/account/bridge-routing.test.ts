@@ -111,6 +111,7 @@ describe("tryBridgeCandidates", () => {
     actionTxIndex: 0,
     quoteResponse: undefined,
     bridgeMint: bridge.mint,
+    mustBeAtomicBundle: true,
   });
 
   it("returns the first candidate that composes, in priority order", async () => {

@@ -260,7 +260,9 @@ async function loopExample() {
     if (allSuccessful) {
       console.log("\n✅ All transactions simulated successfully!");
       console.log(
-        "\n💡 To execute this loop, you would sign and send these transactions in order."
+        result.mustBeAtomicBundle
+          ? "\n💡 To execute this loop, send these transactions as ONE atomic Jito bundle."
+          : "\n💡 To execute this loop, you can sign and send these transactions sequentially."
       );
     } else {
       console.log("\n⚠️  Some transactions failed simulation. Check errors above.");

@@ -402,6 +402,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeLoopTxParams = {
       ...params,
@@ -482,6 +485,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeRepayWithCollatTxParams = {
       ...params,
@@ -519,6 +525,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeSwapCollateralTxParams = {
       ...params,
@@ -592,6 +601,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeSwapDebtTxParams = {
       ...params,
