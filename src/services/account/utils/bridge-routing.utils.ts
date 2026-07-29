@@ -124,6 +124,10 @@ export async function tryBridgeCandidates(args: {
     } catch (e) {
       if (isAbortError(e)) throw e;
       // this bridge candidate failed to build a leg — try the next one
+      console.warn(
+        `[bridge-routing] candidate ${bridgeBank.tokenSymbol ?? bridgeBank.mint.toBase58()} failed:`,
+        e instanceof Error ? e.message : e
+      );
     }
   }
   if (args.usableBridgeBanks.length === 0 && args.conflictingBridgeBanks.length > 0) {

@@ -671,7 +671,7 @@ async function tryBridgedLoop(
     params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
 
   const borrowBankPrice = oraclePriceOf(borrowBank);
-  if (borrowBankPrice) return null;
+  if (borrowBankPrice <= 0) return null;
 
   const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
   return tryBridgeCandidates({
@@ -680,11 +680,11 @@ async function tryBridgedLoop(
     bridgeTokenSide: "borrow",
     abortSignal: bridgeOpts?.abortSignal,
     buildBundleThroughBridge: async (bridgeBank) => {
-      const birdgeBankPrice = oraclePriceOf(bridgeBank);
-      if (birdgeBankPrice <= 0) return null;
+      const bridgeBankPrice = oraclePriceOf(bridgeBank);
+      if (bridgeBankPrice <= 0) return null;
 
       // Borrow a value-equivalent amount of the bridge instead of X — same leverage / P deposit.
-      const bridgeBorrowUi = (params.borrowOpts.borrowAmount * borrowBankPrice) / birdgeBankPrice;
+      const bridgeBorrowUi = (params.borrowOpts.borrowAmount * borrowBankPrice) / bridgeBankPrice;
       if (bridgeBorrowUi <= 0) return null;
       const bridgeTokenProgram = await resolveTokenProgramForMint(
         bridgeBank.mint,
@@ -703,7 +703,7 @@ async function tryBridgedLoop(
           borrowAmount: bridgeBorrowUi,
           borrowBank: bridgeBank,
           tokenProgram: bridgeTokenProgram,
-          marketPrice: birdgeBankPrice,
+          marketPrice: bridgeBankPrice,
         },
       });
       if (!firstLeg.quoteResponse) return null;
@@ -721,7 +721,7 @@ async function tryBridgedLoop(
               repayAmount: bridgeBorrowUi,
               repayBank: bridgeBank,
               tokenProgram: bridgeTokenProgram,
-              marketPrice: birdgeBankPrice,
+              marketPrice: bridgeBankPrice,
             },
             borrowOpts: {
               borrowBank,
