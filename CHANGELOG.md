@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.5
+
+### Patch Changes
+
+- Jupiter adapter: explicitly exclude `GoonFi V2` from route candidates via `excludeDexes`. Jupiter's `forJitoBundle` filter currently misses it, and GoonFi V2 pools reference a validator vote account which causes Jito to reject the bundle ("bundles cannot lock any vote accounts"). Remove once Jupiter's exclusion list covers it.
+
+  Also documents the assumptions of `sync-instructions.ts` inline.
+
 ## 2.5.4
 
 ### Patch Changes
