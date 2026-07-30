@@ -18,6 +18,12 @@ import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 const JUPITER_MAX_ACCOUNTS_MARGIN = 4;
 const JUPITER_MIN_MAX_ACCOUNTS = 16;
 
+// Jupiter's `forJitoBundle` exclusion list currently misses GoonFi V2, whose
+// pool accounts include a validator vote account (J1to1yuf...) — Jito rejects
+// any bundle locking one ("bundles cannot lock any vote accounts"). Exclude it
+// explicitly until Jupiter adds it to the flag's list.
+const BUNDLE_INCOMPATIBLE_DEXES = ["GoonFi V2"];
+
 function deserializeJupiterInstruction(ix: Instruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(ix.programId),
@@ -104,6 +110,7 @@ async function buildCandidates(
         // the Router may route through DEXes whose swaps lock vote accounts,
         // which Jito rejects ("bundles cannot lock any vote accounts").
         forJitoBundle: true,
+        excludeDexes: BUNDLE_INCOMPATIBLE_DEXES,
         destinationTokenAccount: req.destinationTokenAccount.toBase58(),
         platformFeeBps: useFee ? req.platformFeeBps : undefined,
         feeAccount: useFee ? feeAccount : undefined,
