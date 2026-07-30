@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0-alpha.3
+
+### Patch Changes
+
+- chore: rebase
+
 ## 2.6.0-alpha.2
 
 ### Patch Changes
