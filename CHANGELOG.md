@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.6
+
+### Patch Changes
+
+- Bump Switchboard deps: `@switchboard-xyz/common` 5.7.0 → 5.8.5 and `@switchboard-xyz/on-demand` 3.9.0 → 3.10.6.
+
 ## 2.5.5
 
 ### Patch Changes
