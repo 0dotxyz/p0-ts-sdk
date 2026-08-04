@@ -1,5 +1,5 @@
 {
-  "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ",
+  "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
   "metadata": {
     "name": "gamma_vault",
     "version": "2.2.0",
@@ -1343,7 +1343,7 @@
             "upgrade-authority check below cannot be satisfied with an unrelated",
             "program's ProgramData."
           ],
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "program_data",
@@ -1724,7 +1724,7 @@
         },
         {
           "name": "program",
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "program_data"
@@ -2536,7 +2536,7 @@
             "upgrade-authority check below cannot be satisfied with an unrelated",
             "program's ProgramData."
           ],
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "program_data",
