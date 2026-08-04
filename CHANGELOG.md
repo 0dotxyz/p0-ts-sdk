@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0-alpha.4
+
+### Patch Changes
+
+- Gamma vaults: switch `GAMMA_VAULT_PROGRAM_ID` from the P0-owned deployment (`gvvtq…`) to the upstream Gamma program (`GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV`) which hosts the production vaults. IDL updated accordingly.
+
 ## 2.6.0-alpha.3
 
 ### Patch Changes
