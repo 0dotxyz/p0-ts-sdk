@@ -424,12 +424,14 @@ export interface MakeTransferPositionsTxParams {
 }
 
 export interface TransferPositionsResult {
-  /** Ordered for sequential execution: [setup/crank txs…, flashloan tx]. */
+  /** Ordered for execution: [setup/crank txs…, flashloan tx]. */
   transactions: ExtendedV0Transaction[];
   /** Index of the flashloan tx in `transactions`. */
   actionTxIndex: number;
   /** The destination account (passed-in, or the projected account created in the tx). */
   destinationAccount: MarginfiAccountType;
+  /** Whether all transactions must land atomically in one bundle. */
+  mustBeAtomicBundle: boolean;
 }
 
 export interface MakeBulkWithdrawTxParams {
@@ -444,6 +446,8 @@ export interface MakeBulkWithdrawTxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   /** Token program per withdrawn bank (base58 bank address → token program id). */
   tokenProgramsByBank: Map<string, PublicKey>;
+  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  groupRateLimiterEnabled?: boolean;
   luts: AddressLookupTableAccount[];
   crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
@@ -463,10 +467,12 @@ export interface MakeBulkRepayTxParams {
 }
 
 export interface BulkLendTxsResult {
-  /** Ordered for sequential execution: [setup/crank txs…, action txs…]. */
+  /** Ordered for execution: [setup/crank txs…, action txs…]. */
   transactions: ExtendedV0Transaction[];
   /** Index of the first action tx in `transactions`. */
   actionTxIndex: number;
+  /** Whether all transactions must land atomically in one bundle. */
+  mustBeAtomicBundle: boolean;
 }
 
 export interface MakeLoopTxParams {

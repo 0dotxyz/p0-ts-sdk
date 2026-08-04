@@ -63,6 +63,7 @@ export async function makeBulkWithdrawTx(
     oraclePrices,
     assetShareValueMultiplierByBank,
     tokenProgramsByBank,
+    groupRateLimiterEnabled = false,
     overrideInferAccounts,
     luts,
   } = params;
@@ -239,6 +240,7 @@ export async function makeBulkWithdrawTx(
     instructions: withdrawIxs,
     program,
     connection,
+    groupRateLimiterEnabled,
     crossbarUrl: params.crossbarUrl,
   });
   if (crankIxs.length > 0) {
@@ -283,6 +285,7 @@ export async function makeBulkWithdrawTx(
   return {
     transactions: [...additionalTxs, ...withdrawTxs],
     actionTxIndex: additionalTxs.length,
+    mustBeAtomicBundle: refreshIxs.length > 0,
   };
 }
 
@@ -349,5 +352,5 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     })
   );
 
-  return { transactions, actionTxIndex: 0 };
+  return { transactions, actionTxIndex: 0, mustBeAtomicBundle: false };
 }

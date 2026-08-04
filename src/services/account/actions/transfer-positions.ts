@@ -606,7 +606,8 @@ function destPreexistingBanksOf(
  *    so this is safe and retryable — treat it as such.
  *  - Integration (Kamino/JupLend) reserve/rate refresh rides in the prelude transaction and requires
  *    `bankMetadataMap` to carry fresh `kaminoStates`/`jupLendStates`.
- *  - All transactions share one blockhash; execute them in order within its validity window.
+ *  - All transactions share one blockhash; execute them in order within its validity window. When
+ *    `mustBeAtomicBundle` is true, they must also land atomically in one bundle.
  *  - Dust (borrow padding minus accrued interest; withdraw-all/cToken-conversion excess) remains in
  *    the wallet ATAs.
  */
@@ -744,6 +745,7 @@ export async function makeTransferPositionsTx(
     instructions: innerIxs,
     program,
     connection,
+    groupRateLimiterEnabled,
     crossbarUrl,
   });
   if (updateFeedIxs.length > 0) {
@@ -765,5 +767,6 @@ export async function makeTransferPositionsTx(
     transactions,
     actionTxIndex: additionalTxs.length,
     destinationAccount: accountB,
+    mustBeAtomicBundle: refreshIxs.length > 0,
   };
 }
