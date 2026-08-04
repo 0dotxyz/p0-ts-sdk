@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/gamma_vault.json`.
  */
 export type GammaVault = {
-  "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ",
+  "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
   "metadata": {
     "name": "gammaVault",
     "version": "2.2.0",
@@ -1349,7 +1349,7 @@ export type GammaVault = {
             "upgrade-authority check below cannot be satisfied with an unrelated",
             "program's ProgramData."
           ],
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "programData",
@@ -1730,7 +1730,7 @@ export type GammaVault = {
         },
         {
           "name": "program",
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "programData"
@@ -2542,7 +2542,7 @@ export type GammaVault = {
             "upgrade-authority check below cannot be satisfied with an unrelated",
             "program's ProgramData."
           ],
-          "address": "gvvtqvEmwQDnFwEvLJzzyweABcXV7HAYsTwTgztEHWJ"
+          "address": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV"
         },
         {
           "name": "programData",
