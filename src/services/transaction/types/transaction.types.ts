@@ -50,6 +50,11 @@ export enum TransactionType {
 
   MERGE_STAKE_ACCOUNTS = "MERGE_STAKE_ACCOUNTS",
 
+  // GAMMA VAULT ACTIONS
+  VAULT_DEPOSIT = "VAULT_DEPOSIT",
+  VAULT_WITHDRAW = "VAULT_WITHDRAW",
+  VAULT_COMPLETE_WITHDRAWAL = "VAULT_COMPLETE_WITHDRAWAL",
+
   // LST
   STAKE_TO_STAKE = "STAKE_TO_STAKE",
   MINT_LST_NATIVE = "MINT_LST_NATIVE",
@@ -153,6 +158,19 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
   [TransactionType.INITIALIZE_STAKED_POOL]: { label: () => "Initialize stake pool" },
   [TransactionType.ADD_STAKED_BANK]: { label: () => "Create staked asset bank" },
   [TransactionType.MERGE_STAKE_ACCOUNTS]: { label: () => "Merge stake accounts" },
+
+  // GAMMA VAULT ACTIONS
+  [TransactionType.VAULT_DEPOSIT]: {
+    label: ({ amount, token } = {}) =>
+      amount && token ? `Deposit ${amount} ${token} into vault` : "Deposit into vault",
+  },
+  [TransactionType.VAULT_WITHDRAW]: {
+    label: ({ amount, token } = {}) =>
+      amount && token ? `Withdraw ${amount} ${token} from vault` : "Withdraw from vault",
+  },
+  [TransactionType.VAULT_COMPLETE_WITHDRAWAL]: {
+    label: () => "Claim vault withdrawal",
+  },
 
   // LST (Liquid Staking Tokens)
   [TransactionType.STAKE_TO_STAKE]: { label: () => "Convert stake" },
