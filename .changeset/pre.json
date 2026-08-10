@@ -1,0 +1,19 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.6.0"
+  },
+  "changesets": [
+    "bridged-swap-actions",
+    "consolidate-refreshes-bulk",
+    "long-meteors-thank",
+    "loop-bridge-fixes",
+    "must-be-atomic-bundle",
+    "old-memes-look",
+    "pinned-swap-route",
+    "solid-dancers-shake",
+    "thirty-crabs-bet",
+    "transfer-positions"
+  ]
+}
