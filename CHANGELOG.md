@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.6.0
+
+### Minor Changes
+
+- 812722a: Add Gamma vaults support: new `services/vaults` module with `deposit`, `withdraw`, and `depositWithSwap` actions, vault action types, and fetch utilities. Includes vendored Gamma constants under `vendor/gamma`.
+
+### Patch Changes
+
+- e3fd276: Gamma vaults: swap in the v2 Gamma IDL (`gamma-idl-2.json`/`.ts`), update derive utilities, and adjust deposit / deposit-with-swap actions and instruction wiring to match. Removes the legacy `gamma-vault.json`/`.ts`.
+- c8d910e: Gamma vaults: switch `GAMMA_VAULT_PROGRAM_ID` from the P0-owned deployment (`gvvtq…`) to the upstream Gamma program (`GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV`) which hosts the production vaults. IDL updated accordingly.
+- Gamma vaults: fix `makeVaultWithdrawIx` passing the wrong `fee_recipient_account`. The vault's `fee_recipient` field is already the token account that receives fee shares (it lives on the _share_ mint, as the program mints into it), but the SDK derived an associated token account from it on the _asset_ mint. On any vault with a fee configured this produced an uninitialized address and every withdrawal failed Anchor account validation with `AccountNotInitialized` (3012). The account is now passed through as-is when a fee recipient is set; vaults without a fee config keep sending the previously derived placeholder, so their behaviour is unchanged.
+
 ## 2.6.0-alpha.4
 
 ### Patch Changes
@@ -29,6 +41,7 @@
 ### Minor Changes
 
 - Add Gamma vaults support: new `services/vaults` module with `deposit`, `withdraw`, and `depositWithSwap` actions, vault action types, and fetch utilities. Includes vendored Gamma constants under `vendor/gamma`.
+
 ## 2.5.6
 
 ### Patch Changes
