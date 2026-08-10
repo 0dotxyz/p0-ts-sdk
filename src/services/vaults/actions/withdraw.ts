@@ -1,4 +1,5 @@
 import {
+  PublicKey,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -51,7 +52,21 @@ export async function makeVaultWithdrawIx(
   const [withdrawReceipt] = deriveGammaWithdrawReceipt(user, lpVault);
 
   const userShareAta = deriveGammaAta(vault.sharesMint, user, tokenProgram);
-  const feeRecipientAccount = deriveGammaAta(vault.assetsMint, vault.feeRecipient, tokenProgram);
+
+  // `fee_recipient` is itself the token account that receives fee shares — the
+  // program mints into it (`shares_mint` is writable "for fee mint CPI"), so it
+  // lives on the *share* mint and must be passed through as-is. Deriving an ATA
+  // from it yields an uninitialized address and the withdraw fails Anchor
+  // account validation with AccountNotInitialized (3012).
+  //
+  // When the vault has no fee config, `fee_recipient` is the default pubkey and
+  // the account is unused; the program still deserializes whatever is passed in
+  // this (non-optional in our encoding) slot, so keep sending the historical
+  // derived placeholder — those ATAs exist on-chain for the live vaults.
+  const feeRecipientAccount = vault.feeRecipient.equals(PublicKey.default)
+    ? deriveGammaAta(vault.assetsMint, vault.feeRecipient, tokenProgram)
+    : vault.feeRecipient;
+
   const escrowAssetsAccount = deriveGammaAta(vault.assetsMint, withdrawEscrow, tokenProgram);
   const escrowSharesAccount = deriveGammaAta(vault.sharesMint, withdrawEscrow, tokenProgram);
 
