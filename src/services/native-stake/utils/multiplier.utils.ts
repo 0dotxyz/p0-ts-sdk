@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 

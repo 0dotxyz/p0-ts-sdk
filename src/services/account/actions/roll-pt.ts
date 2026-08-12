@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import BN from "bn.js";
 import {
   AddressLookupTableAccount,
@@ -27,7 +28,6 @@ import {
 } from "~/vendor/spl";
 import {
   EXPONENT_CLMM_PROGRAM_ID,
-  EXPONENT_CORE_PROGRAM_ID,
   ExponentClmmTradePtContext,
   ExponentMergeContext,
   exponentClmmBuyPtArgs,
@@ -45,7 +45,7 @@ import {
   patchDepositAmount,
   isDepositIx,
 } from "../utils";
-import { MakeRollPtTxParams, SwapQuoteResult } from "../types";
+import { MakeRollPtTxParams, RollQuoteSimResult, RollQuoteSimulator, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
 import { makeWithdrawIx } from "./withdraw";
@@ -60,13 +60,6 @@ const DEFAULT_ROLL_SLIPPAGE_BPS = 50;
  * 4 pubkeys (128) + swap_direction(u8) + is_current_flash_swap(bool) + amount_in(u64) = 138.
  */
 const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
-
-/**
- * Byte offset of `amount_sy_out` (u64 LE) in a core `merge` `MergeEvent` return blob:
- * 9 pubkeys (288) + amount_py_in(u64) = 296. This is the exact SY the merge produces, which
- * the CLMM buy then spends — using it (not an estimate) avoids over-/under-spending the SY.
- */
-const MERGE_EVENT_AMOUNT_SY_OUT_OFFSET = 296;
 
 /**
  * Roll a matured Exponent PT collateral position into its next-maturity PT, so the **full
@@ -231,6 +224,7 @@ async function buildRollPtFlashloanTx({
     withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
   const authority = marginfiAccount.authority;
+  const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(connection);
 
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
     throw new Error("withdrawAmount must be greater than 0");
@@ -299,30 +293,20 @@ async function buildRollPtFlashloanTx({
     ];
   }
 
-  // 4. Quote the redeem + buy by simulating the bundle (the flash loan omits the deposit, so its
-  //    end-of-loan health check fails — but the redeem/trade run and log their return data first).
-  //    (a) the exact SY the `merge` produces (`MergeEvent.amount_sy_out`), which the buy spends in
-  //        full — using the program's exact output (not a rate estimate) avoids over-/under-spend;
-  //    (b) the exact PT the buy yields for that SY (`TradePtEvent.amount_out`), to size min-out.
-  const redeemIxs = [...setupIxs, ...cuRequestIxs, ...withdrawIxs.instructions, mergeIx];
-  const mergeReturn = await simulateRollReturn({
-    program,
-    marginfiAccount,
-    bankMap,
-    connection,
-    blockhash,
-    luts,
-    ixs: redeemIxs,
-    programId: EXPONENT_CORE_PROGRAM_ID,
-    label: "merge",
-  });
-  const syExact = readReturnU64(mergeReturn, MERGE_EVENT_AMOUNT_SY_OUT_OFFSET, "merge amount_sy_out");
+  // 4. Size the redeem deterministically: merge pays floor(pt × sy_for_pt / pt_supply) —
+  //    Exponent's `Vault::pt_redemption_rate` — computed from the vault state fetched at
+  //    resolve time, so it matches the program's own floor math exactly. (Reading
+  //    `MergeEvent.amount_sy_out` from a flash-loan quote sim is not viable in practice:
+  //    the withdraw's event logs blow the node's log budget, truncating the return line,
+  //    and bundle-sim transports return no structured `returnData`.)
+  const syExact = merge.computeRedeemedAmountNative(withdrawNative);
   if (syExact <= 0n) {
     throw new Error("roll-pt: merge would redeem 0 SY (empty/invalid matured vault state)");
   }
 
   const exactPtOut = await quoteClmmTradeOut({
     connection,
+    simulateTx,
     clmm,
     amountInSyNative: syExact,
     payer: authority,
@@ -402,85 +386,61 @@ async function buildRollPtFlashloanTx({
   return { flashloanTx, swapQuote, withdrawIxs, depositIxs };
 }
 
-/**
- * Simulate `ixs` inside a flash loan and return the latest `Program return:` data set by
- * `programId`. The simulation's flash loan intentionally omits the deposit, so its end-of-loan
- * health check fails — but the redeem/trade ixs run (and log their return data via
- * `set_return_data`) before that, so the value is always available even though the tx "fails".
- */
-async function simulateRollReturn({
-  program,
-  marginfiAccount,
-  bankMap,
-  connection,
-  blockhash,
-  luts,
-  ixs,
-  programId,
-  label,
-}: {
-  program: MakeRollPtTxParams["program"];
-  marginfiAccount: MakeRollPtTxParams["marginfiAccount"];
-  bankMap: MakeRollPtTxParams["bankMap"];
-  connection: MakeRollPtTxParams["connection"];
-  blockhash: string;
-  luts: AddressLookupTableAccount[];
-  ixs: TransactionInstruction[];
-  programId: PublicKey;
-  label: string;
-}): Promise<Buffer> {
-  const quoteTx = await makeFlashLoanTx({
-    program,
-    marginfiAccount,
-    bankMap,
-    addressLookupTableAccounts: luts,
-    blockhash,
-    ixs,
-    isSync: false,
-  });
-
-  const sim = await connection.simulateTransaction(quoteTx, {
-    sigVerify: false,
-    replaceRecentBlockhash: true,
-  });
-
-  const logs = sim.value.logs ?? [];
-  if (process.env.ROLL_DEBUG) {
-    // eslint-disable-next-line no-console
-    console.error(
-      `[roll ${label} sim] err:`,
-      JSON.stringify(sim.value.err),
-      "returnData:",
-      JSON.stringify((sim.value as any).returnData),
-      "logsLen:",
-      logs.length,
-      "truncated:",
-      logs.some((l) => l.includes("truncated"))
-    );
-  }
-  const prefix = `Program return: ${programId.toBase58()} `;
-  const line = [...logs].reverse().find((l) => l.startsWith(prefix));
-  if (!line) {
-    throw new Error(
-      `roll-pt: could not read ${label} return data from quote simulation (err=${JSON.stringify(
-        sim.value.err
-      )})`
-    );
-  }
-  return Buffer.from(line.slice(prefix.length), "base64");
+/** The default {@link RollQuoteSimulator}: a plain `connection.simulateTransaction`. */
+function defaultRollQuoteSimulator(
+  connection: MakeRollPtTxParams["connection"]
+): RollQuoteSimulator {
+  return async (tx) => {
+    const sim = await connection.simulateTransaction(tx, {
+      sigVerify: false,
+      replaceRecentBlockhash: true,
+    });
+    return {
+      err: sim.value.err,
+      logs: sim.value.logs,
+      returnData: (sim.value as { returnData?: RollQuoteSimResult["returnData"] }).returnData,
+    };
+  };
 }
 
-/** Read a u64 LE at `offset` from a program return blob, validating its length. */
-function readReturnU64(data: Buffer, offset: number, what: string): bigint {
-  if (data.length < offset + 8) {
-    throw new Error(`roll-pt: ${what} return data too short (${data.length} bytes)`);
+/**
+ * Net native-amount change of (`mint`, `owner`) across a quote sim's token balances, or
+ * `null` when the transport supplied none (plain `simulateTransaction` doesn't).
+ */
+function tokenBalanceDelta(sim: RollQuoteSimResult, mint: string, owner: string): bigint | null {
+  if (!sim.preTokenBalances && !sim.postTokenBalances) return null;
+  const sum = (list: RollQuoteSimResult["postTokenBalances"]) =>
+    (list ?? [])
+      .filter((b) => b.mint === mint && b.owner === owner)
+      .reduce((acc, b) => acc + BigInt(b.amount), 0n);
+  return sum(sim.postTokenBalances) - sum(sim.preTokenBalances);
+}
+
+/**
+ * Read `amount_out` from a `trade_pt` return blob. The committed IDL declares the full
+ * `TradePtEvent` (amount_out at byte 138), but the DEPLOYED program returns a compact
+ * 16-byte pair — decoded self-validatingly: the field equal to the known `amountIn`
+ * identifies the layout, the other field is `amount_out`. Returns `null` when the blob
+ * matches neither shape.
+ */
+function readTradePtOut(data: Buffer, amountIn: bigint): bigint | null {
+  if (data.length === 16) {
+    const a = data.readBigUInt64LE(0);
+    const b = data.readBigUInt64LE(8);
+    if (a === amountIn) return b;
+    if (b === amountIn) return a;
+    return null;
   }
-  return data.readBigUInt64LE(offset);
+  if (data.length >= TRADE_PT_EVENT_AMOUNT_OUT_OFFSET + 8) {
+    return data.readBigUInt64LE(TRADE_PT_EVENT_AMOUNT_OUT_OFFSET);
+  }
+  return null;
 }
 
 /**
  * Quote the exact PT out for `amountInSyNative` SY on the successor CLMM, by simulating a
- * **standalone** `trade_pt` and reading `TradePtEvent.amount_out` from the program return data.
+ * **standalone** `trade_pt` and reading the trader's PT balance delta (or the program
+ * return blob when the transport reports no token balances).
  *
  * A CLMM swap is trader-independent — the output for a given input + pool state is the same
  * whoever trades — so we run the quote against an existing large SY holder (the swap isn't
@@ -491,11 +451,13 @@ function readReturnU64(data: Buffer, offset: number, what: string): bigint {
  */
 async function quoteClmmTradeOut({
   connection,
+  simulateTx,
   clmm,
   amountInSyNative,
   payer,
 }: {
   connection: MakeRollPtTxParams["connection"];
+  simulateTx: RollQuoteSimulator;
   clmm: ExponentClmmTradePtContext;
   amountInSyNative: bigint;
   payer: PublicKey;
@@ -542,22 +504,27 @@ async function quoteClmmTradeOut({
     recentBlockhash: blockhash,
     instructions: [createPtAta, quoteIx],
   }).compileToV0Message([clmm.addressLookupTable]);
-  const sim = await connection.simulateTransaction(new VersionedTransaction(message), {
-    sigVerify: false,
-    replaceRecentBlockhash: true,
-  });
+  const sim = await simulateTx(new VersionedTransaction(message));
 
-  const rd = (sim.value as { returnData?: { programId?: string; data?: [string, string] } })
-    .returnData;
   if (process.env.ROLL_DEBUG) {
     // eslint-disable-next-line no-console
-    console.error("[roll trade quote] err:", JSON.stringify(sim.value.err), "returnData?", !!rd);
+    console.error("[roll trade quote] err:", JSON.stringify(sim.err), "returnData?", !!sim.returnData);
   }
-  if (!rd?.data || rd.programId !== EXPONENT_CLMM_PROGRAM_ID.toBase58()) {
-    throw new Error(
-      `roll-pt: CLMM trade quote produced no return data (err=${JSON.stringify(sim.value.err)})`
-    );
+
+  // The PT actually credited to the trader IS the quote — transport-independent ground
+  // truth, reported by bundle-sim transports. The trade is the trader's only PT movement.
+  const delta = tokenBalanceDelta(sim, clmm.pt.mint.toBase58(), trader.toBase58());
+  if (delta !== null && delta > 0n) return delta;
+
+  // Plain `simulateTransaction` transports report no token balances — read the program
+  // return blob instead.
+  const rd = sim.returnData;
+  if (rd?.data && rd.programId === EXPONENT_CLMM_PROGRAM_ID.toBase58()) {
+    const out = readTradePtOut(Buffer.from(rd.data[0], rd.data[1] as BufferEncoding), amountInSyNative);
+    if (out !== null && out > 0n) return out;
   }
-  const data = Buffer.from(rd.data[0], rd.data[1] as BufferEncoding);
-  return readReturnU64(data, TRADE_PT_EVENT_AMOUNT_OUT_OFFSET, "trade_pt amount_out");
+
+  throw new Error(
+    `roll-pt: CLMM trade quote produced no readable output (err=${JSON.stringify(sim.err)})`
+  );
 }

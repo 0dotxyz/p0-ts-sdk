@@ -5,6 +5,7 @@ import {
   PublicKey,
   Signer,
   TransactionInstruction,
+  VersionedTransaction,
 } from "@solana/web3.js";
 
 import { KaminoReserve } from "~/vendor/klend";
@@ -625,9 +626,9 @@ export interface MakeSwapCollateralTxParams {
  *      pool via `trade_pt` — no base-token round-trip, no external aggregator
  *   3. deposit the new PT.
  *
- * The buy is liquidity-bounded by the successor pool's depth. The SY → PT price is quoted by
- * simulating the redeem + trade (reading the CLMM `TradePtEvent.amount_out`), so the deposit
- * is sized to the guaranteed minimum out.
+ * The buy is liquidity-bounded by the successor pool's depth. The redeem is sized by the
+ * vault's `pt_redemption_rate`; the SY → PT price is quoted by simulating a standalone
+ * `trade_pt`, so the deposit is sized to the guaranteed minimum out.
  */
 export interface MakeRollPtTxParams {
   program: MarginfiProgram;
@@ -651,6 +652,8 @@ export interface MakeRollPtTxParams {
   };
   /** Exponent redeem (`merge`) + successor-CLMM buy config for the matured PT. */
   rollOpts: RollPtOpts;
+  /** See {@link RollQuoteSimulator}. Defaults to `connection.simulateTransaction`. */
+  simulateTx?: RollQuoteSimulator;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: {
     group?: PublicKey;
@@ -658,6 +661,37 @@ export interface MakeRollPtTxParams {
   };
   crossbarUrl?: string;
 }
+
+/** One token-account balance snapshot from a {@link makeRollPtTx} quote simulation. */
+export interface RollQuoteTokenBalance {
+  mint: string;
+  owner: string;
+  /** Raw native token amount (integer string). */
+  amount: string;
+}
+
+/**
+ * Result of one {@link makeRollPtTx} quote simulation. The roll builder prefers the
+ * pre/post token-balance delta (ground truth, reported by bundle-sim transports) and
+ * falls back to `returnData` for plain `simulateTransaction` transports — so pass
+ * through whichever of these the backend provides.
+ */
+export interface RollQuoteSimResult {
+  err: unknown;
+  logs: string[] | null;
+  returnData?: { programId: string; data: [string, string] } | null;
+  preTokenBalances?: RollQuoteTokenBalance[] | null;
+  postTokenBalances?: RollQuoteTokenBalance[] | null;
+}
+
+/**
+ * Transport for {@link makeRollPtTx}'s quote simulations (standalone, expected-to-succeed
+ * transactions). The transaction is unsigned, so implementations must simulate with
+ * `sigVerify: false` and `replaceRecentBlockhash: true`. Defaults to
+ * `connection.simulateTransaction`; browsers whose RPC proxy disallows
+ * `simulateTransaction` inject one that routes through an app-side endpoint instead.
+ */
+export type RollQuoteSimulator = (tx: VersionedTransaction) => Promise<RollQuoteSimResult>;
 
 /**
  * Exponent roll config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's

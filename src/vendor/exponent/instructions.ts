@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
