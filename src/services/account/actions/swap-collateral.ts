@@ -17,21 +17,16 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { AssetTag } from "~/services/bank";
-import { TransactionBuildingError } from "~/errors";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "~/vendor/spl";
-import { uiToNative } from "~/utils";
+import { nativeToUi, uiToNative } from "~/utils";
 
 import {
   isWholePosition,
@@ -39,6 +34,12 @@ import {
   compileFlashloanPrecheck,
   patchDepositAmount,
   isDepositIx,
+  BridgeOpts,
+  BridgedTxResult,
+  resolveTokenProgramForMint,
+  selectSwapBridges,
+  sharedBridgeLegContext,
+  tryBridgeCandidates,
 } from "../utils";
 import {
   runSwapEngine,
@@ -48,6 +49,7 @@ import {
 import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
+import { composeBridgedSwap, mergeBridgeQuotes } from "./bridge-swap";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
@@ -85,6 +87,9 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
   transactions: ExtendedV0Transaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
+   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
+  mustBeAtomicBundle: boolean;
 }> {
   const {
     program,
@@ -112,22 +117,9 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     ],
   });
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [depositOpts.depositBank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    marginfiAccount,
-    bankMap,
-    [withdrawOpts.withdrawBank.address],
-    bankMetadataMap
-  );
-
-  // Build Kamino refresh instructions (returns empty if no Kamino banks involved)
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
+  // Both banks are excluded from the jup/drift updates (withdraw/deposit ixs update them
+  // via CPI); kamino has no cpi so both banks are included in the refresh instead
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [withdrawOpts.withdrawBank.address, depositOpts.depositBank.address],
@@ -178,18 +170,8 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
   let additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0 ||
-    updateJupLendRateIxs.instructions.length > 0
-  ) {
-    const ixs = [
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-      ...updateDriftMarketIxs.instructions,
-      ...updateJupLendRateIxs.instructions,
-    ];
+  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
+    const ixs = [...setupIxs, ...refreshIntegrationIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -228,6 +210,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
   };
 }
 
@@ -620,4 +603,139 @@ async function buildSwapCollateralFlashloanTx({
     withdrawIxs,
     depositIxs,
   };
+}
+
+// ----------------------------------------------------------------------------
+// Bridged (double-hop) fallback
+// ----------------------------------------------------------------------------
+
+export interface MakeBridgedSwapCollateralTxParams extends MakeSwapCollateralTxParams {
+  bridgeOpts?: BridgeOpts;
+}
+
+// Headroom (native units) between the second leg's swap input and the first leg's bridge min-out.
+// The swap input must never exceed what the withdraw actually delivers: marginfi share-rounding on
+// the deposit→withdraw round-trip can come back a lamport short, and the UI-number amount
+// round-trip can floor another. A few native units — value-invisible for any real token.
+const SECOND_LEG_ROUNDING_HEADROOM_NATIVE = 10;
+
+/**
+ * {@link makeSwapCollateralTx} with a transparent bridged fallback: if the direct swap `A → C`
+ * can't fit one tx or has no route, decompose it into `A → bridge` + `bridge → C` through a
+ * high-liquidity bridge collateral, composed into one atomic bundle.
+ */
+export async function makeBridgedSwapCollateralTx(
+  params: MakeBridgedSwapCollateralTxParams
+): Promise<BridgedTxResult> {
+  const { bridgeOpts, ...directParams } = params;
+  try {
+    return await makeSwapCollateralTx(directParams);
+  } catch (directError) {
+    if (!isDecomposableSwapError(directError)) throw directError;
+    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
+    // SDK-composed legs — never attempt the bridged fallback with one.
+    if (directParams.swapOpts.swapIxs) throw directError;
+    const bridged = await tryBridgedCollateralSwap(directParams, bridgeOpts);
+    if (bridged) return bridged;
+    throw directError;
+  }
+}
+
+async function tryBridgedCollateralSwap(
+  params: MakeSwapCollateralTxParams,
+  bridgeOpts: BridgeOpts | undefined
+): Promise<BridgedTxResult | null> {
+  const sourceBank = params.withdrawOpts.withdrawBank;
+  const destinationBank = params.depositOpts.depositBank;
+  const withdrawAmount =
+    params.withdrawOpts.withdrawAmount ?? params.withdrawOpts.totalPositionAmount;
+  // A collateral swap DEPOSITS the bridge → skip any candidate the account is borrowing.
+  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
+    sourceMint: sourceBank.mint,
+    destinationMint: destinationBank.mint,
+    bankMap: params.bankMap,
+    marginfiAccount: params.marginfiAccount,
+    bridgeTokenSide: "deposit",
+    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
+  });
+
+  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
+  return tryBridgeCandidates({
+    usableBridgeBanks,
+    conflictingBridgeBanks,
+    bridgeTokenSide: "deposit",
+    abortSignal: bridgeOpts?.abortSignal,
+    buildBundleThroughBridge: async (bridgeBank) => {
+      const bridgeTokenProgram = await resolveTokenProgramForMint(
+        bridgeBank.mint,
+        params.connection,
+        tokenProgramCache
+      );
+
+      // First leg: A → bridge (deposits min-out bridge collateral).
+      const firstLeg = await makeSwapCollateralTx({
+        ...sharedBridgeLegContext(params),
+        withdrawOpts: {
+          totalPositionAmount: params.withdrawOpts.totalPositionAmount,
+          withdrawAmount,
+          withdrawBank: sourceBank,
+          tokenProgram: params.withdrawOpts.tokenProgram,
+        },
+        depositOpts: { depositBank: bridgeBank, tokenProgram: bridgeTokenProgram },
+      });
+      if (!firstLeg.quoteResponse) return null;
+
+      // The second leg spends (a rounding-headroom hair under) the first leg's GUARANTEED bridge
+      // min-out, so it can't fail from first-leg slippage.
+      const bridgeMinOutNative = Number(firstLeg.quoteResponse.otherAmountThreshold);
+      const secondLegAmountNative = bridgeMinOutNative - SECOND_LEG_ROUNDING_HEADROOM_NATIVE;
+      if (secondLegAmountNative <= 0) return null;
+      const secondLegAmountUi = nativeToUi(secondLegAmountNative, bridgeBank.mintDecimals);
+
+      // Without a pre-existing bridge deposit, the second leg withdraws ALL of the bridge (the
+      // first leg deposited exactly min-out), so no dust position is ever left behind — the
+      // headroom lamports land in the wallet ATA, not as a marginfi position. `withdrawAmount ===
+      // totalPositionAmount` is what makes the builder emit a withdraw-all (the on-chain
+      // withdraw-all pulls all shares regardless of the amount). With a pre-existing bridge
+      // deposit, withdraw-all would sweep the user's own position into the swap, so keep the
+      // partial withdraw there — the headroom merges invisibly into their existing position.
+      const hasBridgeDeposit = params.marginfiAccount.balances.some(
+        (b) => b.active && b.bankPk.equals(bridgeBank.address) && b.assetShares.gt(0)
+      );
+
+      const result = await composeBridgedSwap({
+        firstLeg,
+        // The second leg builds against the first leg's projected effect.
+        buildSecondLeg: (projectedAccount) =>
+          makeSwapCollateralTx({
+            ...sharedBridgeLegContext(params),
+            marginfiAccount: projectedAccount,
+            withdrawOpts: {
+              totalPositionAmount: hasBridgeDeposit
+                ? nativeToUi(bridgeMinOutNative, bridgeBank.mintDecimals)
+                : secondLegAmountUi,
+              withdrawAmount: secondLegAmountUi,
+              withdrawBank: bridgeBank,
+              tokenProgram: bridgeTokenProgram,
+            },
+            depositOpts: params.depositOpts,
+          }),
+        marginfiAccount: params.marginfiAccount,
+        program: params.program,
+        banksMap: params.bankMap,
+        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
+        maxBundleTxs: bridgeOpts?.maxBundleTxs,
+      });
+      if (!result) return null;
+
+      return {
+        transactions: result.transactions,
+        actionTxIndex: result.transactions.length - 1,
+        quoteResponse: mergeBridgeQuotes(result.firstLegQuote, result.secondLegQuote),
+        bridgeMint: bridgeBank.mint,
+        mustBeAtomicBundle: true,
+      };
+    },
+  });
 }

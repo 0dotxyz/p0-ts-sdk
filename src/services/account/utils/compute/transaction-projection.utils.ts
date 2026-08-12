@@ -7,7 +7,7 @@ import { MarginfiProgram } from "~/types";
 import { composeRemainingAccounts } from "~/utils";
 import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
 
-import { BalanceType } from "../../types";
+import { BalanceType, MarginfiAccountType } from "../../types";
 
 /**
  * Transaction Projection & Health Check Utilities
@@ -23,7 +23,7 @@ import { BalanceType } from "../../types";
  * - Including all active banks (excluding any in the exclusion list)
  * - Reserving inactive slots for mandatory banks that aren't currently active
  *
- * @param balances - Current account balances
+ * @param account - The marginfi account whose balances are evaluated
  * @param banksMap - Map of bank addresses to bank data
  * @param mandatoryBanks - Banks that must be included (e.g., for pending transactions)
  * @param excludedBanks - Banks to exclude from health checks
@@ -31,20 +31,26 @@ import { BalanceType } from "../../types";
  *
  * @example
  * ```typescript
- * const healthCheckBanks = computeHealthCheckAccounts(
- *   account.balances,
+ * const healthCheckBanks = computeHealthCheckAccounts({
+ *   account,
  *   banksMap,
- *   [newBankToDeposit], // Mandatory: not active yet but will be
- *   [closingBank]       // Excluded: being closed in this transaction
- * );
+ *   mandatoryBanks: [newBankToDeposit], // Not active yet but will be
+ *   excludedBanks: [closingBank],       // Being closed in this transaction
+ * });
  * ```
  */
-export function computeHealthCheckAccounts(
-  balances: BalanceType[],
-  banksMap: Map<string, BankType>,
-  mandatoryBanks: PublicKey[] = [],
-  excludedBanks: PublicKey[] = []
-): BankType[] {
+export function computeHealthCheckAccounts({
+  account,
+  banksMap,
+  mandatoryBanks = [],
+  excludedBanks = [],
+}: {
+  account: MarginfiAccountType;
+  banksMap: Map<string, BankType>;
+  mandatoryBanks?: PublicKey[];
+  excludedBanks?: PublicKey[];
+}): BankType[] {
+  const balances = account.balances;
   const activeBalances = balances.filter((b) => b.active);
 
   const mandatoryBanksSet = new Set(mandatoryBanks.map((b) => b.toBase58()));
@@ -101,18 +107,21 @@ export function computeHealthCheckAccounts(
  *
  * @example
  * ```typescript
- * const healthAccounts = computeHealthAccountMetas(
- *   [usdcBank, solBank, kaminoUsdcBank],
- *   true // Enable sorting for optimal transaction size
- * );
+ * const healthAccounts = computeHealthAccountMetas({
+ *   banksToInclude: [usdcBank, solBank, kaminoUsdcBank],
+ * });
  * // Returns: [bank1, oracle1, bank2, oracle2, bank3, oracle3, kaminoReserve3, ...]
  * ```
  */
-export function computeHealthAccountMetas(
-  banksToInclude: BankType[],
+export function computeHealthAccountMetas({
+  banksToInclude,
   enableSorting = true,
-  trailingBanks: BankType[] = []
-): PublicKey[] {
+  trailingBanks = [],
+}: {
+  banksToInclude: BankType[];
+  enableSorting?: boolean;
+  trailingBanks?: BankType[];
+}): PublicKey[] {
   let wrapperFn = enableSorting
     ? composeRemainingAccounts
     : (banksAndOracles: PublicKey[][]) => banksAndOracles.flat();
@@ -185,7 +194,8 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
  * health check account inclusion by predicting which banks are relevant.
  *
  * **Note**: This does NOT simulate Cross-Program Invocations (CPI). Only direct
- * marginfi instructions are considered.
+ * marginfi instructions are considered. Instructions operating on a different
+ * marginfi account than `account` are ignored.
  *
  * Supported instructions:
  * - Deposits: `lendingAccountDeposit`, `kaminoDeposit`, `driftDeposit`, `solendDeposit`
@@ -193,27 +203,33 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
  * - Repays: `lendingAccountRepay`
  * - Withdrawals: `lendingAccountWithdraw`, `kaminoWithdraw`, `driftWithdraw`, `solendWithdraw`
  *
- * @param balances - Current account balances
+ * @param account - The marginfi account whose balances are projected
  * @param instructions - Instructions to simulate
  * @param program - Marginfi program for instruction decoding
  * @returns Array of bank public keys that will be active after instruction execution
  *
  * @example
  * ```typescript
- * const projectedBanks = computeProjectedActiveBanksNoCpi(
- *   account.balances,
- *   [depositIx, borrowIx],
- *   marginfiProgram
- * );
+ * const projectedBanks = computeProjectedActiveBanksNoCpi({
+ *   account,
+ *   instructions: [depositIx, borrowIx],
+ *   program: marginfiProgram,
+ * });
  * // Use projectedBanks for health check account selection
  * ```
  */
-export function computeProjectedActiveBanksNoCpi(
-  balances: BalanceType[],
-  instructions: TransactionInstruction[],
-  program: MarginfiProgram
-): PublicKey[] {
-  let projectedBalances = [...balances.map((b) => ({ active: b.active, bankPk: b.bankPk }))];
+export function computeProjectedActiveBanksNoCpi({
+  account,
+  instructions,
+  program,
+}: {
+  account: MarginfiAccountType;
+  instructions: TransactionInstruction[];
+  program: MarginfiProgram;
+}): PublicKey[] {
+  let projectedBalances = [
+    ...account.balances.map((b) => ({ active: b.active, bankPk: b.bankPk })),
+  ];
 
   for (let index = 0; index < instructions.length; index++) {
     const ix = instructions[index];
@@ -223,6 +239,12 @@ export function computeProjectedActiveBanksNoCpi(
     const borshCoder = new BorshInstructionCoder(program.idl);
     const decoded = borshCoder.decode(ix.data, "base58");
     if (!decoded) continue;
+
+    // All handled instructions share the account layout (group, marginfiAccount,
+    // authority, bank, ...). Skip instructions operating on a different marginfi
+    // account — e.g. transfer flows build ixs for two accounts in one set.
+    const ixMarginfiAccount = ix.keys[1]?.pubkey;
+    if (!ixMarginfiAccount?.equals(account.address)) continue;
 
     const ixArgs = decoded.data as any;
 
@@ -288,12 +310,13 @@ export function computeProjectedActiveBanksNoCpi(
  * than `computeProjectedActiveBanksNoCpi` which only tracks active banks.
  *
  * **Note**: This does NOT simulate Cross-Program Invocations (CPI). Only direct
- * marginfi instructions are considered.
+ * marginfi instructions are considered. Instructions operating on a different
+ * marginfi account than `account` are ignored.
  *
  * **Integrated Protocols**: For Kamino/Drift deposits, the `assetShareValueMultiplierByBank`
  * is used to convert cToken amounts to actual asset quantities before computing shares.
  *
- * @param balances - Current account balances
+ * @param account - The marginfi account whose balances are projected
  * @param instructions - Instructions to simulate
  * @param program - Marginfi program for instruction decoding
  * @param banksMap - Map of bank addresses to bank data (needed for share value conversion)
@@ -305,24 +328,30 @@ export function computeProjectedActiveBanksNoCpi(
  *
  * @example
  * ```typescript
- * const result = computeProjectedActiveBalancesNoCpi(
- *   account.balances,
- *   [depositIx, borrowIx],
- *   marginfiProgram,
+ * const result = computeProjectedActiveBalancesNoCpi({
+ *   account,
+ *   instructions: [depositIx, borrowIx],
+ *   program: marginfiProgram,
  *   banksMap,
- *   { [driftBankAddress]: driftMultiplier }
- * );
+ *   assetShareValueMultiplierByBank,
+ * });
  * console.log(`Projected ${result.projectedBalances.length} balances`);
  * console.log(`Impacted ${result.impactedAssetsBanks.length} asset banks`);
  * ```
  */
-export function computeProjectedActiveBalancesNoCpi(
-  balances: BalanceType[],
-  instructions: TransactionInstruction[],
-  program: MarginfiProgram,
-  banksMap: Map<string, BankType>,
-  assetShareValueMultiplierByBank: Map<string, BigNumber>
-): {
+export function computeProjectedActiveBalancesNoCpi({
+  account,
+  instructions,
+  program,
+  banksMap,
+  assetShareValueMultiplierByBank,
+}: {
+  account: MarginfiAccountType;
+  instructions: TransactionInstruction[];
+  program: MarginfiProgram;
+  banksMap: Map<string, BankType>;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+}): {
   projectedBalances: BalanceType[];
   impactedAssetsBanks: string[];
   impactedLiabilityBanks: string[];
@@ -334,7 +363,7 @@ export function computeProjectedActiveBalancesNoCpi(
   withdrawnBanks: string[];
 } {
   // Deep clone all balances to avoid mutating original
-  let projectedBalances: BalanceType[] = balances.map((b) => ({
+  let projectedBalances: BalanceType[] = account.balances.map((b) => ({
     active: b.active,
     bankPk: b.bankPk,
     assetShares: new BigNumber(b.assetShares),
@@ -356,6 +385,12 @@ export function computeProjectedActiveBalancesNoCpi(
     const borshCoder = new BorshInstructionCoder(program.idl);
     const decoded = borshCoder.decode(ix.data, "base58");
     if (!decoded) continue;
+
+    // All handled instructions share the account layout (group, marginfiAccount,
+    // authority, bank, ...). Skip instructions operating on a different marginfi
+    // account — e.g. transfer flows build ixs for two accounts in one set.
+    const ixMarginfiAccount = ix.keys[1]?.pubkey;
+    if (!ixMarginfiAccount?.equals(account.address)) continue;
 
     const ixArgs = decoded.data as any;
 

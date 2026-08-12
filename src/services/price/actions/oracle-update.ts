@@ -90,6 +90,86 @@ export async function makeSmartCrankSwbFeedIx(params: MakeSmartCrankSwbFeedIxPar
   return { instructions, luts };
 }
 
+type MakeSmartCrankSwbFeedIxForAccountsParams = Omit<
+  MakeSmartCrankSwbFeedIxParams,
+  "marginfiAccount"
+> & {
+  /**
+   * Accounts targeted by instructions in the set. Each account is projected against
+   * the instructions that operate on it (the projection filters by account), so the
+   * same full instruction list serves every account. The first account's authority
+   * pays the feed updates.
+   */
+  marginfiAccounts: MarginfiAccountType[];
+};
+
+/**
+ * Multi-account variant of {@link makeSmartCrankSwbFeedIx} for instruction sets that
+ * span several marginfi accounts (e.g. transferring positions: the source is cranked
+ * against its withdraws, the destination against its projected post-transfer
+ * deposits). Overlapping feeds across accounts are cranked once.
+ */
+export async function makeSmartCrankSwbFeedIxForAccounts(
+  params: MakeSmartCrankSwbFeedIxForAccountsParams
+): Promise<{
+  instructions: TransactionInstruction[];
+  luts: AddressLookupTableAccount[];
+}> {
+  const crankResults = await Promise.all(
+    params.marginfiAccounts.map((marginfiAccount) =>
+      computeSmartCrank({ ...params, marginfiAccount })
+    )
+  );
+
+  const uncrankableLiabilities = crankResults.flatMap((r) => r.uncrankableLiabilities);
+  const uncrankableAssets = crankResults.flatMap((r) => r.uncrankableAssets);
+
+  if (uncrankableLiabilities.length > 0) {
+    console.log(
+      "Uncrankable liability details:",
+      uncrankableLiabilities.map((l) => ({
+        symbol: l.bank.tokenSymbol,
+        reason: l.reason,
+      }))
+    );
+  }
+  if (uncrankableAssets.length > 0) {
+    console.log(
+      "Uncrankable asset details:",
+      uncrankableAssets.map((a) => ({
+        symbol: a.bank.tokenSymbol,
+        reason: a.reason,
+      }))
+    );
+  }
+
+  if (crankResults.some((r) => !r.isCrankable)) {
+    throw TransactionBuildingError.oracleCrankFailed(
+      uncrankableLiabilities.map((liability) => ({
+        bankAddress: liability.bank.address.toBase58(),
+        mint: liability.bank.mint.toBase58(),
+        symbol: liability.bank.tokenSymbol,
+        reason: liability.reason,
+      })),
+      uncrankableAssets.map((asset) => ({
+        bankAddress: asset.bank.address.toBase58(),
+        mint: asset.bank.mint.toBase58(),
+        symbol: asset.bank.tokenSymbol,
+        reason: asset.reason,
+      }))
+    );
+  }
+
+  // makeUpdateSwbFeedIx dedupes by oracle key, so feeds required by several accounts
+  // are cranked once.
+  return makeUpdateSwbFeedIx({
+    swbPullOracles: crankResults.flatMap((r) => r.requiredOracles),
+    feePayer: params.marginfiAccounts[0]!.authority,
+    connection: params.connection,
+    crossbarUrl: params.crossbarUrl,
+  });
+}
+
 export const DEFAULT_CROSSBAR_URL = "https://crossbar.0.xyz";
 export const DEFAULT_FALLBACK_CROSSBAR_URL  = "https://crossbar.switchboard.xyz";
 

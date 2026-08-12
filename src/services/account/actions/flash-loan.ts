@@ -49,7 +49,7 @@ export async function makeEndFlashLoanIx(
   authority?: PublicKey,
   isSync?: boolean
 ): Promise<InstructionsWrapper> {
-  const remainingAccounts = computeHealthAccountMetas(projectedActiveBanks);
+  const remainingAccounts = computeHealthAccountMetas({ banksToInclude: projectedActiveBanks });
   const ix =
     isSync && authority
       ? syncInstructions.makeEndFlashLoanIx(
@@ -91,11 +91,11 @@ export async function makeFlashLoanTx({
 }: MakeFlashLoanTxParams) {
   const endIndex = ixs.length + 1;
 
-  const projectedActiveBanksKeys: PublicKey[] = computeProjectedActiveBanksNoCpi(
-    marginfiAccount.balances,
-    ixs,
-    program
-  );
+  const projectedActiveBanksKeys: PublicKey[] = computeProjectedActiveBanksNoCpi({
+    account: marginfiAccount,
+    instructions: ixs,
+    program,
+  });
 
   const projectedActiveBanks = projectedActiveBanksKeys.map((account) => {
     const b = bankMap.get(account.toBase58());

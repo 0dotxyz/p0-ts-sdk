@@ -43,6 +43,13 @@ import {
   makeKaminoWithdrawTx,
   MakeKaminoWithdrawTxParams,
   makeAccountTransferToNewAccountTx,
+  makeBridgedLoopTx,
+  MakeBridgedLoopTxParams,
+  makeBridgedSwapCollateralTx,
+  MakeBridgedSwapCollateralTxParams,
+  makeBridgedSwapDebtTx,
+  MakeBridgedSwapDebtTxParams,
+  BridgedTxResult,
   makeLoopTx,
   makePulseHealthIx,
   makeRepayIx,
@@ -73,6 +80,9 @@ import {
   makeDriftDepositTx,
   MakeDriftWithdrawTxParams,
   makeDriftWithdrawTx,
+  makeTransferPositionsTx,
+  MakeTransferPositionsTxParams,
+  TransferPositionsResult,
   SwapQuoteResult,
 } from "~/services/account";
 import {
@@ -404,7 +414,12 @@ class MarginfiAccount implements MarginfiAccountType {
     mandatoryBanks: PublicKey[] = [],
     excludedBanks: PublicKey[] = []
   ): BankType[] {
-    return computeHealthCheckAccounts(this.balances, banks, mandatoryBanks, excludedBanks);
+    return computeHealthCheckAccounts({
+      account: this,
+      banksMap: banks,
+      mandatoryBanks,
+      excludedBanks,
+    });
   }
 
   /**
@@ -658,14 +673,7 @@ class MarginfiAccount implements MarginfiAccountType {
     mandatoryBanks: PublicKey[],
     excludedBanks: PublicKey[]
   ) {
-    return makePulseHealthIx(
-      program,
-      this.address,
-      banks,
-      this.balances,
-      mandatoryBanks,
-      excludedBanks
-    );
+    return makePulseHealthIx(program, this, banks, mandatoryBanks, excludedBanks);
   }
 
   /**
@@ -685,7 +693,7 @@ class MarginfiAccount implements MarginfiAccountType {
     program: MarginfiProgram,
     instructions: TransactionInstruction[]
   ): PublicKey[] {
-    return computeProjectedActiveBanksNoCpi(this.balances, instructions, program);
+    return computeProjectedActiveBanksNoCpi({ account: this, instructions, program });
   }
 
   /**
@@ -712,13 +720,13 @@ class MarginfiAccount implements MarginfiAccountType {
     impactedAssetsBanks: string[];
     impactedLiabilityBanks: string[];
   } {
-    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi(
-      this.balances,
+    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi({
+      account: this,
       instructions,
       program,
       banksMap,
-      assetShareValueMultiplierByBank
-    );
+      assetShareValueMultiplierByBank,
+    });
 
     return {
       projectedBalances: projectedBalances.map(Balance.fromBalanceType),
@@ -782,8 +790,120 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeLoopTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Atomically move a selected set of positions from this account to a destination account
+   * (same authority, same group) using flashloans, auto-splitting across transactions as needed.
+   *
+   * @see {@link makeTransferPositionsTx} for detailed implementation
+   */
+  async makeTransferPositionsTx(
+    params: Omit<MakeTransferPositionsTxParams, "marginfiAccount">
+  ): Promise<TransferPositionsResult> {
+    return makeTransferPositionsTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a loop transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeLoopTx} first; if its borrow→deposit swap can't fit one
+   * transaction (size / account-locks) or has no route, it loops the deposit asset against a
+   * value-equivalent borrow of a high-liquidity bridge token, then debt-swaps the bridge debt to
+   * the requested borrow asset — both legs composed into ONE atomic Jito bundle.
+   *
+   * Bridge candidates default to USDC → wSOL → USDT and can be reordered/overridden via
+   * `params.bridgeOpts.bridgeCandidateMints`; `bridgeOpts` also accepts known token programs (skips RPC
+   * lookups), a bundle-size ceiling, and an abort signal. `result.bridgeMint` is set only when the
+   * bridged path was used.
+   *
+   * Intended for existing accounts — a fresh account's loop fits the direct path, so flows that
+   * create the account in the same action should call {@link makeLoopTx} directly.
+   *
+   * @param params - Loop transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedLoopTx} for detailed implementation
+   */
+  async makeBridgedLoopTx(
+    params: Omit<MakeBridgedLoopTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedLoopTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a collateral-swap transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeSwapCollateralTx} first; if the swap `A → C` can't fit
+   * one transaction or has no route, it decomposes into `A → bridge` + `bridge → C` through a
+   * high-liquidity bridge collateral, both legs composed into ONE atomic Jito bundle. See
+   * {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
+   *
+   * @param params - Swap collateral transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedSwapCollateralTx} for detailed implementation
+   */
+  async makeBridgedSwapCollateralTx(
+    params: Omit<MakeBridgedSwapCollateralTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedSwapCollateralTx({
+      ...params,
+      marginfiAccount: this,
+      overrideInferAccounts: {
+        authority: this.authority,
+        group: this.group,
+        ...params.overrideInferAccounts,
+      },
+    });
+  }
+
+  /**
+   * Creates a debt-swap transaction with a transparent bridged (double-hop) fallback.
+   *
+   * One call: tries the direct {@link makeSwapDebtTx} first; if the swap `A → C` can't fit one
+   * transaction or has no route, the first leg repays A by borrowing a bridge token and the second
+   * leg repays exactly that bridge debt while borrowing C — both legs composed into ONE atomic
+   * Jito bundle. See {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
+   *
+   * @param params - Swap debt transaction parameters plus optional `bridgeOpts`
+   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
+   *
+   * @see {@link makeBridgedSwapDebtTx} for detailed implementation
+   */
+  async makeBridgedSwapDebtTx(
+    params: Omit<MakeBridgedSwapDebtTxParams, "marginfiAccount">
+  ): Promise<BridgedTxResult> {
+    return makeBridgedSwapDebtTx({
       ...params,
       marginfiAccount: this,
       overrideInferAccounts: {
@@ -828,6 +948,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeRepayWithCollatTx({
       ...params,
@@ -873,6 +996,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeSwapCollateralTx({
       ...params,
@@ -941,6 +1067,9 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     return makeSwapDebtTx({
       ...params,

@@ -9,10 +9,7 @@ import {
 } from "@solana/web3.js";
 
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
-import {
-  MAX_TX_SIZE,
-  ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
-} from "~/constants";
+import { MAX_TX_SIZE, ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
 import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
@@ -45,19 +42,13 @@ export function selectLutsForBanks(
   luts: AddressLookupTableAccount[],
   banks: BankType[]
 ): AddressLookupTableAccount[] {
-  const nativeStakeLuts = luts.filter((lut) =>
-    NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58())
-  );
-  const generalLuts = luts.filter(
-    (lut) => !NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58())
-  );
+  const nativeStakeLuts = luts.filter((lut) => NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58()));
+  const generalLuts = luts.filter((lut) => !NATIVE_STAKE_LUT_KEYS.has(lut.key.toBase58()));
 
   const allStakedOrSol =
     banks.length > 0 &&
     banks.every(
-      (bank) =>
-        bank.config.assetTag === AssetTag.STAKED ||
-        bank.config.assetTag === AssetTag.SOL
+      (bank) => bank.config.assetTag === AssetTag.STAKED || bank.config.assetTag === AssetTag.SOL
     );
 
   if (allStakedOrSol && nativeStakeLuts.length > 0) {
@@ -138,9 +129,20 @@ export async function makeVersionedTransaction(
   return new VersionedTransaction(versionedMessage);
 }
 
+/** Total account locks of a compiled v0 tx: static keys plus LUT-resolved keys. */
+function countTxAccountLocks(tx: VersionedTransaction): number {
+  const message = tx.message;
+  const lookupKeys = (message.addressTableLookups ?? []).reduce(
+    (count, lookup) => count + lookup.writableIndexes.length + lookup.readonlyIndexes.length,
+    0
+  );
+  return message.staticAccountKeys.length + lookupKeys;
+}
+
 /**
  * Splits your instructions into as many VersionedTransactions as needed
- * so that none exceed MAX_TX_SIZE.
+ * so that none exceed MAX_TX_SIZE (minus `sizeMargin`, if given) nor
+ * `maxAccountLocks` account locks (if given).
  */
 export function splitInstructionsToFitTransactions(
   mandatoryIxs: TransactionInstruction[],
@@ -149,20 +151,17 @@ export function splitInstructionsToFitTransactions(
     blockhash: string;
     payerKey: PublicKey;
     luts: AddressLookupTableAccount[];
+    /** Bytes reserved below MAX_TX_SIZE, e.g. for compute-budget ixs appended at send time. */
+    sizeMargin?: number;
+    /** Also cap the total account locks per transaction (e.g. MAX_ACCOUNT_LOCKS). */
+    maxAccountLocks?: number;
   }
 ): VersionedTransaction[] {
   const result: VersionedTransaction[] = [];
   let buffer: TransactionInstruction[] = [];
+  const maxSize = MAX_TX_SIZE - (opts.sizeMargin ?? 0);
 
-  function buildTx(
-    mandatoryIxs: TransactionInstruction[],
-    extraIxs: TransactionInstruction[],
-    opts: {
-      blockhash: string;
-      payerKey: PublicKey;
-      luts: AddressLookupTableAccount[];
-    }
-  ): VersionedTransaction {
+  function buildTx(extraIxs: TransactionInstruction[]): VersionedTransaction {
     const messageV0 = new TransactionMessage({
       payerKey: opts.payerKey,
       recentBlockhash: opts.blockhash,
@@ -172,35 +171,42 @@ export function splitInstructionsToFitTransactions(
     return new VersionedTransaction(messageV0);
   }
 
+  // Compiling a message that overflows the compact-array encoding throws a
+  // RangeError; treat that as "does not fit".
+  function fits(extraIxs: TransactionInstruction[]): boolean {
+    try {
+      const tx = buildTx(extraIxs);
+      if (getTxSize(tx) > maxSize) return false;
+      if (opts.maxAccountLocks !== undefined && countTxAccountLocks(tx) > opts.maxAccountLocks) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   for (const ix of ixs) {
-    // Try adding this ix to the current buffer
-    const trial = buildTx(mandatoryIxs, [...buffer, ix], opts);
-    if (getTxSize(trial) <= MAX_TX_SIZE) {
+    if (fits([...buffer, ix])) {
       buffer.push(ix);
-    } else {
-      // If buffer is empty, this single ix won't fit even alone
-      if (buffer.length === 0) {
-        throw new Error("Single instruction too large to fit in a transaction");
-      }
-      // Flush current buffer as its own tx
-      const tx = buildTx(mandatoryIxs, buffer, opts);
-      result.push(tx);
+      continue;
+    }
 
-      // Start new buffer with this ix
-      buffer = [ix];
-
-      // And check if that alone fits
-      const solo = buildTx(mandatoryIxs, buffer, opts);
-      if (getTxSize(solo) > MAX_TX_SIZE) {
-        throw new Error("Single instruction too large to fit in a transaction");
-      }
+    // If buffer is empty, this single ix won't fit even alone
+    if (buffer.length === 0) {
+      throw new Error("Single instruction too large to fit in a transaction");
+    }
+    // Flush current buffer as its own tx and start a new one with this ix
+    result.push(buildTx(buffer));
+    buffer = [ix];
+    if (!fits(buffer)) {
+      throw new Error("Single instruction too large to fit in a transaction");
     }
   }
 
   // Flush any remaining
   if (buffer.length > 0) {
-    const tx = buildTx(mandatoryIxs, buffer, opts);
-    result.push(tx);
+    result.push(buildTx(buffer));
   }
 
   return result;

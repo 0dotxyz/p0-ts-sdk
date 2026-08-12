@@ -26,12 +26,7 @@ import {
   selectLutsForAccountAction,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import { uiToNative } from "~/utils";
 import { resolveAmount } from "~/types";
 
@@ -81,8 +76,16 @@ export async function makeDriftWithdrawIx({
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
-    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+    ? computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        excludedBanks: [bank.address],
+      })
+    : computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        mandatoryBanks: [bank.address],
+      });
 
   const marketIndex = driftSpotMarket.marketIndex;
   const driftOracle = driftSpotMarket.oracle;
@@ -100,7 +103,10 @@ export async function makeDriftWithdrawIx({
     // its accounts are appended at the end: the 1.9 program searches the slice for the
     // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
     // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
+    const accountMetas = computeHealthAccountMetas({
+      banksToInclude: healthAccounts,
+      trailingBanks: withdrawAll ? [bank] : [],
+    });
     remainingAccounts.push(...accountMetas);
   }
 
@@ -244,21 +250,7 @@ export async function makeDriftWithdrawTx(
     feedLuts = _feedLuts;
   }
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -292,23 +284,13 @@ export async function makeDriftWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [
-          ...kaminoRefreshIxs.instructions,
-          ...updateDriftMarketIxs.instructions,
-          ...updateJupLendRateIxs.instructions,
-          ...withdrawIxs.instructions,
-        ],
+        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
     ),
     {
-      signers: [
-        ...kaminoRefreshIxs.keys,
-        ...updateDriftMarketIxs.keys,
-        ...updateJupLendRateIxs.keys,
-        ...withdrawIxs.keys,
-      ],
+      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
       addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
@@ -351,8 +333,16 @@ export async function makeKaminoWithdrawIx({
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
-    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+    ? computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        excludedBanks: [bank.address],
+      })
+    : computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        mandatoryBanks: [bank.address],
+      });
 
   const lendingMarket = reserve.lendingMarket;
 
@@ -387,7 +377,10 @@ export async function makeKaminoWithdrawIx({
     // its accounts are appended at the end: the 1.9 program searches the slice for the
     // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
     // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
+    const accountMetas = computeHealthAccountMetas({
+      banksToInclude: healthAccounts,
+      trailingBanks: withdrawAll ? [bank] : [],
+    });
     remainingAccounts.push(...accountMetas);
   }
 
@@ -501,8 +494,16 @@ export async function makeWithdrawIx({
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
-    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+    ? computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        excludedBanks: [bank.address],
+      })
+    : computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        mandatoryBanks: [bank.address],
+      });
 
   // Add withdraw-related instructions
   const remainingAccounts: PublicKey[] = [];
@@ -516,7 +517,10 @@ export async function makeWithdrawIx({
     // its accounts are appended at the end: the 1.9 program searches the slice for the
     // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
     // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
+    const accountMetas = computeHealthAccountMetas({
+      banksToInclude: healthAccounts,
+      trailingBanks: withdrawAll ? [bank] : [],
+    });
     remainingAccounts.push(...accountMetas);
   }
 
@@ -606,21 +610,7 @@ export async function makeWithdrawTx(
     feedLuts = _feedLuts;
   }
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const refreshIxs = makeRefreshKaminoBanksIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -654,23 +644,13 @@ export async function makeWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [
-          ...refreshIxs.instructions,
-          ...updateDriftMarketIxs.instructions,
-          ...updateJupLendRateIxs.instructions,
-          ...withdrawIxs.instructions,
-        ],
+        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
     ),
     {
-      signers: [
-        ...refreshIxs.keys,
-        ...updateDriftMarketIxs.keys,
-        ...updateJupLendRateIxs.keys,
-        ...withdrawIxs.keys,
-      ],
+      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
       addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
@@ -706,21 +686,7 @@ export async function makeKaminoWithdrawTx(
       ? new BigNumber(amountValue).toNumber()
       : new BigNumber(amountValue).div(multiplier).toNumber();
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const refreshIxs = makeRefreshKaminoBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -770,23 +736,13 @@ export async function makeKaminoWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [
-          ...refreshIxs.instructions,
-          ...updateDriftMarketIxs.instructions,
-          ...updateJupLendRateIxs.instructions,
-          ...withdrawIxs.instructions,
-        ],
+        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
     ),
     {
-      signers: [
-        ...refreshIxs.keys,
-        ...updateDriftMarketIxs.keys,
-        ...updateJupLendRateIxs.keys,
-        ...withdrawIxs.keys,
-      ],
+      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
       addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }
@@ -856,8 +812,16 @@ export async function makeJuplendWithdrawIx({
   }
 
   const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [], [bank.address])
-    : computeHealthCheckAccounts(marginfiAccount.balances, bankMap, [bank.address], []);
+    ? computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        excludedBanks: [bank.address],
+      })
+    : computeHealthCheckAccounts({
+        account: marginfiAccount,
+        banksMap: bankMap,
+        mandatoryBanks: [bank.address],
+      });
 
   if (!bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
@@ -880,7 +844,10 @@ export async function makeJuplendWithdrawIx({
     // its accounts are appended at the end: the 1.9 program searches the slice for the
     // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
     // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas(healthAccounts, true, withdrawAll ? [bank] : []);
+    const accountMetas = computeHealthAccountMetas({
+      banksToInclude: healthAccounts,
+      trailingBanks: withdrawAll ? [bank] : [],
+    });
     remainingAccounts.push(...accountMetas);
   }
 
@@ -969,21 +936,7 @@ export async function makeJuplendWithdrawTx(
     feedLuts = _feedLuts;
   }
 
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const refreshIxs = makeRefreshKaminoBanksIxs(
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [withdrawIxParams.bank.address],
@@ -1017,18 +970,13 @@ export async function makeJuplendWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [
-          ...refreshIxs.instructions,
-          ...updateDriftMarketIxs.instructions,
-          ...updateJupLendRateIxs.instructions,
-          ...withdrawIxs.instructions,
-        ],
+        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
     ),
     {
-      signers: [...refreshIxs.keys, ...withdrawIxs.keys],
+      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
       addressLookupTables: selectedLuts,
       type: TransactionType.WITHDRAW,
     }

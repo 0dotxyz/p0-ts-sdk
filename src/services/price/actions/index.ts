@@ -3,3 +3,4 @@ export * from "../utils/smart-crank.utils";
 export * from "./klend-reserve-refresh";
 export * from "./drift-market-update";
 export * from "./juplend-rate-update";
+export * from "./refresh-integration-banks";

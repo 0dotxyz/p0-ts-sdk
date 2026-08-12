@@ -27,7 +27,7 @@ import { TransactionBuildingError } from "~/errors";
 import { InstructionsWrapper } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
 
-import { MarginfiAccountType, BalanceType } from "../types";
+import { MarginfiAccountType } from "../types";
 import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "./compute";
 
 import {
@@ -230,17 +230,17 @@ export function computeFlashLoanNonSwapBudget({
   addressLookupTableAccounts,
 }: {
   program: MarginfiProgram;
-  marginfiAccount: { address: PublicKey; authority: PublicKey; balances: BalanceType[] };
+  marginfiAccount: MarginfiAccountType;
   ixs: TransactionInstruction[];
   bankMap: Map<string, BankType>;
   addressLookupTableAccounts: AddressLookupTableAccount[];
 }): FlashloanSwapConstraints {
   // 1. Project which banks will be active after the primary IXs execute
-  const projectedActiveBanksKeys = computeProjectedActiveBanksNoCpi(
-    marginfiAccount.balances,
-    ixs,
-    program
-  );
+  const projectedActiveBanksKeys = computeProjectedActiveBanksNoCpi({
+    account: marginfiAccount,
+    instructions: ixs,
+    program,
+  });
   const projectedActiveBanks = projectedActiveBanksKeys.map((key) => {
     const b = bankMap.get(key.toBase58());
     if (!b) throw new Error(`Bank ${key.toBase58()} not found in computeFlashLoanNonSwapBudget`);
@@ -255,7 +255,9 @@ export function computeFlashLoanNonSwapBudget({
     { endIndex: new BN(endIndex) }
   );
 
-  const endFlRemainingAccounts = computeHealthAccountMetas(projectedActiveBanks);
+  const endFlRemainingAccounts = computeHealthAccountMetas({
+    banksToInclude: projectedActiveBanks,
+  });
   const endFlIx = syncInstructions.makeEndFlashLoanIx(
     program.programId,
     { marginfiAccount: marginfiAccount.address, authority: marginfiAccount.authority },

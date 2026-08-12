@@ -9,7 +9,11 @@ import {
   ExtendedTransaction,
 } from "~/services/transaction";
 import {
+  BridgedTxResult,
   MakeBorrowIxOpts,
+  MakeBridgedLoopTxParams,
+  MakeBridgedSwapCollateralTxParams,
+  MakeBridgedSwapDebtTxParams,
   MakeDepositIxOpts,
   MakeFlashLoanTxParams,
   MakeLoopTxParams,
@@ -19,12 +23,15 @@ import {
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
   MakeWithdrawIxOpts,
+  MakeTransferPositionsTxParams,
   MarginRequirementType,
   SwapQuoteResult,
   TransactionBuilderResult,
+  TransferPositionsResult,
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
 } from "~/services/account";
+import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
 import {
   BankType,
@@ -395,6 +402,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeLoopTxParams = {
       ...params,
@@ -406,6 +416,52 @@ export class MarginfiAccountWrapper {
       addressLookupTableAccounts: this.client.addressLookupTables,
     };
     return this.account.makeLoopTx(fullParams);
+  }
+
+  /**
+   * Atomically move a selected set of positions from this account to a destination account with
+   * auto-injected client data.
+   *
+   * Auto-injects: program, connection, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
+   * assetShareValueMultiplierByBank, addressLookupTables, tokenProgramsByBank, groupRateLimiterEnabled.
+   */
+  async makeTransferPositionsTx(
+    params: Omit<
+      MakeTransferPositionsTxParams,
+      | "program"
+      | "connection"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "assetShareValueMultiplierByBank"
+      | "addressLookupTableAccounts"
+      | "tokenProgramsByBank"
+      | "groupRateLimiterEnabled"
+    >
+  ): Promise<TransferPositionsResult> {
+    const tokenProgramsByBank = new Map<string, PublicKey>();
+    for (const bankAddress of params.bankAddresses) {
+      const bank = this.client.bankMap.get(bankAddress.toBase58());
+      if (!bank) throw new Error(`Bank ${bankAddress.toBase58()} not found`);
+      const mintData = await this.getMintDataFromBank(bank);
+      tokenProgramsByBank.set(bankAddress.toBase58(), mintData.tokenProgram);
+    }
+
+    const fullParams: MakeTransferPositionsTxParams = {
+      ...params,
+      program: this.client.program,
+      connection: this.client.program.provider.connection,
+      marginfiAccount: this.account,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+      tokenProgramsByBank,
+      groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
+    };
+    return this.account.makeTransferPositionsTx(fullParams);
   }
 
   /**
@@ -429,6 +485,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     swapQuote: SwapQuoteResult | undefined;
     amountToRepay: number;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeRepayWithCollatTxParams = {
       ...params,
@@ -466,6 +525,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeSwapCollateralTxParams = {
       ...params,
@@ -539,6 +601,9 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
+     *  false → sequential sends are safe. */
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeSwapDebtTxParams = {
       ...params,
@@ -550,6 +615,118 @@ export class MarginfiAccountWrapper {
       addressLookupTableAccounts: this.client.addressLookupTables,
     };
     return this.account.makeSwapDebtTx(fullParams);
+  }
+
+  /**
+   * Creates a loop (leverage) transaction with a transparent bridged (double-hop) fallback and
+   * auto-injected client data.
+   *
+   * One call: tries the direct {@link makeLoopTx} first; if its borrow→deposit swap can't fit one
+   * transaction or has no route, it loops the deposit asset against a value-equivalent borrow of a
+   * bridge token (USDC/wSOL/USDT by default, override via `bridgeOpts.bridgeCandidateMints`) and
+   * debt-swaps that bridge debt to the requested borrow asset — one atomic Jito bundle.
+   * `result.bridgeMint` is set only when the bridged path was used.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
+   * addressLookupTables, assetShareValueMultiplierByBank
+   *
+   * @param params - Loop parameters (user provides: connection, depositOpts, borrowOpts, swapOpts, bridgeOpts?, etc.)
+   */
+  async makeBridgedLoopTx(
+    params: Omit<
+      MakeBridgedLoopTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+      | "assetShareValueMultiplierByBank"
+    >
+  ): Promise<BridgedTxResult> {
+    return this.account.makeBridgedLoopTx({
+      ...params,
+      program: this.client.program,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+    });
+  }
+
+  /**
+   * Creates a collateral-swap transaction with a transparent bridged (double-hop) fallback and
+   * auto-injected client data.
+   *
+   * One call: tries the direct {@link makeSwapCollateralTx} first; if the swap `A → C` can't fit
+   * one transaction or has no route, it decomposes into `A → bridge` + `bridge → C` through a
+   * bridge token, composed as one atomic Jito bundle. `result.bridgeMint` is set only when the
+   * bridged path was used.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
+   * addressLookupTables, assetShareValueMultiplierByBank
+   *
+   * @param params - Swap collateral parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, bridgeOpts?, etc.)
+   */
+  async makeBridgedSwapCollateralTx(
+    params: Omit<
+      MakeBridgedSwapCollateralTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+      | "assetShareValueMultiplierByBank"
+    >
+  ): Promise<BridgedTxResult> {
+    return this.account.makeBridgedSwapCollateralTx({
+      ...params,
+      program: this.client.program,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+    });
+  }
+
+  /**
+   * Creates a debt-swap transaction with a transparent bridged (double-hop) fallback and
+   * auto-injected client data.
+   *
+   * One call: tries the direct {@link makeSwapDebtTx} first; if the swap `A → C` can't fit one
+   * transaction or has no route, the first leg repays A by borrowing a bridge token and the second
+   * leg repays exactly that bridge debt while borrowing C — one atomic Jito bundle.
+   * `result.bridgeMint` is set only when the bridged path was used.
+   *
+   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
+   * addressLookupTables, assetShareValueMultiplierByBank
+   *
+   * @param params - Swap debt parameters (user provides: connection, repayOpts, borrowOpts, swapOpts, bridgeOpts?, etc.)
+   */
+  async makeBridgedSwapDebtTx(
+    params: Omit<
+      MakeBridgedSwapDebtTxParams,
+      | "program"
+      | "marginfiAccount"
+      | "bankMap"
+      | "oraclePrices"
+      | "bankMetadataMap"
+      | "addressLookupTableAccounts"
+      | "assetShareValueMultiplierByBank"
+    >
+  ): Promise<BridgedTxResult> {
+    return this.account.makeBridgedSwapDebtTx({
+      ...params,
+      program: this.client.program,
+      bankMap: this.client.bankMap,
+      oraclePrices: this.client.oraclePriceByBank,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      addressLookupTableAccounts: this.client.addressLookupTables,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+    });
   }
 
   /**

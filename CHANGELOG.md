@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.6.1-alpha.0
+
+### Patch Changes
+
+- 282a132: Add bridged-swap support to `loop`, `swapCollateral`, and `swapDebt` actions: when the collateral/debt legs span assets on different routing groups, the SDK now composes the bridge automatically via the new `bridge-routing.utils`. Includes a new `16b-loop-bridged.ts` example, a refactored `16a-loop.ts`, and tests for bridge routing.
+- 282a132: Consolidate integration refreshes and bulk tx building across account actions. Introduces two new price actions (`oracle-update`, `refresh-integration-banks`) and reworks `borrow`, `withdraw`, `repay`, `loop`, `swap-collateral`, `swap-debt`, `bridge-swap`, `flash-loan`, `bulk`, `transfer-positions`, and `account-lifecycle` to share common refresh/projection logic. Reduces duplication and improves consistency of transaction projections.
+- 282a132: chore: add bulk tx action builders to sdk
+- 282a132: Fix a few edge cases in bridged looping:
+  - Corrected inverted borrow-bank oracle-price guard in `makeBridgedLoopTx` (`if (borrowBankPrice)` → `if (borrowBankPrice <= 0)`) that was aborting the direct loop whenever a valid price was available.
+  - Renamed the misspelled `birdgeBankPrice` local to `bridgeBankPrice` throughout.
+  - Bridge routing now warns when a candidate fails to build a leg, easing debugging of double-hop fallbacks.
+
+- 282a132: Expose `mustBeAtomicBundle: boolean` on the results of `makeLoopTx`, `makeSwapCollateralTx`, `makeSwapDebtTx`, and their bridged fallbacks (plus the shared `BridgedTxResult`). When `true`, the transactions must be sent as one atomic Jito bundle (integration refreshes go stale within a slot, or the flow is a bridged double-hop that must land together); when `false`, sequential sends are safe (cranked oracles tolerate ≥ ~1 min staleness). Lets callers pick the correct send path without inspecting the instruction set.
+- 282a132: fix: stale-price for debt-moving
+- 282a132: Support caller-pinned swap routes in `loop`, `swapCollateral`, and `swapDebt`:
+  - Introduces `resolvePinnedSwapRoute` — a pinned `swapOpts.swapIxs` now carries its quote's `otherAmountThreshold` through the pipeline so the deposit byte-patch is sized like an engine-selected route (no more silent zero-collateral deposits).
+  - Bridged fallback (`makeBridgedLoopTx`, `makeBridgedSwapCollateralTx`, `makeBridgedSwapDebtTx`) now short-circuits when a pinned route is provided — pinned routes belong to the direct pair and cannot be spliced into SDK-composed legs.
+
+- 282a132: chore: fix kamino obligation refresh
+- 282a132: fix: harden bulk and position transfer execution
+- 282a132: Add `transferPositions` account action: move deposit and/or borrow positions from one marginfi account to another in a single transaction, with Kamino/JupLend integration support. Includes new transaction-building error types and comprehensive tests.
+
 ## 2.6.0
 
 ### Minor Changes

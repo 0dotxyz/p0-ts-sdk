@@ -11,6 +11,10 @@ export enum TransactionBuildingErrorCode {
   JUPLEND_STATE_NOT_FOUND = "JUPLEND_STATE_NOT_FOUND",
   SWITCHBOARD_FEED_UPDATE_FAILED = "SWITCHBOARD_FEED_UPDATE_FAILED",
   SWAP_QUOTE_FAILED = "SWAP_QUOTE_FAILED",
+  TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
+  TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
+  TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
+  BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
 }
 
 /**
@@ -70,6 +74,30 @@ export interface TransactionBuildingErrorDetails {
     inputMint: string;
     outputMint: string;
     reason: string;
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION]: {
+    reason: string;
+    bankAddresses: string[];
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK]: {
+    bankAddress: string;
+    assetTag: number;
+    bankSymbol?: string;
+  };
+  [TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE]: {
+    reason: string;
+    sizeBytes?: number;
+    accountCount?: number;
+  };
+  [TransactionBuildingErrorCode.BRIDGE_CONFLICT]: {
+    /** Bridge-token candidate banks blocked by an existing opposite-side account position. */
+    conflictingBanks: Array<{
+      bankAddress: string;
+      mint: string;
+      symbol?: string;
+    }>;
+    /** Whether the bridge token would have been held as collateral ("deposit") or debt ("borrow"). */
+    bridgeTokenSide: "deposit" | "borrow";
   };
 }
 
@@ -235,6 +263,71 @@ export class TransactionBuildingError<
   }
 
   /**
+   * The requested set of positions to transfer is invalid (inactive bank on the source,
+   * destination overlap, capacity/slot conflict, group/authority mismatch, etc.).
+   */
+  static transferPositionsInvalidSelection(
+    reason: string,
+    bankAddresses: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_INVALID_SELECTION,
+      `Invalid transfer-positions selection: ${reason}`,
+      { reason, bankAddresses }
+    );
+  }
+
+  /**
+   * A selected position lives in a bank whose asset tag is not supported by transfer-positions
+   * (v1 supports DEFAULT and STAKED only).
+   */
+  static transferPositionsUnsupportedBank(
+    bankAddress: string,
+    assetTag: number,
+    bankSymbol?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSUPPORTED_BANK,
+      `Bank ${bankSymbol ?? bankAddress} (asset tag ${assetTag}) is not supported by transfer-positions`,
+      { bankAddress, assetTag, bankSymbol }
+    );
+  }
+
+  /**
+   * The built transfer transaction exceeds the v0 size / account-lock limits even at the position
+   * cap (most likely several integration positions whose reserve accounts overflow the 64-lock cap).
+   * Retry with fewer positions in the selection.
+   */
+  static transferPositionsUnsplittable(
+    reason: string,
+    sizeBytes?: number,
+    accountCount?: number
+  ): TransactionBuildingError<TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.TRANSFER_POSITIONS_UNSPLITTABLE,
+      `Transfer does not fit one transaction: ${reason}`,
+      { reason, sizeBytes, accountCount }
+    );
+  }
+
+  /**
+   * A bridged (double-hop) swap could not route because every bridge-token candidate bank
+   * conflicts with an existing opposite-side position on the account (marginfi forbids holding an
+   * asset and a liability on the same bank).
+   */
+  static bridgeConflict(
+    conflictingBanks: Array<{ bankAddress: string; mint: string; symbol?: string }>,
+    bridgeTokenSide: "deposit" | "borrow"
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BRIDGE_CONFLICT> {
+    const banksList = conflictingBanks.map((c) => c.symbol ?? c.mint).join(", ");
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BRIDGE_CONFLICT,
+      `Every bridge-token candidate conflicts with an existing opposite-side position: ${banksList}`,
+      { conflictingBanks, bridgeTokenSide }
+    );
+  }
+
+  /**
    * Generic escape hatch for custom errors
    */
   static custom<T extends TransactionBuildingErrorCode>(
@@ -266,4 +359,18 @@ const DECOMPOSABLE_SWAP_ERROR_CODES = new Set<TransactionBuildingErrorCode>([
  */
 export function isDecomposableSwapError(e: unknown): e is TransactionBuildingError {
   return e instanceof TransactionBuildingError && DECOMPOSABLE_SWAP_ERROR_CODES.has(e.code);
+}
+
+/**
+ * Whether a build failure is a bridged-swap conflict: the direct build failed AND every
+ * bridge-token candidate was blocked by an existing opposite-side position on the account.
+ * Narrows to the typed details (`conflictingBanks`, `bridgeTokenSide`) so callers can surface a
+ * "close that position or pick a different pair" message.
+ */
+export function isBridgeConflictError(
+  e: unknown
+): e is TransactionBuildingError<TransactionBuildingErrorCode.BRIDGE_CONFLICT> {
+  return (
+    e instanceof TransactionBuildingError && e.code === TransactionBuildingErrorCode.BRIDGE_CONFLICT
+  );
 }

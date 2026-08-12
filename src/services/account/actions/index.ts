@@ -9,3 +9,5 @@ export * from "./swap-collateral";
 export * from "./swap-debt";
 export * from "./roll-pt";
 export * from "./bridge-swap";
+export * from "./transfer-positions";
+export * from "./bulk";

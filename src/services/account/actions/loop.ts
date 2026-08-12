@@ -18,14 +18,9 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import {
-  makeRefreshKaminoBanksIxs,
-  makeSmartCrankSwbFeedIx,
-  makeUpdateDriftMarketIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
-import { AssetTag } from "~/services/bank";
-import { TransactionBuildingError } from "~/errors";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { AssetTag, BankType } from "~/services/bank";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -39,6 +34,13 @@ import {
   compileFlashloanPrecheck,
   patchDepositAmount,
   isDepositIx,
+  BridgeOpts,
+  BridgedTxResult,
+  resolvePinnedSwapRoute,
+  resolveTokenProgramForMint,
+  selectSwapBridges,
+  sharedBridgeLegContext,
+  tryBridgeCandidates,
 } from "../utils";
 import {
   runSwapEngine,
@@ -56,12 +58,17 @@ import {
 import { makeBorrowIx } from "./borrow";
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
+import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
+import { makeSwapDebtTx } from "./swap-debt";
 import { uiToNative } from "~/utils";
 
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
+   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
+  mustBeAtomicBundle: boolean;
 }> {
   const {
     program,
@@ -96,28 +103,14 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     ],
   });
 
-  // Update jup lend rates, depositBank is excluded deposit ix does updates this by default
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
+  // depositBank is excluded from the jup/drift updates (deposit ix updates them via CPI);
+  // kamino has no cpi so borrow and deposit banks are included in the refresh
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [depositOpts.depositBank.address],
-    params.bankMetadataMap
-  );
-
-  // Update drift market, depositBank is excluded deposit ix does updates this by default
-  const updateDriftMarketIxs = makeUpdateDriftMarketIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [depositOpts.depositBank.address],
-    params.bankMetadataMap
-  );
-
-  // Refresh kamino banks, no cpi here so dposit bank needs to be included
-  const kaminoRefreshIxs = makeRefreshKaminoBanksIxs(
-    marginfiAccount,
-    bankMap,
-    [borrowOpts.borrowBank.address, depositOpts.depositBank.address],
-    bankMetadataMap
+    params.bankMetadataMap,
+    [borrowOpts.borrowBank.address, depositOpts.depositBank.address]
   );
 
   const { flashloanTx, setupInstructions, swapQuote, depositIxs, borrowIxs } =
@@ -174,17 +167,9 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   if (
     setupIxs.length > 0 ||
     additionalIxs.length > 0 ||
-    kaminoRefreshIxs.instructions.length > 0 ||
-    updateDriftMarketIxs.instructions.length > 0 ||
-    updateJupLendRateIxs.instructions.length > 0
+    refreshIntegrationIxs.instructions.length > 0
   ) {
-    const ixs = [
-      ...additionalIxs,
-      ...setupIxs,
-      ...kaminoRefreshIxs.instructions,
-      ...updateDriftMarketIxs.instructions,
-      ...updateJupLendRateIxs.instructions,
-    ];
+    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs.instructions];
     const txs = splitInstructionsToFitTransactions([], ixs, {
       blockhash,
       payerKey: marginfiAccount.authority,
@@ -222,6 +207,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
   };
 }
 
@@ -394,7 +380,9 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
 
   const depositIxIndex = innerIxs.findIndex(isDepositIx);
   if (depositIxIndex < 0) {
-    throw new Error("buildLoopNonSwapIxs: could not locate deposit instruction for amount patching");
+    throw new Error(
+      "buildLoopNonSwapIxs: could not locate deposit instruction for amount patching"
+    );
   }
 
   const descriptor: LoopFlashloanDescriptor = {
@@ -419,10 +407,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
 }
 
 /** Builds the deposit instruction(s) for the loop's deposit bank at the given UI amount. */
-async function buildDepositIxs(
-  params: LoopParams,
-  amountUi: number
-): Promise<InstructionsWrapper> {
+async function buildDepositIxs(params: LoopParams, amountUi: number): Promise<InstructionsWrapper> {
   const { program, marginfiAccount, depositOpts, bankMetadataMap, overrideInferAccounts } = params;
 
   switch (depositOpts.depositBank.config.assetTag) {
@@ -533,20 +518,17 @@ async function runLoopSwapEngine(
 }> {
   const { connection, swapOpts, marginfiAccount, swapEngineRunner } = params;
 
-  // Manual swap-instructions override: deposit the principal only (amount unknown here),
-  // mirroring the pre-engine behavior.
+  // Caller-pinned route override: the pinned quote's min-out sizes the deposit byte-patch,
+  // exactly like an engine-selected route (validated — a pinned route can never silently
+  // produce a zero-collateral deposit).
   if (swapOpts.swapIxs) {
+    const pinned = resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
     return {
-      swapInstructions: swapOpts.swapIxs.instructions,
-      setupInstructions: [],
-      swapLuts: swapOpts.swapIxs.lookupTables,
-      quoteResponse: {
-        inAmount: String(descriptor.inAmountNative),
-        outAmount: "0",
-        otherAmountThreshold: "0",
-        slippageBps: 0,
-      },
-      outputAmountNative: new BN(0),
+      swapInstructions: pinned.swapInstructions,
+      setupInstructions: pinned.setupInstructions,
+      swapLuts: pinned.lookupTables,
+      quoteResponse: pinned.quoteResponse,
+      outputAmountNative: pinned.outputAmountNative,
     };
   }
 
@@ -638,4 +620,136 @@ async function finalizeLoopFlashloanTx({
   }
 
   return flashloanTx;
+}
+
+// ----------------------------------------------------------------------------
+// Bridged (double-hop) fallback
+// ----------------------------------------------------------------------------
+
+export interface MakeBridgedLoopTxParams extends MakeLoopTxParams {
+  bridgeOpts?: BridgeOpts;
+}
+
+/**
+ * {@link makeLoopTx} with a transparent bridged fallback: if the direct loop's borrow→deposit swap
+ * can't fit one tx or has no route, loop P borrowing a value-equivalent amount of a bridge token,
+ * then debt-swap the bridge debt → X, as one atomic bundle.
+ *
+ * Intended for existing accounts — a fresh account's loop has a minimal footprint and fits the
+ * direct path, so callers creating the account in the same flow should call {@link makeLoopTx}
+ * directly.
+ */
+export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promise<BridgedTxResult> {
+  const { bridgeOpts, ...loopParams } = params;
+  try {
+    return await makeLoopTx(loopParams);
+  } catch (directError) {
+    if (!isDecomposableSwapError(directError)) throw directError;
+    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
+    // SDK-composed legs — never attempt the bridged fallback with one.
+    if (loopParams.swapOpts.swapIxs) throw directError;
+    const bridged = await tryBridgedLoop(loopParams, bridgeOpts);
+    if (bridged) return bridged;
+    throw directError;
+  }
+}
+
+async function tryBridgedLoop(
+  params: MakeLoopTxParams,
+  bridgeOpts: BridgeOpts | undefined
+): Promise<BridgedTxResult | null> {
+  const { depositBank } = params.depositOpts;
+  const { borrowBank } = params.borrowOpts;
+  // A loop BORROWS the bridge → skip any candidate the account is supplying.
+  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
+    sourceMint: depositBank.mint,
+    destinationMint: borrowBank.mint,
+    bankMap: params.bankMap,
+    marginfiAccount: params.marginfiAccount,
+    bridgeTokenSide: "borrow",
+    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
+  });
+
+  // Bridge legs price via the oracle (0 when missing): caller-supplied market prices only cover
+  // the source/destination pair, never the bridge.
+  const oraclePriceOf = (bank: BankType) =>
+    params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
+
+  const borrowBankPrice = oraclePriceOf(borrowBank);
+  if (borrowBankPrice <= 0) return null;
+
+  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
+  return tryBridgeCandidates({
+    usableBridgeBanks,
+    conflictingBridgeBanks,
+    bridgeTokenSide: "borrow",
+    abortSignal: bridgeOpts?.abortSignal,
+    buildBundleThroughBridge: async (bridgeBank) => {
+      const bridgeBankPrice = oraclePriceOf(bridgeBank);
+      if (bridgeBankPrice <= 0) return null;
+
+      // Borrow a value-equivalent amount of the bridge instead of X — same leverage / P deposit.
+      const bridgeBorrowUi = (params.borrowOpts.borrowAmount * borrowBankPrice) / bridgeBankPrice;
+      if (bridgeBorrowUi <= 0) return null;
+      const bridgeTokenProgram = await resolveTokenProgramForMint(
+        bridgeBank.mint,
+        params.connection,
+        tokenProgramCache
+      );
+
+      // First leg: loop P borrowing the bridge (borrow bridge, swap bridge→P, deposit P).
+      const firstLeg = await makeLoopTx({
+        ...params,
+        depositOpts: {
+          ...params.depositOpts,
+          marketPrice: oraclePriceOf(depositBank),
+        },
+        borrowOpts: {
+          borrowAmount: bridgeBorrowUi,
+          borrowBank: bridgeBank,
+          tokenProgram: bridgeTokenProgram,
+          marketPrice: bridgeBankPrice,
+        },
+      });
+      if (!firstLeg.quoteResponse) return null;
+
+      const result = await composeBridgedSwap({
+        firstLeg,
+        // Second leg: debt-swap the bridge debt → X (repay exactly the bridge the first leg
+        // borrowed — exact, so no slippage residual; repay-all clears it — and borrow X).
+        buildSecondLeg: (projectedAccount) =>
+          makeSwapDebtTx({
+            ...sharedBridgeLegContext(params),
+            marginfiAccount: projectedAccount,
+            repayOpts: {
+              totalPositionAmount: bridgeBorrowUi,
+              repayAmount: bridgeBorrowUi,
+              repayBank: bridgeBank,
+              tokenProgram: bridgeTokenProgram,
+              marketPrice: bridgeBankPrice,
+            },
+            borrowOpts: {
+              borrowBank,
+              tokenProgram: params.borrowOpts.tokenProgram,
+              marketPrice: borrowBankPrice,
+            },
+          }),
+        marginfiAccount: params.marginfiAccount,
+        program: params.program,
+        banksMap: params.bankMap,
+        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
+        maxBundleTxs: bridgeOpts?.maxBundleTxs,
+      });
+      if (!result) return null; // both legs didn't build / bundle didn't fit — try the next bridge
+
+      return {
+        transactions: result.transactions,
+        actionTxIndex: result.transactions.length - 1,
+        quoteResponse: mergeBridgeQuotesLoop(result.firstLegQuote, result.secondLegQuote),
+        bridgeMint: bridgeBank.mint,
+        mustBeAtomicBundle: true,
+      };
+    },
+  });
 }

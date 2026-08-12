@@ -29,7 +29,10 @@ import { MarginfiAccountType, SwapQuoteResult } from "../types";
  * bytes AND 64 account-locks) for a pair, the caller decomposes it into two ops through a
  * high-liquidity BRIDGE token and submits both as ONE atomic Jito bundle (one merged quote, one
  * signature). This module owns the parts that are identical across flows and encode marginfi
- * internals; the caller owns bridge *selection* (product policy) and per-flow leg building/sizing.
+ * internals; per-flow leg building/sizing lives in the one-call `makeBridged*Tx` builders next to
+ * their direct builders (`./loop.ts`, `./swap-collateral.ts`, `./swap-debt.ts`), backed by the
+ * shared selection/iteration support in `../utils/bridge-routing.utils.ts`, with candidate
+ * ordering still injectable per call (product policy).
  *
  * Two non-obvious invariants are baked in here so no caller has to rediscover them:
  *
@@ -166,13 +169,13 @@ function projectAccountAfterFirstLeg(
     ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
   }
 
-  const { projectedBalances } = computeProjectedActiveBalancesNoCpi(
-    account.balances,
-    ixs,
+  const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
+    account,
+    instructions: ixs,
     program,
     banksMap,
-    multipliers,
-  );
+    assetShareValueMultiplierByBank: multipliers,
+  });
 
   return new MarginfiAccount(
     account.address,

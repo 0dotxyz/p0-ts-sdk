@@ -12,7 +12,7 @@ import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
-import { SolanaTransaction } from "~/services/transaction";
+import { ExtendedV0Transaction, SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 import { MarginfiAccountType } from "./account.types";
@@ -51,10 +51,24 @@ export interface SwapProviderConfig {
 
 export interface SwapOpts {
   swapConfig?: SwapProviderConfig;
-  // if swapIxs is provided, it will be used instead of creating instructions
+  /**
+   * Pin an exact, caller-reviewed swap route instead of running the swap engine.
+   *
+   * The caller owns ATA setup for the route, the route's input amount MUST equal the flow's swap
+   * input (e.g. the loop's borrow amount), and the route MUST pay out to the flow's destination
+   * token account. `quoteResponse.otherAmountThreshold` (guaranteed min-out, native units) sizes
+   * the follow-up amount — e.g. the loop's deposit byte-patch — exactly like an engine-selected
+   * route would. For dynamic caller-controlled routing (inspect/veto routes at build time),
+   * prefer `swapEngineRunner`.
+   *
+   * Note: the bridged `makeBridged*Tx` fallbacks are disabled when a pinned route is supplied —
+   * a pinned route belongs to the direct pair and cannot be spliced into SDK-composed legs.
+   */
   swapIxs?: {
     instructions: TransactionInstruction[];
     lookupTables: AddressLookupTableAccount[];
+    /** The pinned route's quote; `otherAmountThreshold` must be the route's min-out (native). */
+    quoteResponse: SwapQuoteResult;
   };
 }
 
@@ -379,6 +393,88 @@ export interface MakeFlashLoanTxParams {
   signers?: Signer[];
 }
 
+export type TransferPositionSide = "collateral" | "debt";
+
+export interface MakeTransferPositionsTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  /** Source account A (positions move out of this account). */
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose A-positions to move; the side is inferred from A's balance. */
+  bankAddresses: PublicKey[];
+  /** Destination account B. Omit to create a fresh account inside the flashloan tx. */
+  destinationAccount?: MarginfiAccountType;
+  /** Only used when `destinationAccount` is omitted. */
+  createDestinationOpts?: { accountIndex?: number; thirdPartyId?: number };
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  /** Token program per transferred bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  /** Head-room added to each borrow over the estimated debt for interest accrual. Default 10 bps. */
+  borrowPaddingBps?: number;
+  /** Max positions per transfer; a larger selection is rejected. Default 5. */
+  maxPositions?: number;
+  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  groupRateLimiterEnabled?: boolean;
+  crossbarUrl?: string;
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface TransferPositionsResult {
+  /** Ordered for execution: [setup/crank txs…, flashloan tx]. */
+  transactions: ExtendedV0Transaction[];
+  /** Index of the flashloan tx in `transactions`. */
+  actionTxIndex: number;
+  /** The destination account (passed-in, or the projected account created in the tx). */
+  destinationAccount: MarginfiAccountType;
+  /** Whether all transactions must land atomically in one bundle. */
+  mustBeAtomicBundle: boolean;
+}
+
+export interface MakeBulkWithdrawTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose FULL positions to withdraw, in execution order. */
+  bankAddresses: PublicKey[];
+  bankMap: Map<string, BankType>;
+  oraclePrices: Map<string, OraclePrice>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  /** Token program per withdrawn bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  groupRateLimiterEnabled?: boolean;
+  luts: AddressLookupTableAccount[];
+  crossbarUrl?: string;
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface MakeBulkRepayTxParams {
+  program: MarginfiProgram;
+  connection: Connection;
+  marginfiAccount: MarginfiAccountType;
+  /** Banks whose FULL debts to repay from the wallet. */
+  bankAddresses: PublicKey[];
+  bankMap: Map<string, BankType>;
+  /** Token program per repaid bank (base58 bank address → token program id). */
+  tokenProgramsByBank: Map<string, PublicKey>;
+  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+}
+
+export interface BulkLendTxsResult {
+  /** Ordered for execution: [setup/crank txs…, action txs…]. */
+  transactions: ExtendedV0Transaction[];
+  /** Index of the first action tx in `transactions`. */
+  actionTxIndex: number;
+  /** Whether all transactions must land atomically in one bundle. */
+  mustBeAtomicBundle: boolean;
+}
+
 export interface MakeLoopTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
@@ -415,6 +511,11 @@ export interface MakeLoopTxParams {
    * Optional override for how the swap engine runs. Defaults to the in-process
    * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
    * so the multi-provider fan-out happens server-side.
+   *
+   * Also the seam for caller-controlled routing: wrap the default runner to inspect, veto, or
+   * replace the selected route before it's spliced into the flashloan (see
+   * `examples/16c-loop-pinned-route.ts`). For a fully static, pre-reviewed route use
+   * `swapOpts.swapIxs` instead.
    */
   swapEngineRunner?: SwapEngineRunner;
 }
