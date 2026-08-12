@@ -24,8 +24,9 @@ const store = vi.hoisted(() => ({
 
 const KNOWN_DEPOSIT_DISC = [171, 94, 235, 103, 82, 64, 212, 140]; // lending_account_deposit
 
-// The exact amounts the quote simulation "returns" via the event return data.
-const SY_EXACT = 90_000_000_000n; // MergeEvent.amount_sy_out
+// The exact amounts the quotes produce: merge SY from the vault's redemption-rate math,
+// PT out from the standalone trade sim's event return data.
+const SY_EXACT = 90_000_000_000n; // floor(pt × sy_for_pt / pt_supply)
 const PT_OUT = 1_000_000_000n; // TradePtEvent.amount_out
 
 // Stub the two Exponent resolvers (RPC) but keep the real ix encoders (merge + clmm trade_pt).
@@ -110,12 +111,6 @@ const SETUP_ATA = new TransactionInstruction({
   data: Buffer.from([1]),
 });
 
-/** A `MergeEvent` return blob with `amount_sy_out` (u64 LE) at offset 296. */
-function mergeReturnB64(syOut: bigint): string {
-  const buf = Buffer.alloc(304);
-  buf.writeBigUInt64LE(syOut, 296);
-  return buf.toString("base64");
-}
 /** A `TradePtEvent` return blob with `amount_out` (u64 LE) at offset 138. */
 function tradeReturnB64(amountOut: bigint): string {
   const buf = Buffer.alloc(146);
@@ -145,7 +140,7 @@ function makeMergeCtx() {
     },
     addressLookupTable: VAULT_LUT,
     underlying: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ID },
-    computeRedeemedAmountNative: () => 0n,
+    computeRedeemedAmountNative: () => SY_EXACT,
   };
 }
 
@@ -185,13 +180,12 @@ function makeParams(
     connection: {
       getLatestBlockhash: async () => ({ blockhash: PublicKey.default.toBase58() }),
       getAddressLookupTable: async () => ({ value: PT_ROLL_LUT }),
-      // The merge quote reads `MergeEvent.amount_sy_out` from the flash-loan sim's logs; the trade
-      // quote reads `TradePtEvent.amount_out` from a standalone sim's returnData. The same mock
-      // surfaces both, so either reader finds what it needs.
+      // The trade quote reads `TradePtEvent.amount_out` from a standalone succeeding sim's
+      // returnData (the merge is sized deterministically from vault state — no sim).
       simulateTransaction: async () => ({
         value: {
-          err: { InstructionError: [9, { Custom: 1 }] }, // omitted-deposit health check "fails"
-          logs: [`Program return: ${EXPONENT_CORE_PROGRAM_ID.toBase58()} ${mergeReturnB64(SY_EXACT)}`],
+          err: null,
+          logs: [],
           returnData: { programId: EXPONENT_CLMM_PROGRAM_ID.toBase58(), data: [tradeReturnB64(PT_OUT), "base64"] },
         },
       }),
@@ -270,14 +264,45 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
     });
   });
 
-  it("builds a flash loan twice: the merge-only quote sim, then the final bundle", async () => {
+  it("builds the flash loan exactly once (merge sized from vault state, trade quoted standalone)", async () => {
     await makeRollPtTx(makeParams());
-    // makeFlashLoanTx is called 2×: the merge quote (redeem only) + the final bundle. The trade
-    // is quoted with a standalone simulation (not a flash loan), so it isn't counted here.
-    expect(store.simIxLengths).toHaveLength(2);
-    // the merge quote sim (setup + cu + withdraw + merge) has fewer ixs than the final bundle.
-    expect(store.simIxLengths[0]).toBeLessThan(store.simIxLengths[1]);
-    expect(store.simIxLengths[1]).toBe(6); // cu, cu, withdraw, merge, trade_pt, deposit
+    // makeFlashLoanTx is called once, for the final bundle: the merge is sized from the vault's
+    // redemption rate (no sim), and the trade is quoted with a standalone (non-flash-loan) sim.
+    expect(store.simIxLengths).toHaveLength(1);
+    expect(store.simIxLengths[0]).toBe(6); // cu, cu, withdraw, merge, trade_pt, deposit
+  });
+
+  it("decodes the deployed program's compact 16-byte (amount_in, amount_out) return", async () => {
+    const params = makeParams();
+    const compact = Buffer.alloc(16);
+    compact.writeBigUInt64LE(SY_EXACT, 0); // identifies the layout (known amount_in)
+    compact.writeBigUInt64LE(PT_OUT, 8);
+    params.simulateTx = async () => ({
+      err: null,
+      logs: [],
+      returnData: {
+        programId: EXPONENT_CLMM_PROGRAM_ID.toBase58(),
+        data: [compact.toString("base64"), "base64"],
+      },
+    });
+    const res = await makeRollPtTx(params);
+    expect(res.quoteResponse?.outAmount).toBe(PT_OUT.toString());
+  });
+
+  it("falls back to the trader's PT balance delta when the trade sim has no return data or logs", async () => {
+    const params = makeParams();
+    // A bundle-sim-style transport: no structured returnData, truncated logs — only balances.
+    params.simulateTx = async () => ({
+      err: null,
+      logs: ["Log truncated"],
+      returnData: null,
+      preTokenBalances: [{ mint: pk(31).toBase58(), owner: pk(81).toBase58(), amount: "0" }],
+      postTokenBalances: [
+        { mint: pk(31).toBase58(), owner: pk(81).toBase58(), amount: PT_OUT.toString() },
+      ],
+    });
+    const res = await makeRollPtTx(params);
+    expect(res.quoteResponse?.outAmount).toBe(PT_OUT.toString());
   });
 
   it("carries the matured vault ALT + the CLMM pool ALT in the flashloan lookup tables", async () => {
