@@ -45,6 +45,7 @@ export async function makeBeginFlashLoanIx(
 export async function makeEndFlashLoanIx(
   program: MarginfiProgram,
   marginfiAccountPk: PublicKey,
+  group: PublicKey,
   projectedActiveBanks: BankType[],
   authority?: PublicKey,
   isSync?: boolean
@@ -56,6 +57,7 @@ export async function makeEndFlashLoanIx(
           program.programId,
           {
             marginfiAccount: marginfiAccountPk,
+            group,
             authority,
           },
           remainingAccounts.map((account) => ({
@@ -113,6 +115,7 @@ export async function makeFlashLoanTx({
   const endFlashLoanIx = await makeEndFlashLoanIx(
     program,
     marginfiAccount.address,
+    marginfiAccount.group,
     projectedActiveBanks,
     marginfiAccount.authority,
     isSync

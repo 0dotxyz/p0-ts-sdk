@@ -551,6 +551,7 @@ async function buildTransferFlashloanTx(args: {
   const end = await makeEndFlashLoanIx(
     program,
     accountA.address,
+    accountA.group,
     projectedActiveBanksA,
     accountA.authority
   );

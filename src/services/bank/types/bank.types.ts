@@ -14,6 +14,8 @@ export enum OperationalState {
   /** Awaiting a JupLend seed deposit; all operations blocked (0.1.9+) */
   Uninitialized = "Uninitialized",
   ReduceOnlyWithBorrowingPower = "ReduceOnlyWithBorrowingPower",
+  /** Halted by the per-bank oracle circuit breaker (0.1.10+) */
+  CircuitBroken = "CircuitBroken",
 }
 
 export interface RatePoint {

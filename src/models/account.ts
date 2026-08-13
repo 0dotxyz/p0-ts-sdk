@@ -599,7 +599,7 @@ class MarginfiAccount implements MarginfiAccountType {
 
     const banks = projectedActiveBanks.map((account) => bankMap.get(account.toBase58())!);
 
-    return makeEndFlashLoanIx(program, this.address, banks, authority);
+    return makeEndFlashLoanIx(program, this.address, this.group, banks, authority);
   }
 
   /**
