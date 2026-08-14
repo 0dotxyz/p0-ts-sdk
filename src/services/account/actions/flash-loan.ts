@@ -8,6 +8,7 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { MarginfiProgram } from "~/types";
+import { isLegacyMarginfiProgram } from "~/idl";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
 
@@ -64,7 +65,8 @@ export async function makeEndFlashLoanIx(
             pubkey: account,
             isSigner: false,
             isWritable: false,
-          }))
+          })),
+          { legacyProgram: isLegacyMarginfiProgram(program) }
         )
       : await instructions.makeEndFlashLoanIx(
           program,

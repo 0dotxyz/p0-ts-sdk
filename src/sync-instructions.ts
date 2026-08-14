@@ -358,11 +358,14 @@ function makeEndFlashLoanIx(
     group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
     authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
   },
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: AccountMeta[] = [],
+  opts?: { legacyProgram?: boolean } // 0.1.9 wire format: omit `group`
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    ...(opts?.legacyProgram
+      ? []
+      : [{ pubkey: accounts.group, isSigner: false, isWritable: false }]),
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
   ];
 
@@ -703,11 +706,14 @@ function makePulseHealthIx(
     marginfiAccount: PublicKey;
     group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
   },
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: AccountMeta[] = [],
+  opts?: { legacyProgram?: boolean } // 0.1.9 wire format: omit `group`
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    ...(opts?.legacyProgram
+      ? []
+      : [{ pubkey: accounts.group, isSigner: false, isWritable: false }]),
   ];
 
   keys.push(...remainingAccounts);
@@ -730,7 +736,8 @@ function makeAccountTransferToNewAccountIx(
     newAuthority: PublicKey;
     globalFeeWallet: PublicKey; // caller must provide
     feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive (0.1.10+)
-  }
+  },
+  opts?: { legacyProgram?: boolean } // 0.1.9 wire format: omit `feeState`
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
     { pubkey: accounts.group, isSigner: false, isWritable: false },
@@ -740,7 +747,9 @@ function makeAccountTransferToNewAccountIx(
     { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
     { pubkey: accounts.newAuthority, isSigner: false, isWritable: false },
     { pubkey: accounts.globalFeeWallet, isSigner: false, isWritable: true },
-    { pubkey: accounts.feeState, isSigner: false, isWritable: false },
+    ...(opts?.legacyProgram
+      ? []
+      : [{ pubkey: accounts.feeState, isSigner: false, isWritable: false }]),
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
 
