@@ -15,6 +15,7 @@ import {
   detectProgramVersionFromGroupData,
   marginfiIdlFor,
 } from "~/idl";
+import { seedMarginfiProgramVersionCache } from "~/dialect";
 import {
   ADDRESS_LOOKUP_TABLE_FOR_GROUP,
   ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
@@ -345,6 +346,7 @@ export class Project0Client {
     }
 
     const idl: MarginfiIdlType = marginfiIdlFor(programVersion, programId);
+    seedMarginfiProgramVersionCache(programId, programVersion);
 
     const provider = new AnchorProvider(connection, {} as Wallet, {
       ...AnchorProvider.defaultOptions(),

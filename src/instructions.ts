@@ -2,6 +2,7 @@ import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { MarginfiProgram } from "./types";
+import { ensureMarginfiDialectProgram } from "./dialect";
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
@@ -646,7 +647,7 @@ function makeBeginFlashLoanIx(
     .instruction();
 }
 
-function makeEndFlashLoanIx(
+async function makeEndFlashLoanIx(
   mfiProgram: MarginfiProgram,
   accounts: {
     // Required accounts
@@ -657,8 +658,11 @@ function makeEndFlashLoanIx(
   remainingAccounts: AccountMeta[] = []
 ) {
   const { marginfiAccount, ...optionalAccounts } = accounts;
+  // Account layout changed in 0.1.10 — build through the IDL variant matching
+  // the deployed program, regardless of how the caller's Program was made.
+  const program = await ensureMarginfiDialectProgram(mfiProgram);
 
-  return mfiProgram.methods
+  return program.methods
     .lendingAccountEndFlashloan()
     .accounts({
       marginfiAccount,
@@ -691,7 +695,11 @@ async function makeAccountTransferToNewAccountIx(
     ...optionalAccounts
   } = accounts;
 
-  return mfProgram.methods
+  // Account layout changed in 0.1.10 — build through the IDL variant matching
+  // the deployed program, regardless of how the caller's Program was made.
+  const program = await ensureMarginfiDialectProgram(mfProgram);
+
+  return program.methods
     .transferToNewAccount()
     .accounts({
       oldMarginfiAccount,
@@ -919,7 +927,10 @@ async function makePulseHealthIx(
    */
   remainingAccounts: AccountMeta[] = []
 ) {
-  return mfProgram.methods
+  // Account layout changed in 0.1.10 — build through the IDL variant matching
+  // the deployed program, regardless of how the caller's Program was made.
+  const program = await ensureMarginfiDialectProgram(mfProgram);
+  return program.methods
     .lendingAccountPulseHealth()
     .accounts({
       marginfiAccount: accounts.marginfiAccount,
