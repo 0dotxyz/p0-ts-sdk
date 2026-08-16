@@ -9,13 +9,7 @@ import {
   BankIntegrationMetadataMap,
   Wallet,
 } from "~/types";
-import {
-  MarginfiIdlType,
-  MarginfiProgramVersion,
-  detectProgramVersionFromGroupData,
-  marginfiIdlFor,
-} from "~/idl";
-import { seedMarginfiProgramVersionCache } from "~/dialect";
+import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import {
   ADDRESS_LOOKUP_TABLE_FOR_GROUP,
   ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
@@ -77,14 +71,7 @@ export class Project0Client {
      * `selectLutsForBanks`, so consumers only ever pass this one array.
      */
     public readonly addressLookupTables: AddressLookupTableAccount[],
-    public readonly emodePairs: EmodePair[],
-    /**
-     * The on-chain program version this client was constructed against.
-     * Detected from the group account size at `initialize` time (overridable).
-     * The `program`'s runtime IDL matches this version, so all instruction
-     * builders emit the right account layout automatically.
-     */
-    public readonly programVersion: MarginfiProgramVersion = "0.1.10"
+    public readonly emodePairs: EmodePair[]
   ) {}
 
   /**
@@ -319,34 +306,13 @@ export class Project0Client {
     return new MarginfiAccountWrapper(marginfiAccountParsed, this);
   }
 
-  static async initialize(
-    connection: Connection,
-    config: Project0Config,
-    opts?: {
-      /**
-       * Skip on-chain detection and force a program version. Useful for tests
-       * or when the caller already knows the deployed version.
-       */
-      programVersion?: MarginfiProgramVersion;
-    }
-  ) {
+  static async initialize(connection: Connection, config: Project0Config) {
     const { groupPk, programId } = config;
 
-    // Detect which program version is deployed from the group account size
-    // (1,056 bytes on 0.1.9 vs 9,248 on 0.1.10, excl. discriminator), then
-    // construct the Anchor program from the matching IDL variant so every
-    // instruction builder emits the wire format the deployed program expects.
-    let programVersion = opts?.programVersion;
-    if (!programVersion) {
-      const groupInfo = await connection.getAccountInfo(groupPk);
-      if (!groupInfo) {
-        throw new Error(`Marginfi group ${groupPk.toBase58()} not found`);
-      }
-      programVersion = detectProgramVersionFromGroupData(groupInfo.data.length);
-    }
-
-    const idl: MarginfiIdlType = marginfiIdlFor(programVersion, programId);
-    seedMarginfiProgramVersionCache(programId, programVersion);
+    const idl: MarginfiIdlType = {
+      ...MARGINFI_IDL,
+      address: programId.toBase58(),
+    };
 
     const provider = new AnchorProvider(connection, {} as Wallet, {
       ...AnchorProvider.defaultOptions(),
@@ -509,8 +475,7 @@ export class Project0Client {
       bankOraclePriceMap,
       mintDataByBank,
       addressLookupTables,
-      emodePairs,
-      programVersion
+      emodePairs
     );
   }
 }

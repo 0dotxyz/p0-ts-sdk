@@ -1,20 +1,26 @@
-# Program upgrade 0.1.9 → 0.1.10 — what breaks, and how this SDK handles it
+# Program upgrade 0.1.9 → 0.1.10
 
-**TL;DR:** program 0.1.10 changes the wire format of six instructions and grows two
-accounts. Old SDK ↔ new program (and vice versa) fail on those six instructions; nothing
-else breaks. This SDK release detects the deployed program version on-chain and emits the
-right wire format automatically, so integrators can upgrade the SDK **whenever they want**,
-before or after the program upgrade, with zero code changes.
+**TL;DR:** program 0.1.10 inserts required accounts into six instructions — a positional
+wire break in both directions. The SDK builds 0.1.10-style and, for the three affected
+instructions it actually uses, inline-removes the inserted account while the target
+program still runs 0.1.9. The switch is the announced upgrade timestamp (per program id,
+in [`src/dialect.ts`](src/dialect.ts)). Integrators upgrade the SDK any time **before the
+flip** with zero code changes.
 
-**Status of the compatibility layer: TEMPORARY.** Remove after the mainnet upgrade is
-confirmed final — see [Reverting](#reverting-after-the-mainnet-upgrade).
+## ⚠️ What must be updated, and when
+
+| When | What |
+|---|---|
+| **Protocol announces the mainnet upgrade time** | Set the real unix timestamp for `MFv2h…` in `MARGINFI_V0_1_10_ACTIVATION` (`src/dialect.ts`) — it currently holds a not-yet-scheduled sentinel — and **publish a release before the flip**. Integrators must be on it (or call `setMarginfiUpgradeTimestamp()` from their own config). |
+| **Upgrade is rescheduled** | Same two options: patch release with the new timestamp, or integrators call `setMarginfiUpgradeTimestamp()`. |
+| **Upgrade is final** | Delete `src/dialect.ts`, remove its `export * from "./dialect"` line in `src/index.ts`, remove the three `// TEMPORARY (0.1.10 upgrade)` inline checks in `src/instructions.ts` (grep `TEMPORARY (0.1.10`), delete this file. |
 
 Deployments:
 
 | | Program | Group | Status |
 |---|---|---|---|
 | 0.1.9 | `MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA` | `4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8` | mainnet prod (until upgrade) |
-| 0.1.10 | `stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct` | `FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo` | staging (deployed 2026-08-03), mainnet after upgrade |
+| 0.1.10 | `stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct` | `FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo` | staging (since 2026-08-03), mainnet after upgrade |
 
 ---
 
@@ -28,8 +34,8 @@ Deployments:
 | `FeeState` | 256 → **512** | +256B reserved; new `account_transfer_fee: u32` carved from an old placeholder (0 ⇒ legacy default) |
 
 Both new layouts are **byte-identical prefixes** of the old ones. The upgraded program
-cannot load unresized accounts, so the mainnet deploy includes a short outage while the new
-resize instructions run. `Bank` was NOT resized — new fields consumed existing padding.
+cannot load unresized accounts, so the mainnet deploy includes a short outage while the
+new resize instructions run. `Bank` was NOT resized — new fields consumed existing padding.
 
 ### New features
 
@@ -82,135 +88,73 @@ frozen-interest/reset audit fixes; SVSP phantom-token accounting.
 ## 2. What breaks, per IDL × program combination
 
 Solana instructions carry accounts as an **ordered, unnamed array**; programs match them
-by position. Inserting a required account mid-list shifts every later index, and neither
-side can detect or adapt — that's why the six instructions above are a hard wire break in
-BOTH directions. Everything else survives. All cells below were verified against the live
-deployed programs (not just source):
+by position. Inserting a required account mid-list shifts every later index — that's why
+the six instructions above are a hard wire break in BOTH directions. Everything else
+survives. All cells verified against the live deployed programs:
 
 | Operation | 0.1.9 IDL → 0.1.10 program | 0.1.10 IDL → 0.1.9 program |
 |---|---|---|
-| **Decode any account** (group, bank, account, FeeState) | ✅ layouts are prefix-identical; extra bytes ignored | ✅ verified live, incl. 264B FeeState and 1,064B group under the new IDL |
-| **Decode a `CircuitBroken` bank** | ❌ **crashes** — unknown enum variant (old IDL only; can only occur on 0.1.10) | ✅ (variant exists in new IDL) |
+| **Decode any account** (group, bank, account, FeeState) | ✅ layouts are prefix-identical | ✅ verified live, incl. 264B FeeState and 1,064B group |
+| **Decode a `CircuitBroken` bank** | ❌ **crashes** — unknown enum variant (can only occur on 0.1.10) | ✅ |
 | **gPA / memcmp discovery** (account@8, bank@41) | ✅ prefix-stable | ✅ |
 | deposit / withdraw / borrow / repay / account create·close | ✅ unchanged | ✅ unchanged |
-| **end_flashloan** (all loops, repay-w/-collat, swaps) | ❌ `AccountNotEnoughKeys: group` | ❌ `group` lands in the `authority` signer slot → signer check fails |
+| **end_flashloan** (all loops, repay-w/-collat, swaps) | ❌ `AccountNotEnoughKeys: group` | ❌ `group` lands in the `authority` signer slot |
 | **pulse_health** | ❌ `AccountNotEnoughKeys: group` | ❌ misaligns the trailing bank/oracle list |
 | **transfer_to_new_account(_pda)** | ❌ missing `fee_state` | ❌ `fee_state` lands in the `system_program` slot |
 | **start/end_liquidation** | ❌ missing `group` | ❌ shifted accounts |
-| **configure_bank / group_configure / close_bank / edit_global_fee_state** (appended `Option` args) | ⚠️ shorter args → new program reads garbage for the new options — don't send old-IDL admin ixs to 0.1.10 | ✅ **verified**: 0.1.9 tolerates the trailing bytes (identical account-validation error with 16- vs 26-field `BankConfigOpt`) |
-
-So: with a fixed single IDL there is **no safe upgrade ordering** — old SDKs break the
-moment mainnet upgrades, new SDKs break if deployed early. That's the problem this release
-removes.
+| **admin ixs with appended `Option` args** | ⚠️ shorter args → new program reads garbage for the new options — don't send old-IDL admin ixs to 0.1.10 | ✅ **verified**: 0.1.9 tolerates the trailing bytes |
 
 ---
 
-## 3. How this SDK works around it
+## 3. The workaround
 
-Three additive pieces; consumers see none of them:
+Deliberately minimal — one constants file plus three inline checks:
 
-1. **Runtime legacy IDL** — `src/idl/legacy.ts`. `getMarginfiLegacyIdl()` derives the
-   0.1.9 IDL from the bundled 0.1.10 one (strips the six inserted accounts + the ten
-   appended `BankConfigOpt` fields; ~50 lines, no second 450KB JSON shipped). Also
-   `marginfiIdlFor(version, programId)`, `detectMarginfiProgramVersion` and
-   `isLegacyMarginfiProgram`.
+- **[`src/dialect.ts`](src/dialect.ts)** (~45 lines): `MARGINFI_V0_1_10_ACTIVATION`
+  (program id → unix activation time; staging `0`, mainnet sentinel until announced),
+  `isMarginfiV0110Live(programId)`, and `setMarginfiUpgradeTimestamp()` as the runtime
+  escape hatch. A synchronous clock check — no RPC, no caching, no IDL juggling.
+- **Three inline checks in `instructions.ts`** — the only changed instructions the SDK
+  executes or simulates: `makeEndFlashLoanIx` (executed: every loop / repay-with-collat /
+  swap), `makeAccountTransferToNewAccountIx` (executed: account transfer), and
+  `makePulseHealthIx` (embedded in `simulateBundle` health simulations). Each builds
+  0.1.10-style and, when the target program is pre-flip, removes the inserted account
+  (`ix.keys.splice(...)` at its known index — we bundle the IDL, so positions are fixed).
+  Marked `// TEMPORARY (0.1.10 upgrade)`.
 
-2. **On-chain version detection** — `src/dialect.ts`. Detector: the FeeState PDA size
-   (264B = 0.1.9, 520B = 0.1.10), derivable from the program id alone; cached per program
-   with a 60s TTL so the mainnet flip propagates within a minute.
-   `ensureMarginfiDialectProgram(program)` swaps in a (cached) Program carrying the
-   matching IDL whenever the caller's carries the wrong one.
+Deliberately **not** handled:
 
-3. **Hooks in the six instructions' builders** — the only places that needed them:
-   - `instructions.ts`: `makeEndFlashLoanIx` / `makePulseHealthIx` /
-     `makeAccountTransferToNewAccountIx` call `ensureMarginfiDialectProgram` first.
-   - `services/…/flash-loan.ts`: the async wrapper awaits exact detection and passes
-     `legacyProgram` to the sync (simulation) builder — never a cold-cache guess.
-   - `services/…/roll-pt.ts`: warms the cache before the synchronous size estimator.
-   - `sync-instructions.ts`: the three changed builders take `opts.legacyProgram`.
-   - `models/client.ts`: `initialize` detects (group size), builds the Program with the
-     matching IDL, seeds the cache, exposes `client.programVersion`
-     (force with `initialize(conn, config, { programVersion })`).
+- **Sync builders** (`sync-instructions.ts`) — simulation-only disclaimer; used solely for
+  transaction **size estimation** (every `isSync: true` lives in
+  `flashloan-size.utils.ts`; output is never sent or simulated). They always emit the
+  0.1.10 layout: pre-upgrade that overestimates a legacy tx by ~34 bytes — conservative,
+  harmless.
+- **Admin instructions** — appended `Option` args are tolerated by 0.1.9 (verified), so
+  new-IDL encodings work against both programs.
+- **`start/end_liquidation`, `transfer_to_new_account_pda`** — no SDK builders exist.
+- **Direct `program.methods.<oneOfTheSix>()` calls** bypassing the SDK builders —
+  uninterceptable; fails cleanly on-chain, same as without this layer.
 
-The invariant: **the dialect travels with the `Program` object** — and where a consumer's
-Program might carry the wrong IDL, the builders correct it against the chain. Admin arg
-changes need no handling (see §2: trailing Options are tolerated by 0.1.9, and the
-`BankConfigOpt` strip in the legacy transform makes legacy encodings exact anyway).
+### For integrators
 
-### What this means for integrators
-
-**Upgrade the SDK whenever you like.** It speaks 0.1.9 to today's mainnet and flips
-automatically (per program id, within ≤60s) when the upgrade lands. No release
-coordination, no env flags, no code changes. Reads never break in any combination.
-
-### Coverage matrix — every way the SDK can be used
-
-| Usage | Covered by |
-|---|---|
-| `Project0Client.initialize` + wrapper/model methods | init-time detection, Program built with matching IDL, cache seeded |
-| Own `Program` from `MARGINFI_IDL` (or any variant) + services / `instructions.*` | the three builders self-correct via `ensureMarginfiDialectProgram` |
-| Health-cache simulation (`simulateHealthCache`) | routes through the ensure-wrapped pulse builder |
-| Flashloan flows incl. the `isSync` simulation path | async wrapper awaits exact detection |
-| `makeRollPtTx` (sync size estimator inside) | cache warmed at the top of the action |
-| Account transfer (`makeAccountTransferToNewAccountTx`) | ensure-wrapped builder; `feeState.fetch` decodes both sizes (verified) |
-| Admin ixs (`configureBank`; direct `program.methods` for the other three) | trailing-Option args tolerated by 0.1.9 (verified) |
-| All fetch/decode/gPA paths, websocket `decodeAccountRaw` | prefix-compatible layouts (verified live, both directions) |
-| `start/end_liquidation`, `transfer_to_new_account_pda` | no SDK builders exist; nothing to cover |
-
-**Known limits:**
-
-- `program.methods.<oneOfTheSix>()` called **directly** on a wrong-IDL Program (bypassing
-  every SDK builder) — uninterceptable; fails cleanly on-chain, identical to the status quo.
-- The **raw sync builders** imported directly with a cold cache — pass `opts.legacyProgram`
-  or `await resolveMarginfiProgramVersion(...)` first (every internal path is warmed).
-- Long-lived processes across the upgrade moment: the 60s TTL covers it; re-instantiate
-  clients on persistent failure as belt-and-braces. Never build 0.1.10-only admin ixs with
-  the 0.1.9 IDL (the one ⚠️ cell above) — admin flows should use a current SDK.
+Upgrade the SDK any time **before the announced flip**; it speaks 0.1.9 to mainnet until
+the timestamp and 0.1.10 after. Be on the release that carries the announced timestamp
+(or set it yourself via `setMarginfiUpgradeTimestamp()`). Reads never break in any
+combination. The timestamp encodes the plan, not the chain: if the date moves, update via
+release or the setter.
 
 ---
 
 ## 4. Verification evidence (all against live mainnet)
 
-- **Binary diff of deployed programs**: prod (deployed 2026-07-14) contains none of the
-  0.1.10 marker strings (resize error, circuit breaker, same-asset e-mode); staging
-  (2026-08-03) contains all of them.
-- **Positional break demonstrated live**: old-style `pulse_health` against staging fails
+- **Binary diff of deployed programs**: prod (2026-07-14) has none of the 0.1.10 marker
+  strings; staging (2026-08-03) has all of them.
+- **Positional break live**: old-style `pulse_health` on staging fails
   `AnchorError caused by account: group. AccountNotEnoughKeys`; new-style succeeds.
-- **Auto-detect → build → simulate** `pulse_health`: SUCCESS on prod (detected 0.1.9,
-  emitted `[account]`) and staging (detected 0.1.10, emitted `[account, group]`).
-- **Deliberately wrong Programs in both directions** (static 0.1.10 IDL → prod; legacy IDL
-  → staging): builders auto-corrected, simulation SUCCESS both times.
+- **Inline check verified**: Programs built from the static `MARGINFI_IDL` against both
+  chains → prod emits `[account]` (spliced), staging `[account, group]`; simulation
+  SUCCESS on both.
 - **Trailing-arg tolerance**: `configure_bank` with 16- vs 26-field `BankConfigOpt`
-  encodings → byte-identical `Unauthorized` account-validation error on prod (i.e. arg
-  deserialization succeeded in both).
-- **Cross-IDL decode**: group (1,064B and 9,256B) and FeeState (264B) decode correctly
-  under both IDL variants.
-
----
-
-## Reverting after the mainnet upgrade
-
-Once mainnet runs 0.1.10 and rollback is off the table, the legacy dialect is dead code.
-Everything below is deletion — no behavior changes for 0.1.10-only operation.
-
-1. **Delete `src/dialect.ts`** and remove `export * from "./dialect"` from `src/index.ts`.
-2. **Delete `src/idl/legacy.ts`** and remove its re-export block from `src/idl/index.ts`.
-3. **`src/instructions.ts`**: remove the three `ensureMarginfiDialectProgram` calls (and the
-   import); `makeEndFlashLoanIx` can drop its added `async` if desired.
-4. **`src/services/account/actions/flash-loan.ts`**: remove the
-   `resolveMarginfiProgramVersion` import and the `legacyProgram` opts argument.
-5. **`src/services/account/actions/roll-pt.ts`**: remove the cache-warm line + import.
-6. **`src/sync-instructions.ts`**: remove the `opts?: { legacyProgram?: boolean }` params
-   and the three conditional spreads (make the 0.1.10 accounts unconditional).
-7. **`src/services/account/utils/flashloan-size.utils.ts`**: remove the
-   `isLegacyMarginfiDialect` import and the opts argument.
-8. **`src/models/client.ts`**: optional — group-size detection becomes inert (always
-   "0.1.10"). Leave it (harmless, and the pattern is reusable for the next resize-style
-   upgrade) or remove detection + the `programVersion` field.
-
-Quick audit for leftovers:
-`grep -rn "dialect\|legacyProgram\|LegacyIdl\|MarginfiProgramVersion" src/`
-
-Also delete this file once reverted. Keep the detection *pattern* in mind for the next
-breaking upgrade — the same size-probe + IDL-transform approach applies to any future
-account-layout change.
+  encodings → identical account-validation error on prod (arg deserialization succeeded).
+- **Cross-IDL decode**: group (1,064B / 9,256B) and FeeState (264B) decode correctly under
+  the 0.1.10 IDL.

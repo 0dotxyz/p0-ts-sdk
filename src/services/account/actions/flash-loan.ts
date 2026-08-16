@@ -8,7 +8,6 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { MarginfiProgram } from "~/types";
-import { resolveMarginfiProgramVersion } from "~/dialect";
 import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
 
@@ -65,16 +64,7 @@ export async function makeEndFlashLoanIx(
             pubkey: account,
             isSigner: false,
             isWritable: false,
-          })),
-          {
-            // Exact on-chain detection (cached) — this wrapper is async even
-            // for the sync builder, so we never guess from a cold cache.
-            legacyProgram:
-              (await resolveMarginfiProgramVersion(
-                program.provider.connection,
-                program.programId
-              )) === "0.1.9",
-          }
+          }))
         )
       : await instructions.makeEndFlashLoanIx(
           program,

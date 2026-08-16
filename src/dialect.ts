@@ -1,125 +1,44 @@
-import { Connection, PublicKey } from "@solana/web3.js";
-import { Program } from "@coral-xyz/anchor";
-
-import { MarginfiProgram } from "~/types";
-import {
-  MarginfiProgramVersion,
-  isLegacyMarginfiProgram,
-  marginfiIdlFor,
-} from "~/idl";
+import { PublicKey } from "@solana/web3.js";
 
 /**
- * Automatic wire-format ("dialect") resolution.
+ * TEMPORARY: 0.1.9 → 0.1.10 program upgrade switch. See UPGRADE-0.1.10.md.
  *
- * A consumer can construct their Anchor `Program` from any IDL variant — most
- * will spread the static `MARGINFI_IDL` (0.1.10). If the program they point at
- * is actually the legacy 0.1.9 deployment, six instructions would be built
- * with the wrong account layout. The builders in `instructions.ts` guard
- * against that by calling {@link ensureMarginfiDialectProgram}, which detects
- * the deployed version on-chain (cached) and transparently swaps in a Program
- * carrying the matching IDL. Consumers never see any of this.
+ * 0.1.10 inserts required accounts into six instructions (positional wire
+ * break, both directions). For the three the SDK executes or simulates
+ * (end-flashloan, transfer, pulse-health), the builders in `instructions.ts`
+ * build 0.1.10-style and inline-remove the inserted account while the target
+ * program still runs 0.1.9 — decided by the announced upgrade time below.
  *
- * Detection reads the FeeState PDA (derivable from the program id alone):
- * 264 bytes on 0.1.9 vs 520 on 0.1.10. Results are cached per program id with
- * a short TTL so the flip propagates within a minute of the mainnet upgrade.
+ * TODO(upgrade): set the mainnet timestamp once the protocol announces the
+ * flip, and publish a release BEFORE that time. Delete this file (and the
+ * three inline checks) once the upgrade is final.
  */
-
-const FEE_STATE_SEED = Buffer.from("feestate", "utf-8");
-const FEE_STATE_V2_ACCOUNT_SIZE = 8 + 512; // discriminator + FeeState (0.1.10+)
-
-const VERSION_CACHE_TTL_MS = 60_000;
-
-const versionCache = new Map<
-  string,
-  { version: MarginfiProgramVersion; fetchedAt: number }
->();
-const dialectProgramCache = new Map<string, MarginfiProgram>();
-
-/** Infer the program version from a raw FeeState account size. */
-export function detectProgramVersionFromFeeStateData(
-  dataLength: number
-): MarginfiProgramVersion {
-  return dataLength >= FEE_STATE_V2_ACCOUNT_SIZE ? "0.1.10" : "0.1.9";
-}
+const NOT_YET_SCHEDULED = Number.MAX_SAFE_INTEGER;
 
 /**
- * Detect the deployed program version from its FeeState PDA, cached per
- * program id (60s TTL). One small `getAccountInfo` on cache miss.
+ * Unix seconds (per program id) at which that deployment runs program 0.1.10.
+ * `0` = already upgraded; unlisted programs count as already upgraded.
  */
-export async function resolveMarginfiProgramVersion(
-  connection: Connection,
-  programId: PublicKey
-): Promise<MarginfiProgramVersion> {
-  const key = programId.toBase58();
-  const cached = versionCache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < VERSION_CACHE_TTL_MS) {
-    return cached.version;
-  }
-  const [feeStateKey] = PublicKey.findProgramAddressSync([FEE_STATE_SEED], programId);
-  const info = await connection.getAccountInfo(feeStateKey);
-  if (!info) {
-    throw new Error(
-      `FeeState ${feeStateKey.toBase58()} not found for program ${key} — cannot detect program version`
-    );
-  }
-  const version = detectProgramVersionFromFeeStateData(info.data.length);
-  versionCache.set(key, { version, fetchedAt: Date.now() });
-  return version;
-}
+export const MARGINFI_V0_1_10_ACTIVATION: Record<string, number> = {
+  // mainnet — 0.1.9 until the protocol flips the switch
+  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA: NOT_YET_SCHEDULED,
+  // staging — running 0.1.10 since 2026-08-03
+  stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct: 0,
+};
 
 /**
- * The last detected (or seeded) version for a program id, if any — TTL is
- * ignored so synchronous callers always have a best-known answer.
+ * Override an activation time at runtime (unix seconds; 0 = already upgraded).
+ * Escape hatch so a rescheduled upgrade can be handled from integrator config
+ * without waiting for an SDK release.
  */
-export function getCachedMarginfiProgramVersion(
-  programId: PublicKey
-): MarginfiProgramVersion | undefined {
-  return versionCache.get(programId.toBase58())?.version;
+export function setMarginfiUpgradeTimestamp(programId: PublicKey, unixSeconds: number): void {
+  MARGINFI_V0_1_10_ACTIVATION[programId.toBase58()] = unixSeconds;
 }
 
-/** Seed the detection cache (used by `Project0Client.initialize`). */
-export function seedMarginfiProgramVersionCache(
+/** Whether `programId` runs program 0.1.10 at `atUnixSeconds` (default: now). */
+export function isMarginfiV0110Live(
   programId: PublicKey,
-  version: MarginfiProgramVersion
-): void {
-  versionCache.set(programId.toBase58(), { version, fetchedAt: Date.now() });
-}
-
-/**
- * Best-known dialect for a program object WITHOUT hitting the network: the
- * cached on-chain detection if one exists (seeded by any async builder call or
- * client init), otherwise whatever IDL the program was constructed with. Used
- * by the synchronous (simulation) builders, which cannot await detection.
- */
-export function isLegacyMarginfiDialect(program: MarginfiProgram): boolean {
-  const cached = getCachedMarginfiProgramVersion(program.programId);
-  if (cached) return cached === "0.1.9";
-  return isLegacyMarginfiProgram(program);
-}
-
-/**
- * Return a Program whose runtime IDL matches the DEPLOYED program version,
- * regardless of which IDL variant the caller constructed theirs with. Same
- * provider/connection; swapped instances are cached per (program id, version).
- */
-export async function ensureMarginfiDialectProgram(
-  program: MarginfiProgram
-): Promise<MarginfiProgram> {
-  const version = await resolveMarginfiProgramVersion(
-    program.provider.connection,
-    program.programId
-  );
-  const programIsLegacy = isLegacyMarginfiProgram(program);
-  if ((version === "0.1.9") === programIsLegacy) return program;
-
-  const key = `${program.programId.toBase58()}:${version}`;
-  let swapped = dialectProgramCache.get(key);
-  if (!swapped) {
-    swapped = new Program(
-      marginfiIdlFor(version, program.programId),
-      program.provider
-    ) as unknown as MarginfiProgram;
-    dialectProgramCache.set(key, swapped);
-  }
-  return swapped;
+  atUnixSeconds: number = Math.floor(Date.now() / 1000)
+): boolean {
+  return atUnixSeconds >= (MARGINFI_V0_1_10_ACTIVATION[programId.toBase58()] ?? 0);
 }

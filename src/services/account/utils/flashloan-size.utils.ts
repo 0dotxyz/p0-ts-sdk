@@ -23,7 +23,6 @@ import BN from "bn.js";
 
 import { AssetTag, BankType } from "~/services/bank";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { isLegacyMarginfiDialect } from "~/dialect";
 import { TransactionBuildingError } from "~/errors";
 import { InstructionsWrapper } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
@@ -266,8 +265,7 @@ export function computeFlashLoanNonSwapBudget({
       group: marginfiAccount.group,
       authority: marginfiAccount.authority,
     },
-    endFlRemainingAccounts.map((pubkey) => ({ pubkey, isSigner: false, isWritable: false })),
-    { legacyProgram: isLegacyMarginfiDialect(program) }
+    endFlRemainingAccounts.map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }))
   );
 
   // 3. Assemble all non-swap IXs in flashloan order

@@ -37,7 +37,6 @@ import {
   resolveExponentMergeContext,
 } from "~/vendor/exponent";
 import { uiToNative } from "~/utils";
-import { resolveMarginfiProgramVersion } from "~/dialect";
 
 import {
   isWholePosition,
@@ -341,10 +340,6 @@ async function buildRollPtFlashloanTx({
     tradeIx,
     ...depositIxs.instructions,
   ];
-
-  // Warm the program-version cache so the synchronous estimator below sizes
-  // the end-flashloan ix with the deployed program's account layout.
-  await resolveMarginfiProgramVersion(program.provider.connection, program.programId);
 
   // Size the precheck against the full footprint (the CLMM swap is part of the flashloan, not an
   // engine route, so there are no separate swap ix/LUT counts to reserve).
