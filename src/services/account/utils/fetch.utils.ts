@@ -45,7 +45,7 @@ export const fetchMarginfiAccountAddresses = async (
   return marginfiAccounts;
 };
 
-// MarginfiAccount (bytemuck, repr(C)) byte layout — see src/idl/marginfi_0.1.9.json.
+// MarginfiAccount (bytemuck, repr(C)) byte layout — see src/idl/marginfi_0.1.10.json.
 const MARGINFI_ACCOUNT_DISCRIMINATOR = Buffer.from([67, 178, 130, 109, 126, 114, 28, 42]);
 const GROUP_OFFSET = 8; // after the 8-byte discriminator
 const BALANCES_OFFSET = 72; // 8 discriminator + 32 group + 32 authority

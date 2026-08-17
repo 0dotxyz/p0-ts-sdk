@@ -18,29 +18,13 @@ const NOT_YET_SCHEDULED = Number.MAX_SAFE_INTEGER;
 /**
  * Unix seconds (per program id) at which that deployment runs program 0.1.10.
  * `0` = already upgraded; unlisted programs count as already upgraded.
- *
- * Backed by a `globalThis` singleton: the package has multiple bundle entries
- * (`.` and `./instructions`), each with its own copy of this module — the
- * shared object keeps `setMarginfiUpgradeTimestamp` effective across all of
- * them.
  */
-export const MARGINFI_V0_1_10_ACTIVATION: Record<string, number> = ((
-  globalThis as { __MARGINFI_V0_1_10_ACTIVATION__?: Record<string, number> }
-).__MARGINFI_V0_1_10_ACTIVATION__ ??= {
+export const MARGINFI_V0_1_10_ACTIVATION: Record<string, number> = {
   // mainnet — 0.1.9 until the protocol flips the switch
   MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA: NOT_YET_SCHEDULED,
   // staging — running 0.1.10 since 2026-08-03
   stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct: 0,
-});
-
-/**
- * Override an activation time at runtime (unix seconds; 0 = already upgraded).
- * Escape hatch so a rescheduled upgrade can be handled from integrator config
- * without waiting for an SDK release.
- */
-export function setMarginfiUpgradeTimestamp(programId: PublicKey, unixSeconds: number): void {
-  MARGINFI_V0_1_10_ACTIVATION[programId.toBase58()] = unixSeconds;
-}
+};
 
 /** Whether `programId` runs program 0.1.10 at `atUnixSeconds` (default: now). */
 export function isMarginfiV0110Live(

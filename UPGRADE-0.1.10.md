@@ -11,8 +11,8 @@ flip** with zero code changes.
 
 | When | What |
 |---|---|
-| **Protocol announces the mainnet upgrade time** | Set the real unix timestamp for `MFv2h…` in `MARGINFI_V0_1_10_ACTIVATION` (`src/dialect.ts`) — it currently holds a not-yet-scheduled sentinel — and **publish a release before the flip**. Integrators must be on it (or call `setMarginfiUpgradeTimestamp()` from their own config). |
-| **Upgrade is rescheduled** | Same two options: patch release with the new timestamp, or integrators call `setMarginfiUpgradeTimestamp()`. |
+| **Protocol announces the mainnet upgrade time** | Set the real unix timestamp for `MFv2h…` in `MARGINFI_V0_1_10_ACTIVATION` (`src/dialect.ts`) — it currently holds a not-yet-scheduled sentinel — and **publish a release before the flip**. Integrators must be on that release before the flip. |
+| **Upgrade is rescheduled** | Publish a patch release with the new timestamp; integrators must update before the originally announced time. |
 | **Upgrade is final** | Delete `src/dialect.ts`, remove its `export * from "./dialect"` line in `src/index.ts`, remove the three `// TEMPORARY (0.1.10 upgrade)` inline checks in `src/instructions.ts` (grep `TEMPORARY (0.1.10`), delete this file. |
 
 Deployments:
@@ -110,10 +110,10 @@ survives. All cells verified against the live deployed programs:
 
 Deliberately minimal — one constants file plus three inline checks:
 
-- **[`src/dialect.ts`](src/dialect.ts)** (~45 lines): `MARGINFI_V0_1_10_ACTIVATION`
-  (program id → unix activation time; staging `0`, mainnet sentinel until announced),
-  `isMarginfiV0110Live(programId)`, and `setMarginfiUpgradeTimestamp()` as the runtime
-  escape hatch. A synchronous clock check — no RPC, no caching, no IDL juggling.
+- **[`src/dialect.ts`](src/dialect.ts)** (~35 lines): `MARGINFI_V0_1_10_ACTIVATION`
+  (program id → unix activation time; staging `0`, mainnet sentinel until announced) and
+  `isMarginfiV0110Live(programId)`. A synchronous clock check — no RPC, no caching, no
+  IDL juggling.
 - **Three inline checks in `instructions.ts`** — the only changed instructions the SDK
   executes or simulates: `makeEndFlashLoanIx` (executed: every loop / repay-with-collat /
   swap), `makeAccountTransferToNewAccountIx` (executed: account transfer), and
@@ -138,10 +138,10 @@ Deliberately **not** handled:
 ### For integrators
 
 Upgrade the SDK any time **before the announced flip**; it speaks 0.1.9 to mainnet until
-the timestamp and 0.1.10 after. Be on the release that carries the announced timestamp
-(or set it yourself via `setMarginfiUpgradeTimestamp()`). Reads never break in any
-combination. The timestamp encodes the plan, not the chain: if the date moves, update via
-release or the setter.
+the timestamp and 0.1.10 after. Be on the release that carries the announced timestamp.
+Reads never break in any combination. The timestamp encodes the plan, not the chain: if
+the date moves, a patch release carries the new one — update before the originally
+announced time.
 
 ---
 
