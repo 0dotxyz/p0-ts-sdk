@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.6.2"
   },
   "changesets": [
+    "gentle-apples-shop",
     "olive-nails-buy",
     "staging-program-0-1-10"
   ]

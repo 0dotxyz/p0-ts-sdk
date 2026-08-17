@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.0-alpha.1
+
+### Patch Changes
+
+- chore: cleanup
+
 ## 2.7.0-alpha.0
 
 ### Minor Changes
