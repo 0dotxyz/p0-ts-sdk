@@ -11,7 +11,7 @@ flip** with zero code changes.
 
 | When | What |
 |---|---|
-| **Protocol announces the mainnet upgrade time** | Set the real unix timestamp for `MFv2h…` in `MARGINFI_V0_1_10_ACTIVATION` (`src/dialect.ts`) — it currently holds a not-yet-scheduled sentinel — and **publish a release before the flip**. Integrators must be on that release before the flip. |
+| **Now (timestamp is set: Tuesday 2026-08-25 17:00 CEST / 15:00 UTC / `1787670000`)** | Publish the release carrying it; integrators must be on that release before the flip. |
 | **Upgrade is rescheduled** | Publish a patch release with the new timestamp; integrators must update before the originally announced time. |
 | **Upgrade is final** | Delete `src/dialect.ts`, remove its `export * from "./dialect"` line in `src/index.ts`, remove the three `// TEMPORARY (0.1.10 upgrade)` inline checks in `src/instructions.ts` (grep `TEMPORARY (0.1.10`), delete this file. |
 
@@ -111,7 +111,7 @@ survives. All cells verified against the live deployed programs:
 Deliberately minimal — one constants file plus three inline checks:
 
 - **[`src/dialect.ts`](src/dialect.ts)** (~35 lines): `MARGINFI_V0_1_10_ACTIVATION`
-  (program id → unix activation time; staging `0`, mainnet sentinel until announced) and
+  (program id → unix activation time; staging `0`, mainnet `1787670000` = 2026-08-25 17:00 CEST) and
   `isMarginfiV0110Live(programId)`. A synchronous clock check — no RPC, no caching, no
   IDL juggling.
 - **Three inline checks in `instructions.ts`** — the only changed instructions the SDK
