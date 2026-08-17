@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.0-alpha.2
+
+### Patch Changes
+
+- chore: add timestamp
+
 ## 2.7.0-alpha.1
 
 ### Patch Changes
