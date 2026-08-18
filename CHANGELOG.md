@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.7.0
+
+### Minor Changes
+
+- b486da7: feat: 1.10 program upgrade
+- 2bb0b18: Support marginfi program 0.1.10 (staging `stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct` / group `FCPfpHA69EbS8f9KKSreTRkXbzFpunsKuYf5qNmnJjpo`) with dual-program (0.1.9/0.1.10) operation. Full details in UPGRADE-0.1.10.md.
+  - Bundle the 0.1.10 IDL (built from `marginfi-v2@mrgn-0.1.10-rc1`) and regenerated types.
+  - 0.1.10 inserts required accounts into six instructions — a positional wire break in both directions. For the three the SDK executes or simulates (`makeEndFlashLoanIx`, `makeAccountTransferToNewAccountIx`, `makePulseHealthIx`), the builders inline-remove the inserted account while the target program still runs 0.1.9. The switch is the announced per-program upgrade timestamp (`MARGINFI_V0_1_10_ACTIVATION` in `src/dialect.ts`). No RPC, no caching.
+  - Sync (simulation-only) builders are not version-switched — they are used solely for size estimation and always emit the 0.1.10 layout (≤34-byte conservative overestimate against 0.1.9). Their changed builders gained required `group` / `feeState` account params (breaking for direct callers).
+  - New `OperationalState.CircuitBroken` bank state parsed instead of throwing; `BankConfigOptRaw` gains the 0.1.10 liquidation-fee and circuit-breaker fields (serialized as `null` until surfaced); appended `Option` args on admin instructions verified tolerated by the deployed 0.1.9 program.
+
+  **The mainnet flip is scheduled for Tuesday 2026-08-25 17:00 CEST (15:00 UTC).** This release carries that activation timestamp — integrators must be on it (or later) before the flip. If the date moves, a patch release will carry the new timestamp.
+
+### Patch Changes
+
+- e491f4e: chore: cleanup
+- d534be5: chore: add timestamp
+
 ## 2.7.0-alpha.2
 
 ### Patch Changes
