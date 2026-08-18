@@ -355,12 +355,14 @@ function makeEndFlashLoanIx(
   programId: PublicKey,
   accounts: {
     marginfiAccount: PublicKey;
+    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
     authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
   ];
 
@@ -699,11 +701,13 @@ function makePulseHealthIx(
   programId: PublicKey,
   accounts: {
     marginfiAccount: PublicKey;
+    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
   ];
 
   keys.push(...remainingAccounts);
@@ -725,6 +729,7 @@ function makeAccountTransferToNewAccountIx(
     feePayer: PublicKey;
     newAuthority: PublicKey;
     globalFeeWallet: PublicKey; // caller must provide
+    feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive (0.1.10+)
   }
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
@@ -735,6 +740,7 @@ function makeAccountTransferToNewAccountIx(
     { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
     { pubkey: accounts.newAuthority, isSigner: false, isWritable: false },
     { pubkey: accounts.globalFeeWallet, isSigner: false, isWritable: true },
+    { pubkey: accounts.feeState, isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
 

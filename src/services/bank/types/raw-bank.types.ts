@@ -159,6 +159,18 @@ interface BankConfigOptRaw {
   permissionlessBadDebtSettlement: boolean | null;
   freezeSettings: boolean | null;
   tokenlessRepaymentsAllowed: boolean | null;
+
+  liquidationLiquidatorFee: number | null;
+  liquidationInsuranceFee: number | null;
+
+  circuitBreakerEnabled: boolean | null;
+  cbDeviationBpsTiers: number[] | null;
+  cbTierDurationsSeconds: number[] | null;
+  cbEscalationWindowMult: number | null;
+  cbEmaAlphaBps: number | null;
+  cbWindowSeconds: number | null;
+  cbWindowMaxUpBps: number | null;
+  cbWindowMaxDownBps: number | null;
 }
 
 interface BankConfigCompactRaw extends Omit<
@@ -176,7 +188,8 @@ type OperationalStateRaw =
   | { reduceOnly: {} }
   | { killedByBankruptcy: {} }
   | { uninitialized: {} }
-  | { reduceOnlyWithBorrowingPower: {} };
+  | { reduceOnlyWithBorrowingPower: {} }
+  | { circuitBroken: {} };
 
 interface RatePointRaw {
   util: number;

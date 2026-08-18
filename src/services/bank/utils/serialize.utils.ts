@@ -74,6 +74,16 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
     freezeSettings: bankConfigOpt.freezeSettings,
     tokenlessRepaymentsAllowed: bankConfigOpt.tokenlessRepaymentsAllowed,
     oracleMaxConfidence: bankConfigOpt.oracleMaxConfidence,
+    liquidationLiquidatorFee: null,
+    liquidationInsuranceFee: null,
+    circuitBreakerEnabled: null,
+    cbDeviationBpsTiers: null,
+    cbTierDurationsSeconds: null,
+    cbEscalationWindowMult: null,
+    cbEmaAlphaBps: null,
+    cbWindowSeconds: null,
+    cbWindowMaxUpBps: null,
+    cbWindowMaxDownBps: null,
   };
 }
 

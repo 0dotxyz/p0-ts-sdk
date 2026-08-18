@@ -260,7 +260,11 @@ export function computeFlashLoanNonSwapBudget({
   });
   const endFlIx = syncInstructions.makeEndFlashLoanIx(
     program.programId,
-    { marginfiAccount: marginfiAccount.address, authority: marginfiAccount.authority },
+    {
+      marginfiAccount: marginfiAccount.address,
+      group: marginfiAccount.group,
+      authority: marginfiAccount.authority,
+    },
     endFlRemainingAccounts.map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }))
   );
 

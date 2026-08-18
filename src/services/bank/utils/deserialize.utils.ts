@@ -629,6 +629,8 @@ export function parseOperationalState(operationalStateRaw: OperationalStateRaw):
       return OperationalState.Uninitialized;
     case "reduceonlywithborrowingpower":
       return OperationalState.ReduceOnlyWithBorrowingPower;
+    case "circuitbroken":
+      return OperationalState.CircuitBroken;
     default:
       throw new Error(`Invalid operational state "${operationalStateRaw}"`);
   }
