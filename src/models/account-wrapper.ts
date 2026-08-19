@@ -1144,6 +1144,8 @@ export class MarginfiAccountWrapper {
     bankAddress: PublicKey,
     opts?: {
       volatilityFactor?: number;
+      /** Skip bank-level clamps (remaining borrow cap, available liquidity, rate limiters) */
+      ignoreBankLimits?: boolean;
     }
   ): BigNumber {
     const bankKey = bankAddress.toBase58();
@@ -1159,6 +1161,8 @@ export class MarginfiAccountWrapper {
       emodeImpactStatus: borrowImpact?.status,
       activePair: borrowImpact?.activePair,
       volatilityFactor: opts?.volatilityFactor,
+      groupRateLimiter: this.client.group.rateLimiter,
+      ignoreBankLimits: opts?.ignoreBankLimits,
     });
   }
 
@@ -1172,6 +1176,8 @@ export class MarginfiAccountWrapper {
     bankAddress: PublicKey,
     opts?: {
       volatilityFactor?: number;
+      /** Skip bank-level clamps (available liquidity, rate limiters) */
+      ignoreBankLimits?: boolean;
     }
   ): BigNumber {
     const activePairs = this.getActiveEmodePairs();
@@ -1185,6 +1191,30 @@ export class MarginfiAccountWrapper {
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
       activePair,
       volatilityFactor: opts?.volatilityFactor,
+      groupRateLimiter: this.client.group.rateLimiter,
+      ignoreBankLimits: opts?.ignoreBankLimits,
+    });
+  }
+
+  /**
+   * Computes max deposit for a bank with auto-injected client data.
+   *
+   * Bounded by the bank's remaining deposit cap and, if provided, the wallet balance.
+   *
+   * @param bankAddress - Bank address to check max deposit for
+   * @param opts - Optional wallet balance (UI units) to cap the result
+   */
+  computeMaxDepositForBank(
+    bankAddress: PublicKey,
+    opts?: {
+      walletBalance?: BigNumber | number;
+    }
+  ): BigNumber {
+    return this.account.computeMaxDepositForBank({
+      banksMap: this.client.bankMap,
+      bankAddress,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      walletBalance: opts?.walletBalance,
     });
   }
 

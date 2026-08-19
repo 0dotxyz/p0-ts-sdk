@@ -93,6 +93,10 @@ async function depositExample() {
   // --------------------------------------------------------------------------
   // Step 5: Build Deposit Transaction
   // --------------------------------------------------------------------------
+  // Bank deposit cap check (remaining capacity in UI units)
+  const maxDeposit = wrappedAccount.computeMaxDepositForBank(solBank.address);
+  console.log(`   Max deposit (bank cap remaining): ${maxDeposit.toString()} SOL`);
+
   console.log(`\n📝 Building deposit transaction for ${DEPOSIT_AMOUNT} SOL...`);
 
   const depositTx = await wrappedAccount.makeDepositTx(
