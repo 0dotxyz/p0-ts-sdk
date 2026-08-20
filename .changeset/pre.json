@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.7.0"
   },
   "changesets": [
-    "bank-aware-max-amounts"
+    "bank-aware-max-amounts",
+    "venue-liquidity-clamp"
   ]
 }
