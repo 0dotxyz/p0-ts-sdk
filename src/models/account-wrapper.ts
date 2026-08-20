@@ -1192,6 +1192,7 @@ export class MarginfiAccountWrapper {
       activePair,
       volatilityFactor: opts?.volatilityFactor,
       groupRateLimiter: this.client.group.rateLimiter,
+      venueStates: this.client.bankIntegrationMap[bankAddress.toBase58()],
       ignoreBankLimits: opts?.ignoreBankLimits,
     });
   }

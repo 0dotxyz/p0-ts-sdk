@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
+import BN from "bn.js";
 
 import {
   computeMaxBorrowForBank,
@@ -12,12 +13,15 @@ import {
 import {
   AssetTag,
   BankType,
+  BankVenueStates,
   computeBankDepositCapRemaining,
   computeRemainingCapacity,
+  computeVenueAvailableLiquidity,
   EmodeImpactStatus,
   OperationalState,
   RiskTier,
   U64_MAX,
+  VENUE_AVAILABLE_LIQUIDITY_BUFFER,
 } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 
@@ -313,6 +317,147 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     });
     const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b), ignoreBankLimits: true });
     expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Venue liquidity (integrated banks)
+// ----------------------------------------------------------------------------
+
+describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
+  const kaminoStates = (availableUi: number) =>
+    ({
+      reserveState: { liquidity: { availableAmount: new BN(ui(availableUi).toFixed(0)) } },
+    }) as unknown as BankVenueStates["kaminoStates"];
+
+  it("clamps to the Kamino reserve's idle liquidity (with buffer)", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      venueStates: { kaminoStates: kaminoStates(100) },
+    });
+    expect(max.toNumber()).toBeCloseTo(100 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
+  });
+
+  it("does not clamp when venue states are missing or the bank has no venue", () => {
+    const kaminoBank = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: kaminoBank.address, assetShares: ui(400) }],
+    });
+    // metadata absent entirely
+    expect(
+      computeMaxWithdrawForBank({ account: acc, ...ctx(kaminoBank) }).toNumber()
+    ).toBeCloseTo(400, 6);
+    // metadata present but venue liquidity is not the binding constraint for a DEFAULT bank
+    const defaultBank = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const acc2 = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: defaultBank.address, assetShares: ui(400) }],
+    });
+    expect(
+      computeMaxWithdrawForBank({
+        account: acc2,
+        ...ctx(defaultBank),
+        venueStates: { kaminoStates: kaminoStates(1) },
+      }).toNumber()
+    ).toBeCloseTo(400, 6);
+  });
+
+  it("ignoreBankLimits bypasses the venue clamp", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      venueStates: { kaminoStates: kaminoStates(100) },
+      ignoreBankLimits: true,
+    });
+    expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+});
+
+describe("computeVenueAvailableLiquidity", () => {
+  it("derives Drift idle liquidity from scaled balances", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.DRIFT,
+    });
+    // 1e9-precision balances with 1.0 cumulative interest (1e10 precision):
+    // deposits 500, borrows 200 -> idle 300 (before buffer)
+    const spotMarketState = {
+      decimals: DECIMALS,
+      depositBalance: new BN(500).mul(new BN(10).pow(new BN(9))),
+      borrowBalance: new BN(200).mul(new BN(10).pow(new BN(9))),
+      cumulativeDepositInterest: new BN(10).pow(new BN(10)),
+      cumulativeBorrowInterest: new BN(10).pow(new BN(10)),
+    } as unknown as NonNullable<BankVenueStates["driftStates"]>["spotMarketState"];
+    const liq = computeVenueAvailableLiquidity(b, { driftStates: { spotMarketState } });
+    expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
+  });
+
+  it("derives JupLend idle liquidity from exchange-price buckets", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.JUPLEND,
+    });
+    const px = new BN("1000000000000"); // 1.0 at 1e12 precision
+    const jupTokenReserveState = {
+      totalSupplyWithInterest: new BN(ui(400).toFixed(0)),
+      totalBorrowWithInterest: new BN(ui(150).toFixed(0)),
+      totalSupplyInterestFree: new BN(ui(50).toFixed(0)),
+      totalBorrowInterestFree: new BN(0),
+      supplyExchangePrice: px,
+      borrowExchangePrice: px,
+    } as unknown as NonNullable<BankVenueStates["jupLendStates"]>["jupTokenReserveState"];
+    const liq = computeVenueAvailableLiquidity(b, { jupLendStates: { jupTokenReserveState } });
+    // (400 + 50) - 150 = 300
+    expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
+  });
+
+  it("clamps negative idle to 0 and returns undefined without a venue", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    expect(computeVenueAvailableLiquidity(b, {})).toBeUndefined();
+    const defaultBank = bank({ totalDeposits: 1, totalBorrows: 0, depositLimit: 1, borrowLimit: 1 });
+    expect(computeVenueAvailableLiquidity(defaultBank, {})).toBeUndefined();
   });
 });
 

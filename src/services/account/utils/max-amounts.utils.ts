@@ -11,6 +11,8 @@ import {
   computeBankDepositCapRemaining,
   computeBankRateLimitRemaining,
   computeGroupRateLimitRemainingUsd,
+  computeVenueAvailableLiquidity,
+  BankVenueStates,
   EmodeImpactStatus,
   getAssetWeight,
   getLiabilityWeight,
@@ -311,8 +313,15 @@ export interface ComputeMaxWithdrawForBankParams {
    */
   groupRateLimiter?: BankRateLimiterType;
   /**
-   * Skip the bank-level clamps (available liquidity, bank/group rate limiters) and return the
-   * purely health-based amount (default: false)
+   * Venue-side account states for integrated banks (Kamino/Drift/JupLend), e.g.
+   * `client.bankIntegrationMap[bankAddress]`. When provided, the result is also clamped to the
+   * venue's own idle liquidity — the marginfi-level totals only describe what marginfi has
+   * delegated, so a fully utilized venue reserve correctly reports 0 withdrawable.
+   */
+  venueStates?: BankVenueStates;
+  /**
+   * Skip the bank-level clamps (available liquidity, venue liquidity, bank/group rate limiters)
+   * and return the purely health-based amount (default: false)
    */
   ignoreBankLimits?: boolean;
 }
@@ -326,8 +335,9 @@ export interface ComputeMaxWithdrawForBankParams {
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing to ensure safe withdrawals
  * - **Bank limits**: Result is clamped to available liquidity (`totalDeposits - totalBorrows`),
- *   the bank's net-outflow rate limiter and (if `groupRateLimiter` is provided) the group's USD
- *   rate limiter — unless `ignoreBankLimits` is set
+ *   the bank's net-outflow rate limiter, (if `groupRateLimiter` is provided) the group's USD
+ *   rate limiter and (if `venueStates` is provided) the integrated venue's idle liquidity —
+ *   unless `ignoreBankLimits` is set
  *
  * **Key Differences from Max Borrow:**
  * - Uses both Initial and Maintenance asset weights
@@ -361,6 +371,7 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
     oraclePricesByBank,
     assetShareValueMultiplierByBank,
     groupRateLimiter,
+    venueStates,
     ignoreBankLimits,
   } = params;
   const bank = banksMap.get(bankAddress.toBase58());
@@ -384,7 +395,11 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
   );
   const rateLimitRemaining = computeOutflowRateLimitRemaining(bank, oraclePrice, groupRateLimiter);
 
-  return BigNumber.max(0, BigNumber.min(healthMaxWithdraw, availableLiquidity, rateLimitRemaining));
+  const clamps = [healthMaxWithdraw, availableLiquidity, rateLimitRemaining];
+  const venueLiquidity = computeVenueAvailableLiquidity(bank, venueStates);
+  if (venueLiquidity !== undefined) clamps.push(venueLiquidity);
+
+  return BigNumber.max(0, BigNumber.min(...clamps));
 }
 
 /**
