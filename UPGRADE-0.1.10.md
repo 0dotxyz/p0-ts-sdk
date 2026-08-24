@@ -13,7 +13,7 @@ flip** with zero code changes.
 |---|---|
 | **Now (timestamp is set: Tuesday 2026-08-25 17:00 CEST / 15:00 UTC / `1787670000`)** | Publish the release carrying it; integrators must be on that release before the flip. |
 | **Upgrade is rescheduled** | Publish a patch release with the new timestamp; integrators must update before the originally announced time. |
-| **Upgrade is final** | Delete `src/dialect.ts`, remove its `export * from "./dialect"` line in `src/index.ts`, remove the three `// TEMPORARY (0.1.10 upgrade)` inline checks in `src/instructions.ts` (grep `TEMPORARY (0.1.10`), delete this file. |
+| **Upgrade is final** | Delete `src/dialect.ts`, remove its `export * from "./dialect"` line in `src/index.ts`, remove the six `// TEMPORARY (0.1.10 upgrade)` inline checks in `src/instructions.ts` and `src/sync-instructions.ts` (grep `TEMPORARY (0.1.10`), delete this file. |
 
 Deployments:
 

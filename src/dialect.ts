@@ -6,10 +6,11 @@ import { PublicKey } from "@solana/web3.js";
  * 0.1.10 inserts required accounts into six instructions (positional wire
  * break, both directions). For the three the SDK executes or simulates
  * (end-flashloan, transfer, pulse-health), the builders in `instructions.ts`
- * build 0.1.10-style and inline-remove the inserted account while the target
- * program still runs 0.1.9 — decided by the announced upgrade time below.
+ * AND their duplicates in `sync-instructions.ts` build 0.1.10-style and
+ * inline-remove the inserted account while the target program still runs
+ * 0.1.9 — decided by the announced upgrade time below.
  *
- * TODO(upgrade): delete this file (and the three inline checks) once the
+ * TODO(upgrade): delete this file (and the six inline checks) once the
  * upgrade is final.
  */
 
