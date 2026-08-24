@@ -309,6 +309,80 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     expect(max.toNumber()).toBeCloseTo(70, 6);
   });
 
+  // The program's Kamino withdraw records the rate-limit outflow in cToken
+  // collateral units, so the SDK converts the remaining capacity to underlying
+  // via the exchange-rate multiplier before clamping.
+  it("converts a KAMINO bank's rate-limit remaining from cToken to underlying units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const multiplier = new BigNumber(1.5);
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), multiplier]]),
+    });
+    // 70 cTokens remaining * 1.5 underlying-per-cToken
+    expect(max.toNumber()).toBeCloseTo(105, 6);
+  });
+
+  // Staked-bank limiters record LST amounts (the bank mint); the SDK's unit
+  // space is SOL-equivalent, so the LST→SOL rate applies.
+  it("converts a STAKED bank's rate-limit remaining from LST to SOL-equivalent units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.STAKED,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const multiplier = new BigNumber(1.2);
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), multiplier]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(84, 6);
+  });
+
+  // Drift/JupLend withdraws record the underlying token amount on-chain
+  // (`token_amount` / `native_outflow`), so their limiter remaining must NOT
+  // be scaled by the multiplier.
+  it("leaves a DRIFT bank's rate-limit remaining in underlying units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.DRIFT,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), new BigNumber(1.5)]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(70, 6);
+  });
+
   it("ignoreBankLimits bypasses the clamp", () => {
     const b = bank({ totalDeposits: 400, totalBorrows: 250, depositLimit: 1e9, borrowLimit: 1e9 });
     const acc = account({

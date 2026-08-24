@@ -3,6 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   ActiveEmodePair,
+  AssetTag,
   BankRateLimiterType,
   BankType,
   computeAssetUsdValue,
@@ -254,7 +255,12 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     assetShareValueMultiplier
   ).div(originationFeeFactor);
   // rate limiters record the pre-fee `amount` only
-  const rateLimitRemaining = computeOutflowRateLimitRemaining(bank, oraclePrice, groupRateLimiter);
+  const rateLimitRemaining = computeOutflowRateLimitRemaining(
+    bank,
+    oraclePrice,
+    groupRateLimiter,
+    assetShareValueMultiplier
+  );
 
   return BigNumber.max(
     0,
@@ -267,17 +273,35 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
  * if provided, the group-level rate limiter (USD, converted at the unbiased realtime price —
  * mirroring the program's `record_withdrawal_outflow`). Returns +Infinity when no limiter is
  * enabled so it is a no-op inside `BigNumber.min`.
+ *
+ * The result is in underlying UI units to match the other max-amount clamps. The bank-level
+ * limiter records the withdraw instruction's own denomination, which differs per venue:
+ * - DEFAULT / DRIFT / JUPLEND: underlying token amount (Drift records `token_amount`, JupLend
+ *   `native_outflow`, not their internal scaled/share balances) — already underlying, no
+ *   conversion.
+ * - KAMINO: cToken collateral amount (the instruction's `amount` is denominated in collateral
+ *   tokens) — multiplied by the cToken exchange rate.
+ * - STAKED: LST amount (the bank mint) — multiplied by the LST→SOL rate to reach the SDK's
+ *   SOL-equivalent underlying space.
  */
 function computeOutflowRateLimitRemaining(
   bank: BankType,
   oraclePrice: OraclePrice,
-  groupRateLimiter?: BankRateLimiterType
+  groupRateLimiter?: BankRateLimiterType,
+  assetShareValueMultiplier?: BigNumber
 ): BigNumber {
   const nowSeconds = Date.now() / 1000;
   let remaining = new BigNumber(Infinity);
 
-  const bankRemaining = computeBankRateLimitRemaining(bank, nowSeconds);
-  if (bankRemaining !== null) remaining = BigNumber.min(remaining, bankRemaining);
+  let bankRemaining = computeBankRateLimitRemaining(bank, nowSeconds);
+  if (bankRemaining !== null) {
+    const limiterInBankMintUnits =
+      bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.STAKED;
+    if (limiterInBankMintUnits && assetShareValueMultiplier?.gt(0)) {
+      bankRemaining = bankRemaining.times(assetShareValueMultiplier);
+    }
+    remaining = BigNumber.min(remaining, bankRemaining);
+  }
 
   // Program: `calc_value(amount, unbiased realtime price).to_num::<i64>() > remaining` fails.
   const groupRemainingUsd = computeGroupRateLimitRemainingUsd(groupRateLimiter, nowSeconds);
@@ -393,7 +417,12 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
     bank,
     assetShareValueMultiplier
   );
-  const rateLimitRemaining = computeOutflowRateLimitRemaining(bank, oraclePrice, groupRateLimiter);
+  const rateLimitRemaining = computeOutflowRateLimitRemaining(
+    bank,
+    oraclePrice,
+    groupRateLimiter,
+    assetShareValueMultiplier
+  );
 
   const clamps = [healthMaxWithdraw, availableLiquidity, rateLimitRemaining];
   const venueLiquidity = computeVenueAvailableLiquidity(bank, venueStates);
