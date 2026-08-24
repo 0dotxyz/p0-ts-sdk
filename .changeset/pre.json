@@ -6,6 +6,7 @@
   },
   "changesets": [
     "bank-aware-max-amounts",
+    "rate-limit-unit-conversion",
     "venue-liquidity-clamp"
   ]
 }
