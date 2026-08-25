@@ -3,8 +3,17 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   ActiveEmodePair,
+  AssetTag,
+  BankRateLimiterType,
   BankType,
   computeAssetUsdValue,
+  computeBankBorrowCapRemaining,
+  computeBankProjectedAvailableLiquidity,
+  computeBankDepositCapRemaining,
+  computeBankRateLimitRemaining,
+  computeGroupRateLimitRemainingUsd,
+  computeVenueAvailableLiquidity,
+  BankVenueStates,
   EmodeImpactStatus,
   getAssetWeight,
   getLiabilityWeight,
@@ -43,6 +52,16 @@ export interface ComputeMaxBorrowForBankParams {
   volatilityFactor?: number;
   /** Active e-mode pair for applying e-mode weights */
   activePair?: ActiveEmodePair;
+  /**
+   * Group-level rate limiter (USD windows). When provided and enabled, the result is also clamped
+   * to the group's remaining outflow capacity converted at the unbiased realtime price.
+   */
+  groupRateLimiter?: BankRateLimiterType;
+  /**
+   * Skip the bank-level clamps (remaining borrow cap, available liquidity, bank/group rate
+   * limiters) and return the purely health-based amount (default: false)
+   */
+  ignoreBankLimits?: boolean;
 }
 
 /**
@@ -53,6 +72,9 @@ export interface ComputeMaxBorrowForBankParams {
  * - **Isolated tier constraints**: Isolated assets cannot be borrowed with active debt
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing (lowest for assets, highest for liabilities)
+ * - **Bank limits**: Remaining borrow cap (`borrowLimit - totalBorrows`, interest-buffered),
+ *   available liquidity (`totalDeposits - totalBorrows`), the bank's net-outflow rate limiter and
+ *   (if `groupRateLimiter` is provided) the group's USD rate limiter — unless `ignoreBankLimits`
  *
  * **Isolated Asset Rules:**
  * - Cannot borrow isolated assets if other liabilities exist
@@ -65,7 +87,11 @@ export interface ComputeMaxBorrowForBankParams {
  *               ((fc - min(fc, ucb)) / (price_highest * liab_weight))
  * Else:
  *   maxBorrow = existingAssets + ((fc - ucb) / (price_highest * liab_weight))
+ *
+ * maxBorrow = min(maxBorrow, remainingBorrowCap, availableLiquidity, rateLimitRemaining)
  * ```
+ * All liability-denominated terms are divided by `(1 + protocolOriginationFee)` because the
+ * program books the origination fee as additional borrowed liability.
  * Where:
  * - `fc` = free collateral (with volatility factor)
  * - `ucb` = untied collateral for bank (existing deposits)
@@ -96,6 +122,8 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     emodeImpactStatus,
     volatilityFactor,
     activePair,
+    groupRateLimiter,
+    ignoreBankLimits,
   } = params;
   const bank = banksMap.get(bankAddress.toBase58());
 
@@ -196,15 +224,93 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
   });
   const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Initial);
 
-  if (assetWeight.eq(0)) {
-    return computeQuantityUi(balance, bank, assetShareValueMultiplier).assets.plus(
-      freeCollateral.minus(untiedCollateralForBank).div(priceHighestBias.times(liabWeight))
-    );
-  } else {
-    return untiedCollateralForBank
-      .div(priceLowestBias.times(assetWeight))
-      .plus(freeCollateral.minus(untiedCollateralForBank).div(priceHighestBias.times(liabWeight)));
+  // The program books `amount * (1 + protocol_origination_fee)` as the new liability (the fee is
+  // borrowed on the user's behalf), so every liability-denominated bound is divided by it.
+  const originationFeeFactor = new BigNumber(1).plus(
+    bank.config.interestRateConfig.protocolOriginationFee
+  );
+  const liabPriceWeighted = priceHighestBias.times(liabWeight).times(originationFeeFactor);
+
+  const healthMaxBorrow = assetWeight.eq(0)
+    ? computeQuantityUi(balance, bank, assetShareValueMultiplier).assets.plus(
+        freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted)
+      )
+    : untiedCollateralForBank
+        .div(priceLowestBias.times(assetWeight))
+        .plus(freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted));
+
+  if (ignoreBankLimits) return healthMaxBorrow;
+
+  // ----------------- //
+  // bank-level clamps //
+  // ----------------- //
+
+  // borrow cap: total_liabilities + amount * (1 + fee) < borrow_limit
+  const borrowCapRemaining = new BigNumber(computeBankBorrowCapRemaining(bank)).div(
+    originationFeeFactor
+  );
+  // utilization: total_assets >= total_liabilities + amount * (1 + fee) (after interest accrual)
+  const availableLiquidity = computeBankProjectedAvailableLiquidity(
+    bank,
+    assetShareValueMultiplier
+  ).div(originationFeeFactor);
+  // rate limiters record the pre-fee `amount` only
+  const rateLimitRemaining = computeOutflowRateLimitRemaining(
+    bank,
+    oraclePrice,
+    groupRateLimiter,
+    assetShareValueMultiplier
+  );
+
+  return BigNumber.max(
+    0,
+    BigNumber.min(healthMaxBorrow, borrowCapRemaining, availableLiquidity, rateLimitRemaining)
+  );
+}
+
+/**
+ * Remaining outflow (withdraw/borrow) allowed by the bank-level rate limiter (native tokens) and,
+ * if provided, the group-level rate limiter (USD, converted at the unbiased realtime price —
+ * mirroring the program's `record_withdrawal_outflow`). Returns +Infinity when no limiter is
+ * enabled so it is a no-op inside `BigNumber.min`.
+ *
+ * The result is in underlying UI units to match the other max-amount clamps. The bank-level
+ * limiter records the withdraw instruction's own denomination, which differs per venue:
+ * - DEFAULT / DRIFT / JUPLEND: underlying token amount (Drift records `token_amount`, JupLend
+ *   `native_outflow`, not their internal scaled/share balances) — already underlying, no
+ *   conversion.
+ * - KAMINO: cToken collateral amount (the instruction's `amount` is denominated in collateral
+ *   tokens) — multiplied by the cToken exchange rate.
+ * - STAKED: LST amount (the bank mint) — multiplied by the LST→SOL rate to reach the SDK's
+ *   SOL-equivalent underlying space.
+ */
+function computeOutflowRateLimitRemaining(
+  bank: BankType,
+  oraclePrice: OraclePrice,
+  groupRateLimiter?: BankRateLimiterType,
+  assetShareValueMultiplier?: BigNumber
+): BigNumber {
+  const nowSeconds = Date.now() / 1000;
+  let remaining = new BigNumber(Infinity);
+
+  let bankRemaining = computeBankRateLimitRemaining(bank, nowSeconds);
+  if (bankRemaining !== null) {
+    const limiterInBankMintUnits =
+      bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.STAKED;
+    if (limiterInBankMintUnits && assetShareValueMultiplier?.gt(0)) {
+      bankRemaining = bankRemaining.times(assetShareValueMultiplier);
+    }
+    remaining = BigNumber.min(remaining, bankRemaining);
   }
+
+  // Program: `calc_value(amount, unbiased realtime price).to_num::<i64>() > remaining` fails.
+  const groupRemainingUsd = computeGroupRateLimitRemainingUsd(groupRateLimiter, nowSeconds);
+  if (groupRemainingUsd !== null) {
+    const price = getPrice(oraclePrice, PriceBias.None, false);
+    if (price.gt(0)) remaining = BigNumber.min(remaining, groupRemainingUsd.div(price));
+  }
+
+  return remaining;
 }
 
 /**
@@ -225,6 +331,23 @@ export interface ComputeMaxWithdrawForBankParams {
   volatilityFactor?: number;
   /** Active e-mode pair for applying e-mode weights */
   activePair?: ActiveEmodePair;
+  /**
+   * Group-level rate limiter (USD windows). When provided and enabled, the result is also clamped
+   * to the group's remaining outflow capacity converted at the unbiased realtime price.
+   */
+  groupRateLimiter?: BankRateLimiterType;
+  /**
+   * Venue-side account states for integrated banks (Kamino/Drift/JupLend), e.g.
+   * `client.bankIntegrationMap[bankAddress]`. When provided, the result is also clamped to the
+   * venue's own idle liquidity — the marginfi-level totals only describe what marginfi has
+   * delegated, so a fully utilized venue reserve correctly reports 0 withdrawable.
+   */
+  venueStates?: BankVenueStates;
+  /**
+   * Skip the bank-level clamps (available liquidity, venue liquidity, bank/group rate limiters)
+   * and return the purely health-based amount (default: false)
+   */
+  ignoreBankLimits?: boolean;
 }
 
 /**
@@ -235,6 +358,10 @@ export interface ComputeMaxWithdrawForBankParams {
  * - **Asset weights**: Risk-adjusted value of deposits (Initial and Maintenance)
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing to ensure safe withdrawals
+ * - **Bank limits**: Result is clamped to available liquidity (`totalDeposits - totalBorrows`),
+ *   the bank's net-outflow rate limiter, (if `groupRateLimiter` is provided) the group's USD
+ *   rate limiter and (if `venueStates` is provided) the integrated venue's idle liquidity —
+ *   unless `ignoreBankLimits` is set
  *
  * **Key Differences from Max Borrow:**
  * - Uses both Initial and Maintenance asset weights
@@ -262,6 +389,52 @@ export interface ComputeMaxWithdrawForBankParams {
  * ```
  */
 export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams): BigNumber {
+  const {
+    banksMap,
+    bankAddress,
+    oraclePricesByBank,
+    assetShareValueMultiplierByBank,
+    groupRateLimiter,
+    venueStates,
+    ignoreBankLimits,
+  } = params;
+  const bank = banksMap.get(bankAddress.toBase58());
+  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+
+  const healthMaxWithdraw = computeHealthMaxWithdrawForBank(params);
+  if (ignoreBankLimits) return healthMaxWithdraw;
+
+  // ----------------- //
+  // bank-level clamps //
+  // ----------------- //
+
+  const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
+  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress.toBase58()} not found`);
+
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  // utilization: total_assets - amount >= total_liabilities (after interest accrual)
+  const availableLiquidity = computeBankProjectedAvailableLiquidity(
+    bank,
+    assetShareValueMultiplier
+  );
+  const rateLimitRemaining = computeOutflowRateLimitRemaining(
+    bank,
+    oraclePrice,
+    groupRateLimiter,
+    assetShareValueMultiplier
+  );
+
+  const clamps = [healthMaxWithdraw, availableLiquidity, rateLimitRemaining];
+  const venueLiquidity = computeVenueAvailableLiquidity(bank, venueStates);
+  if (venueLiquidity !== undefined) clamps.push(venueLiquidity);
+
+  return BigNumber.max(0, BigNumber.min(...clamps));
+}
+
+/**
+ * Health-based max withdraw (no bank-level clamps). See {@link computeMaxWithdrawForBank}.
+ */
+function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams): BigNumber {
   const {
     account,
     banksMap,
@@ -402,4 +575,56 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
   const maxWithdraw = initUntiedCollateralForBank.div(initWeightedPrice);
 
   return maxWithdraw;
+}
+
+/**
+ * Configuration for computing maximum deposit amount for a bank
+ */
+export interface ComputeMaxDepositForBankParams {
+  /** Map of banks by their address */
+  banksMap: Map<string, BankType>;
+  /** The bank address to compute max deposit for */
+  bankAddress: PublicKey;
+  /**
+   * Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift and
+   * staked-collateral banks). The bank's `depositLimit` is denominated in its native share units;
+   * the multiplier converts the remaining capacity to underlying UI units.
+   */
+  assetShareValueMultiplierByBank?: Map<string, BigNumber>;
+  /** Wallet token balance in UI units; if provided, the result is capped to it */
+  walletBalance?: BigNumber | number;
+}
+
+/**
+ * Calculates the maximum amount that can be deposited into a bank.
+ *
+ * Deposits are not constrained by account health, only by the bank's deposit cap
+ * (`depositLimit - totalDeposits`, buffered for interest accrued since the last update)
+ * and, optionally, the caller's wallet balance.
+ *
+ * @param params - Configuration object for max deposit computation
+ * @returns Maximum amount that can be deposited (in UI units)
+ *
+ * @example
+ * ```typescript
+ * const maxDeposit = computeMaxDepositForBank({
+ *   banksMap: client.bankMap,
+ *   bankAddress: usdcBankPk,
+ *   assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
+ *   walletBalance: 1_000, // UI units
+ * });
+ * ```
+ */
+export function computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
+  const { banksMap, bankAddress, assetShareValueMultiplierByBank, walletBalance } = params;
+  const bank = banksMap.get(bankAddress.toBase58());
+  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  const depositCapRemaining = new BigNumber(computeBankDepositCapRemaining(bank)).times(
+    assetShareValueMultiplier ?? 1
+  );
+  if (walletBalance === undefined) return depositCapRemaining;
+
+  return BigNumber.max(0, BigNumber.min(depositCapRemaining, new BigNumber(walletBalance)));
 }

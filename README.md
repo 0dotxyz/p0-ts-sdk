@@ -98,7 +98,7 @@ console.log(`Compute units: ${simulation.value.unitsConsumed}`);
 ### 5. Borrow Against Collateral
 
 ```typescript
-// Check how much you can borrow
+// Check how much you can borrow (account health + bank borrow cap + bank liquidity)
 const maxBorrow = wrappedAccount.computeMaxBorrowForBank(usdcBank.address);
 console.log(`Max borrow: $${maxBorrow.toString()}`);
 
@@ -289,9 +289,16 @@ const health = wrapped.computeHealthComponents(
   MarginRequirementType.Initial // or Maintenance
 );
 
-// Max amounts
+// Max amounts — bank-aware:
+//   borrow   = min(health-based, remaining borrow cap, available bank liquidity, rate-limit headroom)
+//   withdraw = min(health-based, available bank liquidity, rate-limit headroom)
+//   deposit  = remaining deposit cap (optionally min'd with your wallet balance)
+// (rate-limit headroom = bank net-outflow limiter in tokens + group USD limiter, if enabled)
 const maxBorrow = wrapped.computeMaxBorrowForBank(bankAddress);
 const maxWithdraw = wrapped.computeMaxWithdrawForBank(bankAddress);
+const maxDeposit = wrapped.computeMaxDepositForBank(bankAddress, { walletBalance: 1_000 });
+
+// Pass { ignoreBankLimits: true } to get the purely health-based borrow/withdraw amount
 ```
 
 ## 🧪 Testing

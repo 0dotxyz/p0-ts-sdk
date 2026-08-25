@@ -18,6 +18,8 @@ import {
   ComputeHealthComponentsFromBalancesParams,
   computeMaxBorrowForBank,
   ComputeMaxBorrowForBankParams,
+  computeMaxDepositForBank,
+  ComputeMaxDepositForBankParams,
   computeMaxWithdrawForBank,
   ComputeMaxWithdrawForBankParams,
   computeNetApy,
@@ -396,6 +398,21 @@ class MarginfiAccount implements MarginfiAccountType {
       account: this,
       ...params,
     });
+  }
+
+  /**
+   * Calculates the maximum amount that can be deposited into a bank.
+   *
+   * Deposits are not constrained by account health, only by the bank's remaining deposit cap
+   * and (optionally) the wallet balance.
+   *
+   * @param params - Configuration for max deposit computation
+   * @returns Maximum depositable amount in UI units
+   *
+   * @see {@link computeMaxDepositForBank} for implementation details
+   */
+  computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
+    return computeMaxDepositForBank(params);
   }
 
   /**
