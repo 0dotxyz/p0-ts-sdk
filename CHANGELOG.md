@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.3
+
+### Patch Changes
+
+- Native stake: add the Figment validator to the built-in metadata list (`metadata.data.ts`).
+
 ## 2.7.2
 
 ### Patch Changes
