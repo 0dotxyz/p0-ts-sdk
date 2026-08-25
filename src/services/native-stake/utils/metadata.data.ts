@@ -374,5 +374,12 @@ export const STAKED_BANK_METADATA_JSON: StakedBankMetadata[] = [
     tokenAddress: "2pMCRTPxF355vC56r6mL8vfnqa24up5CfZmcX1HkFj7i",
     tokenName: "P2P org",
     tokenSymbol: "P2P"
-  }
+  },
+  {
+    bankAddress: "3DGvNzGY1QiabuUiuC8HwTZ58eZK6YtLknsvXksWzQap",
+    validatorVoteAccount: "CcaHc2L43ZWjwCHART3oZoJvHLAe9hzT2DJNUpBzoTN1",
+    tokenAddress: "E7fosu1BW5ELQwDpipNK9TVSq9eRroPz9AhnnrfhNNYQ",
+    tokenName: "Figment",
+    tokenSymbol: "FIGMENT",
+  },
 ];
