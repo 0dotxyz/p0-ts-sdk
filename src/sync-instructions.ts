@@ -27,7 +27,6 @@ import BN from "bn.js";
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-import { isMarginfiV0110Live } from "./dialect";
 import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
 
 // Hardcoded addresses from Marginfi IDL
@@ -356,7 +355,7 @@ function makeEndFlashLoanIx(
   programId: PublicKey,
   accounts: {
     marginfiAccount: PublicKey;
-    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
+    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide
     authority: PublicKey; // signer, relations: ["marginfiAccount"] - caller must provide
   },
   remainingAccounts: AccountMeta[] = []
@@ -366,8 +365,6 @@ function makeEndFlashLoanIx(
     { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
   ];
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `group` account (index 1).
-  if (!isMarginfiV0110Live(programId)) keys.splice(1, 1);
 
   keys.push(...remainingAccounts);
 
@@ -704,7 +701,7 @@ function makePulseHealthIx(
   programId: PublicKey,
   accounts: {
     marginfiAccount: PublicKey;
-    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide (0.1.10+)
+    group: PublicKey; // relations: ["marginfiAccount"] - caller must provide
   },
   remainingAccounts: AccountMeta[] = []
 ): TransactionInstruction {
@@ -712,8 +709,6 @@ function makePulseHealthIx(
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.group, isSigner: false, isWritable: false },
   ];
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `group` account (index 1).
-  if (!isMarginfiV0110Live(programId)) keys.splice(1, 1);
 
   keys.push(...remainingAccounts);
 
@@ -734,7 +729,7 @@ function makeAccountTransferToNewAccountIx(
     feePayer: PublicKey;
     newAuthority: PublicKey;
     globalFeeWallet: PublicKey; // caller must provide
-    feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive (0.1.10+)
+    feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive
   }
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
@@ -748,9 +743,6 @@ function makeAccountTransferToNewAccountIx(
     { pubkey: accounts.feeState, isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `fee_state` account (index 7,
-  // between global_fee_wallet and system_program).
-  if (!isMarginfiV0110Live(programId)) keys.splice(7, 1);
 
   return new TransactionInstruction({
     keys,

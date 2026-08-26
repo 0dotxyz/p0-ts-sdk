@@ -15,7 +15,6 @@ export * from "./idl";
 export * from "./types";
 export * from "./instructions";
 export * from "./sync-instructions";
-export * from "./dialect";
 export * from "./utils/pda.utils";
 // Vendor exports moved to separate entry point: p0-ts-sdk/vendor
 // This prevents bundling massive oracle/protocol integrations when not needed

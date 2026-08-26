@@ -2,7 +2,6 @@ import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { MarginfiProgram } from "./types";
-import { isMarginfiV0110Live } from "./dialect";
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
@@ -659,7 +658,7 @@ async function makeEndFlashLoanIx(
 ) {
   const { marginfiAccount, ...optionalAccounts } = accounts;
 
-  const ix = await mfiProgram.methods
+  return mfiProgram.methods
     .lendingAccountEndFlashloan()
     .accounts({
       marginfiAccount,
@@ -667,9 +666,6 @@ async function makeEndFlashLoanIx(
     .accountsPartial(optionalAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `group` account (index 1).
-  if (!isMarginfiV0110Live(mfiProgram.programId)) ix.keys.splice(1, 1);
-  return ix;
 }
 
 async function makeAccountTransferToNewAccountIx(
@@ -695,7 +691,7 @@ async function makeAccountTransferToNewAccountIx(
     ...optionalAccounts
   } = accounts;
 
-  const ix = await mfProgram.methods
+  return mfProgram.methods
     .transferToNewAccount()
     .accounts({
       oldMarginfiAccount,
@@ -706,10 +702,6 @@ async function makeAccountTransferToNewAccountIx(
     })
     .accountsPartial(optionalAccounts)
     .instruction();
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `fee_state` account (index 7,
-  // between global_fee_wallet and system_program).
-  if (!isMarginfiV0110Live(mfProgram.programId)) ix.keys.splice(7, 1);
-  return ix;
 }
 
 async function makeGroupInitIx(
@@ -927,16 +919,13 @@ async function makePulseHealthIx(
    */
   remainingAccounts: AccountMeta[] = []
 ) {
-  const ix = await mfProgram.methods
+  return mfProgram.methods
     .lendingAccountPulseHealth()
     .accounts({
       marginfiAccount: accounts.marginfiAccount,
     })
     .remainingAccounts(remainingAccounts)
     .instruction();
-  // TEMPORARY (0.1.10 upgrade): 0.1.9 has no `group` account (index 1).
-  if (!isMarginfiV0110Live(mfProgram.programId)) ix.keys.splice(1, 1);
-  return ix;
 }
 
 const instructions = {
