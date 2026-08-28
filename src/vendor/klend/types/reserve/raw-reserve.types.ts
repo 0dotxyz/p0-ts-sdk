@@ -90,12 +90,17 @@ export interface ReserveConfigFields {
   assetTier: number;
   /** Flat rate that goes to the host */
   hostFixedInterestRateBps: number;
-  /**
-   * [DEPRECATED] Space that used to hold 2 fields:
-   * - Boost for side (debt or collateral)
-   * - Reward points multiplier per obligation type
-   * Can be re-used after making sure all underlying production account data is zeroed.
-   */
+  /** Minimum deleveraging bonus in bps */
+  minDeleveragingBonusBps: number;
+  /** Whether cToken usage is blocked */
+  blockCtokenUsage: number;
+  /** Remaining interest charged on early repay, as a percentage */
+  earlyRepayRemainingInterestPct: number;
+  /** Emergency mode flag */
+  emergencyMode: number;
+  /** Interest rate basis: 0 = Legacy (slot-based), 1 = TrueApr (wall-clock) */
+  interestRateBasis: number;
+  /** Reserved for future use */
   reserved2: Array<number>;
   /** Cut of the order execution bonus that the protocol receives, as a percentage */
   protocolOrderExecutionFeePct: number;

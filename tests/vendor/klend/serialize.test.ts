@@ -4,6 +4,7 @@ import BN from "bn.js";
 
 import {
   KaminoFarmState,
+  KaminoInterestRateBasis,
   KaminoObligation,
   KaminoReserve,
   dtoToKaminoFarmState,
@@ -38,6 +39,7 @@ const reserve: KaminoReserve = {
   config: {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,
+    interestRateBasis: KaminoInterestRateBasis.TrueApr,
     depositLimit: new BN("10000000000000000"),
     borrowLimit: new BN("9000000000000000"),
     borrowRateCurve: {
@@ -86,6 +88,20 @@ const farmState: KaminoFarmState = {
 describe("klend curated type round-trips", () => {
   it("round-trips KaminoReserve through its DTO", () => {
     expect(dtoToKaminoReserve(kaminoReserveToDto(reserve))).toEqual(reserve);
+  });
+
+  it("defaults interestRateBasis to Legacy when missing from the DTO", () => {
+    const { interestRateBasis, ...legacyConfig } = kaminoReserveToDto(reserve).config;
+    const dto = { ...kaminoReserveToDto(reserve), config: legacyConfig };
+    expect(dtoToKaminoReserve(dto).config.interestRateBasis).toBe(
+      KaminoInterestRateBasis.Legacy
+    );
+
+    const { interestRateBasis: _basis, ...legacyReserveConfig } = reserve.config;
+    const legacyReserve = { ...reserve, config: legacyReserveConfig };
+    expect(kaminoReserveToDto(legacyReserve).config.interestRateBasis).toBe(
+      KaminoInterestRateBasis.Legacy
+    );
   });
 
   it("round-trips KaminoObligation through its DTO", () => {

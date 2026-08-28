@@ -11,12 +11,16 @@ import {
   ONE_HUNDRED_PCT_IN_BPS,
   SLOTS_PER_YEAR,
   SLOTS_PER_SECOND,
+  SECONDS_PER_YEAR,
   DEFAULT_RECENT_SLOT_DURATION_MS,
 } from "../../constants";
-import { KaminoBorrowRateCurvePoint, KaminoReserve } from "../../types";
+import {
+  KaminoBorrowRateCurvePoint,
+  KaminoInterestRateBasis,
+  KaminoReserve,
+} from "../../types";
 import Decimal from "decimal.js";
 import { Fraction } from "../../classes";
-import * as vendor from "../../..";
 
 // =============================================================================
 // INTERFACES
@@ -31,6 +35,16 @@ export interface KlendInterestRateCurvePoint {
 export interface KaminoReserveCurveData {
   reserveAddress: string;
   curvePoints: KlendInterestRateCurvePoint[];
+}
+
+/**
+ * How a reserve's configured (curve) rate is turned into a realized annual rate.
+ * `multiplier` scales the curve rate; `periodsPerYear` is the compounding
+ * granularity used to convert APR to APY.
+ */
+export interface KaminoRateBasis {
+  multiplier: number;
+  periodsPerYear: number;
 }
 
 // =============================================================================
@@ -102,12 +116,17 @@ export const getKaminoBorrowRate = (
 
 /**
  * Convert APR to APY using compound interest formula
- * APY = (1 + APR/n)^n - 1, where n = SLOTS_PER_YEAR
+ * APY = (1 + APR/n)^n - 1
  * @param apr - Annual Percentage Rate as decimal (e.g., 0.05 for 5%)
+ * @param periodsPerYear - Compounding periods per year (defaults to SLOTS_PER_YEAR;
+ *   use `getKaminoRateBasis(reserve).periodsPerYear` for basis-aware compounding)
  * @returns Annual Percentage Yield as decimal
  */
-export function calculateAPYFromAPR(apr: number): number {
-  return Math.pow(1 + apr / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1;
+export function calculateAPYFromAPR(
+  apr: number,
+  periodsPerYear: number = SLOTS_PER_YEAR
+): number {
+  return Math.pow(1 + apr / periodsPerYear, periodsPerYear) - 1;
 }
 
 // =============================================================================
@@ -154,12 +173,30 @@ export function calculateUtilizationRatio(reserve: KaminoReserve): number {
 }
 
 // =============================================================================
-// SLOT DURATION & ADJUSTMENT
+// INTEREST RATE BASIS & SLOT ADJUSTMENT
 // =============================================================================
 
 /**
+ * Resolve a reserve's interest rate basis, defaulting to `Legacy` when the
+ * field is absent (reserves serialized before it existed).
+ * @throws if the on-chain value is not a known basis
+ */
+export function getKaminoInterestRateBasis(
+  reserve: KaminoReserve
+): KaminoInterestRateBasis {
+  const basis = reserve.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy;
+  switch (basis) {
+    case KaminoInterestRateBasis.Legacy:
+    case KaminoInterestRateBasis.TrueApr:
+      return basis;
+    default:
+      throw new Error(`Unsupported Kamino interest rate basis: ${basis}`);
+  }
+}
+
+/**
  * Calculate slot adjustment factor based on recent slot duration
- * Used to adjust rates based on actual blockchain performance
+ * Used to adjust Legacy-basis rates based on actual blockchain performance
  * @param recentSlotDurationMs - Recent slot duration in milliseconds
  * @returns Slot adjustment factor
  */
@@ -170,14 +207,49 @@ export function slotAdjustmentFactor(
 }
 
 /**
- * Calculate slot adjustment factor (1:1 with KaminoReserve implementation)
- * Source: klend-sdk/src/classes/reserve.ts line 672
+ * Rate multiplier and compounding granularity for a reserve, per its
+ * interest rate basis (1:1 with klend-sdk `KaminoReserve.rateAdjustmentFactor()`
+ * and `accrualUnitsPerYear()`).
+ *
+ * - `Legacy`: curve rates are slot-year APRs, so they are scaled by the observed
+ *   slot duration and compounded per slot.
+ * - `TrueApr`: curve rates are wall-clock APRs; `recentSlotDurationMs` is ignored
+ *   and rates compound per second.
+ *
+ * @param reserve - The Kamino reserve
+ * @param recentSlotDurationMs - Observed slot duration; only read for `Legacy`
+ * @throws for an unsupported basis, or a non-positive slot duration on `Legacy`
+ */
+export function getKaminoRateBasis(
+  reserve: KaminoReserve,
+  recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
+): KaminoRateBasis {
+  switch (getKaminoInterestRateBasis(reserve)) {
+    case KaminoInterestRateBasis.Legacy:
+      if (!Number.isFinite(recentSlotDurationMs) || recentSlotDurationMs <= 0) {
+        throw new Error(
+          `Kamino recent slot duration must be positive, got ${recentSlotDurationMs}`
+        );
+      }
+      return {
+        multiplier: slotAdjustmentFactor(recentSlotDurationMs),
+        periodsPerYear: SLOTS_PER_YEAR,
+      };
+    case KaminoInterestRateBasis.TrueApr:
+      return { multiplier: 1, periodsPerYear: SECONDS_PER_YEAR };
+  }
+}
+
+/**
+ * Calculate the rate multiplier for a reserve (1:1 with klend-sdk
+ * `KaminoReserve.rateAdjustmentFactor()`): the slot adjustment factor for a
+ * `Legacy` reserve, `1` for a `TrueApr` one.
  */
 export function calculateSlotAdjustmentFactor(
   reserve: KaminoReserve,
-  recentSlotDurationMs: number
+  recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
-  return 1000 / vendor.SLOTS_PER_SECOND / recentSlotDurationMs;
+  return getKaminoRateBasis(reserve, recentSlotDurationMs).multiplier;
 }
 
 // =============================================================================
@@ -187,24 +259,24 @@ export function calculateSlotAdjustmentFactor(
 /**
  * Calculate estimated borrow rate for a reserve
  * @param reserve - The reserve
- * @param recentSlotDurationMs - Recent slot duration (optional)
+ * @param recentSlotDurationMs - Recent slot duration (optional; ignored for TrueApr reserves)
  * @returns Borrow rate as decimal (e.g., 0.05 = 5%)
  */
 export function calculateKaminoEstimatedBorrowRate(
   reserve: KaminoReserve,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
-  const slotAdjFactor = slotAdjustmentFactor(recentSlotDurationMs);
+  const { multiplier } = getKaminoRateBasis(reserve, recentSlotDurationMs);
   const currentUtilization = calculateUtilizationRatio(reserve);
   const curve = truncateBorrowCurve(reserve.config.borrowRateCurve.points);
-  return getKaminoBorrowRate(currentUtilization, curve) * slotAdjFactor;
+  return getKaminoBorrowRate(currentUtilization, curve) * multiplier;
 }
 
 /**
  * Calculate estimated supply rate for a reserve
  * Formula: borrow rate × utilization × (1 - protocol take rate)
  * @param reserve - The reserve
- * @param recentSlotDurationMs - Recent slot duration (optional)
+ * @param recentSlotDurationMs - Recent slot duration (optional; ignored for TrueApr reserves)
  * @returns Supply rate as decimal (e.g., 0.03 = 3%)
  */
 export function calculateKaminoEstimatedSupplyRate(
@@ -223,17 +295,17 @@ export function calculateKaminoEstimatedSupplyRate(
  * APY includes compounding, making it higher than APR
  * Matches Kamino SDK's reserve.totalSupplyAPY()
  * @param reserve - The Kamino reserve
- * @param recentSlotDurationMs - Recent slot duration (defaults to 450ms)
+ * @param recentSlotDurationMs - Recent slot duration (defaults to
+ *   DEFAULT_RECENT_SLOT_DURATION_MS; ignored for TrueApr reserves)
  * @returns Supply APY as decimal (e.g., 0.0512 = 5.12% APY)
  */
 export function calculateKaminoSupplyAPY(
   reserve: KaminoReserve,
   recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
 ): number {
-  const currentUtilization = calculateUtilizationRatio(reserve);
-  const borrowRate = calculateKaminoEstimatedBorrowRate(reserve, recentSlotDurationMs);
-  const protocolTakeRatePct = 1 - reserve.config.protocolTakeRatePct / 100;
-  return calculateAPYFromAPR(currentUtilization * borrowRate * protocolTakeRatePct);
+  const { periodsPerYear } = getKaminoRateBasis(reserve, recentSlotDurationMs);
+  const supplyApr = calculateKaminoEstimatedSupplyRate(reserve, recentSlotDurationMs);
+  return calculateAPYFromAPR(supplyApr, periodsPerYear);
 }
 
 export function scaledSupplies(state: KaminoReserve): [Decimal, Decimal] {
@@ -296,16 +368,20 @@ export function getProtocolTakeRatePct(reserve: KaminoReserve): number {
  * Generate complete interest rate curve for a reserve
  * Creates 101 data points from 0% to 100% utilization
  * @param curvePoints - Raw curve configuration from reserve
- * @param slotAdjustmentFactor - Adjustment factor for current slot duration
+ * @param slotAdjustmentFactor - Rate multiplier (`calculateSlotAdjustmentFactor`;
+ *   the slot adjustment for Legacy reserves, 1 for TrueApr)
  * @param fixedHostInterestRate - Fixed rate added to all borrow rates
  * @param protocolTakeRatePct - Percentage kept by depositors (1 - protocol fee)
+ * @param periodsPerYear - APY compounding periods (`getKaminoRateBasis(reserve).periodsPerYear`;
+ *   defaults to SLOTS_PER_YEAR)
  * @returns Array of curve points with utilization, borrow APY, and supply APY
  */
 export function generateKaminoReserveCurve(
   curvePoints: KaminoBorrowRateCurvePoint[],
   slotAdjustmentFactor: number,
   fixedHostInterestRate: number,
-  protocolTakeRatePct: number
+  protocolTakeRatePct: number,
+  periodsPerYear: number = SLOTS_PER_YEAR
 ): KlendInterestRateCurvePoint[] {
   if (curvePoints.length === 0) {
     return [];
@@ -324,8 +400,8 @@ export function generateKaminoReserveCurve(
     const supplyAPR = utilization * borrowAPR * protocolTakeRatePct;
 
     // Convert to APY with compounding
-    const borrowAPY = calculateAPYFromAPR(borrowAPR);
-    const supplyAPY = calculateAPYFromAPR(supplyAPR);
+    const borrowAPY = calculateAPYFromAPR(borrowAPR, periodsPerYear);
+    const supplyAPY = calculateAPYFromAPR(supplyAPR, periodsPerYear);
 
     return {
       utilization: utilization * 100,
@@ -333,4 +409,24 @@ export function generateKaminoReserveCurve(
       supplyAPY: supplyAPY * 100,
     };
   });
+}
+
+/**
+ * Generate the interest rate curve for a reserve, deriving the rate multiplier
+ * and compounding granularity from its interest rate basis.
+ * @param reserve - The Kamino reserve
+ * @param recentSlotDurationMs - Recent slot duration (optional; ignored for TrueApr reserves)
+ */
+export function generateKaminoReserveCurveFromReserve(
+  reserve: KaminoReserve,
+  recentSlotDurationMs: number = DEFAULT_RECENT_SLOT_DURATION_MS
+): KlendInterestRateCurvePoint[] {
+  const { multiplier, periodsPerYear } = getKaminoRateBasis(reserve, recentSlotDurationMs);
+  return generateKaminoReserveCurve(
+    reserve.config.borrowRateCurve.points,
+    multiplier,
+    getFixedHostInterestRate(reserve),
+    getProtocolTakeRatePct(reserve),
+    periodsPerYear
+  );
 }

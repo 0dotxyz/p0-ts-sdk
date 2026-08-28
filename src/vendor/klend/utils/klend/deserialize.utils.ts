@@ -1,5 +1,6 @@
 import BN from "bn.js";
 import {
+  KaminoInterestRateBasis,
   KaminoObligation,
   KaminoObligationJSON,
   KaminoReserve,
@@ -160,7 +161,12 @@ const reserveLayout = borsh.struct<ReserveRaw>([
       borsh.u8("status"),
       borsh.u8("assetTier"),
       borsh.u16("hostFixedInterestRateBps"),
-      borsh.array(borsh.u8(), 9, "reserved2"),
+      borsh.u16("minDeleveragingBonusBps"),
+      borsh.u8("blockCtokenUsage"),
+      borsh.u8("earlyRepayRemainingInterestPct"),
+      borsh.u8("emergencyMode"),
+      borsh.u8("interestRateBasis"),
+      borsh.array(borsh.u8(), 3, "reserved2"),
       borsh.u8("protocolOrderExecutionFeePct"),
       borsh.u8("protocolTakeRatePct"),
       borsh.u8("protocolLiquidationFeePct"),
@@ -334,6 +340,8 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
     config: {
       protocolTakeRatePct: reserveDto.config.protocolTakeRatePct,
       hostFixedInterestRateBps: reserveDto.config.hostFixedInterestRateBps,
+      interestRateBasis:
+        reserveDto.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy,
       depositLimit: new BN(reserveDto.config.depositLimit),
       borrowLimit: new BN(reserveDto.config.borrowLimit),
       borrowRateCurve: {

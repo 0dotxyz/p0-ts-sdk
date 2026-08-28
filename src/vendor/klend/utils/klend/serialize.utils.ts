@@ -1,4 +1,5 @@
 import {
+  KaminoInterestRateBasis,
   KaminoObligation,
   KaminoObligationJSON,
   KaminoReserve,
@@ -62,6 +63,8 @@ export function kaminoReserveToDto(reserve: KaminoReserve): KaminoReserveJSON {
     config: {
       protocolTakeRatePct: reserve.config.protocolTakeRatePct,
       hostFixedInterestRateBps: reserve.config.hostFixedInterestRateBps,
+      interestRateBasis:
+        reserve.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy,
       depositLimit: reserve.config.depositLimit.toString(),
       borrowLimit: reserve.config.borrowLimit.toString(),
       borrowRateCurve: {

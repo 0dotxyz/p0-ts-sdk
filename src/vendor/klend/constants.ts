@@ -25,8 +25,12 @@ export const SLOTS_PER_DAY = SLOTS_PER_HOUR * 24;
 
 export const SLOTS_PER_YEAR = SLOTS_PER_DAY * 365;
 
-// Default slot duration in milliseconds
-export const DEFAULT_RECENT_SLOT_DURATION_MS = 450;
+// Wall-clock year used by the klend program for `TrueApr` reserves
+// (`SECONDS_PER_YEAR = 60 * 60 * 24 * 365`, no leap-year correction).
+export const SECONDS_PER_YEAR = 31_536_000;
+
+// Default slot duration in milliseconds (matches klend-sdk >= 11)
+export const DEFAULT_RECENT_SLOT_DURATION_MS = 350;
 
 export const ONE_HUNDRED_PCT_IN_BPS = 10_000;
 
