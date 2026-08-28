@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.4
+
+### Patch Changes
+
+- 6a15f22: Kamino: respect each reserve's on-chain `interestRateBasis` when computing rates.
+  - Decode `ReserveConfig.interestRateBasis` and carry it through `KaminoReserve`, `KaminoReserveJSON`, `kaminoReserveToDto` and `dtoToKaminoReserve` (missing on older DTOs → `Legacy`). New `KaminoInterestRateBasis` enum (`Legacy = 0`, `TrueApr = 1`).
+  - `calculateKaminoSupplyAPY`, `calculateKaminoEstimatedBorrowRate`, `calculateKaminoEstimatedSupplyRate`, `calculateSlotAdjustmentFactor` and the curve helpers now apply the slot-duration adjustment and per-slot compounding only to `Legacy` reserves; `TrueApr` reserves use wall-clock APRs compounded over `SECONDS_PER_YEAR` and ignore `recentSlotDurationMs`. Unknown basis values throw. Existing signatures are unchanged.
+  - New helpers: `getKaminoInterestRateBasis`, `getKaminoRateBasis`, `generateKaminoReserveCurveFromReserve`; `calculateAPYFromAPR` and `generateKaminoReserveCurve` accept an optional `periodsPerYear`.
+  - `DEFAULT_RECENT_SLOT_DURATION_MS` is now 350 ms (was 450), matching klend-sdk 11. This only affects `Legacy` reserves when callers omit the slot duration.
+
+- 59f3c6d: Remove the temporary 0.1.9/0.1.10 dialect shim now that the mainnet program upgrade is final. The SDK unconditionally emits the 0.1.10 wire format.
+  - Deleted `src/dialect.ts` — `isMarginfiV0110Live` and `MARGINFI_V0_1_10_ACTIVATION` are no longer exported (they were internal to the upgrade window; no behaviour depends on them post-upgrade).
+  - Removed the six pre-flip account-splice checks in `instructions.ts` and `sync-instructions.ts` (`lending_account_end_flashloan`, `lending_account_pulse_health`, `transfer_to_new_account`), so `group` / `feeState` are always included.
+  - Deleted `UPGRADE-0.1.10.md`.
+
 ## 2.7.3
 
 ### Patch Changes
