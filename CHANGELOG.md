@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0-alpha.0
+
+### Minor Changes
+
+- feat: oracle upgrade
+
 ## 2.7.4
 
 ### Patch Changes

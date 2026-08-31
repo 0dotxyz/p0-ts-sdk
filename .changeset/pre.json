@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.7.4"
+  },
+  "changesets": [
+    "plain-cars-watch"
+  ]
+}
