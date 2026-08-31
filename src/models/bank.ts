@@ -152,7 +152,8 @@ class Bank implements BankType {
       bankType.config.operationalState,
       bankType.config.oracleMaxConfidence,
       bankType.config.fixedPrice,
-      bankType.config.configFlags
+      bankType.config.configFlags,
+      bankType.config.scopeEntryIndex
     );
     return new Bank(
       bankType.address,
@@ -384,7 +385,8 @@ class BankConfig implements BankConfigType {
     public readonly operationalState: OperationalState,
     public readonly oracleMaxConfidence: number,
     public readonly fixedPrice: BigNumber,
-    public readonly configFlags?: BankConfigFlag
+    public readonly configFlags?: BankConfigFlag,
+    public readonly scopeEntryIndex: number = 0
   ) {}
 
   static fromAccountParsed(bankConfigRaw: BankConfigRaw): BankConfig {
@@ -406,7 +408,8 @@ class BankConfig implements BankConfigType {
       bankConfig.operationalState,
       bankConfig.oracleMaxConfidence,
       bankConfig.fixedPrice,
-      bankConfig.configFlags
+      bankConfig.configFlags,
+      bankConfig.scopeEntryIndex
     );
   }
 }

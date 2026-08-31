@@ -73,6 +73,7 @@ export interface BankConfigDto {
   oracleMaxAge: number;
   oracleMaxConfidence: number;
   fixedPrice: string;
+  scopeEntryIndex?: number;
 }
 
 export interface RateLimitWindowDto {
@@ -260,6 +261,7 @@ export interface BankConfigRawDto {
   oracleMaxAge: number;
   oracleMaxConfidence: number;
   fixedPrice: WrappedI80F48;
+  scopeEntryIndex?: number;
 }
 
 export interface EmodeSettingsRawDto {

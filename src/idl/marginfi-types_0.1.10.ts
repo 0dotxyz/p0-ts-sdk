@@ -13651,13 +13651,13 @@ export type Marginfi = {
             "type": "u16"
           },
           {
-            "name": "padding0",
-            "type": {
-              "array": [
-                "u8",
-                2
-              ]
-            }
+            "name": "scopeEntryIndex",
+            "docs": [
+              "Entry index into the Scope OraclePrices price list. Only read when",
+              "oracle_setup == OracleSetup::Scope; ignored (and zero) for every other setup.",
+              "Occupies what was previously _padding0, so the layout is unchanged."
+            ],
+            "type": "u16"
           },
           {
             "name": "oracleMaxConfidence",
@@ -18608,6 +18608,144 @@ export type Marginfi = {
           },
           {
             "name": "fixedJuplend"
+          },
+          {
+            "name": "scope"
+          },
+          {
+            "name": "pythMsol"
+          },
+          {
+            "name": "kaminoMsol"
+          },
+          {
+            "name": "juplendMsol"
+          },
+          {
+            "name": "pythLst"
+          },
+          {
+            "name": "kaminoLst"
+          },
+          {
+            "name": "juplendLst"
+          },
+          {
+            "name": "ptPyth"
+          },
+          {
+            "name": "ptFixed"
+          },
+          {
+            "name": "reserved27"
+          },
+          {
+            "name": "reserved28"
+          },
+          {
+            "name": "reserved29"
+          },
+          {
+            "name": "reserved30"
+          },
+          {
+            "name": "reserved31"
+          },
+          {
+            "name": "reserved32"
+          },
+          {
+            "name": "reserved33"
+          },
+          {
+            "name": "reserved34"
+          },
+          {
+            "name": "reserved35"
+          },
+          {
+            "name": "reserved36"
+          },
+          {
+            "name": "reserved37"
+          },
+          {
+            "name": "reserved38"
+          },
+          {
+            "name": "reserved39"
+          },
+          {
+            "name": "reserved40"
+          },
+          {
+            "name": "reserved41"
+          },
+          {
+            "name": "reserved42"
+          },
+          {
+            "name": "reserved43"
+          },
+          {
+            "name": "reserved44"
+          },
+          {
+            "name": "reserved45"
+          },
+          {
+            "name": "reserved46"
+          },
+          {
+            "name": "reserved47"
+          },
+          {
+            "name": "reserved48"
+          },
+          {
+            "name": "reserved49"
+          },
+          {
+            "name": "reserved50"
+          },
+          {
+            "name": "reserved51"
+          },
+          {
+            "name": "reserved52"
+          },
+          {
+            "name": "reserved53"
+          },
+          {
+            "name": "reserved54"
+          },
+          {
+            "name": "reserved55"
+          },
+          {
+            "name": "reserved56"
+          },
+          {
+            "name": "reserved57"
+          },
+          {
+            "name": "reserved58"
+          },
+          {
+            "name": "reserved59"
+          },
+          {
+            "name": "reserved60"
+          },
+          {
+            "name": "reserved61"
+          },
+          {
+            "name": "reserved62"
+          },
+          {
+            "name": "reserved63"
           }
         ]
       }

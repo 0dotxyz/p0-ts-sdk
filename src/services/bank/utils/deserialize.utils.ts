@@ -401,6 +401,7 @@ export function dtoToBankConfig(bankConfigDto: BankConfigDto): BankConfigType {
     interestRateConfig: dtoToInterestRateConfig(bankConfigDto.interestRateConfig),
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: new BigNumber(bankConfigDto.fixedPrice),
+    scopeEntryIndex: bankConfigDto.scopeEntryIndex ?? 0,
   };
 }
 
@@ -537,6 +538,7 @@ export function dtoToBankConfigRaw(bankConfigDto: BankConfigRawDto): BankConfigR
     interestRateConfig: bankConfigDto.interestRateConfig,
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: bankConfigDto.fixedPrice,
+    scopeEntryIndex: bankConfigDto.scopeEntryIndex ?? 0,
   };
 }
 
@@ -582,6 +584,7 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
   };
   const oracleMaxConfidence = bankConfigRaw.oracleMaxConfidence;
   const fixedPrice = wrappedI80F48toBigNumber(bankConfigRaw.fixedPrice);
+  const scopeEntryIndex = bankConfigRaw.scopeEntryIndex ?? 0;
 
   return {
     assetWeightInit,
@@ -601,6 +604,7 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
     interestRateConfig,
     oracleMaxConfidence,
     fixedPrice,
+    scopeEntryIndex,
   };
 }
 
@@ -665,18 +669,36 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.SolendPythPull;
     case "solendswitchboardpull":
       return OracleSetup.SolendSwitchboardPull;
-    case "FixedKamino":
+    case "fixedkamino":
       return OracleSetup.FixedKamino;
-    case "FixedDrift":
+    case "fixeddrift":
       return OracleSetup.FixedDrift;
     case "juplendpythpull":
       return OracleSetup.JuplendPythPull;
     case "juplendswitchboardpull":
       return OracleSetup.JuplendSwitchboardPull;
-    case "FixedJuplend":
+    case "fixedjuplend":
       return OracleSetup.FixedJuplend;
+    case "scope":
+      return OracleSetup.Scope;
+    case "pythmsol":
+      return OracleSetup.PythMSOL;
+    case "kaminomsol":
+      return OracleSetup.KaminoMSOL;
+    case "juplendmsol":
+      return OracleSetup.JuplendMSOL;
+    case "pythlst":
+      return OracleSetup.PythLST;
+    case "kaminolst":
+      return OracleSetup.KaminoLST;
+    case "juplendlst":
+      return OracleSetup.JuplendLST;
+    case "ptpyth":
+      return OracleSetup.PTPyth;
+    case "ptfixed":
+      return OracleSetup.PTFixed;
     default:
-      return OracleSetup.None;
+      return OracleSetup.Unknown;
   }
 }
 

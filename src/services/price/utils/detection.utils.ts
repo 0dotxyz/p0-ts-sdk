@@ -4,6 +4,7 @@ const ORACLE_SOURCES = {
   switchboard: "Switchboard",
   pyth: "Pyth",
   fixed: "Fixed",
+  scope: "Scope",
   unknown: "Unknown",
 } as const;
 
@@ -49,13 +50,24 @@ export function getOracleSourceFromOracleSetup(oracleSetup: OracleSetup) {
     case OracleSetup.DriftPythPull:
     case OracleSetup.SolendPythPull:
     case OracleSetup.JuplendPythPull:
+    case OracleSetup.PythMSOL:
+    case OracleSetup.KaminoMSOL:
+    case OracleSetup.JuplendMSOL:
+    case OracleSetup.PythLST:
+    case OracleSetup.KaminoLST:
+    case OracleSetup.JuplendLST:
+    case OracleSetup.PTPyth:
       oracleSourceKey = "pyth";
       break;
     case OracleSetup.Fixed:
     case OracleSetup.FixedKamino:
     case OracleSetup.FixedDrift:
     case OracleSetup.FixedJuplend:
+    case OracleSetup.PTFixed:
       oracleSourceKey = "fixed";
+      break;
+    case OracleSetup.Scope:
+      oracleSourceKey = "scope";
       break;
     default:
       oracleSourceKey = "unknown";

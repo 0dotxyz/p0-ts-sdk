@@ -76,6 +76,8 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
       get("final_sy_exchange_rate", "finalSyExchangeRate")
     ),
     status: Number(get("status", "status") ?? 0),
+    startTs: Number(get("start_ts", "startTs") ?? 0),
+    duration: Number(get("duration", "duration") ?? 0),
   };
 }
 

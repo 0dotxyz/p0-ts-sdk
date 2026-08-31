@@ -2,7 +2,7 @@ import BigNumber from "bignumber.js";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { BorshInstructionCoder } from "@coral-xyz/anchor";
 
-import { BankType, getAssetShares, getLiabilityShares, AssetTag } from "~/services/bank";
+import { BankType, getAssetShares, getLiabilityShares, AssetTag, OracleSetup } from "~/services/bank";
 import { MarginfiProgram } from "~/types";
 import { composeRemainingAccounts } from "~/utils";
 import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
@@ -145,7 +145,7 @@ export function computeHealthAccountMetas({
  * Builds the ordered account keys the program expects for a single bank in a risk/health
  * remaining-accounts slice: bank, oracle, then per-asset-tag extras.
  */
-function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
+export function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
   let keys = [];
   if (bank.oracleKey.equals(PublicKey.default)) {
     keys = [bank.address];
@@ -160,6 +160,25 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
     bank.config.assetTag === AssetTag.JUPLEND
   ) {
     keys.push(bank.config.oracleKeys[1]);
+  }
+
+  // The program computes these setups' price from an extra on-chain account (Marinade State /
+  // SPL stake pool / Exponent vault), so that account must be included in the bank's
+  // health-check accounts. Plain banks store it in oracleKeys[1]; the Kamino/Juplend variants
+  // keep their venue account in oracleKeys[1] (pushed by the assetTag branch above) and store
+  // the pricing account in oracleKeys[2].
+  switch (bank.config.oracleSetup) {
+    case OracleSetup.PythMSOL:
+    case OracleSetup.PythLST:
+    case OracleSetup.PTPyth:
+      keys.push(bank.config.oracleKeys[1]);
+      break;
+    case OracleSetup.KaminoMSOL:
+    case OracleSetup.JuplendMSOL:
+    case OracleSetup.KaminoLST:
+    case OracleSetup.JuplendLST:
+      keys.push(bank.config.oracleKeys[2]);
+      break;
   }
 
   if (bank.config.assetTag === AssetTag.STAKED) {

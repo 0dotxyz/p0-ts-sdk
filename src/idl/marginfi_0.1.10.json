@@ -13645,13 +13645,13 @@
             "type": "u16"
           },
           {
-            "name": "_padding0",
-            "type": {
-              "array": [
-                "u8",
-                2
-              ]
-            }
+            "name": "scope_entry_index",
+            "docs": [
+              "Entry index into the Scope OraclePrices price list. Only read when",
+              "oracle_setup == OracleSetup::Scope; ignored (and zero) for every other setup.",
+              "Occupies what was previously _padding0, so the layout is unchanged."
+            ],
+            "type": "u16"
           },
           {
             "name": "oracle_max_confidence",
@@ -18602,6 +18602,144 @@
           },
           {
             "name": "FixedJuplend"
+          },
+          {
+            "name": "Scope"
+          },
+          {
+            "name": "PythMSOL"
+          },
+          {
+            "name": "KaminoMSOL"
+          },
+          {
+            "name": "JuplendMSOL"
+          },
+          {
+            "name": "PythLST"
+          },
+          {
+            "name": "KaminoLST"
+          },
+          {
+            "name": "JuplendLST"
+          },
+          {
+            "name": "PTPyth"
+          },
+          {
+            "name": "PTFixed"
+          },
+          {
+            "name": "Reserved27"
+          },
+          {
+            "name": "Reserved28"
+          },
+          {
+            "name": "Reserved29"
+          },
+          {
+            "name": "Reserved30"
+          },
+          {
+            "name": "Reserved31"
+          },
+          {
+            "name": "Reserved32"
+          },
+          {
+            "name": "Reserved33"
+          },
+          {
+            "name": "Reserved34"
+          },
+          {
+            "name": "Reserved35"
+          },
+          {
+            "name": "Reserved36"
+          },
+          {
+            "name": "Reserved37"
+          },
+          {
+            "name": "Reserved38"
+          },
+          {
+            "name": "Reserved39"
+          },
+          {
+            "name": "Reserved40"
+          },
+          {
+            "name": "Reserved41"
+          },
+          {
+            "name": "Reserved42"
+          },
+          {
+            "name": "Reserved43"
+          },
+          {
+            "name": "Reserved44"
+          },
+          {
+            "name": "Reserved45"
+          },
+          {
+            "name": "Reserved46"
+          },
+          {
+            "name": "Reserved47"
+          },
+          {
+            "name": "Reserved48"
+          },
+          {
+            "name": "Reserved49"
+          },
+          {
+            "name": "Reserved50"
+          },
+          {
+            "name": "Reserved51"
+          },
+          {
+            "name": "Reserved52"
+          },
+          {
+            "name": "Reserved53"
+          },
+          {
+            "name": "Reserved54"
+          },
+          {
+            "name": "Reserved55"
+          },
+          {
+            "name": "Reserved56"
+          },
+          {
+            "name": "Reserved57"
+          },
+          {
+            "name": "Reserved58"
+          },
+          {
+            "name": "Reserved59"
+          },
+          {
+            "name": "Reserved60"
+          },
+          {
+            "name": "Reserved61"
+          },
+          {
+            "name": "Reserved62"
+          },
+          {
+            "name": "Reserved63"
           }
         ]
       }

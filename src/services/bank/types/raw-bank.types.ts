@@ -134,6 +134,7 @@ interface BankConfigRaw {
 
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
+  scopeEntryIndex?: number;
   oracleMaxConfidence: number;
   fixedPrice: WrappedI80F48;
 }
@@ -240,7 +241,53 @@ type OracleSetupRaw =
   | { fixedDrift: {} }
   | { juplendPythPull: {} }
   | { juplendSwitchboardPull: {} }
-  | { fixedJuplend: {} };
+  | { fixedJuplend: {} }
+  | { scope: {} }
+  | { pythMsol: {} }
+  | { kaminoMsol: {} }
+  | { juplendMsol: {} }
+  | { pythLst: {} }
+  | { kaminoLst: {} }
+  | { juplendLst: {} }
+  | { ptPyth: {} }
+  | { ptFixed: {} }
+  | { reserved27: {} }
+  | { reserved28: {} }
+  | { reserved29: {} }
+  | { reserved30: {} }
+  | { reserved31: {} }
+  | { reserved32: {} }
+  | { reserved33: {} }
+  | { reserved34: {} }
+  | { reserved35: {} }
+  | { reserved36: {} }
+  | { reserved37: {} }
+  | { reserved38: {} }
+  | { reserved39: {} }
+  | { reserved40: {} }
+  | { reserved41: {} }
+  | { reserved42: {} }
+  | { reserved43: {} }
+  | { reserved44: {} }
+  | { reserved45: {} }
+  | { reserved46: {} }
+  | { reserved47: {} }
+  | { reserved48: {} }
+  | { reserved49: {} }
+  | { reserved50: {} }
+  | { reserved51: {} }
+  | { reserved52: {} }
+  | { reserved53: {} }
+  | { reserved54: {} }
+  | { reserved55: {} }
+  | { reserved56: {} }
+  | { reserved57: {} }
+  | { reserved58: {} }
+  | { reserved59: {} }
+  | { reserved60: {} }
+  | { reserved61: {} }
+  | { reserved62: {} }
+  | { reserved63: {} };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;

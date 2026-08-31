@@ -53,6 +53,19 @@ export const categorizePythBanks = (banks: BankType[]) => {
     (bank) => bank.config.oracleSetup === OracleSetup.JuplendPythPull
   );
 
+  // Banks priced as a pyth base feed multiplied by an on-chain exchange rate
+  const pythMultipliedBanks = banks.filter((bank) =>
+    [
+      OracleSetup.PythMSOL,
+      OracleSetup.KaminoMSOL,
+      OracleSetup.JuplendMSOL,
+      OracleSetup.PythLST,
+      OracleSetup.KaminoLST,
+      OracleSetup.JuplendLST,
+      OracleSetup.PTPyth,
+    ].includes(bank.config.oracleSetup)
+  );
+
   return {
     pythLegacyBanks,
     pythPushBanks,
@@ -61,6 +74,7 @@ export const categorizePythBanks = (banks: BankType[]) => {
     driftPythPullBanks,
     solendPythPullBanks,
     juplendPythPullBanks,
+    pythMultipliedBanks,
   };
 };
 
@@ -111,7 +125,7 @@ export const extractPythOracleKeys = (pythBanks: BankType[]): string[] => {
  */
 export const mapPythBanksToOraclePrices = (
   pythPushBanks: BankType[],
-  pythStakedCollateralBanks: BankType[],
+  multipliedBanks: BankType[],
   oraclePrices: Record<string, OraclePrice>,
   priceCoeffByBank: Record<string, number>
 ): Map<string, OraclePrice> => {
@@ -126,8 +140,8 @@ export const mapPythBanksToOraclePrices = (
     }
   });
 
-  // Map staked collateral banks with price coefficient adjustment
-  pythStakedCollateralBanks.forEach((bank) => {
+  // Map multiplied banks with price coefficient adjustment
+  multipliedBanks.forEach((bank) => {
     const priceCoeff = priceCoeffByBank[bank.address.toBase58()];
     const oracleKey = bank.config.oracleKeys[0]?.toBase58();
 
@@ -154,7 +168,7 @@ export const mapPythBanksToOraclePrices = (
  */
 export const adjustPriceComponent = (priceComponent: PriceWithConfidence, priceCoeff: number) => ({
   price: priceComponent.price.multipliedBy(priceCoeff),
-  confidence: priceComponent.confidence,
+  confidence: priceComponent.confidence.multipliedBy(priceCoeff),
   lowestPrice: priceComponent.lowestPrice.multipliedBy(priceCoeff),
   highestPrice: priceComponent.highestPrice.multipliedBy(priceCoeff),
 });

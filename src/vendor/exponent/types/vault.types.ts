@@ -32,4 +32,8 @@ export interface ExponentVault {
   finalSyExchangeRate: BigNumber;
   /** Raw status byte. */
   status: number;
+  /** Vault start timestamp (unix seconds); maturity = `startTs + duration`. */
+  startTs: number;
+  /** Vault duration in seconds. */
+  duration: number;
 }
