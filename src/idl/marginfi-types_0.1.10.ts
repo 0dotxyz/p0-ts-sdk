@@ -12564,22 +12564,22 @@ export type Marginfi = {
       "msg": "Oracle price deviates too far from the circuit breaker reference; action rejected"
     },
     {
-      "code": 6700,
+      "code": 6800,
       "name": "scopeInvalidAccount",
       "msg": "Scope oracle account is not owned by the Scope program or is malformed"
     },
     {
-      "code": 6701,
+      "code": 6801,
       "name": "scopeInvalidEntry",
       "msg": "Scope entry index is out of range or the entry has never been refreshed"
     },
     {
-      "code": 6702,
+      "code": 6802,
       "name": "scopeStalePrice",
       "msg": "Scope price is stale"
     },
     {
-      "code": 6703,
+      "code": 6803,
       "name": "useConfigureBankOracleScope",
       "msg": "Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index"
     }
