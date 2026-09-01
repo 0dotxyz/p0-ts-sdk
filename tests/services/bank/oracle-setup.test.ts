@@ -125,4 +125,16 @@ describe("scopeEntryIndex plumbing", () => {
     const parsed = parseBankConfigRaw(baseConfigRaw());
     expect(parsed.scopeEntryIndex).toBe(0);
   });
+
+  it("keeps oracleMaxAge 0 for Scope banks (no 0 -> default fallback on-chain)", () => {
+    const scopeConfig = { ...baseConfigRaw(), oracleMaxAge: 0 };
+    expect(parseBankConfigRaw(scopeConfig).oracleMaxAge).toBe(0);
+
+    const pythConfig = {
+      ...baseConfigRaw(),
+      oracleSetup: { pythPushOracle: {} },
+      oracleMaxAge: 0,
+    };
+    expect(parseBankConfigRaw(pythConfig).oracleMaxAge).toBeGreaterThan(0);
+  });
 });

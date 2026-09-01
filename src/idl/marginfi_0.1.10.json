@@ -12556,6 +12556,26 @@
       "code": 6604,
       "name": "CircuitBreakerPriceJump",
       "msg": "Oracle price deviates too far from the circuit breaker reference; action rejected"
+    },
+    {
+      "code": 6700,
+      "name": "ScopeInvalidAccount",
+      "msg": "Scope oracle account is not owned by the Scope program or is malformed"
+    },
+    {
+      "code": 6701,
+      "name": "ScopeInvalidEntry",
+      "msg": "Scope entry index is out of range or the entry has never been refreshed"
+    },
+    {
+      "code": 6702,
+      "name": "ScopeStalePrice",
+      "msg": "Scope price is stale"
+    },
+    {
+      "code": 6703,
+      "name": "UseConfigureBankOracleScope",
+      "msg": "Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index"
     }
   ],
   "types": [

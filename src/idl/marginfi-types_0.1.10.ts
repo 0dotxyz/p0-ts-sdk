@@ -12562,6 +12562,26 @@ export type Marginfi = {
       "code": 6604,
       "name": "circuitBreakerPriceJump",
       "msg": "Oracle price deviates too far from the circuit breaker reference; action rejected"
+    },
+    {
+      "code": 6700,
+      "name": "scopeInvalidAccount",
+      "msg": "Scope oracle account is not owned by the Scope program or is malformed"
+    },
+    {
+      "code": 6701,
+      "name": "scopeInvalidEntry",
+      "msg": "Scope entry index is out of range or the entry has never been refreshed"
+    },
+    {
+      "code": 6702,
+      "name": "scopeStalePrice",
+      "msg": "Scope price is stale"
+    },
+    {
+      "code": 6703,
+      "name": "useConfigureBankOracleScope",
+      "msg": "Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index"
     }
   ],
   "types": [
@@ -18635,117 +18655,6 @@ export type Marginfi = {
           },
           {
             "name": "ptFixed"
-          },
-          {
-            "name": "reserved27"
-          },
-          {
-            "name": "reserved28"
-          },
-          {
-            "name": "reserved29"
-          },
-          {
-            "name": "reserved30"
-          },
-          {
-            "name": "reserved31"
-          },
-          {
-            "name": "reserved32"
-          },
-          {
-            "name": "reserved33"
-          },
-          {
-            "name": "reserved34"
-          },
-          {
-            "name": "reserved35"
-          },
-          {
-            "name": "reserved36"
-          },
-          {
-            "name": "reserved37"
-          },
-          {
-            "name": "reserved38"
-          },
-          {
-            "name": "reserved39"
-          },
-          {
-            "name": "reserved40"
-          },
-          {
-            "name": "reserved41"
-          },
-          {
-            "name": "reserved42"
-          },
-          {
-            "name": "reserved43"
-          },
-          {
-            "name": "reserved44"
-          },
-          {
-            "name": "reserved45"
-          },
-          {
-            "name": "reserved46"
-          },
-          {
-            "name": "reserved47"
-          },
-          {
-            "name": "reserved48"
-          },
-          {
-            "name": "reserved49"
-          },
-          {
-            "name": "reserved50"
-          },
-          {
-            "name": "reserved51"
-          },
-          {
-            "name": "reserved52"
-          },
-          {
-            "name": "reserved53"
-          },
-          {
-            "name": "reserved54"
-          },
-          {
-            "name": "reserved55"
-          },
-          {
-            "name": "reserved56"
-          },
-          {
-            "name": "reserved57"
-          },
-          {
-            "name": "reserved58"
-          },
-          {
-            "name": "reserved59"
-          },
-          {
-            "name": "reserved60"
-          },
-          {
-            "name": "reserved61"
-          },
-          {
-            "name": "reserved62"
-          },
-          {
-            "name": "reserved63"
           }
         ]
       }

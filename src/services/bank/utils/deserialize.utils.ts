@@ -561,7 +561,9 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
   const oracleSetup = parseOracleSetup(bankConfigRaw.oracleSetup);
   const oracleKeys = bankConfigRaw.oracleKeys;
   const oracleMaxAge =
-    bankConfigRaw.oracleMaxAge === 0 ? DEFAULT_ORACLE_MAX_AGE : bankConfigRaw.oracleMaxAge;
+    bankConfigRaw.oracleMaxAge === 0 && oracleSetup !== OracleSetup.Scope
+      ? DEFAULT_ORACLE_MAX_AGE
+      : bankConfigRaw.oracleMaxAge;
   const interestRateConfig = {
     insuranceFeeFixedApr: wrappedI80F48toBigNumber(
       bankConfigRaw.interestRateConfig.insuranceFeeFixedApr
