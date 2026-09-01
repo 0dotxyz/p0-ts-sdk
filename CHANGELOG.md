@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0-alpha.3
+
+### Patch Changes
+
+- chore: update idl error codes
+
 ## 2.8.0-alpha.2
 
 ### Patch Changes
