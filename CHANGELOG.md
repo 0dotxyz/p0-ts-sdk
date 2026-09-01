@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0-alpha.2
+
+### Patch Changes
+
+- chore: implement feedback
+
 ## 2.8.0-alpha.1
 
 ### Patch Changes
