@@ -386,7 +386,7 @@ class BankConfig implements BankConfigType {
     public readonly oracleMaxConfidence: number,
     public readonly fixedPrice: BigNumber,
     public readonly configFlags?: BankConfigFlag,
-    public readonly scopeEntryIndex: number = 0
+    public readonly scopeEntryIndex?: number
   ) {}
 
   static fromAccountParsed(bankConfigRaw: BankConfigRaw): BankConfig {

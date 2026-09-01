@@ -122,12 +122,16 @@ function handleFixedOracleBanks(
   const oracleMap = new Map<string, OraclePrice>();
 
   banks.forEach((bank) => {
-    // PTFixed prices as its PT linear rate directly; fixedPrice only stores the start price
+    // PTFixed prices as its PT linear rate directly; fixedPrice only stores the start price.
+    // Without a valid rate the bank is unpriceable (zero), like any other failed oracle -
+    // falling back to the start price would understate a borrowed PT near maturity.
+    const isPtFixed = bank.config.oracleSetup === OracleSetup.PTFixed;
     const multiplier = multiplierByBank[bank.address.toBase58()];
-    const fixedPrice =
-      bank.config.oracleSetup === OracleSetup.PTFixed && multiplier !== undefined
-        ? BigNumber(multiplier)
-        : bank.config.fixedPrice;
+    const fixedPrice = isPtFixed
+      ? Number.isFinite(multiplier)
+        ? BigNumber(multiplier!)
+        : BigNumber(0)
+      : bank.config.fixedPrice;
 
     const fixedOraclePrice: OraclePrice = {
       priceRealtime: {

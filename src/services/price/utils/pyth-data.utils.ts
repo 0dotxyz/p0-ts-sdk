@@ -145,7 +145,7 @@ export const mapPythBanksToOraclePrices = (
     const priceCoeff = priceCoeffByBank[bank.address.toBase58()];
     const oracleKey = bank.config.oracleKeys[0]?.toBase58();
 
-    if (oracleKey && priceCoeff !== undefined) {
+    if (oracleKey && priceCoeff !== undefined && Number.isFinite(priceCoeff)) {
       const oraclePrice = oraclePrices[oracleKey];
       if (oraclePrice) {
         bankOraclePriceMap.set(bank.address.toBase58(), {

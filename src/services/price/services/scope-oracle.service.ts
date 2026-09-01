@@ -2,7 +2,7 @@ import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
 import { OraclePrice, OraclePriceDto } from "../types";
@@ -27,8 +27,10 @@ export type ScopeOracleServiceOpts = FetchScopeOracleOnChainOpts | FetchScopeOra
  * A Scope price is identified by the OraclePrices account plus the entry index within it,
  * so requests are keyed as "<oracleKey>:<entryIndex>".
  */
-const scopeRequestKey = (bank: BankType): string =>
-  `${bank.config.oracleKeys[0]!.toBase58()}:${bank.config.scopeEntryIndex}`;
+const scopeRequestKey = (bank: BankType): string | undefined => {
+  const oracleKey = bank.config.oracleKeys[0]?.toBase58();
+  return oracleKey ? `${oracleKey}:${bank.config.scopeEntryIndex ?? 0}` : undefined;
+};
 
 /**
  * Fetches Scope oracle data for all Scope-priced banks
@@ -59,7 +61,9 @@ export const fetchScopeOracleData = async (
     };
   }
 
-  const uniqueRequestKeys = Array.from(new Set(scopeBanks.map(scopeRequestKey)));
+  const uniqueRequestKeys = Array.from(
+    new Set(scopeBanks.map(scopeRequestKey).filter((key): key is string => key !== undefined))
+  );
 
   let oraclePrices: Record<string, OraclePrice>;
   if (opts.mode === "api") {
@@ -76,12 +80,13 @@ export const fetchScopeOracleData = async (
   const nowSeconds = Math.floor(Date.now() / 1000);
 
   scopeBanks.forEach((bank) => {
-    let oraclePrice = oraclePrices[scopeRequestKey(bank)];
+    const requestKey = scopeRequestKey(bank);
+    let oraclePrice = requestKey ? oraclePrices[requestKey] : undefined;
 
-    const isStale =
-      !oraclePrice || nowSeconds - oraclePrice.timestamp.toNumber() > bank.config.oracleMaxAge;
-
-    if (isStale) {
+    if (
+      !oraclePrice ||
+      nowSeconds - oraclePrice.timestamp.toNumber() > bank.config.oracleMaxAge
+    ) {
       oraclePrice = {
         priceRealtime: {
           price: new BigNumber(0),
@@ -160,7 +165,10 @@ export const fetchScopeOraclePricesFromChain = async (
   connection: Connection
 ): Promise<Record<string, OraclePrice>> => {
   const uniqueOracleKeys = Array.from(new Set(requestKeys.map((key) => key.split(":")[0]!)));
-  const oracleAis = await chunkedGetRawMultipleAccountInfoOrdered(connection, uniqueOracleKeys);
+  const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
+    connection,
+    uniqueOracleKeys
+  );
 
   const accountDataByKey: Record<string, Buffer | undefined> = {};
   uniqueOracleKeys.forEach((oracleKey, index) => {

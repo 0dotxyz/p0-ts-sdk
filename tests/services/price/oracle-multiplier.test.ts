@@ -49,4 +49,23 @@ describe("computePtMultiplier", () => {
   it("throws on zero PT supply", () => {
     expect(() => computePtMultiplier(vault({ ptSupply: 0n }), startPrice, 1_500)).toThrow();
   });
+
+  it("throws on malformed vaults the program rejects", () => {
+    expect(() => computePtMultiplier(vault({ duration: 0 }), startPrice, 1_500)).toThrow();
+    expect(() =>
+      computePtMultiplier(vault({ lastSeenSyExchangeRate: new BigNumber(0) }), startPrice, 1_500)
+    ).toThrow();
+    // > u64::MAX / 1e12 means the raw rate overflowed a u64
+    expect(() =>
+      computePtMultiplier(vault({ lastSeenSyExchangeRate: new BigNumber(2e7) }), startPrice, 1_500)
+    ).toThrow();
+    // maturity more than ~5 years past `now`
+    expect(() =>
+      computePtMultiplier(
+        vault({ startTs: 1_000, duration: 6 * 365 * 24 * 60 * 60 }),
+        startPrice,
+        1_000
+      )
+    ).toThrow();
+  });
 });

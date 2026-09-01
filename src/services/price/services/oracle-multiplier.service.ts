@@ -2,7 +2,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { BankType, OracleSetup } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import { decodeMarinadeState } from "~/vendor/marinade";
 import { decodeStakePool } from "~/vendor/spl-stake-pool";
 import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
@@ -23,6 +23,12 @@ type FetchOracleMultiplierApiOpts = {
 export type OracleMultiplierServiceOpts =
   | FetchOracleMultiplierOnChainOpts
   | FetchOracleMultiplierApiOpts;
+
+const PT_MAX_MATURITY_HORIZON_SECONDS = 5 * 365 * 24 * 60 * 60;
+// u64::MAX / 1e12, the largest SY exchange rate the program can represent
+const MAX_SY_EXCHANGE_RATE = new BigNumber("18446744073709551615").div(1e12);
+// Same staleness slack as the program: one epoch of crank lag is tolerated
+const MAX_STAKE_POOL_EPOCH_LAG = 1;
 
 /**
  * The account holding the exchange rate for a multiplier-priced bank. Venue variants carry their
@@ -59,8 +65,20 @@ export function computePtMultiplier(
 ): BigNumber {
   const maturity = vault.startTs + vault.duration;
 
+  // Mirror the program's rejection of malformed vaults: the schedule must be a real forward
+  // window (<= ~5 years out) and the SY exchange rate a positive in-range u64.
+  if (vault.duration <= 0 || maturity > nowSeconds + PT_MAX_MATURITY_HORIZON_SECONDS) {
+    throw new Error("Exponent vault has an invalid maturity schedule");
+  }
+  if (!vault.lastSeenSyExchangeRate.gt(0) || vault.lastSeenSyExchangeRate.gt(MAX_SY_EXCHANGE_RATE)) {
+    throw new Error("Exponent vault SY exchange rate out of bounds");
+  }
+  if (vault.ptSupply === 0n) {
+    throw new Error("Exponent vault has zero PT supply");
+  }
+
   let expectedRate: BigNumber;
-  if (vault.duration <= 0 || nowSeconds <= vault.startTs) {
+  if (nowSeconds <= vault.startTs) {
     expectedRate = startPrice;
   } else if (nowSeconds >= maturity) {
     expectedRate = new BigNumber(1);
@@ -69,9 +87,6 @@ export function computePtMultiplier(
     expectedRate = startPrice.plus(new BigNumber(1).minus(startPrice).times(progress));
   }
 
-  if (vault.ptSupply === 0n) {
-    throw new Error("Exponent vault has zero PT supply");
-  }
   const syPerPt = new BigNumber(vault.syForPt.toString()).div(
     new BigNumber(vault.ptSupply.toString())
   );
@@ -136,7 +151,9 @@ export const fetchOracleMultipliersFromAPI = async (
   const { data } = (await response.json()) as { data: Record<string, string> };
 
   return Object.fromEntries(
-    Object.entries(data).map(([bankAddress, multiplier]) => [bankAddress, Number(multiplier)])
+    Object.entries(data)
+      .map(([bankAddress, multiplier]) => [bankAddress, Number(multiplier)] as [string, number])
+      .filter(([, multiplier]) => Number.isFinite(multiplier))
   );
 };
 
@@ -154,7 +171,18 @@ export const fetchOracleMultipliersFromChain = async (
     multipliedBanks.map((bank) => [bank.address.toBase58(), multiplierAccountKey(bank)!.toBase58()])
   );
   const uniqueAccountKeys = Array.from(new Set(accountKeyByBank.values()));
-  const accountAis = await chunkedGetRawMultipleAccountInfoOrdered(connection, uniqueAccountKeys);
+  const accountAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
+    connection,
+    uniqueAccountKeys
+  );
+
+  const isLstSetup = (setup: OracleSetup) =>
+    setup === OracleSetup.PythLST ||
+    setup === OracleSetup.KaminoLST ||
+    setup === OracleSetup.JuplendLST;
+  const currentEpoch = multipliedBanks.some((bank) => isLstSetup(bank.config.oracleSetup))
+    ? (await connection.getEpochInfo()).epoch
+    : 0;
 
   const accountDataByKey: Record<string, Buffer | undefined> = {};
   uniqueAccountKeys.forEach((accountKey, index) => {
@@ -181,9 +209,19 @@ export const fetchOracleMultipliersFromChain = async (
           break;
         case OracleSetup.PythLST:
         case OracleSetup.KaminoLST:
-        case OracleSetup.JuplendLST:
-          multiplierByBank[bankAddress] = decodeStakePool(data).exchangeRate.toNumber();
+        case OracleSetup.JuplendLST: {
+          const stakePool = decodeStakePool(data);
+          // Same staleness rule as the program: an uncranked pool one epoch behind is fine,
+          // anything older is unpriceable
+          if (currentEpoch - stakePool.lastUpdateEpoch > MAX_STAKE_POOL_EPOCH_LAG) {
+            console.error(
+              `Stale stake pool for bank ${bankAddress} (last updated epoch ${stakePool.lastUpdateEpoch}, current ${currentEpoch})`
+            );
+            continue;
+          }
+          multiplierByBank[bankAddress] = stakePool.exchangeRate.toNumber();
           break;
+        }
         case OracleSetup.PTPyth:
         case OracleSetup.PTFixed:
           multiplierByBank[bankAddress] = computePtMultiplier(

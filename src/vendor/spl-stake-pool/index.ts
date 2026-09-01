@@ -17,6 +17,7 @@ const ACCOUNT_TYPE_STAKE_POOL = 1;
 const TOTAL_LAMPORTS_OFFSET = 258;
 const POOL_TOKEN_SUPPLY_OFFSET = 266;
 const LAST_UPDATE_EPOCH_OFFSET = 274;
+const MAX_LST_SOL_RATE = 200;
 
 export interface StakePool {
   totalLamports: bigint;
@@ -42,12 +43,19 @@ export function decodeStakePool(data: Buffer): StakePool {
     throw new Error("StakePool has zero token supply");
   }
 
+  const exchangeRate = new BigNumber(totalLamports.toString()).div(
+    new BigNumber(poolTokenSupply.toString())
+  );
+
+  // Same sanity bounds as the program's MAX_LST_SOL_RATE
+  if (!exchangeRate.gt(0) || exchangeRate.gte(MAX_LST_SOL_RATE)) {
+    throw new Error(`StakePool LST/SOL rate out of bounds: ${exchangeRate.toString()}`);
+  }
+
   return {
     totalLamports,
     poolTokenSupply,
     lastUpdateEpoch,
-    exchangeRate: new BigNumber(totalLamports.toString()).div(
-      new BigNumber(poolTokenSupply.toString())
-    ),
+    exchangeRate,
   };
 }

@@ -42,6 +42,11 @@ export function decodeScopePriceAtIndex(data: Buffer, entryIndex: number): Scope
   const lastUpdatedSlot = data.readBigUInt64LE(offset + 16);
   const unixTimestamp = data.readBigUInt64LE(offset + 24);
 
+  // Same bound as the program's MAX_EXP_10_I80F48
+  if (exp >= 24n) {
+    throw new Error(`Scope entry exponent out of bounds: ${exp}`);
+  }
+
   const price = new BigNumber(value.toString()).shiftedBy(-Number(exp));
 
   return {

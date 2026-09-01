@@ -2,7 +2,7 @@ import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
 import { OraclePrice, OraclePriceDto } from "../types";
 import {
@@ -113,9 +113,9 @@ export const fetchPythOracleData = async (
     priceCoeffByBank
   );
 
-  // A multiplied bank without its exchange rate must not keep the raw base-feed price
+  // A multiplied bank without a valid exchange rate must not keep the raw base-feed price
   pythMultipliedBanks.forEach((bank) => {
-    if (priceCoeffByBank[bank.address.toBase58()] === undefined) {
+    if (!Number.isFinite(priceCoeffByBank[bank.address.toBase58()])) {
       bankOraclePriceMap.delete(bank.address.toBase58());
     }
   });
@@ -178,7 +178,7 @@ export const fetchPythOraclePricesFromChain = async (
   connection: Connection
 ): Promise<Record<string, OraclePrice>> => {
   const updatedOraclePriceByKey: Record<string, OraclePrice> = {};
-  const oracleAis = await chunkedGetRawMultipleAccountInfoOrdered(
+  const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
     connection,
     requestedPythOracleKeys
   );

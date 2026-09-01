@@ -140,7 +140,7 @@ export interface BankConfigType {
   oracleMaxAge: number;
   oracleMaxConfidence: number;
   fixedPrice: BigNumber;
-  scopeEntryIndex: number;
+  scopeEntryIndex?: number;
 }
 
 export interface BankType {

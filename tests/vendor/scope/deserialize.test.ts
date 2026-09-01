@@ -44,6 +44,13 @@ describe("decodeScopePriceAtIndex", () => {
     expect(entry.unixTimestamp).toBe(0);
   });
 
+  it("rejects an exponent past the program's power-of-ten table", () => {
+    const data = scopeAccountData([
+      { index: 7, value: 1_000n, exp: 24n, slot: 1n, timestamp: 500n },
+    ]);
+    expect(() => decodeScopePriceAtIndex(data, 7)).toThrow();
+  });
+
   it("rejects out-of-range indices", () => {
     const data = scopeAccountData([]);
     expect(() => decodeScopePriceAtIndex(data, -1)).toThrow();
