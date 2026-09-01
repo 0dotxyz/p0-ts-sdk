@@ -89,11 +89,18 @@ export function computePtMultiplier(
  */
 export const fetchOracleMultipliers = async (
   banks: BankType[],
-  opts: OracleMultiplierServiceOpts
+  opts?: OracleMultiplierServiceOpts
 ): Promise<Record<string, number>> => {
   const multipliedBanks = banks.filter((bank) => multiplierAccountKey(bank) !== undefined);
 
   if (!multipliedBanks.length) {
+    return {};
+  }
+
+  if (!opts) {
+    console.warn(
+      `fetchOracleMultipliers: no oracleMultiplierOpts provided; ${multipliedBanks.length} multiplier-priced bank(s) will have zero prices`
+    );
     return {};
   }
 

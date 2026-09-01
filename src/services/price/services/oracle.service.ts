@@ -28,8 +28,8 @@ export const fetchOracleData = async (
   opts: {
     pythOpts: PythOracleServiceOpts;
     swbOpts: SwbOracleServiceOpts;
-    scopeOpts: ScopeOracleServiceOpts;
-    oracleMultiplierOpts: OracleMultiplierServiceOpts;
+    scopeOpts?: ScopeOracleServiceOpts;
+    oracleMultiplierOpts?: OracleMultiplierServiceOpts;
     isolatedBanksOpts?: {
       fetchPrices: boolean;
       staticPricesByBank?: Record<string, number>;
@@ -230,7 +230,7 @@ async function handleAssetBanks(
   opts: {
     pythOpts: PythOracleServiceOpts;
     swbOpts: SwbOracleServiceOpts;
-    scopeOpts: ScopeOracleServiceOpts;
+    scopeOpts?: ScopeOracleServiceOpts;
     priceCoeffByBank: Record<string, number>;
   }
 ): Promise<Map<string, OraclePrice>> {

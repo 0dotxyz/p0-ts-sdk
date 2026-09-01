@@ -100,6 +100,12 @@ describe("fetchScopeOracleData", () => {
     ).toBe(true);
   });
 
+  it("returns no prices (upstream zero-fallback) when scopeOpts is omitted", async () => {
+    const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 3600 });
+    const { bankOraclePriceMap } = await fetchScopeOracleData([bank]);
+    expect(bankOraclePriceMap.size).toBe(0);
+  });
+
   it("zeroes banks whose entry is missing from the response", async () => {
     const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 42, oracleMaxAge: 3600 });
     stubFetch({});

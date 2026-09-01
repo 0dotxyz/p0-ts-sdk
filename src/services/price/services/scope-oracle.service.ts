@@ -38,13 +38,22 @@ const scopeRequestKey = (bank: BankType): string =>
  */
 export const fetchScopeOracleData = async (
   banks: BankType[],
-  opts: ScopeOracleServiceOpts
+  opts?: ScopeOracleServiceOpts
 ): Promise<{
   bankOraclePriceMap: Map<string, OraclePrice>;
 }> => {
   const scopeBanks = banks.filter((bank) => getOracleSourceFromBank(bank).key === "scope");
 
   if (!scopeBanks.length) {
+    return {
+      bankOraclePriceMap: new Map<string, OraclePrice>(),
+    };
+  }
+
+  if (!opts) {
+    console.warn(
+      `fetchScopeOracleData: no scopeOpts provided; ${scopeBanks.length} scope bank(s) will have zero prices`
+    );
     return {
       bankOraclePriceMap: new Map<string, OraclePrice>(),
     };
