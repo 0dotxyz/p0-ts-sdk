@@ -864,6 +864,7 @@ function makeLendingPoolConfigureBankOracleScopeIx(
     { pubkey: accounts.group, isSigner: false, isWritable: false },
     { pubkey: accounts.admin, isSigner: true, isWritable: false },
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
+    { pubkey: args.oracle, isSigner: false, isWritable: false },
   ];
 
   const data = Buffer.concat([

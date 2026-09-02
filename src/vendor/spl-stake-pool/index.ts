@@ -17,7 +17,7 @@ const ACCOUNT_TYPE_STAKE_POOL = 1;
 const TOTAL_LAMPORTS_OFFSET = 258;
 const POOL_TOKEN_SUPPLY_OFFSET = 266;
 const LAST_UPDATE_EPOCH_OFFSET = 274;
-const MAX_LST_SOL_RATE = 200;
+const MAX_LST_SOL_RATE = 3;
 
 export interface StakePool {
   totalLamports: bigint;

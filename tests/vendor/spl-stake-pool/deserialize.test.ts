@@ -33,6 +33,6 @@ describe("decodeStakePool", () => {
 
   it("rejects out-of-bounds rates", () => {
     expect(() => decodeStakePool(stakePoolData(0n, 1_000_000_000_000n, 700n))).toThrow();
-    expect(() => decodeStakePool(stakePoolData(200_000n, 1_000n, 700n))).toThrow();
+    expect(() => decodeStakePool(stakePoolData(3_000n, 1_000n, 700n))).toThrow();
   });
 });

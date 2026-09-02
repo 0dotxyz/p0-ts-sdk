@@ -1,8 +1,14 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 import { describe, expect, it, vi } from "vitest";
 
 import instructions from "~/instructions";
-import { configureScopeOracleIx } from "~/services/bank";
+import {
+  addOracleToBanksIx,
+  configureScopeOracleIx,
+  OracleSetup,
+  setOraclePriceIx,
+} from "~/services/bank";
 import syncInstructions from "~/sync-instructions";
 import type { MarginfiProgram } from "~/types";
 
@@ -27,6 +33,7 @@ describe("Scope oracle configuration instruction", () => {
       { pubkey: group, isSigner: false, isWritable: false },
       { pubkey: admin, isSigner: true, isWritable: false },
       { pubkey: bank, isSigner: false, isWritable: true },
+      { pubkey: oracle, isSigner: false, isWritable: false },
     ]);
     expect(ix.data.subarray(0, 8)).toEqual(Buffer.from([134, 228, 127, 3, 117, 132, 85, 146]));
     expect(ix.data.subarray(8, 40)).toEqual(oracle.toBuffer());
@@ -44,7 +51,8 @@ describe("Scope oracle configuration instruction", () => {
       data: Buffer.alloc(0),
     });
     const instruction = vi.fn().mockResolvedValue(expectedIx);
-    const accountsPartial = vi.fn().mockReturnValue({ instruction });
+    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
+    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
     const accounts = vi.fn().mockReturnValue({ accountsPartial });
     const lendingPoolConfigureBankOracleScope = vi.fn().mockReturnValue({ accounts });
     const program = {
@@ -63,10 +71,90 @@ describe("Scope oracle configuration instruction", () => {
     expect(lendingPoolConfigureBankOracleScope).toHaveBeenCalledWith(oracle, 37);
     expect(accounts).toHaveBeenCalledWith({ bank });
     expect(accountsPartial).toHaveBeenCalledWith({ group, admin });
+    expect(remainingAccounts).toHaveBeenCalledWith([
+      { pubkey: oracle, isSigner: false, isWritable: false },
+    ]);
     expect(wrapper).toEqual({ instructions: [expectedIx], keys: [] });
   });
 
   it("keeps the low-level async builder available", () => {
     expect(instructions.makeLendingPoolConfigureBankOracleScopeIx).toBeTypeOf("function");
+  });
+
+  it("forwards every validation account required by multiplier setups", async () => {
+    const bank = publicKey(4);
+    const feedId = publicKey(5);
+    const pyth = publicKey(6);
+    const marinadeState = publicKey(7);
+    const expectedIx = new TransactionInstruction({
+      programId: publicKey(1),
+      keys: [],
+      data: Buffer.alloc(0),
+    });
+    const instruction = vi.fn().mockResolvedValue(expectedIx);
+    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
+    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
+    const accounts = vi.fn().mockReturnValue({ accountsPartial });
+    const lendingPoolConfigureBankOracle = vi.fn().mockReturnValue({ accounts });
+    const program = {
+      methods: { lendingPoolConfigureBankOracle },
+    } as unknown as MarginfiProgram;
+
+    await addOracleToBanksIx({
+      program,
+      bankAddress: bank,
+      feedId,
+      setup: OracleSetup.PythMSOL,
+      oracleAccounts: [pyth, marinadeState],
+    });
+
+    expect(lendingPoolConfigureBankOracle).toHaveBeenCalledWith(19, feedId);
+    expect(remainingAccounts).toHaveBeenCalledWith([
+      { pubkey: pyth, isSigner: false, isWritable: false },
+      { pubkey: marinadeState, isSigner: false, isWritable: false },
+    ]);
+  });
+
+  it("routes PT setup through the 0.1.11 set-oracle-price instruction", async () => {
+    const bank = publicKey(4);
+    const pyth = publicKey(6);
+    const vault = publicKey(7);
+    const expectedIx = new TransactionInstruction({
+      programId: publicKey(1),
+      keys: [],
+      data: Buffer.alloc(0),
+    });
+    const instruction = vi.fn().mockResolvedValue(expectedIx);
+    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
+    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
+    const accounts = vi.fn().mockReturnValue({ accountsPartial });
+    const lendingPoolSetOraclePrice = vi.fn().mockReturnValue({ accounts });
+    const program = {
+      methods: { lendingPoolSetOraclePrice },
+    } as unknown as MarginfiProgram;
+
+    await setOraclePriceIx({
+      program,
+      bankAddress: bank,
+      price: new BigNumber(0.8),
+      setup: OracleSetup.PTPyth,
+      oracleAccounts: [pyth, vault],
+    });
+
+    expect(lendingPoolSetOraclePrice).toHaveBeenCalledWith(expect.anything(), 25);
+    expect(remainingAccounts).toHaveBeenCalledWith([
+      { pubkey: pyth, isSigner: false, isWritable: false },
+      { pubkey: vault, isSigner: false, isWritable: false },
+    ]);
+
+    await expect(
+      setOraclePriceIx({
+        program,
+        bankAddress: bank,
+        price: new BigNumber(0.8),
+        setup: OracleSetup.PTFixed,
+        oracleAccounts: [],
+      })
+    ).rejects.toThrow("PTFixed requires 1 ordered oracle accounts");
   });
 });

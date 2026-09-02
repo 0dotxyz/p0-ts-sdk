@@ -1,7 +1,7 @@
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { MarginfiProgram } from "./types";
+import { MarginfiProgram, WrappedI80F48 } from "./types";
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
@@ -787,6 +787,31 @@ async function makeLendingPoolConfigureBankOracleScopeIx(
     .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
     .accounts({ bank })
     .accountsPartial(optionalAccounts)
+    .remainingAccounts([{ pubkey: args.oracle, isSigner: false, isWritable: false }])
+    .instruction();
+}
+
+/** Configure a fixed or Exponent PT oracle through the 0.1.11 set-oracle-price instruction. */
+async function makeLendingPoolSetOraclePriceIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    bank: PublicKey;
+    group?: PublicKey;
+    admin?: PublicKey;
+  },
+  args: {
+    price: WrappedI80F48;
+    setup: number;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const { bank, ...optionalAccounts } = accounts;
+
+  return mfProgram.methods
+    .lendingPoolSetOraclePrice(args.price, args.setup)
+    .accounts({ bank })
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts(remainingAccounts)
     .instruction();
 }
 
@@ -979,6 +1004,7 @@ const instructions = {
   makePoolAddPermissionlessStakedBankIx,
   makeLendingPoolConfigureBankOracleIx,
   makeLendingPoolConfigureBankOracleScopeIx,
+  makeLendingPoolSetOraclePriceIx,
   makePulseHealthIx,
 };
 

@@ -6,15 +6,20 @@ export const MARINADE_PROGRAM_ID = new PublicKey("MarBmsSgKXdrN1egZf5sqe1TMai9K1
 // sha256("account:State")[..8]
 export const MARINADE_STATE_DISCRIMINATOR = Buffer.from([216, 146, 107, 94, 104, 75, 182, 177]);
 
-// msol_price (u64, mSOL/SOL rate scaled by 2^32) sits at struct offset 504 after the 8-byte
-// discriminator. The real mainnet State account is larger (~2616 bytes); only the prefix through
-// msol_price is read, mirroring the program's minimal view.
-export const MARINADE_STATE_MIN_SIZE = 520;
-const MSOL_PRICE_OFFSET = 512;
-const MSOL_PRICE_PRECISION = new BigNumber(2).pow(32);
+// Absolute byte offsets in Marinade's State account, including the 8-byte Anchor discriminator.
+// These are the fields used by Marinade's `total_virtual_staked_lamports` calculation and by the
+// marginfi program's canonical mSOL/SOL multiplier.
+const DELAYED_UNSTAKE_COOLING_DOWN_OFFSET = 226;
+const TOTAL_ACTIVE_BALANCE_OFFSET = 376;
+const AVAILABLE_RESERVE_BALANCE_OFFSET = 496;
+const MSOL_SUPPLY_OFFSET = 504;
+const CIRCULATING_TICKET_BALANCE_OFFSET = 528;
+const EMERGENCY_COOLING_DOWN_OFFSET = 568;
+export const MARINADE_STATE_MIN_SIZE = EMERGENCY_COOLING_DOWN_OFFSET + 8;
+const U64_MAX = (1n << 64n) - 1n;
 
 // Same sanity ceiling as the program's MAX_LST_SOL_RATE
-const MAX_MSOL_SOL_RATE = 200;
+const MAX_MSOL_SOL_RATE = 3;
 
 export interface MarinadeState {
   /** mSOL/SOL exchange rate */
@@ -29,8 +34,27 @@ export function decodeMarinadeState(data: Buffer): MarinadeState {
     throw new Error("Invalid Marinade State discriminator");
   }
 
-  const msolPriceRaw = data.readBigUInt64LE(MSOL_PRICE_OFFSET);
-  const msolPrice = new BigNumber(msolPriceRaw.toString()).div(MSOL_PRICE_PRECISION);
+  const delayedUnstakeCoolingDown = data.readBigUInt64LE(DELAYED_UNSTAKE_COOLING_DOWN_OFFSET);
+  const totalActiveBalance = data.readBigUInt64LE(TOTAL_ACTIVE_BALANCE_OFFSET);
+  const availableReserveBalance = data.readBigUInt64LE(AVAILABLE_RESERVE_BALANCE_OFFSET);
+  const msolSupply = data.readBigUInt64LE(MSOL_SUPPLY_OFFSET);
+  const circulatingTicketBalance = data.readBigUInt64LE(CIRCULATING_TICKET_BALANCE_OFFSET);
+  const emergencyCoolingDown = data.readBigUInt64LE(EMERGENCY_COOLING_DOWN_OFFSET);
+
+  if (msolSupply === 0n) {
+    throw new Error("Marinade State has zero mSOL supply");
+  }
+
+  const underControl =
+    totalActiveBalance + delayedUnstakeCoolingDown + emergencyCoolingDown + availableReserveBalance;
+  if (underControl > U64_MAX) {
+    throw new Error("Marinade virtual staked balance overflow");
+  }
+
+  // Marinade uses saturating subtraction for outstanding delayed-unstake tickets.
+  const totalVirtualStakedLamports =
+    underControl > circulatingTicketBalance ? underControl - circulatingTicketBalance : 0n;
+  const msolPrice = new BigNumber(totalVirtualStakedLamports.toString()).div(msolSupply.toString());
 
   if (!msolPrice.gt(0) || msolPrice.gte(MAX_MSOL_SOL_RATE)) {
     throw new Error(`Marinade mSOL/SOL rate out of bounds: ${msolPrice.toString()}`);
