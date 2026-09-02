@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0-alpha.4
+
+### Minor Changes
+
+- Bundle the Marginfi 0.1.11 IDL and expose the dedicated Scope oracle configuration instruction.
+
 ## 2.8.0-alpha.3
 
 ### Patch Changes

@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.7.4"
   },
   "changesets": [
+    "bright-oracles-scope",
     "plain-cars-watch",
     "sunny-peas-rule",
     "sunny-seals-end",
