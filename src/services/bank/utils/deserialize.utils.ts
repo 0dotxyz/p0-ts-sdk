@@ -401,7 +401,7 @@ export function dtoToBankConfig(bankConfigDto: BankConfigDto): BankConfigType {
     interestRateConfig: dtoToInterestRateConfig(bankConfigDto.interestRateConfig),
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: new BigNumber(bankConfigDto.fixedPrice),
-    scopeEntryIndex: bankConfigDto.scopeEntryIndex ?? 0,
+    scopeEntryIndex: bankConfigDto.scopeEntryIndex,
   };
 }
 
@@ -538,7 +538,7 @@ export function dtoToBankConfigRaw(bankConfigDto: BankConfigRawDto): BankConfigR
     interestRateConfig: bankConfigDto.interestRateConfig,
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: bankConfigDto.fixedPrice,
-    scopeEntryIndex: bankConfigDto.scopeEntryIndex ?? 0,
+    scopeEntryIndex: bankConfigDto.scopeEntryIndex,
   };
 }
 
@@ -586,7 +586,7 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
   };
   const oracleMaxConfidence = bankConfigRaw.oracleMaxConfidence;
   const fixedPrice = wrappedI80F48toBigNumber(bankConfigRaw.fixedPrice);
-  const scopeEntryIndex = bankConfigRaw.scopeEntryIndex ?? 0;
+  const scopeEntryIndex = bankConfigRaw.scopeEntryIndex;
 
   return {
     assetWeightInit,

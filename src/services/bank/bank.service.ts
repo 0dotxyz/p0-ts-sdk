@@ -85,7 +85,11 @@ export async function addOracleToBanksIx({
   if (
     setup === OracleSetup.Scope ||
     setup === OracleSetup.PTPyth ||
-    setup === OracleSetup.PTFixed
+    setup === OracleSetup.PTFixed ||
+    setup === OracleSetup.Fixed ||
+    setup === OracleSetup.FixedKamino ||
+    setup === OracleSetup.FixedDrift ||
+    setup === OracleSetup.FixedJuplend
   ) {
     throw new Error(
       `${setup} must be configured with ${
@@ -109,6 +113,12 @@ export async function addOracleToBanksIx({
     resolvedOracleAccounts.length !== expectedAccountCount
   ) {
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
+  }
+  // The program reads the primary feed from remaining[0] and requires it to match `oracle`
+  if (expectedAccountCount !== undefined && !resolvedOracleAccounts[0]!.equals(feedId)) {
+    throw new Error(
+      `${setup} requires oracleAccounts[0] to be the primary feed ${feedId.toBase58()}`
+    );
   }
 
   const ix = await instructions.makeLendingPoolConfigureBankOracleIx(

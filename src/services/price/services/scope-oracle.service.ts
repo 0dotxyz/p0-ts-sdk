@@ -29,7 +29,10 @@ export type ScopeOracleServiceOpts = FetchScopeOracleOnChainOpts | FetchScopeOra
  */
 const scopeRequestKey = (bank: BankType): string | undefined => {
   const oracleKey = bank.config.oracleKeys[0]?.toBase58();
-  return oracleKey ? `${oracleKey}:${bank.config.scopeEntryIndex ?? 0}` : undefined;
+  const entryIndex = bank.config.scopeEntryIndex;
+  // A Scope price is only identified together with its entry index; without it the bank is
+  // unpriceable rather than silently read from entry 0.
+  return oracleKey && entryIndex !== undefined ? `${oracleKey}:${entryIndex}` : undefined;
 };
 
 /**
@@ -65,8 +68,12 @@ export const fetchScopeOracleData = async (
     new Set(scopeBanks.map(scopeRequestKey).filter((key): key is string => key !== undefined))
   );
 
-  let oraclePrices: Record<string, OraclePrice>;
-  if (opts.mode === "api") {
+  let oraclePrices: Record<string, OraclePrice> = {};
+  if (!uniqueRequestKeys.length) {
+    console.warn(
+      "fetchScopeOracleData: no scope bank carries a scopeEntryIndex; all priced at zero"
+    );
+  } else if (opts.mode === "api") {
     oraclePrices = await fetchScopeOraclePricesFromAPI(
       uniqueRequestKeys,
       opts.scopeOnchainData.endpoint,
@@ -83,10 +90,7 @@ export const fetchScopeOracleData = async (
     const requestKey = scopeRequestKey(bank);
     let oraclePrice = requestKey ? oraclePrices[requestKey] : undefined;
 
-    if (
-      !oraclePrice ||
-      nowSeconds - oraclePrice.timestamp.toNumber() > bank.config.oracleMaxAge
-    ) {
+    if (!oraclePrice || nowSeconds - oraclePrice.timestamp.toNumber() > bank.config.oracleMaxAge) {
       oraclePrice = {
         priceRealtime: {
           price: new BigNumber(0),

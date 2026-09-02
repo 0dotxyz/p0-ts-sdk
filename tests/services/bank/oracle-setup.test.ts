@@ -130,9 +130,9 @@ describe("scopeEntryIndex plumbing", () => {
     expect(parsed.scopeEntryIndex).toBe(42);
   });
 
-  it("defaults scopeEntryIndex to 0 for payloads decoded with an older IDL", () => {
+  it("leaves scopeEntryIndex undefined when the payload lacks it (fails closed downstream)", () => {
     const parsed = parseBankConfigRaw(baseConfigRaw());
-    expect(parsed.scopeEntryIndex).toBe(0);
+    expect(parsed.scopeEntryIndex).toBeUndefined();
   });
 
   it("keeps oracleMaxAge 0 for Scope banks (no 0 -> default fallback on-chain)", () => {

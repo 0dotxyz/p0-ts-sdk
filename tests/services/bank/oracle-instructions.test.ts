@@ -84,7 +84,6 @@ describe("Scope oracle configuration instruction", () => {
   it("forwards every validation account required by multiplier setups", async () => {
     const bank = publicKey(4);
     const feedId = publicKey(5);
-    const pyth = publicKey(6);
     const marinadeState = publicKey(7);
     const expectedIx = new TransactionInstruction({
       programId: publicKey(1),
@@ -105,14 +104,48 @@ describe("Scope oracle configuration instruction", () => {
       bankAddress: bank,
       feedId,
       setup: OracleSetup.PythMSOL,
-      oracleAccounts: [pyth, marinadeState],
+      oracleAccounts: [feedId, marinadeState],
     });
 
     expect(lendingPoolConfigureBankOracle).toHaveBeenCalledWith(19, feedId);
     expect(remainingAccounts).toHaveBeenCalledWith([
-      { pubkey: pyth, isSigner: false, isWritable: false },
+      { pubkey: feedId, isSigner: false, isWritable: false },
       { pubkey: marinadeState, isSigner: false, isWritable: false },
     ]);
+  });
+
+  it("rejects multiplier setups whose first oracle account is not the primary feed", async () => {
+    const program = { methods: {} } as unknown as MarginfiProgram;
+
+    await expect(
+      addOracleToBanksIx({
+        program,
+        bankAddress: publicKey(4),
+        feedId: publicKey(5),
+        setup: OracleSetup.PythMSOL,
+        oracleAccounts: [publicKey(6), publicKey(7)],
+      })
+    ).rejects.toThrow("oracleAccounts[0]");
+  });
+
+  it("routes every fixed setup away from configure-bank-oracle", async () => {
+    const program = { methods: {} } as unknown as MarginfiProgram;
+
+    for (const setup of [
+      OracleSetup.Fixed,
+      OracleSetup.FixedKamino,
+      OracleSetup.FixedDrift,
+      OracleSetup.FixedJuplend,
+    ]) {
+      await expect(
+        addOracleToBanksIx({
+          program,
+          bankAddress: publicKey(4),
+          feedId: publicKey(5),
+          setup,
+        })
+      ).rejects.toThrow("setOraclePriceIx");
+    }
   });
 
   it("routes PT setup through the 0.1.11 set-oracle-price instruction", async () => {

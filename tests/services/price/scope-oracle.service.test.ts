@@ -8,7 +8,7 @@ const ORACLE_PRICES_KEY = new PublicKey("AMjqm5S4QaAHWLv52jJiRpFNW1qo23F6ZM5ChCF
 
 function scopeBank(opts: {
   address: PublicKey;
-  entryIndex: number;
+  entryIndex?: number;
   oracleMaxAge: number;
   oracleSetup?: OracleSetup;
 }): BankType {
@@ -92,12 +92,30 @@ describe("fetchScopeOracleData", () => {
     expect(
       bankOraclePriceMap.get(freshBank.address.toBase58())!.priceRealtime.price.toNumber()
     ).toBe(100);
-    expect(
-      bankOraclePriceMap.get(staleBank.address.toBase58())!.priceRealtime.price.isZero()
-    ).toBe(true);
+    expect(bankOraclePriceMap.get(staleBank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
+      true
+    );
     expect(
       bankOraclePriceMap.get(zeroAgeBank.address.toBase58())!.priceRealtime.price.isZero()
     ).toBe(true);
+  });
+
+  it("prices a bank without scopeEntryIndex at zero instead of reading entry 0", async () => {
+    const bank = scopeBank({ address: PublicKey.unique(), oracleMaxAge: 3600 });
+    const now = Math.floor(Date.now() / 1000);
+    const fetchMock = stubFetch({
+      [`${ORACLE_PRICES_KEY.toBase58()}:0`]: priceDto("100", `${now}`),
+    });
+
+    const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
+      mode: "api",
+      scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
+    });
+
+    expect(bankOraclePriceMap.get(bank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
+      true
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns no prices (upstream zero-fallback) when scopeOpts is omitted", async () => {
