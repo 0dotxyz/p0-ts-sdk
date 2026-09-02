@@ -43,6 +43,15 @@ const SETUP_INDICES: [OracleSetup, number][] = [
 const typesCoder = new BorshCoder(MARGINFI_IDL as any).types;
 
 describe("OracleSetup (de)serialization", () => {
+  it("uses the 0.1.11 IDL", () => {
+    expect(MARGINFI_IDL.metadata.version).toBe("0.1.11");
+
+    const instructionNames = MARGINFI_IDL.instructions.map((instruction) => instruction.name);
+    expect(instructionNames).toContain("lending_pool_configure_bank_oracle_scope");
+    expect(instructionNames).toContain("lending_pool_set_oracle_price");
+    expect(instructionNames).not.toContain("lending_pool_set_fixed_oracle_price");
+  });
+
   it("round-trips every real variant through raw and index", () => {
     for (const [setup, index] of SETUP_INDICES) {
       expect(parseOracleSetup(serializeOracleSetup(setup))).toBe(setup);

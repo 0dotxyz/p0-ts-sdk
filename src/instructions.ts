@@ -764,6 +764,33 @@ async function makeLendingPoolConfigureBankOracleIx(
 }
 
 /**
+ * Configure a bank to use an entry in a Scope OraclePrices account.
+ * @param mfProgram The marginfi program
+ * @param accounts The group, admin, and bank accounts required by the instruction
+ * @param args The Scope OraclePrices account and its entry index
+ */
+async function makeLendingPoolConfigureBankOracleScopeIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    bank: PublicKey;
+    group?: PublicKey;
+    admin?: PublicKey;
+  },
+  args: {
+    oracle: PublicKey;
+    entryIndex: number;
+  }
+) {
+  const { bank, ...optionalAccounts } = accounts;
+
+  return mfProgram.methods
+    .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
+    .accounts({ bank })
+    .accountsPartial(optionalAccounts)
+    .instruction();
+}
+
+/**
  * Creates an instruction to add a permissionless staked bank to a lending pool.
  * @param mfProgram - The marginfi program instance
  * @param accounts - The accounts required for this instruction
@@ -951,6 +978,7 @@ const instructions = {
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,
   makeLendingPoolConfigureBankOracleIx,
+  makeLendingPoolConfigureBankOracleScopeIx,
   makePulseHealthIx,
 };
 

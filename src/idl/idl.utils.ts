@@ -6,7 +6,7 @@ const LATEST_IDL_URL = `https://storage.googleapis.com/mrgn-public/idl/marginfi_
 
 /**
  * Fetches the latest IDL files from GCP.
- * If either fetch fails, it falls back to version 0.1.0.
+ * If the fetch fails, it falls back to the bundled IDL.
  *
  * @returns The Marginfi IDL
  */

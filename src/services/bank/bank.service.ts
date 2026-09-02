@@ -95,3 +95,39 @@ export async function addOracleToBanksIx({
     keys: [],
   };
 }
+
+type ConfigureScopeOracleIxArgs = {
+  program: MarginfiProgram;
+  bankAddress: PublicKey;
+  oracle: PublicKey;
+  entryIndex: number;
+  groupAddress?: PublicKey;
+  adminAddress?: PublicKey;
+};
+
+export async function configureScopeOracleIx({
+  program,
+  bankAddress,
+  oracle,
+  entryIndex,
+  groupAddress,
+  adminAddress,
+}: ConfigureScopeOracleIxArgs): Promise<InstructionsWrapper> {
+  const ix = await instructions.makeLendingPoolConfigureBankOracleScopeIx(
+    program,
+    {
+      bank: bankAddress,
+      group: groupAddress,
+      admin: adminAddress,
+    },
+    {
+      oracle,
+      entryIndex,
+    }
+  );
+
+  return {
+    instructions: [ix],
+    keys: [],
+  };
+}

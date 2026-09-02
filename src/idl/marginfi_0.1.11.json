@@ -2,7 +2,7 @@
   "address": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
   "metadata": {
     "name": "marginfi",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "spec": "0.1.0",
     "description": "Borrow Lending Prime Broker"
   },
@@ -7414,6 +7414,53 @@
       ]
     },
     {
+      "name": "lending_pool_configure_bank_oracle_scope",
+      "docs": [
+        "(admin only) Point a bank at a Scope feed entry.",
+        "* oracle - the feed's `OraclePrices` account",
+        "* entry_index - which of the 512 entries in that account prices this bank"
+      ],
+      "discriminator": [
+        134,
+        228,
+        127,
+        3,
+        117,
+        132,
+        85,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "bank"
+          ]
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        },
+        {
+          "name": "entry_index",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "lending_pool_emissions_deposit",
       "docs": [
         "(permissionless) Deposit same-bank emissions directly into liquidity vault and increase",
@@ -7885,19 +7932,19 @@
       ]
     },
     {
-      "name": "lending_pool_set_fixed_oracle_price",
+      "name": "lending_pool_set_oracle_price",
       "docs": [
         "(admin only)"
       ],
       "discriminator": [
-        28,
-        126,
-        127,
-        127,
-        60,
+        234,
+        244,
         37,
-        211,
-        125
+        65,
+        101,
+        255,
+        217,
+        160
       ],
       "accounts": [
         {
@@ -7926,6 +7973,10 @@
               "name": "WrappedI80F48"
             }
           }
+        },
+        {
+          "name": "setup",
+          "type": "u8"
         }
       ]
     },
@@ -11304,16 +11355,16 @@
       ]
     },
     {
-      "name": "LendingPoolBankSetFixedOraclePriceEvent",
+      "name": "LendingPoolBankSetOraclePriceEvent",
       "discriminator": [
-        65,
-        72,
-        8,
-        85,
-        229,
-        20,
-        90,
-        26
+        92,
+        180,
+        117,
+        175,
+        131,
+        24,
+        159,
+        141
       ]
     },
     {
@@ -12149,8 +12200,8 @@
     },
     {
       "code": 6132,
-      "name": "UseSetFixedOraclePrice",
-      "msg": "Use set_fixed_oracle_price instead"
+      "name": "UseSetOraclePrice",
+      "msg": "Use set_oracle_price instead"
     },
     {
       "code": 6133,
@@ -12166,6 +12217,26 @@
       "code": 6135,
       "name": "SlippageTooHigh",
       "msg": "Max slippage exceeds the allowed cap"
+    },
+    {
+      "code": 6136,
+      "name": "MarinadeStateValidationFailed",
+      "msg": "Marinade state validation failed"
+    },
+    {
+      "code": 6137,
+      "name": "ExponentVaultValidationFailed",
+      "msg": "Exponent vault validation failed"
+    },
+    {
+      "code": 6138,
+      "name": "InvalidPtStartPrice",
+      "msg": "PT start price must be in (0, 1]"
+    },
+    {
+      "code": 6139,
+      "name": "StakePoolStale",
+      "msg": "Stake pool balance has not been updated recently enough"
     },
     {
       "code": 6200,
@@ -13667,9 +13738,9 @@
           {
             "name": "scope_entry_index",
             "docs": [
-              "Entry index into the Scope OraclePrices price list. Only read when",
-              "oracle_setup == OracleSetup::Scope; ignored (and zero) for every other setup.",
-              "Occupies what was previously _padding0, so the layout is unchanged."
+              "Entry index into the Scope `OraclePrices` price list. Only read when",
+              "`oracle_setup == OracleSetup::Scope`; ignored (and zero) for every other setup.",
+              "Occupies what was previously `_padding0`, so the layout is unchanged."
             ],
             "type": "u16"
           },
@@ -16648,7 +16719,7 @@
       }
     },
     {
-      "name": "LendingPoolBankSetFixedOraclePriceEvent",
+      "name": "LendingPoolBankSetOraclePriceEvent",
       "type": {
         "kind": "struct",
         "fields": [
