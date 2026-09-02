@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.0-alpha.6
+
+### Patch Changes
+
+- fix: fail closed on missing scopeEntryIndex, validate oracle config accounts
+- 9421e03: fix: fail closed on a missing scopeEntryIndex; validate oracle account order and reject fixed setups in addOracleToBanksIx
+
 ## 2.8.0-alpha.5
 
 ### Patch Changes
