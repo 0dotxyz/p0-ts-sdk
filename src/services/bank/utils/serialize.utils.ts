@@ -171,8 +171,26 @@ function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
       return 16;
     case OracleSetup.FixedJuplend:
       return 17;
+    case OracleSetup.Scope:
+      return 18;
+    case OracleSetup.PythMSOL:
+      return 19;
+    case OracleSetup.KaminoMSOL:
+      return 20;
+    case OracleSetup.JuplendMSOL:
+      return 21;
+    case OracleSetup.PythLST:
+      return 22;
+    case OracleSetup.KaminoLST:
+      return 23;
+    case OracleSetup.JuplendLST:
+      return 24;
+    case OracleSetup.PTPyth:
+      return 25;
+    case OracleSetup.PTFixed:
+      return 26;
     default:
-      return 0;
+      throw new Error(`Cannot serialize oracle setup "${oracleSetup}"`);
   }
 }
 
@@ -214,6 +232,24 @@ function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
       return { juplendSwitchboardPull: {} };
     case OracleSetup.FixedJuplend:
       return { fixedJuplend: {} };
+    case OracleSetup.Scope:
+      return { scope: {} };
+    case OracleSetup.PythMSOL:
+      return { pythMsol: {} };
+    case OracleSetup.KaminoMSOL:
+      return { kaminoMsol: {} };
+    case OracleSetup.JuplendMSOL:
+      return { juplendMsol: {} };
+    case OracleSetup.PythLST:
+      return { pythLst: {} };
+    case OracleSetup.KaminoLST:
+      return { kaminoLst: {} };
+    case OracleSetup.JuplendLST:
+      return { juplendLst: {} };
+    case OracleSetup.PTPyth:
+      return { ptPyth: {} };
+    case OracleSetup.PTFixed:
+      return { ptFixed: {} };
     default:
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);
   }
@@ -343,6 +379,7 @@ function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
     configFlags: bankConfig.configFlags,
     oracleMaxConfidence: bankConfig.oracleMaxConfidence,
     fixedPrice: bankConfig.fixedPrice.toString(),
+    scopeEntryIndex: bankConfig.scopeEntryIndex,
   };
 }
 
@@ -464,6 +501,7 @@ function bankConfigToBankConfigRaw(config: BankConfigType): BankConfigRaw {
     oracleMaxAge: config.oracleMaxAge,
     oracleMaxConfidence: config.oracleMaxConfidence,
     fixedPrice: bigNumberToWrappedI80F48(config.fixedPrice),
+    scopeEntryIndex: config.scopeEntryIndex,
   };
 }
 
@@ -486,6 +524,7 @@ export function bankConfigRawToDto(bankConfigRaw: BankConfigRaw): BankConfigRawD
     configFlags: bankConfigRaw.configFlags,
     oracleMaxConfidence: bankConfigRaw.oracleMaxConfidence,
     fixedPrice: bankConfigRaw.fixedPrice,
+    scopeEntryIndex: bankConfigRaw.scopeEntryIndex,
   };
 }
 

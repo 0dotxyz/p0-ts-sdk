@@ -1,5 +1,48 @@
 # Changelog
 
+## 2.8.0-alpha.6
+
+### Patch Changes
+
+- fix: fail closed on missing scopeEntryIndex, validate oracle config accounts
+- 9421e03: fix: fail closed on a missing scopeEntryIndex; validate oracle account order and reject fixed setups in addOracleToBanksIx
+
+## 2.8.0-alpha.5
+
+### Patch Changes
+
+- chore: reflect program msol & lst multiplier
+
+## 2.8.0-alpha.4
+
+### Minor Changes
+
+- Bundle the Marginfi 0.1.11 IDL and expose the dedicated Scope oracle configuration instruction.
+
+## 2.8.0-alpha.3
+
+### Patch Changes
+
+- chore: update idl error codes
+
+## 2.8.0-alpha.2
+
+### Patch Changes
+
+- chore: implement feedback
+
+## 2.8.0-alpha.1
+
+### Patch Changes
+
+- chore: minor oracle fixes
+
+## 2.8.0-alpha.0
+
+### Minor Changes
+
+- feat: oracle upgrade
+
 ## 2.7.4
 
 ### Patch Changes

@@ -341,6 +341,14 @@ export class Project0Client {
         mode: "on-chain",
         connection,
       },
+      scopeOpts: {
+        mode: "on-chain",
+        connection,
+      },
+      oracleMultiplierOpts: {
+        mode: "on-chain",
+        connection,
+      },
       isolatedBanksOpts: {
         fetchPrices: true,
       },

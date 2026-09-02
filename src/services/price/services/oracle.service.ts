@@ -8,6 +8,8 @@ import { OraclePrice } from "../types";
 
 import { fetchPythOracleData, PythOracleServiceOpts } from "./pyth-oracle.service";
 import { fetchSwbOracleData, SwbOracleServiceOpts } from "./swb-oracle.service";
+import { fetchScopeOracleData, ScopeOracleServiceOpts } from "./scope-oracle.service";
+import { fetchOracleMultipliers, OracleMultiplierServiceOpts } from "./oracle-multiplier.service";
 import { getOracleSourceFromOracleSetup } from "../utils";
 
 /**
@@ -26,6 +28,8 @@ export const fetchOracleData = async (
   opts: {
     pythOpts: PythOracleServiceOpts;
     swbOpts: SwbOracleServiceOpts;
+    scopeOpts?: ScopeOracleServiceOpts;
+    oracleMultiplierOpts?: OracleMultiplierServiceOpts;
     isolatedBanksOpts?: {
       fetchPrices: boolean;
       staticPricesByBank?: Record<string, number>;
@@ -46,8 +50,11 @@ export const fetchOracleData = async (
     ? handleIsolatedAssetBanks(isolatedAssetBanks, opts?.isolatedBanksOpts?.staticPricesByBank)
     : new Map();
 
+  // exchange-rate multipliers for banks priced as `base feed x on-chain rate`
+  const multiplierByBank = await fetchOracleMultipliers(banks, opts.oracleMultiplierOpts);
+
   // handle fixed price assets
-  const fixedResults = handleFixedOracleBanks(fixedAssetBanks);
+  const fixedResults = handleFixedOracleBanks(fixedAssetBanks, multiplierByBank);
 
   const assetBanks = [...collateralAssetBanks, ...(fetchIsolatedPrice ? isolatedAssetBanks : [])];
 
@@ -55,6 +62,8 @@ export const fetchOracleData = async (
   const assetResults = await handleAssetBanks(assetBanks, {
     pythOpts: opts.pythOpts,
     swbOpts: opts.swbOpts,
+    scopeOpts: opts.scopeOpts,
+    priceCoeffByBank: multiplierByBank,
   });
 
   return mergeOracleResults([zeroResults, isolatedResults, assetResults, fixedResults], banks);
@@ -106,11 +115,23 @@ function classifyBanksForOracleStrategy(banks: BankType[]): {
   };
 }
 
-function handleFixedOracleBanks(banks: BankType[]): Map<string, OraclePrice> {
+function handleFixedOracleBanks(
+  banks: BankType[],
+  multiplierByBank: Record<string, number>
+): Map<string, OraclePrice> {
   const oracleMap = new Map<string, OraclePrice>();
 
   banks.forEach((bank) => {
-    const fixedPrice = bank.config.fixedPrice;
+    // PTFixed prices as its PT linear rate directly; fixedPrice only stores the start price.
+    // Without a valid rate the bank is unpriceable (zero), like any other failed oracle -
+    // falling back to the start price would understate a borrowed PT near maturity.
+    const isPtFixed = bank.config.oracleSetup === OracleSetup.PTFixed;
+    const multiplier = multiplierByBank[bank.address.toBase58()];
+    const fixedPrice = isPtFixed
+      ? Number.isFinite(multiplier)
+        ? BigNumber(multiplier!)
+        : BigNumber(0)
+      : bank.config.fixedPrice;
 
     const fixedOraclePrice: OraclePrice = {
       priceRealtime: {
@@ -210,15 +231,21 @@ function handleIsolatedAssetBanks(
  */
 async function handleAssetBanks(
   banks: BankType[],
-  opts: { pythOpts: PythOracleServiceOpts; swbOpts: SwbOracleServiceOpts }
+  opts: {
+    pythOpts: PythOracleServiceOpts;
+    swbOpts: SwbOracleServiceOpts;
+    scopeOpts?: ScopeOracleServiceOpts;
+    priceCoeffByBank: Record<string, number>;
+  }
 ): Promise<Map<string, OraclePrice>> {
   if (banks.length === 0) {
     return new Map<string, OraclePrice>();
   }
 
-  const [pythData, swbData] = await Promise.all([
-    fetchPythOracleData(banks, opts.pythOpts),
+  const [pythData, swbData, scopeData] = await Promise.all([
+    fetchPythOracleData(banks, opts.pythOpts, opts.priceCoeffByBank),
     fetchSwbOracleData(banks, opts.swbOpts),
+    fetchScopeOracleData(banks, opts.scopeOpts),
   ]);
 
   const bankOraclePriceMap = new Map<string, OraclePrice>();
@@ -230,6 +257,11 @@ async function handleAssetBanks(
 
   // Map swb data
   swbData.bankOraclePriceMap.forEach((oraclePrice, bankAddress) => {
+    bankOraclePriceMap.set(bankAddress, oraclePrice);
+  });
+
+  // Map scope data
+  scopeData.bankOraclePriceMap.forEach((oraclePrice, bankAddress) => {
     bankOraclePriceMap.set(bankAddress, oraclePrice);
   });
 

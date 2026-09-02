@@ -49,6 +49,12 @@ function encodeU8(value: number): Buffer {
   return buf;
 }
 
+function encodeU16(value: number): Buffer {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(value, 0);
+  return buf;
+}
+
 function encodeBool(value: boolean): Buffer {
   const buf = Buffer.alloc(1);
   buf.writeUInt8(value ? 1 : 0, 0);
@@ -95,6 +101,7 @@ const DISCRIMINATORS = {
   MARGINFI_ACCOUNT_CLOSE: Buffer.from([186, 221, 93, 34, 50, 97, 194, 241]),
   LENDING_POOL_ADD_BANK_PERMISSIONLESS: Buffer.from([127, 187, 121, 34, 187, 167, 238, 102]),
   LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([209, 82, 255, 171, 124, 21, 71, 81]),
+  LENDING_POOL_CONFIGURE_BANK_ORACLE_SCOPE: Buffer.from([134, 228, 127, 3, 117, 132, 85, 146]),
   LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
   LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
   DRIFT_DEPOSIT: Buffer.from([252, 63, 250, 201, 98, 55, 130, 12]),
@@ -841,6 +848,38 @@ function makeLendingPoolConfigureBankOracleIx(
   });
 }
 
+function makeLendingPoolConfigureBankOracleScopeIx(
+  programId: PublicKey,
+  accounts: {
+    group: PublicKey;
+    admin: PublicKey;
+    bank: PublicKey;
+  },
+  args: {
+    oracle: PublicKey;
+    entryIndex: number;
+  }
+): TransactionInstruction {
+  const keys: AccountMeta[] = [
+    { pubkey: accounts.group, isSigner: false, isWritable: false },
+    { pubkey: accounts.admin, isSigner: true, isWritable: false },
+    { pubkey: accounts.bank, isSigner: false, isWritable: true },
+    { pubkey: args.oracle, isSigner: false, isWritable: false },
+  ];
+
+  const data = Buffer.concat([
+    DISCRIMINATORS.LENDING_POOL_CONFIGURE_BANK_ORACLE_SCOPE,
+    encodePublicKey(args.oracle),
+    encodeU16(args.entryIndex),
+  ]);
+
+  return new TransactionInstruction({
+    keys,
+    programId,
+    data,
+  });
+}
+
 function makePoolAddBankIx(
   programId: PublicKey,
   accounts: {
@@ -1198,6 +1237,7 @@ const syncInstructions = {
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,
   makeLendingPoolConfigureBankOracleIx,
+  makeLendingPoolConfigureBankOracleScopeIx,
   makePulseHealthIx,
 };
 

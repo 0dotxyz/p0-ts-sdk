@@ -134,6 +134,7 @@ interface BankConfigRaw {
 
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
+  scopeEntryIndex?: number;
   oracleMaxConfidence: number;
   fixedPrice: WrappedI80F48;
 }
@@ -240,7 +241,16 @@ type OracleSetupRaw =
   | { fixedDrift: {} }
   | { juplendPythPull: {} }
   | { juplendSwitchboardPull: {} }
-  | { fixedJuplend: {} };
+  | { fixedJuplend: {} }
+  | { scope: {} }
+  | { pythMsol: {} }
+  | { kaminoMsol: {} }
+  | { juplendMsol: {} }
+  | { pythLst: {} }
+  | { kaminoLst: {} }
+  | { juplendLst: {} }
+  | { ptPyth: {} }
+  | { ptFixed: {} };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;

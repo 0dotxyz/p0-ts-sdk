@@ -8,7 +8,7 @@ export type Marginfi = {
   "address": string,
   "metadata": {
     "name": "marginfi",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "spec": "0.1.0",
     "description": "Borrow Lending Prime Broker"
   },
@@ -7420,6 +7420,53 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "lendingPoolConfigureBankOracleScope",
+      "docs": [
+        "(admin only) Point a bank at a Scope feed entry.",
+        "* oracle - the feed's `OraclePrices` account",
+        "* entry_index - which of the 512 entries in that account prices this bank"
+      ],
+      "discriminator": [
+        134,
+        228,
+        127,
+        3,
+        117,
+        132,
+        85,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "bank"
+          ]
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        },
+        {
+          "name": "entryIndex",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "lendingPoolEmissionsDeposit",
       "docs": [
         "(permissionless) Deposit same-bank emissions directly into liquidity vault and increase",
@@ -7891,19 +7938,19 @@ export type Marginfi = {
       ]
     },
     {
-      "name": "lendingPoolSetFixedOraclePrice",
+      "name": "lendingPoolSetOraclePrice",
       "docs": [
         "(admin only)"
       ],
       "discriminator": [
-        28,
-        126,
-        127,
-        127,
-        60,
+        234,
+        244,
         37,
-        211,
-        125
+        65,
+        101,
+        255,
+        217,
+        160
       ],
       "accounts": [
         {
@@ -7932,6 +7979,10 @@ export type Marginfi = {
               "name": "wrappedI80f48"
             }
           }
+        },
+        {
+          "name": "setup",
+          "type": "u8"
         }
       ]
     },
@@ -11310,16 +11361,16 @@ export type Marginfi = {
       ]
     },
     {
-      "name": "lendingPoolBankSetFixedOraclePriceEvent",
+      "name": "lendingPoolBankSetOraclePriceEvent",
       "discriminator": [
-        65,
-        72,
-        8,
-        85,
-        229,
-        20,
-        90,
-        26
+        92,
+        180,
+        117,
+        175,
+        131,
+        24,
+        159,
+        141
       ]
     },
     {
@@ -12155,8 +12206,8 @@ export type Marginfi = {
     },
     {
       "code": 6132,
-      "name": "useSetFixedOraclePrice",
-      "msg": "Use set_fixed_oracle_price instead"
+      "name": "useSetOraclePrice",
+      "msg": "Use set_oracle_price instead"
     },
     {
       "code": 6133,
@@ -12172,6 +12223,26 @@ export type Marginfi = {
       "code": 6135,
       "name": "slippageTooHigh",
       "msg": "Max slippage exceeds the allowed cap"
+    },
+    {
+      "code": 6136,
+      "name": "marinadeStateValidationFailed",
+      "msg": "Marinade state validation failed"
+    },
+    {
+      "code": 6137,
+      "name": "exponentVaultValidationFailed",
+      "msg": "Exponent vault validation failed"
+    },
+    {
+      "code": 6138,
+      "name": "invalidPtStartPrice",
+      "msg": "PT start price must be in (0, 1]"
+    },
+    {
+      "code": 6139,
+      "name": "stakePoolStale",
+      "msg": "Stake pool balance has not been updated recently enough"
     },
     {
       "code": 6200,
@@ -12562,6 +12633,26 @@ export type Marginfi = {
       "code": 6604,
       "name": "circuitBreakerPriceJump",
       "msg": "Oracle price deviates too far from the circuit breaker reference; action rejected"
+    },
+    {
+      "code": 6800,
+      "name": "scopeInvalidAccount",
+      "msg": "Scope oracle account is not owned by the Scope program or is malformed"
+    },
+    {
+      "code": 6801,
+      "name": "scopeInvalidEntry",
+      "msg": "Scope entry index is out of range or the entry has never been refreshed"
+    },
+    {
+      "code": 6802,
+      "name": "scopeStalePrice",
+      "msg": "Scope price is stale"
+    },
+    {
+      "code": 6803,
+      "name": "useConfigureBankOracleScope",
+      "msg": "Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index"
     }
   ],
   "types": [
@@ -13651,13 +13742,13 @@ export type Marginfi = {
             "type": "u16"
           },
           {
-            "name": "padding0",
-            "type": {
-              "array": [
-                "u8",
-                2
-              ]
-            }
+            "name": "scopeEntryIndex",
+            "docs": [
+              "Entry index into the Scope `OraclePrices` price list. Only read when",
+              "`oracle_setup == OracleSetup::Scope`; ignored (and zero) for every other setup.",
+              "Occupies what was previously `_padding0`, so the layout is unchanged."
+            ],
+            "type": "u16"
           },
           {
             "name": "oracleMaxConfidence",
@@ -16634,7 +16725,7 @@ export type Marginfi = {
       }
     },
     {
-      "name": "lendingPoolBankSetFixedOraclePriceEvent",
+      "name": "lendingPoolBankSetOraclePriceEvent",
       "type": {
         "kind": "struct",
         "fields": [
@@ -18608,6 +18699,33 @@ export type Marginfi = {
           },
           {
             "name": "fixedJuplend"
+          },
+          {
+            "name": "scope"
+          },
+          {
+            "name": "pythMsol"
+          },
+          {
+            "name": "kaminoMsol"
+          },
+          {
+            "name": "juplendMsol"
+          },
+          {
+            "name": "pythLst"
+          },
+          {
+            "name": "kaminoLst"
+          },
+          {
+            "name": "juplendLst"
+          },
+          {
+            "name": "ptPyth"
+          },
+          {
+            "name": "ptFixed"
           }
         ]
       }

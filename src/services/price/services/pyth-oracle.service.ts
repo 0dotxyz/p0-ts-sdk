@@ -2,7 +2,7 @@ import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
 import { OraclePrice, OraclePriceDto } from "../types";
 import {
@@ -45,7 +45,8 @@ export type PythOracleServiceOpts = FetchPythOracleOnChainOpts | FetchPythOracle
  */
 export const fetchPythOracleData = async (
   banks: BankType[],
-  opts: PythOracleServiceOpts
+  opts: PythOracleServiceOpts,
+  priceCoeffByBank: Record<string, number> = {}
 ): Promise<{
   bankOraclePriceMap: Map<string, OraclePrice>;
 }> => {
@@ -57,6 +58,7 @@ export const fetchPythOracleData = async (
     driftPythPullBanks,
     solendPythPullBanks,
     juplendPythPullBanks,
+    pythMultipliedBanks,
   } = categorizePythBanks(banks);
 
   if (
@@ -65,7 +67,8 @@ export const fetchPythOracleData = async (
     !pythPushKaminosBanks.length &&
     !driftPythPullBanks.length &&
     !solendPythPullBanks.length &&
-    !juplendPythPullBanks.length
+    !juplendPythPullBanks.length &&
+    !pythMultipliedBanks.length
   ) {
     // Return empty structures when there are no banks to process
     return {
@@ -83,8 +86,8 @@ export const fetchPythOracleData = async (
     ...driftPythPullBanks,
     ...solendPythPullBanks,
     ...juplendPythPullBanks,
+    ...pythMultipliedBanks,
   ];
-  const priceCoeffByBank: Record<string, number> = {};
   const pythOracleKeys = extractPythOracleKeys(combinedPythBanks);
 
   // Filter for unique oracle keys to avoid duplicate fetches
@@ -105,10 +108,17 @@ export const fetchPythOracleData = async (
   // Step 6: Map banks to oracle prices
   const bankOraclePriceMap = mapPythBanksToOraclePrices(
     combinedPythBanks,
-    pythStakedCollateralBanks,
+    [...pythStakedCollateralBanks, ...pythMultipliedBanks],
     oraclePrices,
     priceCoeffByBank
   );
+
+  // A multiplied bank without a valid exchange rate must not keep the raw base-feed price
+  pythMultipliedBanks.forEach((bank) => {
+    if (!Number.isFinite(priceCoeffByBank[bank.address.toBase58()])) {
+      bankOraclePriceMap.delete(bank.address.toBase58());
+    }
+  });
 
   return {
     bankOraclePriceMap,
@@ -168,7 +178,7 @@ export const fetchPythOraclePricesFromChain = async (
   connection: Connection
 ): Promise<Record<string, OraclePrice>> => {
   const updatedOraclePriceByKey: Record<string, OraclePrice> = {};
-  const oracleAis = await chunkedGetRawMultipleAccountInfoOrdered(
+  const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
     connection,
     requestedPythOracleKeys
   );

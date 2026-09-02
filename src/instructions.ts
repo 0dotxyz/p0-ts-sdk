@@ -1,7 +1,7 @@
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { MarginfiProgram } from "./types";
+import { MarginfiProgram, WrappedI80F48 } from "./types";
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
@@ -764,6 +764,58 @@ async function makeLendingPoolConfigureBankOracleIx(
 }
 
 /**
+ * Configure a bank to use an entry in a Scope OraclePrices account.
+ * @param mfProgram The marginfi program
+ * @param accounts The group, admin, and bank accounts required by the instruction
+ * @param args The Scope OraclePrices account and its entry index
+ */
+async function makeLendingPoolConfigureBankOracleScopeIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    bank: PublicKey;
+    group?: PublicKey;
+    admin?: PublicKey;
+  },
+  args: {
+    oracle: PublicKey;
+    entryIndex: number;
+  }
+) {
+  const { bank, ...optionalAccounts } = accounts;
+
+  return mfProgram.methods
+    .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
+    .accounts({ bank })
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts([{ pubkey: args.oracle, isSigner: false, isWritable: false }])
+    .instruction();
+}
+
+/** Configure a fixed or Exponent PT oracle through the 0.1.11 set-oracle-price instruction. */
+async function makeLendingPoolSetOraclePriceIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    bank: PublicKey;
+    group?: PublicKey;
+    admin?: PublicKey;
+  },
+  args: {
+    price: WrappedI80F48;
+    setup: number;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const { bank, ...optionalAccounts } = accounts;
+
+  return mfProgram.methods
+    .lendingPoolSetOraclePrice(args.price, args.setup)
+    .accounts({ bank })
+    .accountsPartial(optionalAccounts)
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
+/**
  * Creates an instruction to add a permissionless staked bank to a lending pool.
  * @param mfProgram - The marginfi program instance
  * @param accounts - The accounts required for this instruction
@@ -951,6 +1003,8 @@ const instructions = {
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,
   makeLendingPoolConfigureBankOracleIx,
+  makeLendingPoolConfigureBankOracleScopeIx,
+  makeLendingPoolSetOraclePriceIx,
   makePulseHealthIx,
 };
 

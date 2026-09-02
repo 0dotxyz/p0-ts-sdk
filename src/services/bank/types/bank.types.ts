@@ -68,6 +68,16 @@ export enum OracleSetup {
   JuplendPythPull = "JuplendPythPull",
   JuplendSwitchboardPull = "JuplendSwitchboardPull",
   FixedJuplend = "FixedJuplend",
+  Scope = "Scope",
+  PythMSOL = "PythMSOL",
+  KaminoMSOL = "KaminoMSOL",
+  JuplendMSOL = "JuplendMSOL",
+  PythLST = "PythLST",
+  KaminoLST = "KaminoLST",
+  JuplendLST = "JuplendLST",
+  PTPyth = "PTPyth",
+  PTFixed = "PTFixed",
+  Unknown = "Unknown",
 }
 export enum AssetTag {
   DEFAULT = 0,
@@ -130,6 +140,7 @@ export interface BankConfigType {
   oracleMaxAge: number;
   oracleMaxConfidence: number;
   fixedPrice: BigNumber;
+  scopeEntryIndex?: number;
 }
 
 export interface BankType {
