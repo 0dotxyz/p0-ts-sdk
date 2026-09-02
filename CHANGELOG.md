@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0-alpha.5
+
+### Patch Changes
+
+- chore: reflect program msol & lst multiplier
+
 ## 2.8.0-alpha.4
 
 ### Minor Changes
