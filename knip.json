@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["examples/*.ts"],
+  "ignoreDependencies": ["buffer", "@vitest/coverage-v8"],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "duplicates": "warn"
+  }
+}

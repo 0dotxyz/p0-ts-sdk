@@ -27,7 +27,6 @@ coverage/
 *.swo
 *~
 .DS_Store
-AGENTS.md
 
 # Logs
 logs

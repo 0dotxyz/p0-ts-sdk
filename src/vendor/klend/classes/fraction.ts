@@ -91,17 +91,6 @@ export class Fraction {
   }
 }
 
-export const ZERO_FRACTION = new Fraction(new BN(0));
-
-export function bfToDecimal(x: BigFractionBytes): Decimal {
-  const bsf = x.value;
-  const accSf = bsf.reduce(
-    (acc, curr, i) => acc.add(curr.shln(i * 64)),
-    new BN(0)
-  );
-  return new Fraction(accSf).toDecimal();
-}
-
 /**
  * Returns an integer {@link Decimal} nearest to the given one.
  *
