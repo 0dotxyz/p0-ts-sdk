@@ -30,14 +30,7 @@ import {
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
 } from "~/services/account";
-import {
-  BankType,
-  EmodeImpactStatus,
-  EmodePair,
-  ActionEmodeImpact,
-  ActiveEmodePair,
-  fetchBank,
-} from "~/services/bank";
+import { BankType, EmodePair, ActionEmodeImpact, fetchBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
 import {
@@ -45,10 +38,10 @@ import {
   ExtendedV0Transaction,
   ExtendedTransaction,
 } from "~/services/transaction";
-import { Amount, BankIntegrationMetadataMap, MintData } from "~/types";
+import { Amount, MintData } from "~/types";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { KaminoReserve } from "~/vendor/klend";
-import { NATIVE_MINT , TOKEN_PROGRAM_ID } from "~/vendor/spl";
+import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /**
  * Wrapper around MarginfiAccount that auto-injects client data for cleaner API.

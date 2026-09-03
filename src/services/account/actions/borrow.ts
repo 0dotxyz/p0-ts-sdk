@@ -27,7 +27,6 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
 
-
 export async function makeBorrowIx({
   program,
   bank,

@@ -17,11 +17,7 @@ import {
   SECONDS_PER_YEAR,
   DEFAULT_RECENT_SLOT_DURATION_MS,
 } from "../../constants";
-import {
-  KaminoBorrowRateCurvePoint,
-  KaminoInterestRateBasis,
-  KaminoReserve,
-} from "../../types";
+import { KaminoBorrowRateCurvePoint, KaminoInterestRateBasis, KaminoReserve } from "../../types";
 
 // =============================================================================
 // INTERFACES
@@ -123,10 +119,7 @@ export const getKaminoBorrowRate = (
  *   use `getKaminoRateBasis(reserve).periodsPerYear` for basis-aware compounding)
  * @returns Annual Percentage Yield as decimal
  */
-export function calculateAPYFromAPR(
-  apr: number,
-  periodsPerYear: number = SLOTS_PER_YEAR
-): number {
+export function calculateAPYFromAPR(apr: number, periodsPerYear: number = SLOTS_PER_YEAR): number {
   return Math.pow(1 + apr / periodsPerYear, periodsPerYear) - 1;
 }
 
@@ -182,9 +175,7 @@ export function calculateUtilizationRatio(reserve: KaminoReserve): number {
  * field is absent (reserves serialized before it existed).
  * @throws if the on-chain value is not a known basis
  */
-export function getKaminoInterestRateBasis(
-  reserve: KaminoReserve
-): KaminoInterestRateBasis {
+export function getKaminoInterestRateBasis(reserve: KaminoReserve): KaminoInterestRateBasis {
   const basis = reserve.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy;
   switch (basis) {
     case KaminoInterestRateBasis.Legacy:

@@ -19,7 +19,6 @@ import {
   findPoolOnRampAddress,
 } from "~/vendor/single-spl-pool";
 
-
 /**
  * Retrieves all active stake accounts associated with a given public key grouped by validator
  *

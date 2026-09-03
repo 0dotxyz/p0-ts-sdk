@@ -21,8 +21,6 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-
-
 import { makeBorrowIx } from "../actions/borrow";
 import {
   makeDepositIx,
@@ -281,7 +279,7 @@ export function computeFlashLoanNonSwapBudget({
   }).compileToV0Message(addressLookupTableAccounts);
   const nonSwapSize = new VersionedTransaction(nonSwapMsg).serialize().length;
 
-  const { header, staticAccountKeys, addressTableLookups } = nonSwapMsg;
+  const { staticAccountKeys, addressTableLookups } = nonSwapMsg;
   const nonSwapTotal =
     staticAccountKeys.length +
     addressTableLookups.reduce(

@@ -1,5 +1,9 @@
-
-import { Connection, PublicKey, TransactionInstruction , AddressLookupTableAccount } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  TransactionInstruction,
+  AddressLookupTableAccount,
+} from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
@@ -230,7 +234,6 @@ export const getSwapIxsForFlashloan = async (
     destinationTokenAccount,
     swapOpts,
     sizeConstraint,
-    maxSwapTotalAccounts,
   } = params;
 
   // Caller-pinned route override — validated so it can never size a zero follow-up amount.
@@ -311,7 +314,7 @@ export type ExactOutEstimateResult = {
 export const getExactOutEstimate = async (
   params: GetExactOutEstimateParams
 ): Promise<ExactOutEstimateResult> => {
-  const { inputMint, outputMint, amount, swapOpts, connection } = params;
+  const { inputMint, outputMint, amount, swapOpts } = params;
 
   const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
   const attempts: SwapProviderEntry[] = [

@@ -37,7 +37,6 @@ import {
 
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-
 function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
   const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
   const toBN = (value: BigNumber | null) => value && new BN(value.toString());
@@ -121,7 +120,7 @@ function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
 
 function serializeOperationalState(
   operationalState: OperationalState
-): { paused: {} } | { operational: {} } | { reduceOnly: {} } {
+): { paused: Record<string, never> } | { operational: Record<string, never> } | { reduceOnly: Record<string, never> } {
   switch (operationalState) {
     case OperationalState.Paused:
       return { paused: {} };

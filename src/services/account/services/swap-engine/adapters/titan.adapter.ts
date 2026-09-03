@@ -17,8 +17,6 @@ import {
   type SwapQuotes,
 } from "~/vendor/titan";
 
-
-
 /**
  * Quote providers we let Titan route through. We intentionally exclude the
  * `Titan-DART` (RFQ / private-swap) provider — it settles via a separate
@@ -155,9 +153,7 @@ async function buildCandidates(
 }
 
 /** Only attach a platform fee when the referral ATA exists and a fee is requested. */
-async function resolveFee(
-  req: SwapEngineRequest
-): Promise<{ fee?: number; feeAccount?: string }> {
+async function resolveFee(req: SwapEngineRequest): Promise<{ fee?: number; feeAccount?: string }> {
   if (!req.platformFeeBps) return {};
   // ExactIn: fee taken on the output mint.
   const feeMint = new PublicKey(req.outputMint);

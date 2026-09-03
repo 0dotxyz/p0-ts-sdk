@@ -1,4 +1,4 @@
-import { BorshCoder, Idl } from "@coral-xyz/anchor";
+import { BorshCoder } from "@coral-xyz/anchor";
 import * as borsh from "@coral-xyz/borsh";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -14,15 +14,11 @@ import {
   ReserveRaw,
 } from "../../types";
 
-
-
 export const KLEND_ACCOUNT_CODER = new BorshCoder(KLEND_IDL);
 
 const reserveDiscriminator = Buffer.from([43, 242, 204, 202, 26, 247, 59, 127]);
 
-const obligationDiscriminator = Buffer.from([
-  168, 206, 141, 106, 88, 76, 172, 167,
-]);
+const obligationDiscriminator = Buffer.from([168, 206, 141, 106, 88, 76, 172, 167]);
 
 const obligationLayout = borsh.struct<ObligationRaw>([
   borsh.u64("tag"),
@@ -54,10 +50,7 @@ const obligationLayout = borsh.struct<ObligationRaw>([
     borsh.struct([
       borsh.publicKey("borrowReserve"),
       borsh.struct(
-        [
-          borsh.array(borsh.u64(), 4, "value"),
-          borsh.array(borsh.u64(), 2, "padding"),
-        ],
+        [borsh.array(borsh.u64(), 4, "value"), borsh.array(borsh.u64(), 2, "padding")],
         "cumulativeBorrowRateBsf"
       ),
       borsh.u64("padding"),
@@ -131,10 +124,7 @@ const reserveLayout = borsh.struct<ReserveRaw>([
       borsh.u64("depositLimitCrossedTimestamp"),
       borsh.u64("borrowLimitCrossedTimestamp"),
       borsh.struct(
-        [
-          borsh.array(borsh.u64(), 4, "value"),
-          borsh.array(borsh.u64(), 2, "padding"),
-        ],
+        [borsh.array(borsh.u64(), 4, "value"), borsh.array(borsh.u64(), 2, "padding")],
         "cumulativeBorrowRateBsf"
       ),
       borsh.u128("accumulatedProtocolFeesSf"),
@@ -191,10 +181,7 @@ const reserveLayout = borsh.struct<ReserveRaw>([
       borsh.struct(
         [
           borsh.array(
-            borsh.struct([
-              borsh.u32("utilizationRateBps"),
-              borsh.u32("borrowRateBps"),
-            ]),
+            borsh.struct([borsh.u32("utilizationRateBps"), borsh.u32("borrowRateBps")]),
             11,
             "points"
           ),
@@ -207,10 +194,7 @@ const reserveLayout = borsh.struct<ReserveRaw>([
       borsh.struct(
         [
           borsh.array(borsh.u8(), 32, "name"),
-          borsh.struct(
-            [borsh.u64("lower"), borsh.u64("upper"), borsh.u64("exp")],
-            "heuristic"
-          ),
+          borsh.struct([borsh.u64("lower"), borsh.u64("upper"), borsh.u64("exp")], "heuristic"),
           borsh.u64("maxTwapDivergenceBps"),
           borsh.u64("maxAgePriceSeconds"),
           borsh.u64("maxAgeTwapSeconds"),
@@ -223,10 +207,7 @@ const reserveLayout = borsh.struct<ReserveRaw>([
             "scopeConfiguration"
           ),
           borsh.struct(
-            [
-              borsh.publicKey("priceAggregator"),
-              borsh.publicKey("twapAggregator"),
-            ],
+            [borsh.publicKey("priceAggregator"), borsh.publicKey("twapAggregator")],
             "switchboardConfiguration"
           ),
           borsh.struct([borsh.publicKey("price")], "pythConfiguration"),
@@ -260,22 +241,14 @@ const reserveLayout = borsh.struct<ReserveRaw>([
       borsh.u8("autodeleverageEnabled"),
       borsh.array(borsh.u8(), 1, "reserved1"),
       borsh.u64("borrowLimitOutsideElevationGroup"),
-      borsh.array(
-        borsh.u64(),
-        32,
-        "borrowLimitAgainstThisCollateralInElevationGroup"
-      ),
+      borsh.array(borsh.u64(), 32, "borrowLimitAgainstThisCollateralInElevationGroup"),
       borsh.u64("deleveragingBonusIncreaseBpsPerDay"),
     ],
     "config"
   ),
   borsh.array(borsh.u64(), 116, "configPadding"),
   borsh.u64("borrowedAmountOutsideElevationGroup"),
-  borsh.array(
-    borsh.u64(),
-    32,
-    "borrowedAmountsAgainstThisReserveInElevationGroups"
-  ),
+  borsh.array(borsh.u64(), 32, "borrowedAmountsAgainstThisReserveInElevationGroups"),
   borsh.array(borsh.u64(), 207, "padding"),
 ]);
 
@@ -297,9 +270,7 @@ export function decodeKlendObligationData(data: Buffer): ObligationRaw {
   return dec;
 }
 
-export function dtoToKaminoObligation(
-  obligationDto: KaminoObligationJSON
-): KaminoObligation {
+export function dtoToKaminoObligation(obligationDto: KaminoObligationJSON): KaminoObligation {
   return {
     lendingMarket: new PublicKey(obligationDto.lendingMarket),
     owner: new PublicKey(obligationDto.owner),
@@ -327,12 +298,8 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
       mintDecimals: new BN(reserveDto.liquidity.mintDecimals),
       availableAmount: new BN(reserveDto.liquidity.availableAmount),
       borrowedAmountSf: new BN(reserveDto.liquidity.borrowedAmountSf),
-      accumulatedProtocolFeesSf: new BN(
-        reserveDto.liquidity.accumulatedProtocolFeesSf
-      ),
-      accumulatedReferrerFeesSf: new BN(
-        reserveDto.liquidity.accumulatedReferrerFeesSf
-      ),
+      accumulatedProtocolFeesSf: new BN(reserveDto.liquidity.accumulatedProtocolFeesSf),
+      accumulatedReferrerFeesSf: new BN(reserveDto.liquidity.accumulatedReferrerFeesSf),
       pendingReferrerFeesSf: new BN(reserveDto.liquidity.pendingReferrerFeesSf),
     },
     collateral: {
@@ -343,8 +310,7 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
     config: {
       protocolTakeRatePct: reserveDto.config.protocolTakeRatePct,
       hostFixedInterestRateBps: reserveDto.config.hostFixedInterestRateBps,
-      interestRateBasis:
-        reserveDto.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy,
+      interestRateBasis: reserveDto.config.interestRateBasis ?? KaminoInterestRateBasis.Legacy,
       depositLimit: new BN(reserveDto.config.depositLimit),
       borrowLimit: new BN(reserveDto.config.borrowLimit),
       borrowRateCurve: {
@@ -355,9 +321,7 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
       },
       tokenInfo: {
         scopeConfiguration: {
-          priceFeed: new PublicKey(
-            reserveDto.config.tokenInfo.scopeConfiguration.priceFeed
-          ),
+          priceFeed: new PublicKey(reserveDto.config.tokenInfo.scopeConfiguration.priceFeed),
         },
         switchboardConfiguration: {
           priceAggregator: new PublicKey(
@@ -368,9 +332,7 @@ export function dtoToKaminoReserve(reserveDto: KaminoReserveJSON): KaminoReserve
           ),
         },
         pythConfiguration: {
-          price: new PublicKey(
-            reserveDto.config.tokenInfo.pythConfiguration.price
-          ),
+          price: new PublicKey(reserveDto.config.tokenInfo.pythConfiguration.price),
         },
       },
     },

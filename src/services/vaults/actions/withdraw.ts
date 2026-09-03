@@ -30,7 +30,6 @@ import {
   makeGammaWithdrawIx,
 } from "~/vendor/gamma";
 
-
 /**
  * Build the instruction to initiate a withdrawal from a Gamma LP vault. Shares
  * are escrowed and a WithdrawReceipt is created/updated; the assets become

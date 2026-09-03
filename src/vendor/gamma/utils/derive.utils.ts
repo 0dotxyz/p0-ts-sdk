@@ -15,7 +15,6 @@ import {
   TOKEN_PROGRAM_ID,
 } from "~/vendor/spl";
 
-
 /**
  * Derive the WithdrawalPolicy PDA for a vault.
  * Seeds: ["withdrawal_policy", lpVault]

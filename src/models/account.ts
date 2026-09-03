@@ -92,12 +92,9 @@ import {
 } from "~/services/account";
 import {
   BankType,
-  EmodeImpactStatus,
   EmodePair,
   ActionEmodeImpact,
-  ActiveEmodePair,
 } from "~/services/bank";
-import { OraclePrice } from "~/services/price";
 import {
   ExtendedTransaction,
   ExtendedV0Transaction,
@@ -105,7 +102,7 @@ import {
   makeUnwrapSolIx,
   makeWrapSolIxs,
 } from "~/services/transaction";
-import { Amount, MarginfiProgram, MintData } from "~/types";
+import { Amount, MarginfiProgram } from "~/types";
 
 // ----------------------------------------------------------------------------
 // Client types

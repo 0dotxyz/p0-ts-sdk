@@ -12,7 +12,6 @@ import {
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
-
 type ValidatorVoteAccountByBank = {
   [address: string]: string;
 };

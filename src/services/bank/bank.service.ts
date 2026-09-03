@@ -10,18 +10,13 @@ import instructions from "~/instructions";
 import { MarginfiProgram } from "~/types";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-
-
 export async function freezeBankConfigIx(
   program: MarginfiProgram,
   bankAddress: PublicKey,
   bankConfigOpt: BankConfigOpt
 ): Promise<InstructionsWrapper> {
-  let bankConfigRaw: BankConfigOptRaw;
-  if (!bankConfigOpt) {
-    // todo: make bankConfigOpt optional and create function to get bankConfigOptRaw from bank
-  }
-  bankConfigRaw = serializeBankConfigOpt(bankConfigOpt);
+  // todo: make bankConfigOpt optional and create function to get bankConfigOptRaw from bank
+  const bankConfigRaw: BankConfigOptRaw = serializeBankConfigOpt(bankConfigOpt);
 
   const ix = await instructions.makePoolConfigureBankIx(
     program,

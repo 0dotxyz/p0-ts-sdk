@@ -8,7 +8,6 @@ import {
 import { BigNumber } from "bignumber.js";
 import BN from "bn.js";
 
-
 import {
   runSwapEngine,
   swapEngineProvidersFromOpts,
@@ -77,7 +76,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     bankMap,
     depositOpts,
     borrowOpts,
-    bankMetadataMap,
     addressLookupTableAccounts,
     connection,
     oraclePrices,

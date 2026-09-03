@@ -1,6 +1,5 @@
 import { PublicKey, Connection } from "@solana/web3.js";
 
-
 import {
   DriftUser,
   DriftRewards,
@@ -42,7 +41,6 @@ export async function getDriftRewards(
   const userStatesWithRewards = userStates.map((userState) => {
     const spotPositions = userState.driftUser.spotPositions;
     const isUsdc = userState.marketMint.equals(USDC_MINT);
-    const spotPositionsLength = spotPositions.length;
     const rewardIndex = isUsdc ? 1 : 2;
     const rewards: SpotPosition[] = spotPositions
       .slice(rewardIndex)

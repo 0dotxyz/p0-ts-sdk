@@ -1,4 +1,3 @@
-import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, PriceWithConfidence } from "../types";
@@ -6,7 +5,6 @@ import { OraclePrice, PriceWithConfidence } from "../types";
 import { PYTH_PRICE_CONF_INTERVALS, MAX_CONFIDENCE_INTERVAL_RATIO } from "~/constants";
 import { BankType, OracleSetup } from "~/services/bank";
 import { parsePriceInfo } from "~/vendor/pyth_push_oracle";
-
 
 /**
  * Categorizes banks by their oracle setup type into legacy, push, and staked collateral banks

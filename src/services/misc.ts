@@ -210,7 +210,7 @@ export async function chunkedGetRawMultipleAccountInfos(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             contextSlot = Math.max(...batchResults.map((res) => res.result.context.slot));
@@ -274,7 +274,7 @@ export async function chunkedGetRawMultipleAccountInfoOrderedWithNulls(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             const accounts = batchResults.reduce(
@@ -337,7 +337,7 @@ export async function chunkedGetRawMultipleAccountInfoOrdered(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             const accounts = batchResults.reduce(

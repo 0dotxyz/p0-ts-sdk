@@ -52,7 +52,7 @@ Deposit tokens into a bank to earn interest and use as collateral.
 
 ```bash
 # From the examples directory
-ts-node 01-deposit.ts
+npx tsx examples/01-deposit.ts
 
 # Or with tsx (recommended)
 pnpm exec tsx 01-deposit.ts
@@ -70,7 +70,7 @@ pnpm exec tsx 01-deposit.ts
 Borrow tokens against your collateral.
 
 ```bash
-ts-node examples/02-borrow.ts
+npx tsx examples/02-borrow.ts
 ```
 
 **What you'll learn:**
@@ -84,7 +84,7 @@ ts-node examples/02-borrow.ts
 Withdraw your deposited collateral.
 
 ```bash
-ts-node examples/03-withdraw.ts
+npx tsx examples/03-withdraw.ts
 ```
 
 **What you'll learn:**
@@ -98,7 +98,7 @@ ts-node examples/03-withdraw.ts
 Repay borrowed tokens to reduce liabilities.
 
 ```bash
-ts-node examples/04-repay.ts
+npx tsx examples/04-repay.ts
 ```
 
 **What you'll learn:**
@@ -114,7 +114,7 @@ ts-node examples/04-repay.ts
 Fetch and update oracle prices for all banks.
 
 ```bash
-ts-node examples/05-oracle-prices.ts
+npx tsx examples/05-oracle-prices.ts
 ```
 
 **What you'll learn:**
@@ -131,7 +131,7 @@ ts-node examples/05-oracle-prices.ts
 Monitor your account's health and risk metrics.
 
 ```bash
-ts-node examples/06-account-health.ts
+npx tsx examples/06-account-health.ts
 ```
 
 **What you'll learn:**
@@ -147,7 +147,7 @@ ts-node examples/06-account-health.ts
 Calculate borrowing capacity and available collateral.
 
 ```bash
-ts-node examples/07-remaining-collateral.ts
+npx tsx examples/07-remaining-collateral.ts
 ```
 
 **What you'll learn:**
@@ -164,7 +164,7 @@ ts-node examples/07-remaining-collateral.ts
 Filter banks by mint address and asset tag.
 
 ```bash
-ts-node 10-bank-filtering.ts
+npx tsx examples/10-bank-filtering.ts
 ```
 
 **What you'll learn:**
@@ -182,7 +182,7 @@ ts-node 10-bank-filtering.ts
 Repay debt by swapping collateral assets.
 
 ```bash
-ts-node examples/08-repay-with-collateral.ts
+npx tsx examples/08-repay-with-collateral.ts
 ```
 
 **What you'll learn:**
@@ -197,7 +197,7 @@ ts-node examples/08-repay-with-collateral.ts
 Create leveraged positions by looping deposits and borrows.
 
 ```bash
-ts-node examples/09-loop-leverage.ts
+npx tsx examples/09-loop-leverage.ts
 ```
 
 **What you'll learn:**

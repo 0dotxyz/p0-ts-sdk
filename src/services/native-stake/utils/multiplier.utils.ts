@@ -12,7 +12,6 @@ import {
   findPoolMintAddress,
 } from "~/vendor/single-spl-pool";
 
-
 /**
  * Minimal bank shape required to compute staked-bank multipliers.
  * Kept local to avoid a hard dependency on the Bank model.

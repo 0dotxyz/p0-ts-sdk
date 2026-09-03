@@ -81,23 +81,6 @@ export function makeBundleTipIx(
   feePayer: PublicKey,
   bundleTip: number = 100_000
 ): TransactionInstruction {
-  // they have remained constant so function not used (for now)
-  const getTipAccounts = async () => {
-    const response = await fetch("https://mainnet.block-engine.jito.wtf/api/v1/bundles", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getTipAccounts",
-        params: [],
-      }),
-    });
-    return response.json();
-  };
-
   const tipAccounts = [
     "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
     "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",

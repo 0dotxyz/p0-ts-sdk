@@ -11,7 +11,6 @@ import {
   PDA_BANK_FEE_VAULT_AUTH_SEED,
 } from "~/utils";
 
-
 /**
  * Vault PDA Utilities
  * ===================

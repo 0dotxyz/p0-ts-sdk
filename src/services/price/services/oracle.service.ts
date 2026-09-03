@@ -1,7 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-
 import { OraclePrice } from "../types";
 import { getOracleSourceFromOracleSetup } from "../utils";
 

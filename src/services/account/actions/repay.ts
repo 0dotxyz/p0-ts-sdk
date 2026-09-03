@@ -39,6 +39,7 @@ import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { AssetTag } from "~/services/bank";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedTransaction,
@@ -48,11 +49,9 @@ import {
   selectLutsForBanks,
   splitInstructionsToFitTransactions,
   TransactionType,
-  getWritableAccountKeys,
   getTxSize,
   getTotalAccountKeys,
 } from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import syncInstructions from "~/sync-instructions";
 import { nativeToUi, uiToNative } from "~/utils";
 import {

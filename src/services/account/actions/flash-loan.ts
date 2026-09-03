@@ -14,7 +14,6 @@ import {
 import syncInstructions from "~/sync-instructions";
 import { MarginfiProgram } from "~/types";
 
-
 export async function makeBeginFlashLoanIx(
   program: MarginfiProgram,
   marginfiAccountPk: PublicKey,

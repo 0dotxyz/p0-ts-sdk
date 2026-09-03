@@ -1,8 +1,4 @@
-import {
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
@@ -25,7 +21,6 @@ import {
   makeGammaDepositIx,
 } from "~/vendor/gamma";
 import { createAssociatedTokenAccountIdempotentInstruction } from "~/vendor/spl";
-
 
 /**
  * Build the instruction to deposit into a Gamma LP vault. Instant deposit —
@@ -87,11 +82,7 @@ export async function makeVaultDepositIx(
     amountNative
   );
 
-  const instructions: TransactionInstruction[] = [
-    ...wrapIxs,
-    createShareAtaIx,
-    ix,
-  ];
+  const instructions: TransactionInstruction[] = [...wrapIxs, createShareAtaIx, ix];
 
   return { instructions, keys: [] };
 }

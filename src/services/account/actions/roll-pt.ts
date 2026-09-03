@@ -10,8 +10,12 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-
-import { MakeRollPtTxParams, RollQuoteSimResult, RollQuoteSimulator, SwapQuoteResult } from "../types";
+import {
+  MakeRollPtTxParams,
+  RollQuoteSimResult,
+  RollQuoteSimulator,
+  SwapQuoteResult,
+} from "../types";
 import {
   isWholePosition,
   computeFlashLoanNonSwapBudget,
@@ -201,7 +205,6 @@ async function buildRollPtFlashloanTx({
   params,
   merge,
   clmm,
-  setupIxs,
   blockhash,
 }: {
   params: MakeRollPtTxParams;
@@ -222,8 +225,12 @@ async function buildRollPtFlashloanTx({
     overrideInferAccounts,
     rollOpts,
   } = params;
-  const { withdrawBank, tokenProgram: withdrawTokenProgram, totalPositionAmount, withdrawAmount } =
-    withdrawOpts;
+  const {
+    withdrawBank,
+    tokenProgram: withdrawTokenProgram,
+    totalPositionAmount,
+    withdrawAmount,
+  } = withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
   const authority = marginfiAccount.authority;
   const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(connection);
@@ -284,7 +291,9 @@ async function buildRollPtFlashloanTx({
   if (rollOpts.lookupTable) {
     const fetched = (await connection.getAddressLookupTable(rollOpts.lookupTable)).value;
     if (!fetched) {
-      throw new Error(`roll-pt: PT-roll lookup table not found: ${rollOpts.lookupTable.toBase58()}`);
+      throw new Error(
+        `roll-pt: PT-roll lookup table not found: ${rollOpts.lookupTable.toBase58()}`
+      );
     }
     luts = [fetched, merge.addressLookupTable, clmm.addressLookupTable];
   } else {
@@ -480,8 +489,8 @@ async function quoteClmmTradeOut({
     );
   }
   const parsed = await connection.getParsedAccountInfo(funded.address);
-  const info = (parsed.value?.data as { parsed?: { info?: { owner?: string } } } | undefined)?.parsed
-    ?.info;
+  const info = (parsed.value?.data as { parsed?: { info?: { owner?: string } } } | undefined)
+    ?.parsed?.info;
   if (!info?.owner) throw new Error("roll-pt: could not resolve the quote SY holder's owner");
   const trader = new PublicKey(info.owner);
   const ptTokenProgram = clmm.pt.tokenProgram ?? TOKEN_PROGRAM_ID;
@@ -510,7 +519,12 @@ async function quoteClmmTradeOut({
 
   if (process.env.ROLL_DEBUG) {
     // eslint-disable-next-line no-console
-    console.error("[roll trade quote] err:", JSON.stringify(sim.err), "returnData?", !!sim.returnData);
+    console.error(
+      "[roll trade quote] err:",
+      JSON.stringify(sim.err),
+      "returnData?",
+      !!sim.returnData
+    );
   }
 
   // The PT actually credited to the trader IS the quote — transport-independent ground
@@ -522,7 +536,10 @@ async function quoteClmmTradeOut({
   // return blob instead.
   const rd = sim.returnData;
   if (rd?.data && rd.programId === EXPONENT_CLMM_PROGRAM_ID.toBase58()) {
-    const out = readTradePtOut(Buffer.from(rd.data[0], rd.data[1] as BufferEncoding), amountInSyNative);
+    const out = readTradePtOut(
+      Buffer.from(rd.data[0], rd.data[1] as BufferEncoding),
+      amountInSyNative
+    );
     if (out !== null && out > 0n) return out;
   }
 

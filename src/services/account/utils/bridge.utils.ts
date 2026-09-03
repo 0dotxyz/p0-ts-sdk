@@ -4,7 +4,6 @@ import { MarginfiAccountType } from "../types";
 
 import { BankType, isStandardBorrowable, isStandardDepositable } from "~/services/bank";
 
-
 /**
  * Bridge-token candidate filtering for bridged (double-hop) swaps.
  *

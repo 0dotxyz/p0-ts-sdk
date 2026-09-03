@@ -8,7 +8,6 @@ import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
-
 type FetchScopeOracleOnChainOpts = {
   mode: "on-chain";
   connection: Connection;

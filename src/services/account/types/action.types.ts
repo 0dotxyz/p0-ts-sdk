@@ -20,8 +20,6 @@ import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { KaminoReserve } from "~/vendor/klend";
 
-
-
 export enum SwapProvider {
   JUPITER = "JUPITER",
   TITAN = "TITAN",

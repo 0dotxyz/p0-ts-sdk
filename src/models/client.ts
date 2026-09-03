@@ -2,14 +2,14 @@ import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
+import { AssetTag } from "../services";
 
+import { MarginfiAccount } from "./account";
+import { MarginfiAccountWrapper } from "./account-wrapper";
 import { Balance } from "./balance";
 import { Bank } from "./bank";
 import { MarginfiGroup } from "./group";
-import { MarginfiAccount } from "./account";
-import { MarginfiAccountWrapper } from "./account-wrapper";
 
-import { AssetTag } from "../services";
 
 import {
   ADDRESS_LOOKUP_TABLE_FOR_GROUP,
@@ -334,7 +334,7 @@ export class Project0Client {
     const bankMap = new Map(banksArray.map((b) => [b.address.toBase58(), b]));
 
     // fetch oracle prices
-    const { bankOraclePriceMap, mintOraclePriceMap } = await fetchOracleData(banksArray, {
+    const { bankOraclePriceMap } = await fetchOracleData(banksArray, {
       pythOpts: {
         mode: "on-chain",
         connection,
@@ -372,13 +372,9 @@ export class Project0Client {
     });
 
     // fetch address lookup tables (general + native-stake sets)
-    const fetchLuts = async (
-      keys?: PublicKey[]
-    ): Promise<AddressLookupTableAccount[]> => {
+    const fetchLuts = async (keys?: PublicKey[]): Promise<AddressLookupTableAccount[]> => {
       if (!keys || keys.length === 0) return [];
-      return (
-        await Promise.all(keys.map((lut) => connection.getAddressLookupTable(lut)))
-      )
+      return (await Promise.all(keys.map((lut) => connection.getAddressLookupTable(lut))))
         .map((response) => response?.value ?? null)
         .filter((table): table is AddressLookupTableAccount => table !== null);
     };
@@ -402,7 +398,7 @@ export class Project0Client {
     const assetShareMultiplierByBank = new Map<string, BigNumber>();
     banksArray.forEach((bank) => {
       switch (bank.config.assetTag) {
-        case AssetTag.KAMINO:
+        case AssetTag.KAMINO: {
           const reserve = bankIntegrationMap[bank.address.toBase58()]?.kaminoStates?.reserveState;
           if (!reserve) {
             console.error(`No Kamino reserve found for bank ${bank.address.toBase58()}`);
@@ -414,8 +410,9 @@ export class Project0Client {
             getKaminoCTokenMultiplier(reserve)
           );
           break;
+        }
 
-        case AssetTag.DRIFT:
+        case AssetTag.DRIFT: {
           const spotMarket =
             bankIntegrationMap[bank.address.toBase58()]?.driftStates?.spotMarketState;
           if (!spotMarket) {
@@ -428,8 +425,9 @@ export class Project0Client {
             getDriftCTokenMultiplier(spotMarket)
           );
           break;
+        }
 
-        case AssetTag.JUPLEND:
+        case AssetTag.JUPLEND: {
           const jupLendStates = bankIntegrationMap[bank.address.toBase58()]?.jupLendStates;
           if (!jupLendStates) {
             console.error(`No JupLend state found for bank ${bank.address.toBase58()}`);
@@ -447,6 +445,7 @@ export class Project0Client {
             )
           );
           break;
+        }
 
         case AssetTag.SOLEND:
           // SOLEND integration not yet implemented, use default multiplier

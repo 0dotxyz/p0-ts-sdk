@@ -1,7 +1,6 @@
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
-  Connection,
   PublicKey,
   SystemProgram,
   TransactionInstruction,
@@ -12,7 +11,6 @@ import BigNumber from "bignumber.js";
 
 import { makePulseHealthIx } from "../actions";
 import {
-  BalanceType,
   HealthCacheSimulationError,
   HealthCacheStatus,
   MarginfiAccountRaw,
@@ -26,7 +24,7 @@ import {
 } from "../utils";
 
 import { ZERO_ORACLE_KEY } from "~/constants";
-import { AssetTag, BankType, OracleSetup } from "~/services/bank";
+import { AssetTag, BankType } from "~/services/bank";
 import {
   getOracleSourceFromOracleSetup,
   makeCrankSwbFeedIx,
@@ -44,7 +42,6 @@ import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
 import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
 import klendInstructions from "~/vendor/klend/instructions";
-
 
 /**
  * Configuration for simulating account health cache with fallback
@@ -508,7 +505,7 @@ export async function getHealthSimulationTransactions({
     }
 
     switch (bank.config.assetTag) {
-      case AssetTag.KAMINO:
+      case AssetTag.KAMINO: {
         if (!bankMetadata.kaminoStates || !bank.kaminoIntegrationAccounts) {
           console.error(
             `Bank ${bankPk.toBase58()} is missing kamino states or integration accounts`
@@ -523,7 +520,8 @@ export async function getHealthSimulationTransactions({
           lendingMarket,
         });
         break;
-      case AssetTag.DRIFT:
+      }
+      case AssetTag.DRIFT: {
         if (!bankMetadata?.driftStates) {
           console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
           return;
@@ -532,6 +530,7 @@ export async function getHealthSimulationTransactions({
         updateDriftMarketData.push(driftMarket);
 
         break;
+      }
 
       case AssetTag.SOLEND:
         break;

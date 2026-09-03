@@ -15,7 +15,6 @@ import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { shortenAddress } from "~/utils";
 
-
 /**
  * Health & Free Collateral Calculations
  * =====================================

@@ -21,7 +21,6 @@ import {
   dtoToDriftRewardsRaw,
 } from "~/vendor/drift";
 
-
 export interface DriftMetadata {
   driftStates: {
     spotMarketState: DriftSpotMarket;

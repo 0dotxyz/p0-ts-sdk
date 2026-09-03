@@ -1,12 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import {
-  HistoricalOracleData,
-  HistoricalIndexData,
-  PoolBalance,
-  InsuranceFund,
-} from "../internal";
+import { HistoricalOracleData, HistoricalIndexData, PoolBalance, InsuranceFund } from "../internal";
 
 export interface DriftSpotMarketRaw {
   pubkey: PublicKey;

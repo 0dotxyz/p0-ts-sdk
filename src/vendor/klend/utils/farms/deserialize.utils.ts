@@ -12,35 +12,19 @@ const farmLayout = struct<FarmStateRaw>([
   publicKey("farmAdmin"),
   publicKey("globalConfig"),
   struct(
-    [
-      publicKey("mint"),
-      u64("decimals"),
-      publicKey("tokenProgram"),
-      array(u64(), 6, "padding"),
-    ],
+    [publicKey("mint"), u64("decimals"), publicKey("tokenProgram"), array(u64(), 6, "padding")],
     "token"
   ),
   array(
     struct([
       struct(
-        [
-          publicKey("mint"),
-          u64("decimals"),
-          publicKey("tokenProgram"),
-          array(u64(), 6, "padding"),
-        ],
+        [publicKey("mint"), u64("decimals"), publicKey("tokenProgram"), array(u64(), 6, "padding")],
         "token"
       ),
       publicKey("rewardsVault"),
       u64("rewardsAvailable"),
       struct(
-        [
-          array(
-            struct([u64("tsStart"), u64("rewardPerTimeUnit")]),
-            20,
-            "points"
-          ),
-        ],
+        [array(struct([u64("tsStart"), u64("rewardPerTimeUnit")]), 20, "points")],
         "rewardScheduleCurve"
       ),
       u64("minClaimDurationSeconds"),

@@ -15,7 +15,6 @@ import { MarginfiProgram } from "~/types";
 import { composeRemainingAccounts } from "~/utils";
 import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
 
-
 /**
  * Transaction Projection & Health Check Utilities
  * ===============================================

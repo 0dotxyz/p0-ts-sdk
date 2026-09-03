@@ -110,9 +110,7 @@ export function deserializeLut(s: SerializedLut): AddressLookupTableAccount {
 
 // --- request ---
 
-export function serializeSwapEngineRequest(
-  req: SwapEngineRequest
-): SerializedSwapEngineRequest {
+export function serializeSwapEngineRequest(req: SwapEngineRequest): SerializedSwapEngineRequest {
   return {
     inputMint: req.inputMint,
     outputMint: req.outputMint,

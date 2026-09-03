@@ -100,8 +100,3 @@ export class Fraction {
 function roundNearest(decimal: Decimal): Decimal {
   return decimal.toDecimalPlaces(0, Decimal.ROUND_HALF_CEIL);
 }
-
-interface BigFractionBytes {
-  value: Array<BN>;
-  padding: Array<BN>;
-}

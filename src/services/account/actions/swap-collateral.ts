@@ -7,7 +7,6 @@ import {
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
-
 import {
   runSwapEngine,
   swapEngineProvidersFromOpts,
@@ -51,7 +50,6 @@ import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/servi
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
-  getWritableAccountKeys,
   getTxSize,
   getTotalAccountKeys,
   InstructionsWrapper,
@@ -104,7 +102,6 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
     crossbarUrl,
-    additionalIxs = [],
   } = params;
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
@@ -257,7 +254,6 @@ async function buildSwapCollateralFlashloanTx({
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
   ];
 
-  let amountToDeposit: number;
   let swapInstructions: TransactionInstruction[] = [];
   let setupInstructions: TransactionInstruction[] = [];
   let swapLookupTables: AddressLookupTableAccount[] = [];
@@ -401,7 +397,7 @@ async function buildSwapCollateralFlashloanTx({
   // (its byte/account footprint is amount-independent) and byte-patched to the real swap
   // output after the engine runs. Same-mint deposits the exact withdrawn amount.
   const swapNeeded = !depositBank.mint.equals(withdrawBank.mint);
-  amountToDeposit = swapNeeded ? 0 : actualWithdrawAmount;
+  const amountToDeposit = swapNeeded ? 0 : actualWithdrawAmount;
 
   // Build deposit instruction
   let depositIxs: InstructionsWrapper;

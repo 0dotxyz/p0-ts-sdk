@@ -29,7 +29,6 @@ import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./u
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-
 // Hardcoded addresses from Marginfi IDL
 const KAMINO_PROGRAM_ID = new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
 const FARMS_PROGRAM_ID = new PublicKey("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
@@ -796,7 +795,7 @@ function makePoolConfigureBankIx(
     admin: PublicKey; // signer, relations: ["group"] - caller must provide
     bank: PublicKey;
   },
-  args: {
+  _args: {
     bankConfigOpt: any; // Complex type - caller must handle serialization
   }
 ): TransactionInstruction {
@@ -899,7 +898,7 @@ function makePoolAddBankIx(
     feeVault: PublicKey; // PDA - caller must derive
     tokenProgram: PublicKey;
   },
-  args: {
+  _args: {
     bankConfig: any; // Complex BankConfigCompactRaw type
   }
 ): TransactionInstruction {

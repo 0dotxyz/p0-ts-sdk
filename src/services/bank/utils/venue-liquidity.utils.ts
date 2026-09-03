@@ -8,7 +8,6 @@ import { JupTokenReserve } from "~/vendor/jup-lend";
 import { JUP_EXCHANGE_PRICES_PRECISION } from "~/vendor/jup-lend/utils/interest-rate.utils";
 import { KaminoReserve } from "~/vendor/klend";
 
-
 /**
  * The venue-side account states needed to derive an integrated bank's true liquidity.
  *

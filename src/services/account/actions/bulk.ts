@@ -30,7 +30,6 @@ import {
 } from "~/services/transaction";
 import { NATIVE_MINT } from "~/vendor/spl";
 
-
 /** Safety margin (bytes) below the hard cap, reserving room for the send
  *  pipeline's compute-budget / priority-fee instructions. */
 const BULK_TX_SIZE_MARGIN = 128;

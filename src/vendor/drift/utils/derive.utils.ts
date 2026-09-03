@@ -19,22 +19,12 @@ export function getAllDerivedDriftAccounts(marketIndex: number) {
   };
 }
 
-export function deriveDriftState(
-  programId: PublicKey = DRIFT_PROGRAM_ID
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from(SEED_DRIFT_STATE)],
-    programId
-  );
+export function deriveDriftState(programId: PublicKey = DRIFT_PROGRAM_ID): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync([Buffer.from(SEED_DRIFT_STATE)], programId);
 }
 
-export function deriveDriftSigner(
-  programId: PublicKey = DRIFT_PROGRAM_ID
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from(SEED_DRIFT_SIGNER)],
-    programId
-  );
+export function deriveDriftSigner(programId: PublicKey = DRIFT_PROGRAM_ID): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync([Buffer.from(SEED_DRIFT_SIGNER)], programId);
 }
 
 export function deriveDriftUser(
@@ -67,10 +57,7 @@ export function deriveDriftSpotMarket(
   programId: PublicKey = DRIFT_PROGRAM_ID
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from(SEED_SPOT_MARKET),
-      new BN(marketIndex).toArrayLike(Buffer, "le", 2),
-    ],
+    [Buffer.from(SEED_SPOT_MARKET), new BN(marketIndex).toArrayLike(Buffer, "le", 2)],
     programId
   );
 }
@@ -80,10 +67,7 @@ export function deriveDriftSpotMarketVault(
   programId: PublicKey = DRIFT_PROGRAM_ID
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from(SEED_SPOT_MARKET_VAULT),
-      new BN(marketIndex).toArrayLike(Buffer, "le", 2),
-    ],
+    [Buffer.from(SEED_SPOT_MARKET_VAULT), new BN(marketIndex).toArrayLike(Buffer, "le", 2)],
     programId
   );
 }

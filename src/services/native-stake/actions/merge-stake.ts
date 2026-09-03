@@ -8,7 +8,6 @@ import {
   TransactionType,
 } from "~/services/transaction";
 
-
 /**
  * Creates a versioned transaction to merge two stake accounts.
  *

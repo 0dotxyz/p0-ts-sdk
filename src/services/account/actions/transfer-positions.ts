@@ -8,7 +8,6 @@ import {
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
-
 import {
   MakeTransferPositionsTxParams,
   TransferPositionSide,
@@ -21,19 +20,13 @@ import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
+import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
-import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
-import {
-  AssetTag,
-  BankType,
-  RiskTier,
-  requireBank,
-  requireTokenProgram,
-} from "~/services/bank";
+import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import {
   makeSmartCrankSwbFeedIxForAccounts,
   makeRefreshKaminoBanksIxs,
@@ -79,9 +72,7 @@ export interface ClassifiedPosition {
 const invalidSelection =
   (address: PublicKey) =>
   (message: string): Error =>
-    TransactionBuildingError.transferPositionsInvalidSelection(message, [
-      address.toBase58(),
-    ]);
+    TransactionBuildingError.transferPositionsInvalidSelection(message, [address.toBase58()]);
 
 /**
  * Validate the selection, infer each position's side, and resolve its UI amount. Correctness of the
@@ -115,7 +106,11 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
 
   for (const bankAddress of bankAddresses) {
     const bank = requireBank(bankMap, bankAddress, invalidSelection(bankAddress));
-    const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress, invalidSelection(bankAddress));
+    const tokenProgram = requireTokenProgram(
+      tokenProgramsByBank,
+      bankAddress,
+      invalidSelection(bankAddress)
+    );
 
     const balance = activeBalancesA.find((b) => b.bankPk.equals(bankAddress));
     if (!balance) {

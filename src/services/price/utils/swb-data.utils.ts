@@ -9,8 +9,6 @@ import { MAX_CONFIDENCE_INTERVAL_RATIO, SWB_PRICE_CONF_INTERVALS } from "~/const
 import { BankType } from "~/services/bank";
 import { FeedResponse, SWITCHBOARD_ONDEMANDE_PRICE_PRECISION } from "~/vendor/switchboard_pull";
 
-
-
 /**
  * Maps Switchboard banks to their corresponding oracle prices using feed data and crossbar responses
  * @param banks - Array of bank objects

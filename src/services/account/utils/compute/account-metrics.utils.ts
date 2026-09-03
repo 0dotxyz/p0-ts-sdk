@@ -15,7 +15,6 @@ import {
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { aprToApy, shortenAddress } from "~/utils";
 
-
 /**
  * Account-Level Metrics
  * ====================

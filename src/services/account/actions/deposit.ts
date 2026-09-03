@@ -44,8 +44,6 @@ import {
 } from "~/vendor/klend";
 import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
 
-
-
 /**
  * Creates a Drift deposit instruction for depositing assets into a Drift spot market.
  *
@@ -618,7 +616,6 @@ export async function makeJuplendDepositIx({
   accountAddress,
   authority,
   group,
-  isSync,
   opts = {
     wrapAndUnwrapSol: true,
     wSolBalanceUi: 0,

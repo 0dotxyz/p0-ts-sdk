@@ -1,7 +1,6 @@
 import { PublicKey, TransactionInstruction, Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-
 import { OraclePrice } from "../types";
 
 import {
@@ -19,7 +18,7 @@ import {
   computeLowestEmodeWeights,
   getEmodePairs,
 } from "~/services/account/utils";
-import { BankType, OracleSetup } from "~/services/bank";
+import { BankType } from "~/services/bank";
 import { MarginfiProgram } from "~/types";
 
 /**

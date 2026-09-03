@@ -1,8 +1,4 @@
-import {
-  AddressLookupTableAccount,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
@@ -11,7 +7,6 @@ import { ADDRESS_LOOKUP_TABLE_FOR_SWAP, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { SwapApiConfig, SwapProvider, SwapQuoteResult } from "~/services/account/types";
 import { checkJupiterFeeAccount, toJupiterConfig } from "~/services/account/utils/jupiter.utils";
 import { createJupiterClient, type BuildResponse, type Instruction } from "~/vendor/jupiter";
-
 
 // Even when an account count fits MAX_ACCOUNT_LOCKS, Jupiter routes that use all
 // remaining slots tend to produce swap IXs large enough to blow the byte limit.

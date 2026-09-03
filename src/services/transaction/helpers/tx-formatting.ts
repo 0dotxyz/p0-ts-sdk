@@ -8,7 +8,6 @@ import {
   Blockhash,
 } from "@solana/web3.js";
 
-
 import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
 
 import { decodeInstruction, decompileV0Transaction } from "./decode";

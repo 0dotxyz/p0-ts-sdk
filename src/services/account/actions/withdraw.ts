@@ -43,7 +43,6 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
 
-
 export async function makeDriftWithdrawIx({
   program,
   bank,
@@ -830,12 +829,9 @@ export async function makeJuplendWithdrawIx({
   const {
     fTokenMint,
     lendingAdmin,
-    supplyTokenReservesLiquidity,
-    lendingSupplyPositionOnLiquidity,
     rateModel,
     vault,
     liquidity,
-    rewardsRateModel,
   } = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
 
   if (opts.observationBanksOverride) {

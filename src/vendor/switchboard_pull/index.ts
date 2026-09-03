@@ -55,9 +55,6 @@ export function getSwitchboardProgram(provider: Provider): Program {
 }
 
 export function decodeSwitchboardPullFeedData(data: Buffer): PullFeedAccountData {
-  const pullFeedDAta = switchboardAccountCoder.accounts.decode(
-    "PullFeedAccountData",
-    data
-  );
+  const pullFeedDAta = switchboardAccountCoder.accounts.decode("PullFeedAccountData", data);
   return pullFeedDAta;
 }

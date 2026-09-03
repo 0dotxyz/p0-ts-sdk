@@ -10,7 +10,6 @@ import { BankType } from "~/services/bank";
 import { SolanaTransaction } from "~/services/transaction";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-
 /**
  * Shared support for the bridged (double-hop) one-call builders.
  *

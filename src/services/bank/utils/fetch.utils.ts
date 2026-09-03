@@ -5,7 +5,6 @@ import { BankRaw } from "../types";
 
 import { MarginfiProgram } from "~/types";
 
-
 export const fetchBank = async (
   program: MarginfiProgram,
   bankAddress: Address

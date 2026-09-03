@@ -46,11 +46,6 @@ import { EmodeSettings } from "./emode-settings";
 
 import { MarginfiIdlType } from "~/idl";
 import { MarginfiProgram } from "~/types";
-import { nativeToUi } from "~/utils";
-
-
-const SECONDS_PER_DAY = 24 * 60 * 60;
-const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365.25;
 
 interface BankMetadata {
   tokenAddress: string;

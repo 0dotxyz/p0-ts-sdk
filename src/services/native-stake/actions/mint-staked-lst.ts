@@ -1,15 +1,12 @@
 import {
-  Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
-  Signer,
   StakeAuthorizationLayout,
   StakeProgram,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
-  AddressLookupTableAccount,
 } from "@solana/web3.js";
 
 import type { MakeMintStakedLstIxParams, MakeMintStakedLstTxParams } from "../types";
@@ -23,7 +20,6 @@ import {
 import {
   SinglePoolInstruction,
   findPoolAddress,
-  findPoolStakeAddress,
   findPoolMintAddress,
   findPoolStakeAuthorityAddress,
 } from "~/vendor/single-spl-pool";
@@ -31,7 +27,6 @@ import {
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountInstruction,
 } from "~/vendor/spl";
-
 
 const SYSVAR_CLOCK_ID = new PublicKey("SysvarC1ock11111111111111111111111111111111");
 

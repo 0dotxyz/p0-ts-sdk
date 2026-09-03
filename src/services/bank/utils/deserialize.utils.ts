@@ -47,7 +47,6 @@ import { MarginfiIdlType } from "~/idl";
 import { AccountType } from "~/types";
 import { wrappedI80F48toBigNumber } from "~/utils";
 
-
 /*
  * Bank deserialization
  */

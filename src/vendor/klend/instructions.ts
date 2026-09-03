@@ -1,10 +1,6 @@
 import { Address, Program } from "@coral-xyz/anchor";
 import { bool, struct } from "@coral-xyz/borsh";
-import {
-  AccountMeta,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { KLEND_PROGRAM_ID } from "./constants";
 import { KlendIdlType } from "./idl";
@@ -27,12 +23,8 @@ type MakeRefreshReserveIxParams = {
   scopePrices: PublicKey | null;
 };
 
-const DEFAULT_PUBLIC_KEY: PublicKey = new PublicKey(
-  "11111111111111111111111111111111"
-);
-const NULL_PUBKEY: PublicKey = new PublicKey(
-  "nu11111111111111111111111111111111111111111"
-);
+const DEFAULT_PUBLIC_KEY: PublicKey = new PublicKey("11111111111111111111111111111111");
+const NULL_PUBKEY: PublicKey = new PublicKey("nu11111111111111111111111111111111111111111");
 
 function isNotNullPubkey(pubkey: PublicKey | null): boolean {
   if (!pubkey) {
@@ -83,9 +75,7 @@ const makeRefreshReserveIx = ({
  * BONK at index 0, pass [USDC, SOL, BONK] reserves
  * @returns
  */
-export const REFRESH_OBLIGATION_DISCRIMINATOR = Buffer.from([
-  33, 132, 147, 228, 151, 192, 72, 89,
-]);
+export const REFRESH_OBLIGATION_DISCRIMINATOR = Buffer.from([33, 132, 147, 228, 151, 192, 72, 89]);
 
 export interface RefreshObligationAccounts {
   lendingMarket: Address;
@@ -119,17 +109,13 @@ export const makeRefreshObligationIx = (
   });
 };
 
-const REFRESH_BATCH_DISCRIMINATOR = Buffer.from([
-  144, 110, 26, 103, 162, 204, 252, 147,
-]);
+const REFRESH_BATCH_DISCRIMINATOR = Buffer.from([144, 110, 26, 103, 162, 204, 252, 147]);
 
 interface RefreshReservesBatchArgs {
   skipPriceUpdates: boolean;
 }
 
-export const layout = struct<RefreshReservesBatchArgs>([
-  bool("skipPriceUpdates"),
-]);
+export const layout = struct<RefreshReservesBatchArgs>([bool("skipPriceUpdates")]);
 
 type ReserveRemainingAccounts = {
   reserve: PublicKey;
@@ -161,10 +147,7 @@ export function makeRefreshReservesBatchIx(
     },
     buffer
   );
-  const data = Buffer.concat([REFRESH_BATCH_DISCRIMINATOR, buffer]).slice(
-    0,
-    8 + len
-  );
+  const data = Buffer.concat([REFRESH_BATCH_DISCRIMINATOR, buffer]).slice(0, 8 + len);
   const ix = new TransactionInstruction({
     programId,
     keys,

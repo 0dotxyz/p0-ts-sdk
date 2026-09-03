@@ -12,7 +12,6 @@ import {
 import { OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
 
-
 /**
  * Balance Value & Quantity Calculations
  * =====================================
@@ -59,9 +58,7 @@ export interface ComputeBalanceUsdValueParams {
  * console.log(`Assets: $${assets.toFormat(2)}, Liabilities: $${liabilities.toFormat(2)}`);
  * ```
  */
-export function computeBalanceUsdValue(
-  params: ComputeBalanceUsdValueParams
-): {
+export function computeBalanceUsdValue(params: ComputeBalanceUsdValueParams): {
   assets: BigNumber;
   liabilities: BigNumber;
 } {
@@ -139,9 +136,7 @@ export interface GetBalanceUsdValueWithPriceBiasParams {
  * const healthFactor = assets.div(liabilities);
  * ```
  */
-export function getBalanceUsdValueWithPriceBias(
-  params: GetBalanceUsdValueWithPriceBiasParams
-): {
+export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPriceBiasParams): {
   assets: BigNumber;
   liabilities: BigNumber;
 } {

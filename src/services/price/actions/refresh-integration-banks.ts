@@ -9,7 +9,6 @@ import { BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
 import type { BankIntegrationMetadataMap } from "~/types";
 
-
 /**
  * Groups the per-integration refresh/update instructions (Kamino reserve refresh,
  * Drift spot market update, JupLend rate update) into a single wrapper.

@@ -28,7 +28,6 @@ import {
 } from "~/vendor/jup-lend";
 import { MintLayout } from "~/vendor/spl";
 
-
 export interface JupLendMetadata {
   jupLendStates: {
     jupLendingState: JupLendingState;

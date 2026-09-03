@@ -42,7 +42,6 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
 
-
 /**
  * Creates an instruction to close a Marginfi account.
  *

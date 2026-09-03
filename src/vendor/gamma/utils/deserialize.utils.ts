@@ -10,7 +10,7 @@ const GAMMA_ACCOUNTS_CODER = new BorshAccountsCoder(GAMMA_VAULT_IDL);
 const lpVaultDiscriminator = Buffer.from([189, 45, 167, 23, 91, 118, 105, 190]);
 const withdrawReceiptDiscriminator = Buffer.from([132, 238, 44, 182, 207, 9, 124, 140]);
 
-const toBN = (v: unknown): BN => (BN.isBN(v) ? (v) : new BN((v ?? 0).toString()));
+const toBN = (v: unknown): BN => (BN.isBN(v) ? v : new BN((v ?? 0).toString()));
 
 /** Decode a Gamma `LpVault` account from raw buffer data. */
 export function decodeGammaLpVaultData(data: Buffer, pubkey: PublicKey): GammaLpVaultRaw {

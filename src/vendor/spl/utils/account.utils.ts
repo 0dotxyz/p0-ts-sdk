@@ -15,7 +15,6 @@ import { Account, AccountState, RawAccount } from "../types";
 
 import { MULTISIG_SIZE } from "./multisig.utils";
 
-
 export enum SplAccountType {
   Uninitialized,
   Mint,
@@ -82,7 +81,6 @@ export async function getMultipleAccounts(
 ): Promise<Account[]> {
   const infos = await connection.getMultipleAccountsInfo(addresses, commitment);
   return addresses.map((address, i) =>
-    //@ts-ignore
     unpackAccount(address, infos[i], programId)
   );
 }

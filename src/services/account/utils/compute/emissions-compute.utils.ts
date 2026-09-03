@@ -1,6 +1,5 @@
 import BigNumber from "bignumber.js";
 
-
 import { BalanceType } from "../../types";
 
 import { computeQuantity } from "./balance-value-compute.utils";

@@ -32,8 +32,6 @@ import {
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 
-
-
 /**
  * Configuration for computing maximum borrow amount for a bank
  */

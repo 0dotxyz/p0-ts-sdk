@@ -6,12 +6,7 @@ import configs from "./configs.json";
 import type { Environment, Project0Config } from "./types";
 
 const Project0ConfigRaw = object({
-  label: enums([
-    "production",
-    "staging",
-    "staging-mainnet-clone",
-    "staging-alt",
-  ]),
+  label: enums(["production", "staging", "staging-mainnet-clone", "staging-alt"]),
   program: string(),
   group: string(),
 });

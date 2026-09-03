@@ -35,7 +35,7 @@ export function exponentNumberToBigNumber(raw: unknown): BigNumber {
   let value = new BigNumber(0);
   const TWO_64 = new BigNumber(2).pow(64);
   words.forEach((w, i) => {
-    const word = new BigNumber(BN.isBN(w) ? (w).toString() : String(w));
+    const word = new BigNumber(BN.isBN(w) ? w.toString() : String(w));
     value = value.plus(word.times(TWO_64.pow(i)));
   });
   return value.div(EXPONENT_NUMBER_DENOM);
@@ -49,7 +49,7 @@ function pk(v: unknown): PublicKey {
 export function decodeExponentVault(data: Buffer): ExponentVault {
   const d = EXPONENT_ACCOUNTS_CODER.decode("Vault", data);
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
-  const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? (v).toString() : String(v ?? 0));
+  const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? v.toString() : String(v ?? 0));
 
   const cpi = (get("cpi_accounts", "cpiAccounts") ?? {}) as Record<string, unknown>;
 

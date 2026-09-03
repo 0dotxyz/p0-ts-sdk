@@ -5,7 +5,6 @@ import { titanAdapter } from "./titan.adapter";
 
 import { SwapProvider } from "~/services/account/types";
 
-
 /**
  * Registry of swap providers. To add a provider: implement a `SwapAdapter` and
  * add one entry here — the engine picks it up automatically for any request that

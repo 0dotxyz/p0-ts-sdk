@@ -1,8 +1,6 @@
 import { Buffer } from "buffer";
 
-import { AccountMeta, PublicKey, TransactionInstruction , SystemProgram } from "@solana/web3.js";
-
-
+import { AccountMeta, PublicKey, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 
 import { EXPONENT_CLMM_PROGRAM_ID, EXPONENT_CORE_PROGRAM_ID } from "./constants";
 import {
@@ -386,11 +384,7 @@ export function makeExponentClmmTradePtIx(
   head.writeBigUInt64LE(args.amountIn, CLMM_TRADE_PT_DISCRIMINATOR.length);
   head.writeUInt8(args.swapDirection, CLMM_TRADE_PT_DISCRIMINATOR.length + 8);
   // `priceSpotLimit` is always `null` here → a single 0 tag byte (no f64 follows).
-  const data = Buffer.concat([
-    head,
-    encodeOptionU64(args.amountOutConstraint),
-    Buffer.from([0]),
-  ]);
+  const data = Buffer.concat([head, encodeOptionU64(args.amountOutConstraint), Buffer.from([0])]);
 
   // Order + writable/signer flags taken verbatim from the IDL / SDK `createTradePtInstruction`.
   const keys: AccountMeta[] = [
