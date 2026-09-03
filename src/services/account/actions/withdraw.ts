@@ -826,13 +826,10 @@ export async function makeJuplendWithdrawIx({
   if (!bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
   }
-  const {
-    fTokenMint,
-    lendingAdmin,
-    rateModel,
-    vault,
-    liquidity,
-  } = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
+  const { fTokenMint, lendingAdmin, rateModel, vault, liquidity } = getAllDerivedJupLendAccounts(
+    bank.mint,
+    tokenProgram
+  );
 
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);

@@ -1,6 +1,5 @@
 import { deserialize } from "borsh";
 
-
 type PriceUpdateV2 = {
   writeAuthority: Buffer;
   verificationLevel: number;

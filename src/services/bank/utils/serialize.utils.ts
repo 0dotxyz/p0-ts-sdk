@@ -120,7 +120,10 @@ function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
 
 function serializeOperationalState(
   operationalState: OperationalState
-): { paused: Record<string, never> } | { operational: Record<string, never> } | { reduceOnly: Record<string, never> } {
+):
+  | { paused: Record<string, never> }
+  | { operational: Record<string, never> }
+  | { reduceOnly: Record<string, never> } {
   switch (operationalState) {
     case OperationalState.Paused:
       return { paused: {} };

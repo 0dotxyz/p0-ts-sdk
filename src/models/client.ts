@@ -10,7 +10,6 @@ import { Balance } from "./balance";
 import { Bank } from "./bank";
 import { MarginfiGroup } from "./group";
 
-
 import {
   ADDRESS_LOOKUP_TABLE_FOR_GROUP,
   ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,

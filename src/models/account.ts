@@ -90,11 +90,7 @@ import {
   TransferPositionsResult,
   SwapQuoteResult,
 } from "~/services/account";
-import {
-  BankType,
-  EmodePair,
-  ActionEmodeImpact,
-} from "~/services/bank";
+import { BankType, EmodePair, ActionEmodeImpact } from "~/services/bank";
 import {
   ExtendedTransaction,
   ExtendedV0Transaction,

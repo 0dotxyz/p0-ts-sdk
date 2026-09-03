@@ -44,4 +44,7 @@ export interface MarginfiAccountRaw {
   padding0?: BN[];
 }
 
-export type MarginRequirementTypeRaw = { initial: Record<string, never> } | { maintenance: Record<string, never> } | { equity: Record<string, never> };
+export type MarginRequirementTypeRaw =
+  | { initial: Record<string, never> }
+  | { maintenance: Record<string, never> }
+  | { equity: Record<string, never> };

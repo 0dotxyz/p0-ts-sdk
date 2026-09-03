@@ -41,9 +41,7 @@ export class Fraction {
   }
 
   toDecimal(): Decimal {
-    return new FractionDecimal(this.valueSf.toString()).div(
-      Fraction.MULTIPLIER
-    );
+    return new FractionDecimal(this.valueSf.toString()).div(Fraction.MULTIPLIER);
   }
 
   static fromDecimal(n: Decimal | number): Fraction {

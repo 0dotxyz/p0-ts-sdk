@@ -277,4 +277,3 @@ export function deserializeTitanWireInstruction(ix: TitanWireInstruction): Trans
     data: Buffer.from(ix.d),
   });
 }
-
