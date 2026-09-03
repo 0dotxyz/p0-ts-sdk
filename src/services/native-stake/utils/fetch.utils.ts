@@ -1,4 +1,5 @@
 import { Buffer } from "buffer";
+
 import {
   Connection,
   PublicKey,
@@ -7,16 +8,16 @@ import {
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 
+import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
+
+import { MAX_U64 } from "~/constants";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 import {
   findPoolAddress,
   findPoolStakeAddress,
   findPoolMintAddress,
   findPoolOnRampAddress,
 } from "~/vendor/single-spl-pool";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
-import { MAX_U64 } from "~/constants";
-
-import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
 
 /**
  * Retrieves all active stake accounts associated with a given public key grouped by validator

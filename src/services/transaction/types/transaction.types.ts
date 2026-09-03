@@ -153,7 +153,7 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
         : "Authorize stake and deposit",
   },
   [TransactionType.WITHDRAW_STAKE]: {
-    label: ({ amount, token } = {}) => "Authorize stake account",
+    label: () => "Authorize stake account",
   },
   [TransactionType.INITIALIZE_STAKED_POOL]: { label: () => "Initialize stake pool" },
   [TransactionType.ADD_STAKED_BANK]: { label: () => "Create staked asset bank" },

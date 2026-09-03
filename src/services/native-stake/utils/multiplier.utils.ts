@@ -1,15 +1,16 @@
 import { Buffer } from "buffer";
+
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
+import { getStakedBankMetadataMap } from "./metadata.utils";
+
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
 import {
   findPoolAddress,
   findPoolStakeAddress,
   findPoolMintAddress,
 } from "~/vendor/single-spl-pool";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
-
-import { getStakedBankMetadataMap } from "./metadata.utils";
 
 /**
  * Minimal bank shape required to compute staked-bank multipliers.
@@ -75,7 +76,7 @@ export async function computeStakedBankMultipliers(
   const lstMintInfos = accountInfos.slice(poolStakeAddresses.length);
 
   for (let i = 0; i < stakedBankAddresses.length; i++) {
-    const bankAddr = stakedBankAddresses[i]!;
+    const bankAddr = stakedBankAddresses[i];
     const poolStakeInfo = poolStakeInfos[i];
     const lstMintInfo = lstMintInfos[i];
 

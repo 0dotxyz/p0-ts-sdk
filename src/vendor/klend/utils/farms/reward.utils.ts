@@ -1,6 +1,7 @@
-import Decimal from "decimal.js";
-import { KaminoFarmRewardInfo, KaminoFarmState, KaminoReserve } from "../../types";
 import { PublicKey } from "@solana/web3.js";
+import Decimal from "decimal.js";
+
+import { KaminoFarmRewardInfo, KaminoFarmState, KaminoReserve } from "../../types";
 import { getKaminoTotalSupply } from "../klend/interest-rate.utils";
 
 export function getRewardPerTimeUnitSecond(reward: KaminoFarmRewardInfo) {
@@ -53,7 +54,7 @@ export async function getReserveRewardsApy(
     rewardApr: Decimal;
   }[] = [];
 
-  for (const rewardInfo of farmState!.rewardInfos.filter(
+  for (const rewardInfo of farmState.rewardInfos.filter(
     (x) => x.token.mint !== new PublicKey("11111111111111111111111111111111")
   )) {
     // Skip if we don't have prices for reserve or reward token

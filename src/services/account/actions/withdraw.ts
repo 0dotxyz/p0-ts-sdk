@@ -7,29 +7,6 @@ import {
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
-import { deriveUserState, FARMS_PROGRAM_ID, getAllDerivedKaminoAccounts } from "~/vendor/klend";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
-import { getAllDerivedDriftAccounts } from "~/vendor/drift";
-import { JUP_LIQUIDITY_PROGRAM_ID, getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
-import instructions from "~/instructions";
-import syncInstructions from "~/sync-instructions";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  makeUnwrapSolIx,
-  selectLutsForAccountAction,
-  TransactionType,
-} from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { uiToNative } from "~/utils";
-import { resolveAmount } from "~/types";
-
 import {
   MakeKaminoWithdrawIxParams,
   MakeWithdrawIxParams,
@@ -42,6 +19,29 @@ import {
   MakeJuplendWithdrawTxParams,
 } from "../types";
 import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
+
+import instructions from "~/instructions";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeUnwrapSolIx,
+  selectLutsForAccountAction,
+  TransactionType,
+} from "~/services/transaction";
+import syncInstructions from "~/sync-instructions";
+import { resolveAmount } from "~/types";
+import { uiToNative } from "~/utils";
+import { getAllDerivedDriftAccounts } from "~/vendor/drift";
+import { JUP_LIQUIDITY_PROGRAM_ID, getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
+import { deriveUserState, FARMS_PROGRAM_ID, getAllDerivedKaminoAccounts } from "~/vendor/klend";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_2022_PROGRAM_ID,
+} from "~/vendor/spl";
 
 export async function makeDriftWithdrawIx({
   program,
@@ -261,7 +261,7 @@ export async function makeDriftWithdrawTx(
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  let feedCrankTxs: ExtendedV0Transaction[] = [];
+  const feedCrankTxs: ExtendedV0Transaction[] = [];
 
   if (updateFeedIxs.length > 0) {
     feedCrankTxs.push(
@@ -621,7 +621,7 @@ export async function makeWithdrawTx(
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  let feedCrankTxs: ExtendedV0Transaction[] = [];
+  const feedCrankTxs: ExtendedV0Transaction[] = [];
 
   if (updateFeedIxs.length > 0) {
     feedCrankTxs.push(
@@ -713,7 +713,7 @@ export async function makeKaminoWithdrawTx(
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  let feedCrankTxs: ExtendedV0Transaction[] = [];
+  const feedCrankTxs: ExtendedV0Transaction[] = [];
 
   if (updateFeedIxs.length > 0) {
     feedCrankTxs.push(
@@ -826,16 +826,10 @@ export async function makeJuplendWithdrawIx({
   if (!bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
   }
-  const {
-    fTokenMint,
-    lendingAdmin,
-    supplyTokenReservesLiquidity,
-    lendingSupplyPositionOnLiquidity,
-    rateModel,
-    vault,
-    liquidity,
-    rewardsRateModel,
-  } = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
+  const { fTokenMint, lendingAdmin, rateModel, vault, liquidity } = getAllDerivedJupLendAccounts(
+    bank.mint,
+    tokenProgram
+  );
 
   if (opts.observationBanksOverride) {
     remainingAccounts.push(...opts.observationBanksOverride);
@@ -947,7 +941,7 @@ export async function makeJuplendWithdrawTx(
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  let feedCrankTxs: ExtendedV0Transaction[] = [];
+  const feedCrankTxs: ExtendedV0Transaction[] = [];
 
   if (updateFeedIxs.length > 0) {
     feedCrankTxs.push(

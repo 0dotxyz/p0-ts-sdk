@@ -1,8 +1,15 @@
 import { PublicKey, TransactionInstruction, Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { MarginfiProgram } from "~/types";
-import { BankType, OracleSetup } from "~/services/bank";
+import { OraclePrice } from "../types";
+
+import {
+  checkMultipleOraclesCrankability,
+  partitionBanksByCrankability,
+} from "./crankability.utils";
+import { getOracleSourceFromBank } from "./detection.utils";
+
+import { computeProjectedActiveBalancesNoCpi, MarginRequirementType } from "~/services/account";
 import { MarginfiAccountType } from "~/services/account/types";
 import {
   computeAssetHealthComponent,
@@ -11,14 +18,8 @@ import {
   computeLowestEmodeWeights,
   getEmodePairs,
 } from "~/services/account/utils";
-import { computeProjectedActiveBalancesNoCpi, MarginRequirementType } from "~/services/account";
-
-import { OraclePrice } from "../types";
-import {
-  checkMultipleOraclesCrankability,
-  partitionBanksByCrankability,
-} from "./crankability.utils";
-import { getOracleSourceFromBank } from "./detection.utils";
+import { BankType } from "~/services/bank";
+import { MarginfiProgram } from "~/types";
 
 /**
  * A combination of banks that need to be cranked
@@ -319,7 +320,7 @@ export async function computeSmartCrank({
     crankable.some((cb) => cb.address.equals(bank.address))
   );
 
-  let combinations: CrankCombination[] = [];
+  const combinations: CrankCombination[] = [];
 
   // Generate combinations of a specific size
   const getCombinations = <T>(arr: T[], size: number): T[][] => {
@@ -333,7 +334,7 @@ export async function computeSmartCrank({
         return;
       }
       for (let i = start; i < arr.length; i++) {
-        combine(i + 1, [...current, arr[i]!]);
+        combine(i + 1, [...current, arr[i]]);
       }
     };
     combine(0, []);

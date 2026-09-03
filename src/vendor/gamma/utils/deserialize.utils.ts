@@ -1,5 +1,5 @@
-import { PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { GAMMA_VAULT_IDL } from "../idl";
@@ -10,7 +10,7 @@ const GAMMA_ACCOUNTS_CODER = new BorshAccountsCoder(GAMMA_VAULT_IDL);
 const lpVaultDiscriminator = Buffer.from([189, 45, 167, 23, 91, 118, 105, 190]);
 const withdrawReceiptDiscriminator = Buffer.from([132, 238, 44, 182, 207, 9, 124, 140]);
 
-const toBN = (v: unknown): BN => (BN.isBN(v) ? (v as BN) : new BN((v ?? 0).toString()));
+const toBN = (v: unknown): BN => (BN.isBN(v) ? v : new BN((v ?? 0).toString()));
 
 /** Decode a Gamma `LpVault` account from raw buffer data. */
 export function decodeGammaLpVaultData(data: Buffer, pubkey: PublicKey): GammaLpVaultRaw {
@@ -18,7 +18,7 @@ export function decodeGammaLpVaultData(data: Buffer, pubkey: PublicKey): GammaLp
     throw new Error("invalid Gamma LpVault account discriminator");
   }
 
-  const d = GAMMA_ACCOUNTS_CODER.decode("LpVault", data) as any;
+  const d = GAMMA_ACCOUNTS_CODER.decode("LpVault", data);
 
   return {
     pubkey,
@@ -54,7 +54,7 @@ export function decodeGammaWithdrawReceiptData(
     throw new Error("invalid Gamma WithdrawReceipt account discriminator");
   }
 
-  const d = GAMMA_ACCOUNTS_CODER.decode("WithdrawReceipt", data) as any;
+  const d = GAMMA_ACCOUNTS_CODER.decode("WithdrawReceipt", data);
 
   return {
     pubkey,

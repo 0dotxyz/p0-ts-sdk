@@ -1,13 +1,14 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { MakeSwapDebtTxParams, MarginfiAccountType, SwapQuoteResult } from "../types";
+
+import { BridgeTokenSide, resolveBridgeCandidateBanks } from "./bridge.utils";
+
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
 import { SolanaTransaction } from "~/services/transaction";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
-
-import { MakeSwapDebtTxParams, MarginfiAccountType, SwapQuoteResult } from "../types";
-import { BridgeTokenSide, resolveBridgeCandidateBanks } from "./bridge.utils";
 
 /**
  * Shared support for the bridged (double-hop) one-call builders.

@@ -1,11 +1,17 @@
-import { BigNumber } from "bignumber.js";
 import {
   AddressLookupTableAccount,
   PublicKey,
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
 
+import { MarginfiAccountType, SwapQuoteResult } from "../types";
+import { computeProjectedActiveBalancesNoCpi } from "../utils";
+
+import { MarginfiAccount } from "~/models/account";
+import { Balance } from "~/models/balance";
+import { BankType } from "~/services/bank";
 import {
   addTransactionMetadata,
   decompileV0Transaction,
@@ -14,13 +20,7 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { BankType } from "~/services/bank";
 import { MarginfiProgram } from "~/types";
-import { MarginfiAccount } from "~/models/account";
-import { Balance } from "~/models/balance";
-
-import { computeProjectedActiveBalancesNoCpi } from "../utils";
-import { MarginfiAccountType, SwapQuoteResult } from "../types";
 
 /**
  * Bridge / double-hop swaps — the flow-agnostic mechanics.
@@ -121,16 +121,16 @@ function ixIdentity(ix: TransactionInstruction): string {
 function mergeSetupTxs(
   txs: ExtendedV0Transaction[],
   payer: PublicKey,
-  blockhash: string,
+  blockhash: string
 ): ExtendedV0Transaction | null {
   if (txs.length === 0) return null;
-  if (txs.length === 1) return txs[0]!;
+  if (txs.length === 1) return txs[0];
 
   const lutMap = new Map<string, AddressLookupTableAccount>();
   const seen = new Set<string>();
   const ixs: TransactionInstruction[] = [];
   for (const tx of txs) {
-    const luts = (tx.addressLookupTables ?? []) as AddressLookupTableAccount[];
+    const luts = tx.addressLookupTables ?? [];
     luts.forEach((l) => lutMap.set(l.key.toBase58(), l));
     const msg = decompileV0Transaction(tx as VersionedTransaction, luts);
     for (const ix of msg.instructions) {
@@ -144,7 +144,7 @@ function mergeSetupTxs(
   const luts = [...lutMap.values()];
   const split = splitInstructionsToFitTransactions([], ixs, { blockhash, payerKey: payer, luts });
   if (split.length !== 1) return null; // merged setup spilled to >1 tx
-  return addTransactionMetadata(split[0]!, {
+  return addTransactionMetadata(split[0], {
     type: TransactionType.CREATE_ATA,
     addressLookupTables: luts,
   }) as ExtendedV0Transaction;
@@ -161,11 +161,11 @@ function projectAccountAfterFirstLeg(
   firstLegFlashloanTxs: SolanaTransaction[],
   program: MarginfiProgram,
   banksMap: Map<string, BankType>,
-  multipliers: Map<string, BigNumber>,
+  multipliers: Map<string, BigNumber>
 ): MarginfiAccountType {
   const ixs: TransactionInstruction[] = [];
   for (const tx of firstLegFlashloanTxs as ExtendedV0Transaction[]) {
-    const luts = (tx.addressLookupTables ?? []) as AddressLookupTableAccount[];
+    const luts = tx.addressLookupTables ?? [];
     ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
   }
 
@@ -184,7 +184,7 @@ function projectAccountAfterFirstLeg(
     projectedBalances.map((b) => Balance.fromBalanceType(b)),
     account.accountFlags,
     account.emissionsDestinationAccount,
-    account.healthCache,
+    account.healthCache
   );
 }
 
@@ -197,7 +197,7 @@ function composeBundle(
   secondLegTxs: SolanaTransaction[],
   payer: PublicKey,
   blockhash: string,
-  maxBundleTxs: number,
+  maxBundleTxs: number
 ): SolanaTransaction[] | null {
   const c1 = classifyTxs(firstLegTxs);
   const c2 = classifyTxs(secondLegTxs);
@@ -223,7 +223,7 @@ function composeBundle(
  */
 function compoundQuoteRisk(
   firstLeg: SwapQuoteResult,
-  secondLeg: SwapQuoteResult,
+  secondLeg: SwapQuoteResult
 ): { slippageBps: number; priceImpactPct: string | undefined } {
   const compound = (a?: string, b?: string): string | undefined => {
     if (a == null && b == null) return undefined;
@@ -233,7 +233,7 @@ function compoundQuoteRisk(
   };
   return {
     slippageBps: Math.round(
-      (1 - (1 - firstLeg.slippageBps / 10_000) * (1 - secondLeg.slippageBps / 10_000)) * 10_000,
+      (1 - (1 - firstLeg.slippageBps / 10_000) * (1 - secondLeg.slippageBps / 10_000)) * 10_000
     ),
     priceImpactPct: compound(firstLeg.priceImpactPct, secondLeg.priceImpactPct),
   };
@@ -243,7 +243,10 @@ function compoundQuoteRisk(
  * Merge two leg quotes for the "in = first-leg input, out = second-leg output" shape
  * (collateral-swap, loop-deposit): A in → C out, with compounded slippage and price-impact.
  */
-export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+export function mergeBridgeQuotes(
+  firstLeg: SwapQuoteResult,
+  secondLeg: SwapQuoteResult
+): SwapQuoteResult {
   return {
     inAmount: firstLeg.inAmount,
     outAmount: secondLeg.outAmount,
@@ -258,7 +261,10 @@ export function mergeBridgeQuotes(firstLeg: SwapQuoteResult, secondLeg: SwapQuot
  * C). The user-facing quote maps old-debt-repaid (first leg's *output*) → new-debt-borrowed (second
  * leg's *input*).
  */
-export function mergeBridgeQuotesDebt(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+export function mergeBridgeQuotesDebt(
+  firstLeg: SwapQuoteResult,
+  secondLeg: SwapQuoteResult
+): SwapQuoteResult {
   return {
     inAmount: firstLeg.outAmount,
     outAmount: secondLeg.inAmount,
@@ -273,7 +279,10 @@ export function mergeBridgeQuotesDebt(firstLeg: SwapQuoteResult, secondLeg: Swap
  * → X). The user-facing quote maps new-debt-borrowed (second leg's *input*) → collateral-deposited
  * (first leg's *output*).
  */
-export function mergeBridgeQuotesLoop(firstLeg: SwapQuoteResult, secondLeg: SwapQuoteResult): SwapQuoteResult {
+export function mergeBridgeQuotesLoop(
+  firstLeg: SwapQuoteResult,
+  secondLeg: SwapQuoteResult
+): SwapQuoteResult {
   return {
     inAmount: secondLeg.inAmount,
     outAmount: firstLeg.outAmount,
@@ -296,7 +305,7 @@ function blockhashOf(leg: BridgedSwapLeg): string {
  * bundle doesn't fit; the caller treats that as "this bridge candidate didn't work, try the next".
  */
 export async function composeBridgedSwap(
-  params: ComposeBridgedSwapParams,
+  params: ComposeBridgedSwapParams
 ): Promise<ComposeBridgedSwapResult | null> {
   const {
     firstLeg,
@@ -316,7 +325,7 @@ export async function composeBridgedSwap(
     classifyTxs(firstLeg.transactions).flashloans,
     program,
     banksMap,
-    assetShareValueMultiplierByBank,
+    assetShareValueMultiplierByBank
   );
 
   const secondLeg = await buildSecondLeg(projectedAccount);
@@ -327,9 +336,13 @@ export async function composeBridgedSwap(
     secondLeg.transactions,
     feePayer,
     blockhashOf(firstLeg),
-    maxBundleTxs,
+    maxBundleTxs
   );
   if (!transactions) return null;
 
-  return { transactions, firstLegQuote: firstLeg.quoteResponse, secondLegQuote: secondLeg.quoteResponse };
+  return {
+    transactions,
+    firstLegQuote: firstLeg.quoteResponse,
+    secondLegQuote: secondLeg.quoteResponse,
+  };
 }

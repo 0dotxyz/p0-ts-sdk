@@ -1,5 +1,3 @@
-import { BigNumber } from "bignumber.js";
-import BN from "bn.js";
 import {
   ComputeBudgetProgram,
   PublicKey,
@@ -7,28 +5,15 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
+import BN from "bn.js";
 
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  getTxSize,
-  getTotalAccountKeys,
-  InstructionsWrapper,
-  makeWrapSolIxs,
-  splitInstructionsToFitTransactions,
-  TransactionType,
-} from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { AssetTag, BankType } from "~/services/bank";
-import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
-
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
+import { LoopFlashloanDescriptor, MakeLoopTxParams, SwapQuoteResult } from "../types";
 import {
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
@@ -42,25 +27,40 @@ import {
   sharedBridgeLegContext,
   tryBridgeCandidates,
 } from "../utils";
-import {
-  runSwapEngine,
-  swapEngineProvidersFromOpts,
-  swapEngineQuoteFieldsFromOpts,
-} from "../services/swap-engine";
-import { LoopFlashloanDescriptor, MakeLoopTxParams, SwapQuoteResult } from "../types";
 
+import { makeSetupIx } from "./account-lifecycle";
+import { makeBorrowIx } from "./borrow";
+import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
 import {
   makeDepositIx,
   makeDriftDepositIx,
   makeJuplendDepositIx,
   makeKaminoDepositIx,
 } from "./deposit";
-import { makeBorrowIx } from "./borrow";
-import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
-import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
 import { makeSwapDebtTx } from "./swap-debt";
+
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
+import { AssetTag, BankType } from "~/services/bank";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  getTxSize,
+  getTotalAccountKeys,
+  InstructionsWrapper,
+  makeWrapSolIxs,
+  splitInstructionsToFitTransactions,
+  TransactionType,
+} from "~/services/transaction";
 import { uiToNative } from "~/utils";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_2022_PROGRAM_ID,
+} from "~/vendor/spl";
 
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
@@ -76,7 +76,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     bankMap,
     depositOpts,
     borrowOpts,
-    bankMetadataMap,
     addressLookupTableAccounts,
     connection,
     oraclePrices,
@@ -154,7 +153,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     crossbarUrl,
   });
 
-  let additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: ExtendedV0Transaction[] = [];
 
   // wrap sol if needed
   if (depositOpts.depositBank.mint.equals(NATIVE_MINT) && depositOpts.inputDepositAmount) {

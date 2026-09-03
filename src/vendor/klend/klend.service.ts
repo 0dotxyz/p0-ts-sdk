@@ -19,7 +19,6 @@ export async function makeRefreshingIxs({
   reserve,
   reserveKey,
   obligationKey,
-  program,
 }: MakeRefreshingIxsParams) {
   const tokenInfo = reserve.config.tokenInfo;
   const lendingMarket = reserve.lendingMarket;

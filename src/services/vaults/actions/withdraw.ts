@@ -7,6 +7,20 @@ import {
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
+import type {
+  MakeVaultCompleteWithdrawalIxParams,
+  MakeVaultCompleteWithdrawalTxParams,
+  MakeVaultWithdrawIxParams,
+  MakeVaultWithdrawTxParams,
+} from "../types";
+import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
+
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  TransactionType,
+} from "~/services/transaction";
 import {
   deriveGammaAta,
   deriveGammaWithdrawEscrow,
@@ -15,20 +29,6 @@ import {
   makeGammaCompleteWithdrawalIx,
   makeGammaWithdrawIx,
 } from "~/vendor/gamma";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  TransactionType,
-} from "~/services/transaction";
-
-import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
-import type {
-  MakeVaultCompleteWithdrawalIxParams,
-  MakeVaultCompleteWithdrawalTxParams,
-  MakeVaultWithdrawIxParams,
-  MakeVaultWithdrawTxParams,
-} from "../types";
 
 /**
  * Build the instruction to initiate a withdrawal from a Gamma LP vault. Shares

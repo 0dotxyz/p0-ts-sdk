@@ -1,9 +1,6 @@
 import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
-
 import { OraclePrice, OraclePriceDto } from "../types";
 import {
   categorizePythBanks,
@@ -11,6 +8,9 @@ import {
   mapPythBanksToOraclePrices,
   parseRpcPythPriceData,
 } from "../utils";
+
+import { BankType } from "~/services/bank";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
 type ValidatorVoteAccountByBank = {
   [address: string]: string;
@@ -184,7 +184,7 @@ export const fetchPythOraclePricesFromChain = async (
   );
 
   for (const index in requestedPythOracleKeys) {
-    const oracleKey = requestedPythOracleKeys[index]!;
+    const oracleKey = requestedPythOracleKeys[index];
     const priceDataRaw = oracleAis[index];
 
     let oraclePrice = priceDataRaw && parseRpcPythPriceData(priceDataRaw.data);

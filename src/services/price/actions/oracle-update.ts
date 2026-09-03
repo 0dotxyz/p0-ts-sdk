@@ -1,23 +1,22 @@
+import { AnchorProvider } from "@coral-xyz/anchor";
 import {
   AddressLookupTableAccount,
   Connection,
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { BN } from "bn.js";
-import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
-
-import { MarginfiAccountType } from "~/services/account";
-import { BankType, OracleSetup } from "~/services/bank";
-import { MarginfiProgram } from "~/types";
-import { TransactionBuildingError } from "~/errors";
+import { AnchorUtils, PullFeed } from "@switchboard-xyz/on-demand";
 
 import { OraclePrice } from "../types";
 import { computeSmartCrank } from "../utils";
-import { ZERO_ORACLE_KEY } from "~/constants";
 import { getOracleSourceFromOracleSetup } from "../utils/detection.utils";
+
+import { ZERO_ORACLE_KEY } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import { MarginfiAccountType } from "~/services/account";
+import { BankType } from "~/services/bank";
+import { MarginfiProgram } from "~/types";
 
 type MakeSmartCrankSwbFeedIxParams = {
   marginfiAccount: MarginfiAccountType;
@@ -164,14 +163,14 @@ export async function makeSmartCrankSwbFeedIxForAccounts(
   // are cranked once.
   return makeUpdateSwbFeedIx({
     swbPullOracles: crankResults.flatMap((r) => r.requiredOracles),
-    feePayer: params.marginfiAccounts[0]!.authority,
+    feePayer: params.marginfiAccounts[0].authority,
     connection: params.connection,
     crossbarUrl: params.crossbarUrl,
   });
 }
 
 export const DEFAULT_CROSSBAR_URL = "https://crossbar.0.xyz";
-export const DEFAULT_FALLBACK_CROSSBAR_URL  = "https://crossbar.switchboard.xyz";
+export const DEFAULT_FALLBACK_CROSSBAR_URL = "https://crossbar.switchboard.xyz";
 
 export async function makeCrankSwbFeedIx(
   marginfiAccount: MarginfiAccountType,
@@ -201,9 +200,6 @@ export async function makeCrankSwbFeedIx(
 
   if (swbPullBanks.length > 0) {
     const staleOracles = swbPullBanks
-      .filter((bank) => {
-        return true;
-      })
       .filter((bank) => !bank.oracleKey.equals(new PublicKey(ZERO_ORACLE_KEY)))
       .map((bank) => bank.oracleKey);
 
@@ -285,7 +281,10 @@ export async function makeUpdateSwbFeedIx(props: {
     });
     return { instructions: pullIx, luts };
   } catch (primaryError) {
-    console.warn(`Primary crossbar endpoint failed (${primaryUrl}), trying fallback:`, primaryError);
+    console.warn(
+      `Primary crossbar endpoint failed (${primaryUrl}), trying fallback:`,
+      primaryError
+    );
     const [pullIx, luts] = await PullFeed.fetchUpdateManyIx(swbProgram, {
       feeds: pullFeedInstances,
       numSignatures: 1,

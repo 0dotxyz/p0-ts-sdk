@@ -181,16 +181,16 @@ interface BankConfigCompactRaw extends Omit<
   interestRateConfig: InterestRateConfigCompactRaw;
 }
 
-type RiskTierRaw = { collateral: {} } | { isolated: {} };
+type RiskTierRaw = { collateral: Record<string, never> } | { isolated: Record<string, never> };
 
 type OperationalStateRaw =
-  | { paused: {} }
-  | { operational: {} }
-  | { reduceOnly: {} }
-  | { killedByBankruptcy: {} }
-  | { uninitialized: {} }
-  | { reduceOnlyWithBorrowingPower: {} }
-  | { circuitBroken: {} };
+  | { paused: Record<string, never> }
+  | { operational: Record<string, never> }
+  | { reduceOnly: Record<string, never> }
+  | { killedByBankruptcy: Record<string, never> }
+  | { uninitialized: Record<string, never> }
+  | { reduceOnlyWithBorrowingPower: Record<string, never> }
+  | { circuitBroken: Record<string, never> };
 
 interface RatePointRaw {
   util: number;
@@ -224,33 +224,33 @@ interface InterestRateConfigCompactRaw extends Omit<
 interface InterestRateConfigOptRaw extends InterestRateConfigCompactRaw {}
 
 type OracleSetupRaw =
-  | { none: {} }
-  | { pythLegacy: {} }
-  | { switchboardV2: {} }
-  | { pythPushOracle: {} }
-  | { switchboardPull: {} }
-  | { stakedWithPythPush: {} }
-  | { kaminoPythPush: {} }
-  | { kaminoSwitchboardPull: {} }
-  | { fixed: {} }
-  | { driftPythPull: {} }
-  | { driftSwitchboardPull: {} }
-  | { solendPythPull: {} }
-  | { solendSwitchboardPull: {} }
-  | { fixedKamino: {} }
-  | { fixedDrift: {} }
-  | { juplendPythPull: {} }
-  | { juplendSwitchboardPull: {} }
-  | { fixedJuplend: {} }
-  | { scope: {} }
-  | { pythMsol: {} }
-  | { kaminoMsol: {} }
-  | { juplendMsol: {} }
-  | { pythLst: {} }
-  | { kaminoLst: {} }
-  | { juplendLst: {} }
-  | { ptPyth: {} }
-  | { ptFixed: {} };
+  | { none: Record<string, never> }
+  | { pythLegacy: Record<string, never> }
+  | { switchboardV2: Record<string, never> }
+  | { pythPushOracle: Record<string, never> }
+  | { switchboardPull: Record<string, never> }
+  | { stakedWithPythPush: Record<string, never> }
+  | { kaminoPythPush: Record<string, never> }
+  | { kaminoSwitchboardPull: Record<string, never> }
+  | { fixed: Record<string, never> }
+  | { driftPythPull: Record<string, never> }
+  | { driftSwitchboardPull: Record<string, never> }
+  | { solendPythPull: Record<string, never> }
+  | { solendSwitchboardPull: Record<string, never> }
+  | { fixedKamino: Record<string, never> }
+  | { fixedDrift: Record<string, never> }
+  | { juplendPythPull: Record<string, never> }
+  | { juplendSwitchboardPull: Record<string, never> }
+  | { fixedJuplend: Record<string, never> }
+  | { scope: Record<string, never> }
+  | { pythMsol: Record<string, never> }
+  | { kaminoMsol: Record<string, never> }
+  | { juplendMsol: Record<string, never> }
+  | { pythLst: Record<string, never> }
+  | { kaminoLst: Record<string, never> }
+  | { juplendLst: Record<string, never> }
+  | { ptPyth: Record<string, never> }
+  | { ptFixed: Record<string, never> };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;

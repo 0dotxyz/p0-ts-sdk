@@ -1,24 +1,19 @@
-import {
-  AccountInfo,
-  Connection,
-  GetProgramAccountsFilter,
-  PublicKey,
-} from "@solana/web3.js";
+import { AccountInfo, Connection, GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 
-import { deriveMarginfiAccount } from "~/utils";
-import { AccountType, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { BankType } from "~/services/bank";
-
+import { simulateAccountHealthCache } from "../services";
 import {
   BalanceType,
   HealthCacheSimulationError,
   MarginfiAccountRaw,
   MarginfiAccountType,
 } from "../types";
-import { simulateAccountHealthCache } from "../services";
 
 import { parseMarginfiAccountRaw } from "./deserialize.utils";
+
+import { BankType } from "~/services/bank";
+import { AccountType, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { deriveMarginfiAccount } from "~/utils";
 
 export const fetchMarginfiAccountAddresses = async (
   program: MarginfiProgram,

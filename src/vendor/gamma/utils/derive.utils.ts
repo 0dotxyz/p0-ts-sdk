@@ -1,12 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
-} from "~/vendor/spl";
-
-import {
   GAMMA_VAULT_PROGRAM_ID,
   SEED_DEPOSIT_POLICY,
   SEED_DEPOSIT_RECEIPT,
@@ -14,6 +8,12 @@ import {
   SEED_WITHDRAW_RECEIPT,
   SEED_WITHDRAWAL_POLICY,
 } from "../constants";
+
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+} from "~/vendor/spl";
 
 /**
  * Derive the WithdrawalPolicy PDA for a vault.

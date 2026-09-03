@@ -1,12 +1,12 @@
 import { StakeProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 
+import type { MakeMergeStakeAccountsTxParams } from "../types";
+
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
   TransactionType,
 } from "~/services/transaction";
-
-import type { MakeMergeStakeAccountsTxParams } from "../types";
 
 /**
  * Creates a versioned transaction to merge two stake accounts.

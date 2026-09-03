@@ -1,9 +1,12 @@
 import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import instructions from "~/instructions";
-import { Amount, MarginfiProgram, MintData } from "~/types";
+import { Balance } from "./balance";
+import { Bank } from "./bank";
+import { HealthCache } from "./health-cache";
+
 import { MarginfiIdlType } from "~/idl";
+import instructions from "~/instructions";
 import {
   AccountFlags,
   computeAccountValue,
@@ -87,14 +90,7 @@ import {
   TransferPositionsResult,
   SwapQuoteResult,
 } from "~/services/account";
-import {
-  BankType,
-  EmodeImpactStatus,
-  EmodePair,
-  ActionEmodeImpact,
-  ActiveEmodePair,
-} from "~/services/bank";
-import { OraclePrice } from "~/services/price";
+import { BankType, EmodePair, ActionEmodeImpact } from "~/services/bank";
 import {
   ExtendedTransaction,
   ExtendedV0Transaction,
@@ -102,10 +98,7 @@ import {
   makeUnwrapSolIx,
   makeWrapSolIxs,
 } from "~/services/transaction";
-
-import { Balance } from "./balance";
-import { Bank } from "./bank";
-import { HealthCache } from "./health-cache";
+import { Amount, MarginfiProgram } from "~/types";
 
 // ----------------------------------------------------------------------------
 // Client types

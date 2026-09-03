@@ -1,8 +1,8 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { BankType, isStandardBorrowable, isStandardDepositable } from "~/services/bank";
-
 import { MarginfiAccountType } from "../types";
+
+import { BankType, isStandardBorrowable, isStandardDepositable } from "~/services/bank";
 
 /**
  * Bridge-token candidate filtering for bridged (double-hop) swaps.

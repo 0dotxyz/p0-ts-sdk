@@ -2,7 +2,6 @@ import { BorshCoder } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 import { MarginfiIdlType } from "../idl";
-import { AccountType, MarginfiProgram } from "../types";
 import {
   BankConfigOpt,
   BankConfigOptRaw,
@@ -16,6 +15,7 @@ import {
   MarginfiGroupType,
   parseBankRateLimiterRaw,
 } from "../services";
+import { AccountType, MarginfiProgram } from "../types";
 
 import { Bank } from "./bank";
 

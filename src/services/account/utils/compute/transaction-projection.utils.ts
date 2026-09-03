@@ -1,6 +1,8 @@
-import BigNumber from "bignumber.js";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { BorshInstructionCoder } from "@coral-xyz/anchor";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
+
+import { BalanceType, MarginfiAccountType } from "../../types";
 
 import {
   BankType,
@@ -12,8 +14,6 @@ import {
 import { MarginfiProgram } from "~/types";
 import { composeRemainingAccounts } from "~/utils";
 import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
-
-import { BalanceType, MarginfiAccountType } from "../../types";
 
 /**
  * Transaction Projection & Health Check Utilities
@@ -82,7 +82,7 @@ export function computeHealthCheckAccounts({
         if (!bank) throw Error(`Bank ${balance.bankPk.toBase58()} not found`);
         return bank;
       }
-      const newBankAddress = [...banksToAdd.values()][0]!;
+      const newBankAddress = [...banksToAdd.values()][0];
       banksToAdd.delete(newBankAddress);
       const bank = banksMap.get(newBankAddress);
       if (!bank) throw Error(`Bank ${newBankAddress} not found`);
@@ -128,7 +128,7 @@ export function computeHealthAccountMetas({
   enableSorting?: boolean;
   trailingBanks?: BankType[];
 }): PublicKey[] {
-  let wrapperFn = enableSorting
+  const wrapperFn = enableSorting
     ? composeRemainingAccounts
     : (banksAndOracles: PublicKey[][]) => banksAndOracles.flat();
 
@@ -252,7 +252,7 @@ export function computeProjectedActiveBanksNoCpi({
   instructions: TransactionInstruction[];
   program: MarginfiProgram;
 }): PublicKey[] {
-  let projectedBalances = [
+  const projectedBalances = [
     ...account.balances.map((b) => ({ active: b.active, bankPk: b.bankPk })),
   ];
 
@@ -280,7 +280,7 @@ export function computeProjectedActiveBanksNoCpi({
       case "solendDeposit":
       case "lendingAccountDeposit":
       case "juplendDeposit": {
-        const targetBank = new PublicKey(ix?.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix?.keys[3].pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
           const firstInactiveBalanceIndex = projectedBalances.findIndex((b) => !b.active);
@@ -299,7 +299,7 @@ export function computeProjectedActiveBanksNoCpi({
       case "solendWithdraw":
       case "lendingAccountWithdraw":
       case "juplendWithdraw": {
-        const targetBank = new PublicKey(ix.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix.keys[3].pubkey);
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
         if (!targetBalance) {
           throw Error(
@@ -388,7 +388,7 @@ export function computeProjectedActiveBalancesNoCpi({
   withdrawnBanks: string[];
 } {
   // Deep clone all balances to avoid mutating original
-  let projectedBalances: BalanceType[] = account.balances.map((b) => ({
+  const projectedBalances: BalanceType[] = account.balances.map((b) => ({
     active: b.active,
     bankPk: b.bankPk,
     assetShares: new BigNumber(b.assetShares),
@@ -427,7 +427,7 @@ export function computeProjectedActiveBalancesNoCpi({
       case "kaminoDeposit":
       case "juplendDeposit": {
         // Bank is at index 3 for these instructions (group, account, authority, bank, ...)
-        const targetBank = new PublicKey(ix.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix.keys[3].pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
 
         let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -468,7 +468,7 @@ export function computeProjectedActiveBalancesNoCpi({
       }
 
       case "lendingAccountBorrow": {
-        const targetBank = new PublicKey(ix.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix.keys[3].pubkey);
         impactedLiabilityBanks.add(targetBank.toBase58());
 
         let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -501,7 +501,7 @@ export function computeProjectedActiveBalancesNoCpi({
 
       // Instructions that reduce or close positions
       case "lendingAccountRepay": {
-        const targetBank = new PublicKey(ix.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix.keys[3].pubkey);
         impactedLiabilityBanks.add(targetBank.toBase58());
 
         const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
@@ -550,7 +550,7 @@ export function computeProjectedActiveBalancesNoCpi({
       case "solendWithdraw":
       case "kaminoWithdraw":
       case "juplendWithdraw": {
-        const targetBank = new PublicKey(ix.keys[3]!.pubkey);
+        const targetBank = new PublicKey(ix.keys[3].pubkey);
         impactedAssetsBanks.add(targetBank.toBase58());
         withdrawnBanks.add(targetBank.toBase58());
 

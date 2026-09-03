@@ -6,7 +6,7 @@ Thank you for your interest in contributing to the P0 TypeScript SDK! This docum
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 22 (see `.nvmrc`)
 - npm or pnpm (pnpm recommended)
 - Git
 

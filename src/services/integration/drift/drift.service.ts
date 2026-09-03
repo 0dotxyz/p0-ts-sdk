@@ -1,5 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { DriftStateJsonByBank } from "./drift.types";
+
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
@@ -18,8 +20,6 @@ import {
   dtoToDriftUserRaw,
   dtoToDriftRewardsRaw,
 } from "~/vendor/drift";
-
-import { DriftStateJsonByBank } from "./drift.types";
 
 export interface DriftMetadata {
   driftStates: {

@@ -1,11 +1,13 @@
 import BN from "bn.js";
-import { aprToApy } from "~/utils";
+
 import {
   JupLendingState,
   JupLendingRewardsRateModel,
   JupTokenReserve,
   JupRateModel,
 } from "../types";
+
+import { aprToApy } from "~/utils";
 
 /**
  * Jup-Lend Interest Rate & Exchange Price Utilities

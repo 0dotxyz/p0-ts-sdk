@@ -6,8 +6,9 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { SwapApiConfig, SwapProvider } from "~/services/account/types";
 import { SwapEngineRequest, SwapEngineResult, TxFootprint } from "../types";
+
+import { SwapApiConfig, SwapProvider } from "~/services/account/types";
 
 /**
  * Wire serialization for the swap engine, so the provider fan-out can run behind
@@ -109,9 +110,7 @@ export function deserializeLut(s: SerializedLut): AddressLookupTableAccount {
 
 // --- request ---
 
-export function serializeSwapEngineRequest(
-  req: SwapEngineRequest
-): SerializedSwapEngineRequest {
+export function serializeSwapEngineRequest(req: SwapEngineRequest): SerializedSwapEngineRequest {
   return {
     inputMint: req.inputMint,
     outputMint: req.outputMint,

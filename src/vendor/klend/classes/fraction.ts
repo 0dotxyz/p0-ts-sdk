@@ -41,9 +41,7 @@ export class Fraction {
   }
 
   toDecimal(): Decimal {
-    return new FractionDecimal(this.valueSf.toString()).div(
-      Fraction.MULTIPLIER
-    );
+    return new FractionDecimal(this.valueSf.toString()).div(Fraction.MULTIPLIER);
   }
 
   static fromDecimal(n: Decimal | number): Fraction {
@@ -91,17 +89,6 @@ export class Fraction {
   }
 }
 
-export const ZERO_FRACTION = new Fraction(new BN(0));
-
-export function bfToDecimal(x: BigFractionBytes): Decimal {
-  const bsf = x.value;
-  const accSf = bsf.reduce(
-    (acc, curr, i) => acc.add(curr.shln(i * 64)),
-    new BN(0)
-  );
-  return new Fraction(accSf).toDecimal();
-}
-
 /**
  * Returns an integer {@link Decimal} nearest to the given one.
  *
@@ -110,9 +97,4 @@ export function bfToDecimal(x: BigFractionBytes): Decimal {
  */
 function roundNearest(decimal: Decimal): Decimal {
   return decimal.toDecimalPlaces(0, Decimal.ROUND_HALF_CEIL);
-}
-
-interface BigFractionBytes {
-  value: Array<BN>;
-  padding: Array<BN>;
 }

@@ -1,8 +1,6 @@
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
-import { bigNumberToWrappedI80F48 } from "~/utils";
-
 import {
   BankConfigOptRaw,
   RiskTierRaw,
@@ -36,6 +34,8 @@ import {
   BankRateLimiterRawDto,
   RateLimitWindowRawDto,
 } from "../types";
+
+import { bigNumberToWrappedI80F48 } from "~/utils";
 
 function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
   const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
@@ -120,7 +120,10 @@ function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
 
 function serializeOperationalState(
   operationalState: OperationalState
-): { paused: {} } | { operational: {} } | { reduceOnly: {} } {
+):
+  | { paused: Record<string, never> }
+  | { operational: Record<string, never> }
+  | { reduceOnly: Record<string, never> } {
   switch (operationalState) {
     case OperationalState.Paused:
       return { paused: {} };

@@ -1,10 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { MarginfiIdlType } from "~/idl";
-import { nativeToUi } from "~/utils";
-import { MarginfiProgram } from "~/types";
-
 import {
   BankType,
   BankRaw,
@@ -45,10 +41,11 @@ import {
   parseBankConfigRaw,
   MarginRequirementType,
 } from "../services";
+
 import { EmodeSettings } from "./emode-settings";
 
-const SECONDS_PER_DAY = 24 * 60 * 60;
-const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365.25;
+import { MarginfiIdlType } from "~/idl";
+import { MarginfiProgram } from "~/types";
 
 interface BankMetadata {
   tokenAddress: string;

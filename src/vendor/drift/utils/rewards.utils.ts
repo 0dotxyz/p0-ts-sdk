@@ -1,7 +1,5 @@
 import { PublicKey, Connection } from "@solana/web3.js";
 
-import { USDC_MINT } from "~/constants";
-
 import {
   DriftUser,
   DriftRewards,
@@ -12,6 +10,8 @@ import {
 
 import { deriveDriftSpotMarket } from "./derive.utils";
 import { decodeDriftSpotMarketData } from "./deserialize.utils";
+
+import { USDC_MINT } from "~/constants";
 
 /*
  *   Drift rewards get distributed to users in the form of spot positions.
@@ -33,7 +33,7 @@ export async function getDriftRewards(
   connection: Connection
 ) {
   // Not all rewards will be in spot markets we have fetched, so need to fetch seperately
-  let missingMarketIndexes: Set<number> = new Set();
+  const missingMarketIndexes: Set<number> = new Set();
 
   const spotMarketsMap = new Map(spotMarkets.map((market) => [market.marketIndex, market]));
 
@@ -41,7 +41,6 @@ export async function getDriftRewards(
   const userStatesWithRewards = userStates.map((userState) => {
     const spotPositions = userState.driftUser.spotPositions;
     const isUsdc = userState.marketMint.equals(USDC_MINT);
-    const spotPositionsLength = spotPositions.length;
     const rewardIndex = isUsdc ? 1 : 2;
     const rewards: SpotPosition[] = spotPositions
       .slice(rewardIndex)

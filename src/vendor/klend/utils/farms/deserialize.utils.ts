@@ -1,10 +1,10 @@
 import { struct, publicKey, u64, array, u8, u128, u32 } from "@coral-xyz/borsh";
-
-import { FarmStateRaw } from "../../types/farm/raw-farm.types";
-import { KaminoFarmState } from "../../types/farm/farm.types";
-import { KaminoFarmStateJSON } from "../../types/farm/dto-farm.types";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
+
+import { KaminoFarmStateJSON } from "../../types/farm/dto-farm.types";
+import { KaminoFarmState } from "../../types/farm/farm.types";
+import { FarmStateRaw } from "../../types/farm/raw-farm.types";
 
 const farmDiscriminator = Buffer.from([198, 102, 216, 74, 63, 66, 163, 190]);
 
@@ -12,35 +12,19 @@ const farmLayout = struct<FarmStateRaw>([
   publicKey("farmAdmin"),
   publicKey("globalConfig"),
   struct(
-    [
-      publicKey("mint"),
-      u64("decimals"),
-      publicKey("tokenProgram"),
-      array(u64(), 6, "padding"),
-    ],
+    [publicKey("mint"), u64("decimals"), publicKey("tokenProgram"), array(u64(), 6, "padding")],
     "token"
   ),
   array(
     struct([
       struct(
-        [
-          publicKey("mint"),
-          u64("decimals"),
-          publicKey("tokenProgram"),
-          array(u64(), 6, "padding"),
-        ],
+        [publicKey("mint"), u64("decimals"), publicKey("tokenProgram"), array(u64(), 6, "padding")],
         "token"
       ),
       publicKey("rewardsVault"),
       u64("rewardsAvailable"),
       struct(
-        [
-          array(
-            struct([u64("tsStart"), u64("rewardPerTimeUnit")]),
-            20,
-            "points"
-          ),
-        ],
+        [array(struct([u64("tsStart"), u64("rewardPerTimeUnit")]), 20, "points")],
         "rewardScheduleCurve"
       ),
       u64("minClaimDurationSeconds"),

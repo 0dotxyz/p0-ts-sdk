@@ -1,5 +1,6 @@
-import { readBigInt64LE, readBigUInt64LE } from "./readBig";
 import { PublicKey } from "@solana/web3.js";
+
+import { readBigInt64LE, readBigUInt64LE } from "./readBig";
 
 /** Number of slots that can pass before a publisher's price is no longer included in the aggregate. */
 export const MAX_SLOT_DIFFERENCE = 25;

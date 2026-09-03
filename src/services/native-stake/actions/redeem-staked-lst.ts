@@ -1,37 +1,28 @@
 import {
-  Connection,
   Keypair,
-  PublicKey,
   StakeProgram,
   SystemProgram,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
-  AddressLookupTableAccount,
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import {
-  getAssociatedTokenAddressSync,
-  createApproveInstruction,
-} from "~/vendor/spl";
-import {
-  SinglePoolInstruction,
-  findPoolAddress,
-  findPoolMintAddress,
-  findPoolMintAuthorityAddress,
-} from "~/vendor/single-spl-pool";
+import type { MakeRedeemStakedLstIxParams, MakeRedeemStakedLstTxParams } from "../types";
+
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
   InstructionsWrapper,
   TransactionType,
 } from "~/services/transaction";
-
-import type {
-  MakeRedeemStakedLstIxParams,
-  MakeRedeemStakedLstTxParams,
-} from "../types";
+import {
+  SinglePoolInstruction,
+  findPoolAddress,
+  findPoolMintAddress,
+  findPoolMintAuthorityAddress,
+} from "~/vendor/single-spl-pool";
+import { getAssociatedTokenAddressSync, createApproveInstruction } from "~/vendor/spl";
 
 /**
  * Creates instructions to convert LST tokens back to a native stake account.
@@ -53,9 +44,7 @@ export async function makeRedeemStakedLstIx(
   const lstAta = getAssociatedTokenAddressSync(lstMint, authority);
 
   // Calculate rent exemption for new stake account
-  const rentExemption = await connection.getMinimumBalanceForRentExemption(
-    StakeProgram.space
-  );
+  const rentExemption = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
 
   const stakeAmount = new BigNumber(new BigNumber(amount).toString());
 
@@ -111,8 +100,7 @@ export async function makeRedeemStakedLstTx(
   const { instructions, keys } = await makeRedeemStakedLstIx(params);
 
   const blockhash =
-    providedBlockhash ??
-    (await connection.getLatestBlockhash("confirmed")).blockhash;
+    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
 
   const message = new TransactionMessage({
     payerKey: params.authority,

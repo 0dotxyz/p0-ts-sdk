@@ -8,16 +8,17 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 
-import { KaminoReserve } from "~/vendor/klend";
-import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
-import { JupLendingState } from "~/vendor/jup-lend";
+import type { SwapEngineRunner } from "../services/swap-engine/types";
+
+import { MarginfiAccountType } from "./account.types";
+
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { ExtendedV0Transaction, SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-
-import { MarginfiAccountType } from "./account.types";
-import type { SwapEngineRunner } from "../services/swap-engine/types";
+import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
+import { JupLendingState } from "~/vendor/jup-lend";
+import { KaminoReserve } from "~/vendor/klend";
 
 export enum SwapProvider {
   JUPITER = "JUPITER",

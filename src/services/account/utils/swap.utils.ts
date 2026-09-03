@@ -1,8 +1,10 @@
-import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
-
+import {
+  Connection,
+  PublicKey,
+  TransactionInstruction,
+  AddressLookupTableAccount,
+} from "@solana/web3.js";
 import BN from "bn.js";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { AddressLookupTableAccount } from "@solana/web3.js";
 
 import {
   SwapApiConfig,
@@ -12,9 +14,12 @@ import {
   SwapProviderEntry,
   SwapQuoteResult,
 } from "../types";
+
 import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils";
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
+
 import { TransactionBuildingError } from "~/errors";
+import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
 /** The canonical shape a resolved pinned route yields — mirrors an engine-selected route. */
 export interface ResolvedPinnedSwapRoute {
@@ -229,7 +234,6 @@ export const getSwapIxsForFlashloan = async (
     destinationTokenAccount,
     swapOpts,
     sizeConstraint,
-    maxSwapTotalAccounts,
   } = params;
 
   // Caller-pinned route override — validated so it can never size a zero follow-up amount.
@@ -310,7 +314,7 @@ export type ExactOutEstimateResult = {
 export const getExactOutEstimate = async (
   params: GetExactOutEstimateParams
 ): Promise<ExactOutEstimateResult> => {
-  const { inputMint, outputMint, amount, swapOpts, connection } = params;
+  const { inputMint, outputMint, amount, swapOpts } = params;
 
   const provider = swapOpts.swapConfig?.provider ?? SwapProvider.JUPITER;
   const attempts: SwapProviderEntry[] = [

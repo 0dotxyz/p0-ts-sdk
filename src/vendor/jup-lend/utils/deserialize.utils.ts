@@ -1,6 +1,8 @@
-import BN from "bn.js";
-import { PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
+import { JUP_LEND_IDL } from "../idl";
 import {
   JupLendingState,
   JupLendingStateRaw,
@@ -15,7 +17,6 @@ import {
   JupRateModelRaw,
   JupRateModelJSON,
 } from "../types";
-import { JUP_LEND_IDL } from "../idl";
 
 const JUP_LEND_ACCOUNTS_CODER = new BorshAccountsCoder(JUP_LEND_IDL);
 
@@ -32,7 +33,7 @@ export function decodeJupLendingStateData(data: Buffer, pubkey: PublicKey): JupL
     throw new Error("invalid Lending account discriminator");
   }
 
-  const decoded = JUP_LEND_ACCOUNTS_CODER.decode("Lending", data) as any;
+  const decoded = JUP_LEND_ACCOUNTS_CODER.decode("Lending", data);
 
   return {
     pubkey,
@@ -59,7 +60,7 @@ export function decodeJupLendingRewardsRateModelData(
     throw new Error("invalid LendingRewardsRateModel account discriminator");
   }
 
-  const decoded = JUP_LEND_ACCOUNTS_CODER.decode("LendingRewardsRateModel", data) as any;
+  const decoded = JUP_LEND_ACCOUNTS_CODER.decode("LendingRewardsRateModel", data);
 
   return {
     pubkey,

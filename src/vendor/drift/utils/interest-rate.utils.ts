@@ -1,4 +1,5 @@
 import BN from "bn.js";
+
 import { DriftSpotBalanceType, DriftSpotMarket, isSpotBalanceTypeVariant } from "../types";
 
 /**
@@ -227,7 +228,7 @@ export function calculateDriftLendingAPY(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null,
-  compoundingPeriodsPerYear: number = 365
+  _compoundingPeriodsPerYear: number = 365
 ): BN {
   // Get the annualized deposit rate (APR)
   const depositRate = calculateDriftDepositRate(bank, delta, currentUtilization);
@@ -324,7 +325,7 @@ export function calculateDriftBorrowAPY(
   bank: DriftSpotMarket,
   delta: BN = ZERO,
   currentUtilization: BN | null = null,
-  compoundingPeriodsPerYear: number = 365
+  _compoundingPeriodsPerYear: number = 365
 ): BN {
   const borrowRate = calculateDriftBorrowRate(bank, delta, currentUtilization);
 

@@ -1,17 +1,19 @@
+import { Buffer } from "buffer";
+
 import { struct, u32, u8 } from "@solana/buffer-layout";
 import { publicKey, u64 } from "@solana/buffer-layout-utils";
 import { AccountInfo, Commitment, Connection, PublicKey } from "@solana/web3.js";
-import { Buffer } from "buffer";
 
-import { Account, AccountState, RawAccount } from "../types";
+import { TOKEN_PROGRAM_ID } from "../constants";
 import {
   TokenAccountNotFoundError,
   TokenInvalidAccountError,
   TokenInvalidAccountOwnerError,
   TokenInvalidAccountSizeError,
 } from "../errors";
+import { Account, AccountState, RawAccount } from "../types";
+
 import { MULTISIG_SIZE } from "./multisig.utils";
-import { TOKEN_PROGRAM_ID } from "../constants";
 
 export enum SplAccountType {
   Uninitialized,
@@ -78,10 +80,7 @@ export async function getMultipleAccounts(
   programId = TOKEN_PROGRAM_ID
 ): Promise<Account[]> {
   const infos = await connection.getMultipleAccountsInfo(addresses, commitment);
-  return addresses.map((address, i) =>
-    //@ts-ignore
-    unpackAccount(address, infos[i], programId)
-  );
+  return addresses.map((address, i) => unpackAccount(address, infos[i], programId));
 }
 
 /** Get the minimum lamport balance for a base token account to be rent exempt

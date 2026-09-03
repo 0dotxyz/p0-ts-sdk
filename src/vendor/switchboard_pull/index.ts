@@ -1,6 +1,6 @@
 import { BorshCoder, Idl, Program, Provider } from "@coral-xyz/anchor";
-import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
 
 import SWB_ONDEMAND_IDL from "./idl.json";
 
@@ -55,9 +55,6 @@ export function getSwitchboardProgram(provider: Provider): Program {
 }
 
 export function decodeSwitchboardPullFeedData(data: Buffer): PullFeedAccountData {
-  const pullFeedDAta = switchboardAccountCoder.accounts.decode(
-    "PullFeedAccountData",
-    data
-  ) as PullFeedAccountData;
+  const pullFeedDAta = switchboardAccountCoder.accounts.decode("PullFeedAccountData", data);
   return pullFeedDAta;
 }

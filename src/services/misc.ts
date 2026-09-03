@@ -13,13 +13,6 @@ import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
-  BankIntegrationMetadata,
-  BankIntegrationMetadataDto,
-  BankIntegrationMetadataMap,
-  BankIntegrationMetadataMapDto,
-} from "~/types";
-
-import {
   driftRewardsRawToDto,
   driftSpotMarketRawToDto,
   driftUserRawToDto,
@@ -43,6 +36,13 @@ import {
   kaminoObligationToDto,
   kaminoReserveToDto,
 } from "../vendor";
+
+import {
+  BankIntegrationMetadata,
+  BankIntegrationMetadataDto,
+  BankIntegrationMetadataMap,
+  BankIntegrationMetadataMapDto,
+} from "~/types";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 export function bankMetadataMapToDto(
@@ -210,7 +210,7 @@ export async function chunkedGetRawMultipleAccountInfos(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             contextSlot = Math.max(...batchResults.map((res) => res.result.context.slot));
@@ -274,7 +274,7 @@ export async function chunkedGetRawMultipleAccountInfoOrderedWithNulls(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             const accounts = batchResults.reduce(
@@ -337,7 +337,7 @@ export async function chunkedGetRawMultipleAccountInfoOrdered(
     while (retries < maxRetries && accountInfos.length === 0) {
       try {
         accountInfos = await connection
-          // @ts-ignore
+          // @ts-expect-error -- _rpcBatchRequest is private on Connection
           ._rpcBatchRequest(batchRequest)
           .then((batchResults: Result[]) => {
             const accounts = batchResults.reduce(

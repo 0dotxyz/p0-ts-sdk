@@ -1,5 +1,7 @@
 import BigNumber from "bignumber.js";
 
+import { BalanceType, MarginRequirementType } from "../../types";
+
 import {
   BankType,
   computeAssetUsdValue,
@@ -9,8 +11,6 @@ import {
 } from "~/services/bank";
 import { OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
-
-import { BalanceType, MarginRequirementType } from "../../types";
 
 /**
  * Balance Value & Quantity Calculations
@@ -58,9 +58,7 @@ export interface ComputeBalanceUsdValueParams {
  * console.log(`Assets: $${assets.toFormat(2)}, Liabilities: $${liabilities.toFormat(2)}`);
  * ```
  */
-export function computeBalanceUsdValue(
-  params: ComputeBalanceUsdValueParams
-): {
+export function computeBalanceUsdValue(params: ComputeBalanceUsdValueParams): {
   assets: BigNumber;
   liabilities: BigNumber;
 } {
@@ -138,9 +136,7 @@ export interface GetBalanceUsdValueWithPriceBiasParams {
  * const healthFactor = assets.div(liabilities);
  * ```
  */
-export function getBalanceUsdValueWithPriceBias(
-  params: GetBalanceUsdValueWithPriceBiasParams
-): {
+export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPriceBiasParams): {
   assets: BigNumber;
   liabilities: BigNumber;
 } {

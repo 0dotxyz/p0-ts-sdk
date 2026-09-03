@@ -1,11 +1,18 @@
-import {
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
+import type { MakeVaultDepositIxParams, MakeVaultDepositTxParams } from "../types";
+import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
+
+import { WSOL_MINT } from "~/constants";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeWrapSolIxs,
+  TransactionType,
+} from "~/services/transaction";
 import {
   deriveGammaAta,
   deriveGammaDepositPolicy,
@@ -14,17 +21,6 @@ import {
   makeGammaDepositIx,
 } from "~/vendor/gamma";
 import { createAssociatedTokenAccountIdempotentInstruction } from "~/vendor/spl";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  makeWrapSolIxs,
-  TransactionType,
-} from "~/services/transaction";
-import { WSOL_MINT } from "~/constants";
-
-import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
-import type { MakeVaultDepositIxParams, MakeVaultDepositTxParams } from "../types";
 
 /**
  * Build the instruction to deposit into a Gamma LP vault. Instant deposit —
@@ -86,11 +82,7 @@ export async function makeVaultDepositIx(
     amountNative
   );
 
-  const instructions: TransactionInstruction[] = [
-    ...wrapIxs,
-    createShareAtaIx,
-    ix,
-  ];
+  const instructions: TransactionInstruction[] = [...wrapIxs, createShareAtaIx, ix];
 
   return { instructions, keys: [] };
 }

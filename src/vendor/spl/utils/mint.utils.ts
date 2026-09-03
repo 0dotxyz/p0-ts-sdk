@@ -2,13 +2,13 @@ import { struct, u32, u8 } from "@solana/buffer-layout";
 import { bool, publicKey, u64 } from "@solana/buffer-layout-utils";
 import { Commitment, Connection, PublicKey } from "@solana/web3.js";
 
-import { Mint, RawMint } from "../types";
 import { TOKEN_PROGRAM_ID } from "../constants";
 import {
   TokenAccountNotFoundError,
   TokenInvalidAccountOwnerError,
   TokenInvalidAccountSizeError,
 } from "../errors";
+import { Mint, RawMint } from "../types";
 
 /** Buffer layout for de/serializing a mint */
 export const MintLayout = struct<RawMint>([

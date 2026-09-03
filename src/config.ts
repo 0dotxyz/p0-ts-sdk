@@ -1,16 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
-import type { Environment, Project0Config } from "./types";
 import { array, assert, enums, object, string } from "superstruct";
 import type { Infer } from "superstruct";
+
 import configs from "./configs.json";
+import type { Environment, Project0Config } from "./types";
 
 const Project0ConfigRaw = object({
-  label: enums([
-    "production",
-    "staging",
-    "staging-mainnet-clone",
-    "staging-alt",
-  ]),
+  label: enums(["production", "staging", "staging-mainnet-clone", "staging-alt"]),
   program: string(),
   group: string(),
 });
@@ -59,7 +55,7 @@ function getProject0Config(
 ): Project0Config {
   const defaultConfigs = loadDefaultConfig();
 
-  const defaultConfig = defaultConfigs[environment]!;
+  const defaultConfig = defaultConfigs[environment];
   return {
     environment,
     programId: overrides?.programId || defaultConfig.programId,

@@ -1,6 +1,8 @@
-import BN from "bn.js";
-import { PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
+import { DRIFT_IDL } from "../idl";
 import {
   DriftUserStats,
   DriftUserStatsJSON,
@@ -14,22 +16,15 @@ import {
   DriftRewards,
   DriftRewardsJSON,
 } from "../types";
-import { DRIFT_IDL } from "../idl";
 
 const DRIFT_ACCOUNTS_CODER = new BorshAccountsCoder(DRIFT_IDL);
 
-const spotMarketDiscriminator = Buffer.from([
-  100, 177, 8, 107, 168, 65, 65, 39,
-]);
+const spotMarketDiscriminator = Buffer.from([100, 177, 8, 107, 168, 65, 65, 39]);
 const stateDiscriminator = Buffer.from([216, 146, 107, 94, 104, 75, 182, 177]);
 const userDiscriminator = Buffer.from([159, 117, 95, 227, 239, 151, 58, 236]);
-const userStatsDiscriminator = Buffer.from([
-  176, 223, 136, 27, 122, 79, 32, 227,
-]);
+const userStatsDiscriminator = Buffer.from([176, 223, 136, 27, 122, 79, 32, 227]);
 
-export function dtoToDriftUserStatsRaw(
-  userStatsDto: DriftUserStatsJSON
-): DriftUserStats {
+export function dtoToDriftUserStatsRaw(userStatsDto: DriftUserStatsJSON): DriftUserStats {
   return {
     authority: new PublicKey(userStatsDto.authority),
     referrer: new PublicKey(userStatsDto.referrer),
@@ -39,9 +34,7 @@ export function dtoToDriftUserStatsRaw(
       totalTokenDiscount: new BN(userStatsDto.fees.totalTokenDiscount),
       totalRefereeDiscount: new BN(userStatsDto.fees.totalRefereeDiscount),
       totalReferrerReward: new BN(userStatsDto.fees.totalReferrerReward),
-      currentEpochReferrerReward: new BN(
-        userStatsDto.fees.currentEpochReferrerReward
-      ),
+      currentEpochReferrerReward: new BN(userStatsDto.fees.currentEpochReferrerReward),
     },
     nextEpochTs: new BN(userStatsDto.nextEpochTs),
     makerVolume30d: new BN(userStatsDto.makerVolume30d),
@@ -115,9 +108,7 @@ export function dtoToDriftStateRaw(stateDto: DriftStateJSON): DriftState {
   };
 }
 
-export function dtoToDriftRewardsRaw(
-  rewardsDto: DriftRewardsJSON
-): DriftRewards {
+export function dtoToDriftRewardsRaw(rewardsDto: DriftRewardsJSON): DriftRewards {
   return {
     oracle: new PublicKey(rewardsDto.oracle),
     marketIndex: rewardsDto.marketIndex,
@@ -136,9 +127,7 @@ export function dtoToDriftRewardsRaw(
   };
 }
 
-export function dtoToDriftSpotMarketRaw(
-  spotMarketDto: DriftSpotMarketJSON
-): DriftSpotMarket {
+export function dtoToDriftSpotMarketRaw(spotMarketDto: DriftSpotMarketJSON): DriftSpotMarket {
   return {
     pubkey: new PublicKey(spotMarketDto.pubkey),
     oracle: new PublicKey(spotMarketDto.oracle),
@@ -164,7 +153,7 @@ export function decodeDriftSpotMarketData(data: Buffer): DriftSpotMarketRaw {
   }
 
   // BorshAccountsCoder.decode() expects the full buffer with discriminator
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("SpotMarket", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("SpotMarket", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -240,7 +229,7 @@ export function decodeDriftStateData(data: Buffer): DriftState {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("State", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("State", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -277,7 +266,7 @@ export function decodeDriftUserData(data: Buffer): DriftUser {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("User", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("User", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -329,7 +318,7 @@ export function decodeDriftUserStatsData(data: Buffer): DriftUserStats {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("UserStats", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("UserStats", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {

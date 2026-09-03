@@ -1,5 +1,5 @@
-import EXPONENT_CORE_IDL_JSON from "./exponent_core.json";
 import EXPONENT_CLMM_IDL_JSON from "./exponent_clmm.json";
+import EXPONENT_CORE_IDL_JSON from "./exponent_core.json";
 
 /**
  * Raw Exponent core IDL (as committed in github.com/exponent-finance/exponent-core).

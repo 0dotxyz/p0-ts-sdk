@@ -1,6 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
+
+import { SwapApiConfig, SwapProvider } from "~/services/account/types";
+import { checkTitanFeeAccount } from "~/services/account/utils/titan.utils";
 import {
   V1Client,
   SwapMode,
@@ -12,10 +16,6 @@ import {
   selectGatewayRoute,
   type SwapQuotes,
 } from "~/vendor/titan";
-
-import { SwapApiConfig, SwapProvider } from "~/services/account/types";
-import { checkTitanFeeAccount } from "~/services/account/utils/titan.utils";
-import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
 /**
  * Quote providers we let Titan route through. We intentionally exclude the
@@ -113,7 +113,7 @@ async function buildCandidates(
         "Titan WebSocket quote timed out"
       );
       if (done || !value) throw new Error("Titan swap quote stream ended without data");
-      swapQuotes = value as SwapQuotes;
+      swapQuotes = value;
     } finally {
       reader.releaseLock();
     }
@@ -153,9 +153,7 @@ async function buildCandidates(
 }
 
 /** Only attach a platform fee when the referral ATA exists and a fee is requested. */
-async function resolveFee(
-  req: SwapEngineRequest
-): Promise<{ fee?: number; feeAccount?: string }> {
+async function resolveFee(req: SwapEngineRequest): Promise<{ fee?: number; feeAccount?: string }> {
   if (!req.platformFeeBps) return {};
   // ExactIn: fee taken on the output mint.
   const feeMint = new PublicKey(req.outputMint);

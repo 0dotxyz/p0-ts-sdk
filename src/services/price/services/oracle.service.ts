@@ -1,16 +1,16 @@
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
-
-import { BankType, RiskTier, OracleSetup } from "~/services/bank";
-import { ZERO_ORACLE_KEY } from "~/constants";
+import BigNumber from "bignumber.js";
 
 import { OraclePrice } from "../types";
-
-import { fetchPythOracleData, PythOracleServiceOpts } from "./pyth-oracle.service";
-import { fetchSwbOracleData, SwbOracleServiceOpts } from "./swb-oracle.service";
-import { fetchScopeOracleData, ScopeOracleServiceOpts } from "./scope-oracle.service";
-import { fetchOracleMultipliers, OracleMultiplierServiceOpts } from "./oracle-multiplier.service";
 import { getOracleSourceFromOracleSetup } from "../utils";
+
+import { fetchOracleMultipliers, OracleMultiplierServiceOpts } from "./oracle-multiplier.service";
+import { fetchPythOracleData, PythOracleServiceOpts } from "./pyth-oracle.service";
+import { fetchScopeOracleData, ScopeOracleServiceOpts } from "./scope-oracle.service";
+import { fetchSwbOracleData, SwbOracleServiceOpts } from "./swb-oracle.service";
+
+import { ZERO_ORACLE_KEY } from "~/constants";
+import { BankType, RiskTier, OracleSetup } from "~/services/bank";
 
 /**
  * Fetches comprehensive oracle data from multiple providers (Pyth and Switchboard)
@@ -129,7 +129,7 @@ function handleFixedOracleBanks(
     const multiplier = multiplierByBank[bank.address.toBase58()];
     const fixedPrice = isPtFixed
       ? Number.isFinite(multiplier)
-        ? BigNumber(multiplier!)
+        ? BigNumber(multiplier)
         : BigNumber(0)
       : bank.config.fixedPrice;
 

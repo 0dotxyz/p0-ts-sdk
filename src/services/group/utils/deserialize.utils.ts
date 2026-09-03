@@ -1,8 +1,8 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { dtoToBankRateLimiter } from "~/services/bank";
-
 import { MarginfiGroupTypeDto, MarginfiGroupType } from "../types";
+
+import { dtoToBankRateLimiter } from "~/services/bank";
 
 export function dtoToGroup(groupDto: MarginfiGroupTypeDto): MarginfiGroupType {
   return {

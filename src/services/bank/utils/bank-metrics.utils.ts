@@ -1,8 +1,11 @@
 import BigNumber from "bignumber.js";
 
+import { aprToApy } from "../../../utils/accounting.utils";
+import { nativeToUi } from "../../../utils/conversion.utils";
 import { OraclePrice, PriceBias } from "../../price/types/price.types";
 import { AssetTag, BankType, OperationalState } from "../types";
 
+import { computeUsdValue, getTotalAssetQuantity, getTotalLiabilityQuantity } from "./compute";
 import {
   computeAccrualProjectionSeconds,
   computeInterestRates,
@@ -12,9 +15,6 @@ import {
   isDepositLimitActive,
   SECONDS_PER_YEAR,
 } from "./interest-rate.utils";
-import { computeUsdValue, getTotalAssetQuantity, getTotalLiabilityQuantity } from "./compute";
-import { aprToApy } from "../../../utils/accounting.utils";
-import { nativeToUi } from "../../../utils/conversion.utils";
 
 /**
  * Whether a bank can be borrowed with the standard `lending_account_borrow` instruction.

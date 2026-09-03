@@ -1,7 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
 import { deserialize } from "borsh";
-import { PYTH_PRICE_CONF_INTERVALS } from "../../constants";
 
 type PriceUpdateV2 = {
   writeAuthority: Buffer;
@@ -41,16 +38,6 @@ const priceUpdateV2Schema = {
 };
 
 export const parsePriceInfo = (data: Buffer): PriceUpdateV2 => {
-  let decoded: PriceUpdateV2 = deserialize(priceUpdateV2Schema, data) as any;
+  const decoded: PriceUpdateV2 = deserialize(priceUpdateV2Schema, data) as any;
   return decoded;
 };
-
-function capConfidenceInterval(
-  price: BigNumber,
-  confidence: BigNumber,
-  maxConfidence: BigNumber
-): BigNumber {
-  let maxConfidenceInterval = price.times(maxConfidence);
-
-  return BigNumber.min(confidence, maxConfidenceInterval);
-}

@@ -1,8 +1,3 @@
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
-import { TransactionBuildingError } from "~/errors";
-
-import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
-import { SwapApiConfig, SwapProvider } from "~/services/account/types";
 import { getSwapAdapter } from "./adapters";
 import {
   ProviderSwapRoute,
@@ -11,6 +6,11 @@ import {
   SwapEngineRequest,
   SwapEngineResult,
 } from "./types";
+
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import { SwapApiConfig } from "~/services/account/types";
+import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
 
 interface ResolvedAdapter {
   adapter: SwapAdapter;
@@ -61,7 +61,8 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
       routes.push(...result.value);
     } else {
       const provider = adapters[i].adapter.name;
-      const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      const message =
+        result.reason instanceof Error ? result.reason.message : String(result.reason);
       failures.push(`${provider}: ${message}`);
       console.warn(`[swap-engine] ${provider} failed:`, message);
     }
@@ -84,13 +85,11 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
 
   if (fitting.length === 0) {
     // Report the closest-to-fitting candidate for diagnostics.
-    const closest = candidates.reduce((best, c) =>
-      c.fullTxSize < best.fullTxSize ? c : best
-    );
+    const closest = candidates.reduce((best, c) => (c.fullTxSize < best.fullTxSize ? c : best));
     throw TransactionBuildingError.swapSizeExceededLoop(
       closest.fullTxSize,
       closest.totalAccounts,
-      closest.provider as SwapProvider
+      closest.provider
     );
   }
 
@@ -151,4 +150,3 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
     fits,
   };
 }
-

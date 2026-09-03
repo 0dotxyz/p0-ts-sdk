@@ -25,9 +25,9 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
-
 import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
+
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 // Hardcoded addresses from Marginfi IDL
 const KAMINO_PROGRAM_ID = new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
@@ -795,7 +795,7 @@ function makePoolConfigureBankIx(
     admin: PublicKey; // signer, relations: ["group"] - caller must provide
     bank: PublicKey;
   },
-  args: {
+  _args: {
     bankConfigOpt: any; // Complex type - caller must handle serialization
   }
 ): TransactionInstruction {
@@ -898,7 +898,7 @@ function makePoolAddBankIx(
     feeVault: PublicKey; // PDA - caller must derive
     tokenProgram: PublicKey;
   },
-  args: {
+  _args: {
     bankConfig: any; // Complex BankConfigCompactRaw type
   }
 ): TransactionInstruction {

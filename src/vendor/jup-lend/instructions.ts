@@ -1,8 +1,5 @@
-import {
-  AccountMeta,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
+
 import { JUP_LEND_PROGRAM_ID } from "./constants";
 
 /**
@@ -12,9 +9,7 @@ import { JUP_LEND_PROGRAM_ID } from "./constants";
  *
  * Note: juplend_deposit and juplend_withdraw call updateRate internally.
  */
-const UPDATE_RATE_DISCRIMINATOR = Buffer.from([
-  24, 225, 53, 189, 72, 212, 225, 178,
-]);
+const UPDATE_RATE_DISCRIMINATOR = Buffer.from([24, 225, 53, 189, 72, 212, 225, 178]);
 
 export const makeUpdateJupLendRateIx = (
   lending: PublicKey,

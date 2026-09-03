@@ -1,10 +1,11 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { JupLendStateJsonByBank } from "./juplend.types";
+
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
-import { MintLayout } from "~/vendor/spl";
 import {
   JupLendingState,
   JupLendingStateRaw,
@@ -25,8 +26,7 @@ import {
   dtoToJupRateModelRaw,
   deriveJupLendRateModel,
 } from "~/vendor/jup-lend";
-
-import { JupLendStateJsonByBank } from "./juplend.types";
+import { MintLayout } from "~/vendor/spl";
 
 export interface JupLendMetadata {
   jupLendStates: {
@@ -151,7 +151,7 @@ export async function getJupLendStatesDto(
   const secondPassKeys: string[] = [];
 
   for (const bankAddress of bankAddresses) {
-    const lendingState = rawLendingStatesMap[bankAddress]!;
+    const lendingState = rawLendingStatesMap[bankAddress];
     secondPassKeys.push(lendingState.tokenReservesLiquidity.toBase58());
     secondPassKeys.push(lendingState.rewardsRateModel.toBase58());
     secondPassKeys.push(lendingState.fTokenMint.toBase58());
@@ -167,7 +167,7 @@ export async function getJupLendStatesDto(
   const jupLendStatesMap: JupLendStateJsonByBank = {};
 
   for (const [i, bankAddress] of bankAddresses.entries()) {
-    const lendingState = rawLendingStatesMap[bankAddress]!;
+    const lendingState = rawLendingStatesMap[bankAddress];
     const tokenReserveAccount = secondPassResults[i * 4];
     const rewardsRateModelAccount = secondPassResults[i * 4 + 1];
     const fTokenMintAccount = secondPassResults[i * 4 + 2];

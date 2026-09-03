@@ -2,7 +2,6 @@ import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.j
 import BigNumber from "bignumber.js";
 
 import { uiToNative } from "~/utils";
-
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,

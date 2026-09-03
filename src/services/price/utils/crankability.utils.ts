@@ -1,9 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { OraclePrice } from "../types";
+
 import { BankType } from "~/services/bank";
 import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
-
-import { OraclePrice } from "../types";
 
 /**
  * Result of checking if an oracle can be cranked
@@ -46,15 +46,12 @@ export async function checkBatchOracleCrankability(
     // Join feed hashes with commas for batch request
     const feedHashesString = feedHashes.join(",");
 
-    const response = await fetch(
-      `${crossbarUrl}/simulate/${feedHashesString}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(8000),
-      }
-    );
+    const response = await fetch(`${crossbarUrl}/simulate/${feedHashesString}`, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
 
     if (!response.ok) {
       const reason = `HTTP ${response.status}: ${response.statusText}`;
@@ -70,8 +67,7 @@ export async function checkBatchOracleCrankability(
     // Check validity of each feed response
     payload.forEach((feed) => {
       const result = feed.results[0];
-      const isValid =
-        result !== null && result !== undefined && !isNaN(Number(result));
+      const isValid = result !== null && result !== undefined && !isNaN(Number(result));
 
       results.set(feed.feedHash, {
         crankable: isValid,
@@ -130,10 +126,7 @@ async function fetchFeedHashes(
         const feedHash = Buffer.from(feed_hash).toString("hex");
         feedHashMap.set(bank.oracleKey.toBase58(), feedHash);
       } catch (error) {
-        console.error(
-          `Failed to decode feed hash for bank ${bank.address.toBase58()}:`,
-          error
-        );
+        console.error(`Failed to decode feed hash for bank ${bank.address.toBase58()}:`, error);
       }
     });
   } catch (error) {

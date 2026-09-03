@@ -1,7 +1,7 @@
-import BN from "bn.js";
-import { BigNumber } from "bignumber.js";
 import { BorshAccountsCoder, type Idl } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
+import BN from "bn.js";
 
 import { EXPONENT_CLMM_IDL, EXPONENT_CORE_IDL } from "../idl";
 import {
@@ -35,7 +35,7 @@ export function exponentNumberToBigNumber(raw: unknown): BigNumber {
   let value = new BigNumber(0);
   const TWO_64 = new BigNumber(2).pow(64);
   words.forEach((w, i) => {
-    const word = new BigNumber(BN.isBN(w) ? (w as BN).toString() : String(w));
+    const word = new BigNumber(BN.isBN(w) ? w.toString() : String(w));
     value = value.plus(word.times(TWO_64.pow(i)));
   });
   return value.div(EXPONENT_NUMBER_DENOM);
@@ -47,9 +47,9 @@ function pk(v: unknown): PublicKey {
 
 /** Decode a raw `Vault` account buffer into {@link ExponentVault}. */
 export function decodeExponentVault(data: Buffer): ExponentVault {
-  const d = EXPONENT_ACCOUNTS_CODER.decode("Vault", data) as Record<string, unknown>;
+  const d = EXPONENT_ACCOUNTS_CODER.decode("Vault", data);
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
-  const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? (v as BN).toString() : String(v ?? 0));
+  const u64 = (v: unknown): bigint => BigInt(BN.isBN(v) ? v.toString() : String(v ?? 0));
 
   const cpi = (get("cpi_accounts", "cpiAccounts") ?? {}) as Record<string, unknown>;
 
@@ -83,7 +83,7 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
 
 /** Decode a `MarketTwo` account and return its `vault` address. */
 export function decodeExponentMarketVault(data: Buffer): PublicKey {
-  const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data) as Record<string, unknown>;
+  const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data);
   return pk(d.vault);
 }
 
@@ -102,7 +102,7 @@ function decodeCpiContexts(raw: unknown): ExponentCpiInterfaceContext[] {
 
 /** Decode a raw `MarketTwo` account buffer into {@link ExponentMarketTwo}. */
 export function decodeExponentMarketTwo(data: Buffer): ExponentMarketTwo {
-  const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data) as Record<string, unknown>;
+  const d = EXPONENT_ACCOUNTS_CODER.decode("MarketTwo", data);
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
   const cpi = (get("cpi_accounts", "cpiAccounts") ?? {}) as Record<string, unknown>;
 
@@ -137,7 +137,7 @@ export async function fetchExponentMarketTwo(
 
 /** Decode a raw `MarketThree` (CLMM) pool account buffer into {@link ExponentMarketThree}. */
 export function decodeExponentMarketThree(data: Buffer): ExponentMarketThree {
-  const d = EXPONENT_CLMM_ACCOUNTS_CODER.decode("MarketThree", data) as Record<string, unknown>;
+  const d = EXPONENT_CLMM_ACCOUNTS_CODER.decode("MarketThree", data);
   const get = (snake: string, camel: string) => d[snake] ?? d[camel];
   const cpi = (get("cpi_sy_accounts", "cpiSyAccounts") ?? {}) as Record<string, unknown>;
 

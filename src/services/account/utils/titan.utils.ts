@@ -1,3 +1,8 @@
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+
+import { SwapApiConfig, SwapIxsResult, SwapProvider, SwapQuoteResult } from "../types";
+
+import { getAssociatedTokenAddressSync } from "~/vendor/spl";
 import {
   V1Client,
   type Instruction as TitanInstruction,
@@ -11,11 +16,6 @@ import {
   resolveLookupTables,
   SwapMode,
 } from "~/vendor/titan";
-import { getAssociatedTokenAddressSync } from "~/vendor/spl";
-
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-
-import { SwapApiConfig, SwapIxsResult, SwapProvider, SwapQuoteResult } from "../types";
 
 // --- Constants ---
 

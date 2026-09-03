@@ -1,17 +1,7 @@
 import { BorshCoder } from "@coral-xyz/anchor";
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 import BN from "bn.js";
-
-import { wrappedI80F48toBigNumber } from "~/utils";
-
-import {
-  DEFAULT_ORACLE_MAX_AGE,
-  STAKED_ORACLE_DISABLED_FLAG,
-  STAKED_ORACLE_USES_ONRAMP_FLAG,
-} from "~/constants";
-import { MarginfiIdlType } from "~/idl";
-import { AccountType } from "~/types";
 
 import {
   AssetTag,
@@ -47,6 +37,15 @@ import {
   BankRateLimiterRawDto,
   RateLimitWindowRawDto,
 } from "../types";
+
+import {
+  DEFAULT_ORACLE_MAX_AGE,
+  STAKED_ORACLE_DISABLED_FLAG,
+  STAKED_ORACLE_USES_ONRAMP_FLAG,
+} from "~/constants";
+import { MarginfiIdlType } from "~/idl";
+import { AccountType } from "~/types";
+import { wrappedI80F48toBigNumber } from "~/utils";
 
 /*
  * Bank deserialization
@@ -162,7 +161,7 @@ export function parseBankRaw(
     ? wrappedI80F48toBigNumber(accountParsed.collectedProgramFeesOutstanding)
     : new BigNumber(0);
 
-  const { oracleKey } = { oracleKey: config.oracleKeys[0]! };
+  const { oracleKey } = { oracleKey: config.oracleKeys[0] };
   const emode = parseEmodeSettingsRaw(accountParsed.emode);
   const rateLimiter = accountParsed.rateLimiter
     ? parseBankRateLimiterRaw(accountParsed.rateLimiter)
@@ -611,7 +610,7 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
 }
 
 export function parseRiskTier(riskTierRaw: RiskTierRaw): RiskTier {
-  switch (Object.keys(riskTierRaw)[0]!.toLowerCase()) {
+  switch (Object.keys(riskTierRaw)[0].toLowerCase()) {
     case "collateral":
       return RiskTier.Collateral;
     case "isolated":
@@ -622,7 +621,7 @@ export function parseRiskTier(riskTierRaw: RiskTierRaw): RiskTier {
 }
 
 export function parseOperationalState(operationalStateRaw: OperationalStateRaw): OperationalState {
-  switch (Object.keys(operationalStateRaw)[0]!.toLowerCase()) {
+  switch (Object.keys(operationalStateRaw)[0].toLowerCase()) {
     case "paused":
       return OperationalState.Paused;
     case "operational":
@@ -643,7 +642,7 @@ export function parseOperationalState(operationalStateRaw: OperationalStateRaw):
 }
 
 export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
-  const oracleKey = Object.keys(oracleSetupRaw)[0]!.toLowerCase();
+  const oracleKey = Object.keys(oracleSetupRaw)[0].toLowerCase();
   switch (oracleKey) {
     case "none":
       return OracleSetup.None;

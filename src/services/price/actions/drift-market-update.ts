@@ -3,7 +3,7 @@ import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
-import type { BankIntegrationMetadata, BankIntegrationMetadataMap } from "~/types";
+import type { BankIntegrationMetadataMap } from "~/types";
 import { makeUpdateSpotMarketIx } from "~/vendor/drift";
 
 /**

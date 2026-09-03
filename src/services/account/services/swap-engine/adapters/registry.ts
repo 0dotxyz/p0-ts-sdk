@@ -1,7 +1,9 @@
-import { SwapProvider } from "~/services/account/types";
+import { SwapAdapter } from "../types";
+
 import { jupiterAdapter } from "./jupiter.adapter";
 import { titanAdapter } from "./titan.adapter";
-import { SwapAdapter } from "../types";
+
+import { SwapProvider } from "~/services/account/types";
 
 /**
  * Registry of swap providers. To add a provider: implement a `SwapAdapter` and

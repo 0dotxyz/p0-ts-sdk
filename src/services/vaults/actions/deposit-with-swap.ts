@@ -7,6 +7,25 @@ import {
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
+import type { MakeVaultDepositWithSwapTxParams } from "../types";
+import { fetchGammaLpVault } from "../utils";
+
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, WSOL_MINT } from "~/constants";
+import {
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+  type SwapQuoteResult,
+} from "~/services/account";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  getTotalAccountKeys,
+  getTxSize,
+  makeWrapSolIxs,
+  TransactionType,
+} from "~/services/transaction";
+import { nativeToUi, uiToNative } from "~/utils";
 import {
   deriveGammaAta,
   deriveGammaDepositPolicy,
@@ -19,26 +38,6 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "~/vendor/spl";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  getTotalAccountKeys,
-  getTxSize,
-  makeWrapSolIxs,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  runSwapEngine,
-  swapEngineProvidersFromOpts,
-  swapEngineQuoteFieldsFromOpts,
-  type SwapEngineRunner,
-  type SwapQuoteResult,
-} from "~/services/account";
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, WSOL_MINT } from "~/constants";
-import { nativeToUi, uiToNative } from "~/utils";
-
-import { fetchGammaLpVault } from "../utils";
-import type { MakeVaultDepositWithSwapTxParams } from "../types";
 
 /**
  * Zap-deposit into a Gamma LP vault: swap `inputMint` into the vault's asset
@@ -83,10 +82,8 @@ export async function makeVaultDepositWithSwapTx(
   }
   const tokenProgram =
     params.tokenProgram ??
-    (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
-      ? TOKEN_2022_PROGRAM_ID
-      : TOKEN_PROGRAM_ID);
-  const assetDecimals = mintInfo.data[44]!;
+    (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID);
+  const assetDecimals = mintInfo.data[44];
 
   const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
   const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
@@ -124,9 +121,7 @@ export async function makeVaultDepositWithSwapTx(
   // non-swap footprint the engine fits its route around.
   const inputAmountBn = new BigNumber(inputAmount);
   const isNativeSol = new PublicKey(inputMint).equals(WSOL_MINT);
-  const wrapIxs: TransactionInstruction[] = isNativeSol
-    ? makeWrapSolIxs(user, inputAmountBn)
-    : [];
+  const wrapIxs: TransactionInstruction[] = isNativeSol ? makeWrapSolIxs(user, inputAmountBn) : [];
 
   const amountNative = uiToNative(inputAmountBn, inputDecimals);
 
@@ -157,10 +152,7 @@ export async function makeVaultDepositWithSwapTx(
   });
 
   // Deposit the minimum guaranteed swap output; the surplus is left as dust.
-  const depositIx = makeGammaDepositIx(
-    depositAccounts,
-    engineResult.outputAmountNative
-  );
+  const depositIx = makeGammaDepositIx(depositAccounts, engineResult.outputAmountNative);
 
   const instructions = [
     ...wrapIxs,
@@ -183,9 +175,7 @@ export async function makeVaultDepositWithSwapTx(
   const tx = new VersionedTransaction(message);
 
   if (getTxSize(tx) > MAX_TX_SIZE || getTotalAccountKeys(tx) > MAX_ACCOUNT_LOCKS) {
-    throw new Error(
-      "vault deposit-with-swap: swap route too large to fit in one transaction"
-    );
+    throw new Error("vault deposit-with-swap: swap route too large to fit in one transaction");
   }
 
   return {

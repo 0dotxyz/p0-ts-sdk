@@ -1,7 +1,6 @@
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
-  Connection,
   PublicKey,
   SystemProgram,
   TransactionInstruction,
@@ -10,28 +9,8 @@ import {
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { AssetTag, BankType, OracleSetup } from "~/services/bank";
+import { makePulseHealthIx } from "../actions";
 import {
-  getOracleSourceFromOracleSetup,
-  makeCrankSwbFeedIx,
-  makeUpdateSwbFeedIx,
-  makeUpdateJupLendRateIxs,
-  OraclePrice,
-} from "~/services/price";
-import klendInstructions from "~/vendor/klend/instructions";
-import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
-import {
-  addTransactionMetadata,
-  simulateBundle,
-  SolanaTransaction,
-  TransactionType,
-} from "~/services/transaction";
-import { ZERO_ORACLE_KEY } from "~/constants";
-import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
-
-import {
-  BalanceType,
   HealthCacheSimulationError,
   HealthCacheStatus,
   MarginfiAccountRaw,
@@ -43,7 +22,26 @@ import {
   parseMarginfiAccountRaw,
   computeHealthComponentsFromBalances,
 } from "../utils";
-import { makePulseHealthIx } from "../actions";
+
+import { ZERO_ORACLE_KEY } from "~/constants";
+import { AssetTag, BankType } from "~/services/bank";
+import {
+  getOracleSourceFromOracleSetup,
+  makeCrankSwbFeedIx,
+  makeUpdateSwbFeedIx,
+  makeUpdateJupLendRateIxs,
+  OraclePrice,
+} from "~/services/price";
+import {
+  addTransactionMetadata,
+  simulateBundle,
+  SolanaTransaction,
+  TransactionType,
+} from "~/services/transaction";
+import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
+import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
+import klendInstructions from "~/vendor/klend/instructions";
 
 /**
  * Configuration for simulating account health cache with fallback
@@ -507,7 +505,7 @@ export async function getHealthSimulationTransactions({
     }
 
     switch (bank.config.assetTag) {
-      case AssetTag.KAMINO:
+      case AssetTag.KAMINO: {
         if (!bankMetadata.kaminoStates || !bank.kaminoIntegrationAccounts) {
           console.error(
             `Bank ${bankPk.toBase58()} is missing kamino states or integration accounts`
@@ -522,7 +520,8 @@ export async function getHealthSimulationTransactions({
           lendingMarket,
         });
         break;
-      case AssetTag.DRIFT:
+      }
+      case AssetTag.DRIFT: {
         if (!bankMetadata?.driftStates) {
           console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
           return;
@@ -531,6 +530,7 @@ export async function getHealthSimulationTransactions({
         updateDriftMarketData.push(driftMarket);
 
         break;
+      }
 
       case AssetTag.SOLEND:
         break;

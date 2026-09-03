@@ -10,32 +10,10 @@ import {
 import { BigNumber } from "bignumber.js";
 
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
-import { nativeToUi, uiToNative } from "~/utils";
-import instructions from "~/instructions";
-import { AssetTag } from "~/services/bank";
-import {
-  addTransactionMetadata,
-  ExtendedTransaction,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  makeWrapSolIxs,
-  selectLutsForBanks,
-  splitInstructionsToFitTransactions,
-  TransactionType,
-  getWritableAccountKeys,
-  getTxSize,
-  getTotalAccountKeys,
-} from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
-import { TransactionBuildingError } from "~/errors";
-import syncInstructions from "~/sync-instructions";
-
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
 import {
   MakeRepayIxParams,
   MakeRepayTxParams,
@@ -47,20 +25,41 @@ import {
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
 } from "../utils";
-import {
-  runSwapEngine,
-  swapEngineProvidersFromOpts,
-  swapEngineQuoteFieldsFromOpts,
-} from "../services/swap-engine";
 
+import { makeSetupIx } from "./account-lifecycle";
+import { makeFlashLoanTx } from "./flash-loan";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "./withdraw";
-import { makeFlashLoanTx } from "./flash-loan";
-import { makeSetupIx } from "./account-lifecycle";
+
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import instructions from "~/instructions";
+import { AssetTag } from "~/services/bank";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  addTransactionMetadata,
+  ExtendedTransaction,
+  ExtendedV0Transaction,
+  InstructionsWrapper,
+  makeWrapSolIxs,
+  selectLutsForBanks,
+  splitInstructionsToFitTransactions,
+  TransactionType,
+  getTxSize,
+  getTotalAccountKeys,
+} from "~/services/transaction";
+import syncInstructions from "~/sync-instructions";
+import { nativeToUi, uiToNative } from "~/utils";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_2022_PROGRAM_ID,
+} from "~/vendor/spl";
 
 /**
  * Creates a repay instruction for repaying borrowed assets to a Marginfi bank.
@@ -273,7 +272,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     crossbarUrl,
   });
 
-  let additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: ExtendedV0Transaction[] = [];
 
   // if atas are needed, add them
   if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {

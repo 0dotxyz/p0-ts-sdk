@@ -1,3 +1,5 @@
+import { Buffer } from "buffer";
+
 import { struct, u8 } from "@solana/buffer-layout";
 import { u64 } from "@solana/buffer-layout-utils";
 import {
@@ -7,8 +9,6 @@ import {
   SYSVAR_RENT_PUBKEY,
   TransactionInstruction,
 } from "@solana/web3.js";
-
-import { Buffer } from "buffer";
 
 import { ASSOCIATED_TOKEN_PROGRAM_ID, MEMO_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants";
 import { addSigners } from "./utils/instruction.utils";

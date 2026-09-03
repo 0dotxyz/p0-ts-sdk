@@ -3,9 +3,9 @@ import BigNumber from "bignumber.js";
 
 import { BankType, OracleSetup } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
 import { decodeMarinadeState } from "~/vendor/marinade";
 import { decodeStakePool } from "~/vendor/spl-stake-pool";
-import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
 
 type FetchOracleMultiplierOnChainOpts = {
   mode: "on-chain";
@@ -70,7 +70,10 @@ export function computePtMultiplier(
   if (vault.duration <= 0 || maturity > nowSeconds + PT_MAX_MATURITY_HORIZON_SECONDS) {
     throw new Error("Exponent vault has an invalid maturity schedule");
   }
-  if (!vault.lastSeenSyExchangeRate.gt(0) || vault.lastSeenSyExchangeRate.gt(MAX_SY_EXCHANGE_RATE)) {
+  if (
+    !vault.lastSeenSyExchangeRate.gt(0) ||
+    vault.lastSeenSyExchangeRate.gt(MAX_SY_EXCHANGE_RATE)
+  ) {
     throw new Error("Exponent vault SY exchange rate out of bounds");
   }
   if (vault.ptSupply === 0n) {

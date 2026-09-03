@@ -1,5 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { KaminoStateJsonByBank } from "./kamino.types";
+
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
@@ -17,7 +19,6 @@ import {
   dtoToKaminoObligation,
   dtoToKaminoFarmState,
 } from "~/vendor/klend";
-import { KaminoStateJsonByBank } from "./kamino.types";
 
 export interface KaminoMetadata {
   kaminoStates: {
@@ -156,7 +157,7 @@ export async function getKaminoStatesDto(
         continue;
       }
 
-      const bankKey = bankByFarmKey[farmKey]!;
+      const bankKey = bankByFarmKey[farmKey];
       const kaminoState = kaminoStatesMap[bankKey];
 
       if (!kaminoState) {

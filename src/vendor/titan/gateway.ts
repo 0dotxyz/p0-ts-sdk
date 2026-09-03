@@ -9,15 +9,11 @@
 // Docs: developer-doc/swap-api/guides/transaction-template
 //       developer-doc/swap-api/reference/gateway/gateway-quote-swap
 
-import {
-  AddressLookupTableAccount,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
 import { Encoder, decode } from "@msgpack/msgpack";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
-import type { Instruction as TitanWireInstruction, SwapRoute, SwapQuotes } from "./types";
 import { isJitoDontFront } from "./helpers";
+import type { Instruction as TitanWireInstruction, SwapRoute } from "./types";
 
 const msgpackEncoder = new Encoder({ useBigInt64: true });
 
@@ -215,7 +211,9 @@ export async function fetchTitanQuoteSwapV3(
   try {
     raw = decode(new Uint8Array(await response.arrayBuffer())) as TitanGatewayQuoteResponse;
   } catch {
-    throw new Error(`Titan gateway returned an undecodable response for ${inputMint} -> ${outputMint}`);
+    throw new Error(
+      `Titan gateway returned an undecodable response for ${inputMint} -> ${outputMint}`
+    );
   }
 
   const route = selectGatewayRoute(raw, swapMode ?? "ExactIn");
@@ -266,9 +264,7 @@ export function selectGatewayRoute(
 }
 
 /** Deserialize a Titan wire instruction (raw bytes) into a web3.js instruction. */
-export function deserializeTitanWireInstruction(
-  ix: TitanWireInstruction
-): TransactionInstruction {
+export function deserializeTitanWireInstruction(ix: TitanWireInstruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(ix.p),
     keys: ix.a
@@ -281,6 +277,3 @@ export function deserializeTitanWireInstruction(
     data: Buffer.from(ix.d),
   });
 }
-
-/** Reuse the SwapQuotes type so callers can share route-selection helpers. */
-export type { SwapQuotes };

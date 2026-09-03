@@ -8,11 +8,13 @@ import {
   StakeProgram,
   Transaction,
   TransactionInstruction,
+  SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import { BN } from "bn.js";
 
-import { SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "../spl";
+
 import {
   MPL_METADATA_PROGRAM_ID,
   SINGLE_POOL_PROGRAM_ID,
@@ -22,8 +24,6 @@ import {
   SYSVAR_RENT_ID,
   SYSVAR_STAKE_HISTORY_ID,
 } from "~/constants";
-
-import { TOKEN_PROGRAM_ID } from "../spl";
 
 interface AccountMeta {
   pubkey: PublicKey;

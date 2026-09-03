@@ -1,7 +1,5 @@
-import { BigNumber } from "bignumber.js";
 import { AccountMeta, PublicKey } from "@solana/web3.js";
-
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "~/vendor/spl";
+import { BigNumber } from "bignumber.js";
 
 import { makeSplStakePoolUpdateBalanceIx } from "../instructions";
 import {
@@ -31,6 +29,8 @@ import {
   fetchExponentVaultFromMarket,
   getMintDecimals,
 } from "./deserialize.utils";
+
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /**
  * Resolve a list of `CpiInterfaceContext`s (ALT-indexed) into concrete {@link AccountMeta}s
