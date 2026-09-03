@@ -1,12 +1,10 @@
-import {
-  AccountFlags,
-  HealthCacheFlags,
-  HealthCacheStatus,
-} from "./account.types";
+import { AccountFlags, HealthCacheFlags, HealthCacheStatus } from "./account.types";
 
 export interface BalanceTypeDto {
   active: boolean;
   bankPk: string;
+  /** Optional for backwards compatibility with DTOs serialized before order tags existed. */
+  tag?: number;
   assetShares: string;
   liabilityShares: string;
   emissionsOutstanding: string;

@@ -36,6 +36,13 @@ import {
   MakeBorrowIxParams,
   makeBorrowTx,
   MakeBorrowTxParams,
+  makeCloseOrderTx,
+  MakeCloseOrderTxParams,
+  makePlaceOrderIx,
+  MakePlaceOrderIxParams,
+  makePlaceOrderTx,
+  MakePlaceOrderTxParams,
+  makeUpdateOrderTx,
   makeDepositIx,
   MakeDepositIxParams,
   makeDepositTx,
@@ -1171,6 +1178,54 @@ class MarginfiAccount implements MarginfiAccountType {
         },
       },
     });
+  }
+
+  // ----------------------------------------------------------------------------
+  // Orders (take-profit / stop-loss)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Creates a place-order instruction for this marginfi account.
+   *
+   * @see {@link makePlaceOrderIx} for detailed implementation
+   */
+  async makePlaceOrderIx(
+    params: Omit<MakePlaceOrderIxParams, "marginfiAccount">
+  ): Promise<InstructionsWrapper> {
+    return makePlaceOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction placing a take-profit / stop-loss order on a collateral/debt pair.
+   *
+   * @see {@link makePlaceOrderTx} for detailed implementation
+   */
+  async makePlaceOrderTx(
+    params: Omit<MakePlaceOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makePlaceOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction closing an existing order.
+   *
+   * @see {@link makeCloseOrderTx} for detailed implementation
+   */
+  async makeCloseOrderTx(
+    params: Omit<MakeCloseOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makeCloseOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction replacing the pair's existing order with new thresholds.
+   *
+   * @see {@link makeUpdateOrderTx} for detailed implementation
+   */
+  async makeUpdateOrderTx(
+    params: Omit<MakePlaceOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makeUpdateOrderTx({ ...params, marginfiAccount: this });
   }
 
   /**

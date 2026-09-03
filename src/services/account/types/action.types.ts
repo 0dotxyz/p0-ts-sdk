@@ -7,6 +7,7 @@ import {
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 import type { SwapEngineRunner } from "../services/swap-engine/types";
 
@@ -763,4 +764,57 @@ export interface MakeSetupIxParams {
     mint: PublicKey;
     tokenProgram: PublicKey;
   }[];
+}
+
+// ----------------------------------------------------------------------------
+// Orders (take-profit / stop-loss)
+// ----------------------------------------------------------------------------
+
+/**
+ * Trigger thresholds for a take-profit / stop-loss order. Thresholds are the pair's net equity in
+ * USD (collateral value − debt value of the two tagged balances), not a token price. At least one
+ * of `stopLossUsd` / `takeProfitUsd` must be set; both makes a `Both` order.
+ */
+export interface OrderTriggerParams {
+  /** Pair net equity (USD) at or below which the stop-loss fires. */
+  stopLossUsd?: BigNumber;
+  /** Pair net equity (USD) at or above which the take-profit fires. */
+  takeProfitUsd?: BigNumber;
+  /** Max slippage the keeper may incur when executing, in percent (protocol cap: 10). */
+  maxSlippagePercent: number;
+}
+
+export interface MakePlaceOrderIxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  /** Bank of the asset-side (collateral) balance. */
+  collateralBank: PublicKey;
+  /** Bank of the liability-side (debt) balance. */
+  debtBank: PublicKey;
+  trigger: OrderTriggerParams;
+  /** Pays the order rent and the flat anti-spam fee. Defaults to the account authority. */
+  feePayer?: PublicKey;
+  /** Global fee wallet from the program's `FeeState`; fetched from chain when omitted. */
+  globalFeeWallet?: PublicKey;
+}
+
+export interface MakePlaceOrderTxParams extends MakePlaceOrderIxParams {
+  connection: Connection;
+  luts: AddressLookupTableAccount[];
+  blockhash?: string;
+}
+
+export interface MakeCloseOrderIxParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  /** The order PDA to close (see `deriveOrderPda`). */
+  order: PublicKey;
+  /** Receives the order's rent. Defaults to the account authority. */
+  feeRecipient?: PublicKey;
+}
+
+export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams {
+  connection: Connection;
+  luts: AddressLookupTableAccount[];
+  blockhash?: string;
 }

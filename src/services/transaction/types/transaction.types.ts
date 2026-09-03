@@ -68,6 +68,11 @@ export enum TransactionType {
   // LIQUIDATE
   LIQUIDATE_ACCOUNT = "LIQUIDATE_ACCOUNT",
 
+  // ORDERS (TP/SL)
+  PLACE_ORDER = "PLACE_ORDER",
+  CLOSE_ORDER = "CLOSE_ORDER",
+  UPDATE_ORDER = "UPDATE_ORDER",
+
   // BANK and GROUPS
   CREATE_PERM_BANK = "CREATE_PERM_BANK",
   CREATE_GROUP = "CREATE_GROUP",
@@ -190,6 +195,21 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
 
   // LIQUIDATE
   [TransactionType.LIQUIDATE_ACCOUNT]: { label: () => "Liquidate account" },
+
+  // ORDERS (TP/SL)
+  [TransactionType.PLACE_ORDER]: {
+    label: ({ collateralToken, debtToken } = {}) =>
+      collateralToken && debtToken
+        ? `Place TP/SL order on ${collateralToken}/${debtToken}`
+        : "Place TP/SL order",
+  },
+  [TransactionType.CLOSE_ORDER]: { label: () => "Close TP/SL order" },
+  [TransactionType.UPDATE_ORDER]: {
+    label: ({ collateralToken, debtToken } = {}) =>
+      collateralToken && debtToken
+        ? `Update TP/SL order on ${collateralToken}/${debtToken}`
+        : "Update TP/SL order",
+  },
 
   // BANK and GROUPS
   [TransactionType.CREATE_PERM_BANK]: { label: () => "Create permissionless bank" },

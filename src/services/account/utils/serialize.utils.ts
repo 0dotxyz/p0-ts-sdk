@@ -17,17 +17,14 @@ export function accountFlagToBN(flag: AccountFlags): BN {
   return new BN(flag);
 }
 
-export function marginfiAccountToDto(
-  marginfiAccount: MarginfiAccountType
-): MarginfiAccountTypeDto {
+export function marginfiAccountToDto(marginfiAccount: MarginfiAccountType): MarginfiAccountTypeDto {
   return {
     address: marginfiAccount.address.toBase58(),
     group: marginfiAccount.group.toBase58(),
     authority: marginfiAccount.authority.toBase58(),
     balances: marginfiAccount.balances.map(balanceToDto),
     accountFlags: marginfiAccount.accountFlags,
-    emissionsDestinationAccount:
-      marginfiAccount.emissionsDestinationAccount.toBase58(),
+    emissionsDestinationAccount: marginfiAccount.emissionsDestinationAccount.toBase58(),
     healthCache: healthCacheToDto(marginfiAccount.healthCache),
   };
 }
@@ -36,6 +33,7 @@ export function balanceToDto(balance: BalanceType): BalanceTypeDto {
   return {
     active: balance.active,
     bankPk: balance.bankPk.toBase58(),
+    tag: balance.tag,
     assetShares: balance.assetShares.toString(),
     liabilityShares: balance.liabilityShares.toString(),
     emissionsOutstanding: balance.emissionsOutstanding.toString(),
@@ -43,9 +41,7 @@ export function balanceToDto(balance: BalanceType): BalanceTypeDto {
   };
 }
 
-export function healthCacheToDto(
-  healthCache: HealthCacheType
-): HealthCacheTypeDto {
+export function healthCacheToDto(healthCache: HealthCacheType): HealthCacheTypeDto {
   return {
     assetValue: healthCache.assetValue.toString(),
     liabilityValue: healthCache.liabilityValue.toString(),

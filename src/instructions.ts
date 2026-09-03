@@ -2,7 +2,7 @@ import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
-import { MarginfiProgram, WrappedI80F48 } from "./types";
+import { MarginfiProgram, OrderTrigger, WrappedI80F48 } from "./types";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
 async function makeInitMarginfiAccountIx(
@@ -980,6 +980,81 @@ async function makePulseHealthIx(
     .instruction();
 }
 
+/**
+ * Creates an instruction to place a take-profit/stop-loss order on a collateral/debt bank pair.
+ * The `order` account must be derived by the caller (see `deriveOrderPda`) — the IDL has no
+ * pda block for it.
+ */
+async function makePlaceOrderIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    // Required accounts
+    marginfiAccount: PublicKey;
+    feePayer: PublicKey;
+    authority: PublicKey;
+    order: PublicKey;
+    globalFeeWallet: PublicKey;
+    // Optional accounts - to override inference
+    group?: PublicKey;
+  },
+  args: {
+    /** Exactly two keys: one asset-side (collateral) bank and one liability-side (debt) bank. */
+    bankKeys: PublicKey[];
+    trigger: OrderTrigger;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const { marginfiAccount, feePayer, authority, order, globalFeeWallet, ...optionalAccounts } =
+    accounts;
+
+  return (
+    mfProgram.methods
+      .marginfiAccountPlaceOrder(args.bankKeys, args.trigger)
+      .accounts({
+        marginfiAccount,
+        feePayer,
+        order,
+      })
+      // has_one relations are only accepted via accountsPartial; passing them skips resolver fetches
+      .accountsPartial({ authority, globalFeeWallet, ...optionalAccounts })
+      .remainingAccounts(remainingAccounts)
+      .instruction()
+  );
+}
+
+/**
+ * Creates an instruction to close an existing order, returning rent to the fee recipient.
+ */
+async function makeCloseOrderIx(
+  mfProgram: MarginfiProgram,
+  accounts: {
+    // Required accounts
+    marginfiAccount: PublicKey;
+    authority: PublicKey;
+    order: PublicKey;
+    feeRecipient: PublicKey;
+    // Optional accounts - to override inference
+    group?: PublicKey;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  const { marginfiAccount, authority, order, feeRecipient, ...optionalAccounts } = accounts;
+
+  return (
+    mfProgram.methods
+      .marginfiAccountCloseOrder()
+      .accounts({
+        authority,
+        order,
+        feeRecipient,
+      })
+      // has_one relation from `order`, only accepted via accountsPartial
+      .accountsPartial({ marginfiAccount, ...optionalAccounts })
+      .remainingAccounts(remainingAccounts)
+      .instruction()
+  );
+}
+
 const instructions = {
   makeDepositIx,
   makeJuplendDepositIx,
@@ -1006,6 +1081,8 @@ const instructions = {
   makeLendingPoolConfigureBankOracleScopeIx,
   makeLendingPoolSetOraclePriceIx,
   makePulseHealthIx,
+  makePlaceOrderIx,
+  makeCloseOrderIx,
 };
 
 export default instructions;
