@@ -16,11 +16,19 @@ import {
   HealthCacheType,
   HealthCacheRaw,
   HealthCacheStatus,
+  OrderRaw,
+  OrderType,
+  OrderTriggerKind,
 } from "../types";
 
 import { MarginfiIdlType } from "~/idl";
 import { AccountType } from "~/types";
-import { bigNumberToWrappedI80F48, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
+import {
+  bigNumberToWrappedI80F48,
+  maxSlippageU32ToPercent,
+  toBigNumber,
+  wrappedI80F48toBigNumber,
+} from "~/utils";
 
 export const EMPTY_HEALTH_CACHE: HealthCacheRaw = {
   assetValue: {
@@ -48,10 +56,28 @@ export function decodeAccountRaw(encoded: Buffer, idl: MarginfiIdlType): Marginf
   return coder.accounts.decode(AccountType.MarginfiAccount, encoded);
 }
 
+export function parseOrderRaw(orderAddress: PublicKey, orderRaw: OrderRaw): OrderType {
+  let trigger: OrderTriggerKind = "stopLoss";
+  if ("takeProfit" in orderRaw.trigger) trigger = "takeProfit";
+  if ("both" in orderRaw.trigger) trigger = "both";
+
+  return {
+    address: orderAddress,
+    marginfiAccount: orderRaw.marginfiAccount,
+    trigger,
+    stopLoss: trigger === "takeProfit" ? null : wrappedI80F48toBigNumber(orderRaw.stopLoss),
+    takeProfit: trigger === "stopLoss" ? null : wrappedI80F48toBigNumber(orderRaw.takeProfit),
+    tags: [orderRaw.tags[0], orderRaw.tags[1]],
+    createdAt: orderRaw.createdAt.toNumber(),
+    maxSlippagePercent: maxSlippageU32ToPercent(orderRaw.maxSlippage),
+  };
+}
+
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const active =
     typeof balanceRaw.active === "number" ? balanceRaw.active === 1 : balanceRaw.active;
   const bankPk = balanceRaw.bankPk;
+  const tag = balanceRaw.tag;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
   const emissionsOutstanding = wrappedI80F48toBigNumber(balanceRaw.emissionsOutstanding);
@@ -60,6 +86,7 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   return {
     active,
     bankPk,
+    tag,
     assetShares,
     liabilityShares,
     emissionsOutstanding,
@@ -222,6 +249,7 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
   return {
     active: balanceDto.active,
     bankPk: new PublicKey(balanceDto.bankPk),
+    tag: balanceDto.tag ?? 0,
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
     emissionsOutstanding: new BigNumber(balanceDto.emissionsOutstanding),

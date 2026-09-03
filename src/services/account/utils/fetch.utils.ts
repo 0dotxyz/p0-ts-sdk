@@ -7,9 +7,11 @@ import {
   HealthCacheSimulationError,
   MarginfiAccountRaw,
   MarginfiAccountType,
+  OrderRaw,
+  OrderType,
 } from "../types";
 
-import { parseMarginfiAccountRaw } from "./deserialize.utils";
+import { parseMarginfiAccountRaw, parseOrderRaw } from "./deserialize.utils";
 
 import { BankType } from "~/services/bank";
 import { AccountType, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
@@ -229,6 +231,72 @@ export const fetchMarginfiAccountData = async (
     }
     return { marginfiAccount };
   }
+};
+
+/**
+ * Fetches a single order account by address. Returns null if the order does not exist.
+ *
+ * @param program - The marginfi Anchor program (connection is taken from its provider)
+ * @param orderAddress - The order PDA (see {@link deriveOrderPda})
+ */
+export const fetchOrder = async (
+  program: MarginfiProgram,
+  orderAddress: PublicKey
+): Promise<OrderType | null> => {
+  const orderRaw: OrderRaw | null = await program.account.order.fetchNullable(orderAddress);
+  if (!orderRaw) return null;
+  return parseOrderRaw(orderAddress, orderRaw);
+};
+
+/**
+ * Fetches all open orders for a marginfi account.
+ *
+ * @param program - The marginfi Anchor program (connection is taken from its provider)
+ * @param marginfiAccount - The marginfi account public key
+ */
+export const fetchOrdersForAccount = async (
+  program: MarginfiProgram,
+  marginfiAccount: PublicKey
+): Promise<OrderType[]> => {
+  const orders = await program.account.order.all([
+    {
+      memcmp: {
+        bytes: marginfiAccount.toBase58(),
+        offset: 8, // first field after the discriminator
+      },
+    },
+  ]);
+
+  return orders.map(({ publicKey, account }) => parseOrderRaw(publicKey, account));
+};
+
+/**
+ * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
+ * account that owns it. The tag order in `order.tags` follows the caller-supplied bank key
+ * order at placement time, so the side is inferred from the tagged balances themselves.
+ *
+ * @param marginfiAccount - The parsed marginfi account that owns the order
+ * @param order - The order whose bank pair to resolve
+ * @throws If either tagged balance is missing or no longer has a position (orphaned order)
+ */
+export const resolveOrderBanks = (
+  marginfiAccount: MarginfiAccountType,
+  order: OrderType
+): { collateralBank: PublicKey; debtBank: PublicKey } => {
+  const taggedBalances = marginfiAccount.balances.filter(
+    (balance) => balance.tag !== 0 && order.tags.includes(balance.tag)
+  );
+
+  const collateral = taggedBalances.find((balance) => balance.assetShares.gt(0));
+  const debt = taggedBalances.find((balance) => balance.liabilityShares.gt(0));
+
+  if (!collateral || !debt) {
+    throw new Error(
+      `Could not resolve banks for order ${order.address.toBase58()}: tagged balances are missing or closed`
+    );
+  }
+
+  return { collateralBank: collateral.bankPk, debtBank: debt.bankPk };
 };
 
 function randomDistinctIndices(count: number, maxExclusive: number): number[] {

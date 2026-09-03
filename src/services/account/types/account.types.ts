@@ -4,6 +4,11 @@ import BigNumber from "bignumber.js";
 export interface BalanceType {
   active: boolean;
   bankPk: PublicKey;
+  /**
+   * Tag used by orders to reference this balance (0 means unused/unassigned).
+   * A tag may be non-zero even when no order currently references it.
+   */
+  tag: number;
   assetShares: BigNumber;
   liabilityShares: BigNumber;
   emissionsOutstanding: BigNumber;
@@ -73,4 +78,23 @@ export enum MarginRequirementType {
   Initial = 0,
   Maintenance = 1,
   Equity = 2,
+}
+
+export type OrderTriggerKind = "stopLoss" | "takeProfit" | "both";
+
+export interface OrderType {
+  address: PublicKey;
+  marginfiAccount: PublicKey;
+  /** Which trigger(s) this order fires on. */
+  trigger: OrderTriggerKind;
+  /** Pair net-equity stop-loss threshold in USD, null when the order has no stop-loss leg. */
+  stopLoss: BigNumber | null;
+  /** Pair net-equity take-profit threshold in USD, null when the order has no take-profit leg. */
+  takeProfit: BigNumber | null;
+  /** Tags linking this order to its two balances (see {@link BalanceType.tag}). */
+  tags: [number, number];
+  /** Unix timestamp (seconds) when the order was created. */
+  createdAt: number;
+  /** Max slippage the keeper may impose on execution, in percent. */
+  maxSlippagePercent: number;
 }

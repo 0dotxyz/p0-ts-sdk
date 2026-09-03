@@ -116,6 +116,33 @@ export function bpsToPercentile(bps: number): number {
   return bps / 10000;
 }
 
+const U32_MAX = 4294967295;
+// on-chain MAX_ORDER_SLIPPAGE = u32::MAX / 10
+const MAX_ORDER_SLIPPAGE_PERCENT = 10;
+
+/**
+ * Converts a slippage tolerance in percent to the on-chain u32 representation
+ * (a fraction of `u32::MAX`, where 100% = `u32::MAX`).
+ *
+ * @param percent - Slippage in percent, must be in (0, 10] (protocol cap)
+ */
+export function percentToMaxSlippageU32(percent: number): number {
+  if (!(percent > 0) || percent > MAX_ORDER_SLIPPAGE_PERCENT) {
+    throw new Error(
+      `Max slippage percent must be in (0, ${MAX_ORDER_SLIPPAGE_PERCENT}], got ${percent}`
+    );
+  }
+  return Math.round((percent / 100) * U32_MAX);
+}
+
+/**
+ * Inverse of {@link percentToMaxSlippageU32}: converts the on-chain u32 slippage
+ * representation back to a percent value.
+ */
+export function maxSlippageU32ToPercent(maxSlippage: number): number {
+  return (maxSlippage / U32_MAX) * 100;
+}
+
 /**
  * Prepares transaction remaining accounts by processing bank-oracle groups:
  * 1. Sorts groups in descending order by bank public key (pushes inactive accounts to end)

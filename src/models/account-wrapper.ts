@@ -24,6 +24,7 @@ import {
   MakeWithdrawIxOpts,
   MakeTransferPositionsTxParams,
   MarginRequirementType,
+  OrderTriggerParams,
   SwapQuoteResult,
   TransactionBuilderResult,
   TransferPositionsResult,
@@ -857,6 +858,64 @@ export class MarginfiAccountWrapper {
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
+    });
+  }
+
+  // ----------------------------------------------------------------------------
+  // Orders (take-profit / stop-loss)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Creates a transaction placing a take-profit / stop-loss order on a collateral/debt pair.
+   *
+   * @param collateralBank - Bank of the asset-side balance
+   * @param debtBank - Bank of the liability-side balance
+   * @param trigger - USD pair-equity thresholds and max slippage
+   */
+  async makePlaceOrderTx(
+    collateralBank: PublicKey,
+    debtBank: PublicKey,
+    trigger: OrderTriggerParams
+  ): Promise<ExtendedV0Transaction> {
+    return this.account.makePlaceOrderTx({
+      program: this.client.program,
+      collateralBank,
+      debtBank,
+      trigger,
+      luts: this.client.addressLookupTables,
+      connection: this.client.program.provider.connection,
+    });
+  }
+
+  /**
+   * Creates a transaction replacing the pair's existing order with new thresholds.
+   */
+  async makeUpdateOrderTx(
+    collateralBank: PublicKey,
+    debtBank: PublicKey,
+    trigger: OrderTriggerParams
+  ): Promise<ExtendedV0Transaction> {
+    return this.account.makeUpdateOrderTx({
+      program: this.client.program,
+      collateralBank,
+      debtBank,
+      trigger,
+      luts: this.client.addressLookupTables,
+      connection: this.client.program.provider.connection,
+    });
+  }
+
+  /**
+   * Creates a transaction closing an existing order.
+   *
+   * @param order - The order PDA (from `fetchOrdersForAccount` or `deriveOrderPda`)
+   */
+  async makeCloseOrderTx(order: PublicKey): Promise<ExtendedV0Transaction> {
+    return this.account.makeCloseOrderTx({
+      program: this.client.program,
+      order,
+      luts: this.client.addressLookupTables,
+      connection: this.client.program.provider.connection,
     });
   }
 

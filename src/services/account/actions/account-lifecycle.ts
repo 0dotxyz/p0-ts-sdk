@@ -438,6 +438,7 @@ export function generateDummyAccount(
   const dummyBalances: BalanceRaw[] = Array(15).fill({
     active: false,
     bankPk: new PublicKey("11111111111111111111111111111111"),
+    tag: 0,
     assetShares: dummyWrappedI80F48,
     liabilityShares: dummyWrappedI80F48,
     emissionsOutstanding: dummyWrappedI80F48,
@@ -446,7 +447,7 @@ export function generateDummyAccount(
   const rawAccount: MarginfiAccountRaw = {
     group: group,
     authority: authority,
-    lendingAccount: { balances: dummyBalances },
+    lendingAccount: { balances: dummyBalances, lastTagUsed: 0 },
     healthCache: {
       assetValue: {
         value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -469,6 +470,7 @@ export function generateDummyAccount(
     },
     emissionsDestinationAccount: new PublicKey("11111111111111111111111111111111"),
     accountFlags: new BN([0, 0, 0]),
+    activeOrders: 0,
   };
 
   return parseMarginfiAccountRaw(accountKey, rawAccount);
