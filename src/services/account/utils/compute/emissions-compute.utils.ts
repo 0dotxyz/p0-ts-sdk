@@ -1,9 +1,11 @@
 import BigNumber from "bignumber.js";
 
-import { BankType } from "~/services/bank";
 
 import { BalanceType } from "../../types";
+
 import { computeQuantity } from "./balance-value-compute.utils";
+
+import { BankType } from "~/services/bank";
 
 /**
  * Emissions Calculations

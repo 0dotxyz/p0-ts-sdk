@@ -1,9 +1,11 @@
 import { PublicKey } from "@solana/web3.js";
+
 import {
   JUP_LEND_PROGRAM_ID,
   JUP_LIQUIDITY_PROGRAM_ID,
   JUP_REWARDS_PROGRAM_ID,
 } from "../constants";
+
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,

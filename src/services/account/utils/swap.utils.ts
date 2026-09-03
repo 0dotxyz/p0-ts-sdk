@@ -1,8 +1,6 @@
-import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
+import { Connection, PublicKey, TransactionInstruction , AddressLookupTableAccount } from "@solana/web3.js";
 import BN from "bn.js";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { AddressLookupTableAccount } from "@solana/web3.js";
 
 import {
   SwapApiConfig,
@@ -12,9 +10,12 @@ import {
   SwapProviderEntry,
   SwapQuoteResult,
 } from "../types";
+
 import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils";
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
+
 import { TransactionBuildingError } from "~/errors";
+import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
 /** The canonical shape a resolved pinned route yields — mirrors an engine-selected route. */
 export interface ResolvedPinnedSwapRoute {

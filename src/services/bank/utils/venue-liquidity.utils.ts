@@ -1,12 +1,13 @@
 import BigNumber from "bignumber.js";
 
+import { nativeToUi } from "../../../utils/conversion.utils";
+import { AssetTag, BankType } from "../types";
+
 import { DriftSpotBalanceType, DriftSpotMarket, getDriftTokenAmount } from "~/vendor/drift";
-import { KaminoReserve } from "~/vendor/klend";
 import { JupTokenReserve } from "~/vendor/jup-lend";
 import { JUP_EXCHANGE_PRICES_PRECISION } from "~/vendor/jup-lend/utils/interest-rate.utils";
+import { KaminoReserve } from "~/vendor/klend";
 
-import { AssetTag, BankType } from "../types";
-import { nativeToUi } from "../../../utils/conversion.utils";
 
 /**
  * The venue-side account states needed to derive an integrated bank's true liquidity.

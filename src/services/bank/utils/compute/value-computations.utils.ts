@@ -1,12 +1,15 @@
 import BigNumber from "bignumber.js";
 
-import { OraclePrice, PriceBias, getPrice } from "~/services/price";
-import { MarginRequirementType } from "~/services/account/types";
-import { toBigNumber } from "~/utils";
-import { Amount } from "~/types";
-
 import { BankType, BankConfigType, RiskTier, OperationalState } from "../../types";
+
 import { getAssetQuantity, getLiabilityQuantity } from "./share-conversions.utils";
+
+import { MarginRequirementType } from "~/services/account/types";
+import { OraclePrice, PriceBias, getPrice } from "~/services/price";
+import { Amount } from "~/types";
+import { toBigNumber } from "~/utils";
+
+
 
 /**
  * Weight, USD Value & Leverage Computation Utilities

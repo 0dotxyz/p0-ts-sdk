@@ -1,9 +1,12 @@
 import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import instructions from "~/instructions";
-import { Amount, MarginfiProgram, MintData } from "~/types";
+import { Balance } from "./balance";
+import { Bank } from "./bank";
+import { HealthCache } from "./health-cache";
+
 import { MarginfiIdlType } from "~/idl";
+import instructions from "~/instructions";
 import {
   AccountFlags,
   computeAccountValue,
@@ -102,10 +105,7 @@ import {
   makeUnwrapSolIx,
   makeWrapSolIxs,
 } from "~/services/transaction";
-
-import { Balance } from "./balance";
-import { Bank } from "./bank";
-import { HealthCache } from "./health-cache";
+import { Amount, MarginfiProgram, MintData } from "~/types";
 
 // ----------------------------------------------------------------------------
 // Client types

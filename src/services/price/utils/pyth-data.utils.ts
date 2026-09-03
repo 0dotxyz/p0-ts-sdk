@@ -1,11 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
+import { OraclePrice, PriceWithConfidence } from "../types";
+
 import { PYTH_PRICE_CONF_INTERVALS, MAX_CONFIDENCE_INTERVAL_RATIO } from "~/constants";
 import { BankType, OracleSetup } from "~/services/bank";
 import { parsePriceInfo } from "~/vendor/pyth_push_oracle";
 
-import { OraclePrice, PriceWithConfidence } from "../types";
 
 /**
  * Categorizes banks by their oracle setup type into legacy, push, and staked collateral banks
@@ -110,7 +111,7 @@ export const convertVoteAccCoeffsToBankCoeffs = (
  * @returns Array of oracle key strings in base58 format
  */
 export const extractPythOracleKeys = (pythBanks: BankType[]): string[] => {
-  const keys = pythBanks.map((bank) => bank.config.oracleKeys[0]!.toBase58());
+  const keys = pythBanks.map((bank) => bank.config.oracleKeys[0].toBase58());
 
   return [...keys];
 };
@@ -133,7 +134,7 @@ export const mapPythBanksToOraclePrices = (
 
   // Map banks
   pythPushBanks.forEach((bank) => {
-    const oracleKey = bank.config.oracleKeys[0]!.toBase58();
+    const oracleKey = bank.config.oracleKeys[0].toBase58();
     const oraclePrice = oraclePrices[oracleKey];
     if (oraclePrice) {
       bankOraclePriceMap.set(bank.address.toBase58(), oraclePrice);

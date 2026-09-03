@@ -1,24 +1,13 @@
 import { ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  getTxSize,
-  getTotalAccountKeys,
-  splitInstructionsToFitTransactions,
-  TransactionType,
-} from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
-import { BankType } from "~/services/bank";
-import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-} from "~/vendor/spl";
-import { nativeToUi, uiToNative } from "~/utils";
 
+import {
+  computeBorrowEstimateForRepay,
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+} from "../services/swap-engine";
+import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 import {
   isWholePosition,
   computeFlashloanSwapConstraints,
@@ -30,19 +19,31 @@ import {
   sharedBridgeLegContext,
   tryBridgeCandidates,
 } from "../utils";
-import {
-  computeBorrowEstimateForRepay,
-  runSwapEngine,
-  swapEngineProvidersFromOpts,
-  swapEngineQuoteFieldsFromOpts,
-} from "../services/swap-engine";
-import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 
 import { makeSetupIx } from "./account-lifecycle";
-import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeBorrowIx } from "./borrow";
-import { makeRepayIx } from "./repay";
+import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeRepayIx } from "./repay";
+
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
+import { BankType } from "~/services/bank";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  getTxSize,
+  getTotalAccountKeys,
+  splitInstructionsToFitTransactions,
+  TransactionType,
+} from "~/services/transaction";
+import { nativeToUi, uiToNative } from "~/utils";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "~/vendor/spl";
 
 /**
  * Creates transactions to swap one debt position to another using a flash loan.
@@ -148,7 +149,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     crossbarUrl,
   });
 
-  let additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
   if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {

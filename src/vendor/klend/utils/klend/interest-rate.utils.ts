@@ -7,6 +7,9 @@
  * Extracted all needed functions & constants out of their SDK
  */
 
+import Decimal from "decimal.js";
+
+import { Fraction } from "../../classes";
 import {
   ONE_HUNDRED_PCT_IN_BPS,
   SLOTS_PER_YEAR,
@@ -19,8 +22,6 @@ import {
   KaminoInterestRateBasis,
   KaminoReserve,
 } from "../../types";
-import Decimal from "decimal.js";
-import { Fraction } from "../../classes";
 
 // =============================================================================
 // INTERFACES

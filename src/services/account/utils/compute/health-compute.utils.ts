@@ -1,9 +1,5 @@
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
-
-import { BankType } from "~/services/bank";
-import { OraclePrice } from "~/services/price";
-import { shortenAddress } from "~/utils";
+import BigNumber from "bignumber.js";
 
 import {
   MarginfiAccountType,
@@ -12,7 +8,13 @@ import {
   HealthCacheType,
   HealthCacheStatus,
 } from "../../types";
+
 import { getBalanceUsdValueWithPriceBias } from "./balance-value-compute.utils";
+
+import { BankType } from "~/services/bank";
+import { OraclePrice } from "~/services/price";
+import { shortenAddress } from "~/utils";
+
 
 /**
  * Health & Free Collateral Calculations

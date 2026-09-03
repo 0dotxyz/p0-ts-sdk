@@ -109,7 +109,7 @@ export function makeBundleTipIx(
     "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
   ];
 
-  const tipAccount = tipAccounts[Math.floor(Math.random() * tipAccounts.length)]!;
+  const tipAccount = tipAccounts[Math.floor(Math.random() * tipAccounts.length)];
 
   const bundleTipInstruction = SystemProgram.transfer({
     fromPubkey: feePayer,

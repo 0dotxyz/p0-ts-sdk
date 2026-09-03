@@ -1,12 +1,15 @@
-import BN from "bn.js";
 import BigNumber from "bignumber.js";
+import BN from "bn.js";
 
-import { FeedResponse, SWITCHBOARD_ONDEMANDE_PRICE_PRECISION } from "~/vendor/switchboard_pull";
-import { BankType } from "~/services/bank";
-import { MAX_CONFIDENCE_INTERVAL_RATIO, SWB_PRICE_CONF_INTERVALS } from "~/constants";
+import { OraclePrice, SwbOracleAiDataByKey } from "../types";
 
 import { capConfidenceInterval } from "./compute.utils";
-import { OraclePrice, SwbOracleAiDataByKey } from "../types";
+
+import { MAX_CONFIDENCE_INTERVAL_RATIO, SWB_PRICE_CONF_INTERVALS } from "~/constants";
+import { BankType } from "~/services/bank";
+import { FeedResponse, SWITCHBOARD_ONDEMANDE_PRICE_PRECISION } from "~/vendor/switchboard_pull";
+
+
 
 /**
  * Maps Switchboard banks to their corresponding oracle prices using feed data and crossbar responses
@@ -23,7 +26,7 @@ export const mapSwbBanksToOraclePrices = (
   const bankOraclePriceMap = new Map<string, OraclePrice>();
 
   banks.forEach((bank) => {
-    const oracleKey = bank.config.oracleKeys[0]!.toBase58();
+    const oracleKey = bank.config.oracleKeys[0].toBase58();
     const oracleData = swbOracleAiDataByKey[oracleKey];
     const oracleFeed = oracleData?.feedHash;
     if (oracleFeed && oracleData && crossbarResponse) {
@@ -64,7 +67,7 @@ export const mapBrokenFeedsToOraclePrices = (
   const bankOraclePriceMap = new Map<string, OraclePrice>();
 
   banks.forEach((bank) => {
-    const oracleKey = bank.config.oracleKeys[0]!.toBase58();
+    const oracleKey = bank.config.oracleKeys[0].toBase58();
     const oracleData = swbOracleAiDataByKey[oracleKey];
     const oracleFeed = oracleData?.feedHash;
     const fallbackPrice = oracleFeed ? fallbackPricesByFeedId[oracleFeed] : undefined;

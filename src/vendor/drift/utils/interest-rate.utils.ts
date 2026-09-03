@@ -1,4 +1,5 @@
 import BN from "bn.js";
+
 import { DriftSpotBalanceType, DriftSpotMarket, isSpotBalanceTypeVariant } from "../types";
 
 /**

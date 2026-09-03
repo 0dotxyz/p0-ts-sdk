@@ -9,15 +9,15 @@
 // Docs: developer-doc/swap-api/guides/transaction-template
 //       developer-doc/swap-api/reference/gateway/gateway-quote-swap
 
+import { Encoder, decode } from "@msgpack/msgpack";
 import {
   AddressLookupTableAccount,
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { Encoder, decode } from "@msgpack/msgpack";
 
-import type { Instruction as TitanWireInstruction, SwapRoute, SwapQuotes } from "./types";
 import { isJitoDontFront } from "./helpers";
+import type { Instruction as TitanWireInstruction, SwapRoute, SwapQuotes } from "./types";
 
 const msgpackEncoder = new Encoder({ useBigInt64: true });
 

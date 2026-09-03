@@ -1,4 +1,3 @@
-import { BigNumber } from "bignumber.js";
 import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
@@ -7,7 +6,27 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
 
+
+import {
+  MakeTransferPositionsTxParams,
+  TransferPositionSide,
+  TransferPositionsResult,
+} from "../types";
+import { MarginfiAccountType } from "../types/account.types";
+import { computeHealthAccountMetas, computeQuantityUi } from "../utils";
+import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
+
+import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
+import { makeBorrowIx } from "./borrow";
+import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
+import { makeRepayIx } from "./repay";
+import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
+import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
+
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import {
   AssetTag,
   BankType,
@@ -28,25 +47,7 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { TransactionBuildingError } from "~/errors";
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { MarginfiProgram, BankIntegrationMetadataMap } from "~/types";
-
-import {
-  MakeTransferPositionsTxParams,
-  TransferPositionSide,
-  TransferPositionsResult,
-} from "../types";
-import { MarginfiAccountType } from "../types/account.types";
-import { computeHealthAccountMetas, computeQuantityUi } from "../utils";
-import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
-
-import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
-import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
-import { makeBorrowIx } from "./borrow";
-import { makeRepayIx } from "./repay";
-import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
-import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
 
 /** Fixed marginfi balance slots per account. */
 const MAX_BALANCES = 16;

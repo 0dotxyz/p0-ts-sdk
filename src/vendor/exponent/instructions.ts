@@ -1,9 +1,8 @@
 import { Buffer } from "buffer";
-import { AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
+import { AccountMeta, PublicKey, TransactionInstruction , SystemProgram } from "@solana/web3.js";
 
-import { SystemProgram } from "@solana/web3.js";
+
 
 import { EXPONENT_CLMM_PROGRAM_ID, EXPONENT_CORE_PROGRAM_ID } from "./constants";
 import {
@@ -18,6 +17,8 @@ import {
   deriveExponentClmmEventAuthority,
   deriveExponentEventAuthority,
 } from "./utils/derive.utils";
+
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /**
  * `merge` instruction discriminator, taken from the committed Exponent IDL

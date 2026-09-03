@@ -1,12 +1,13 @@
 import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
+import { OraclePrice, OraclePriceDto } from "../types";
+import { getOracleSourceFromBank } from "../utils";
+
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
-import { OraclePrice, OraclePriceDto } from "../types";
-import { getOracleSourceFromBank } from "../utils";
 
 type FetchScopeOracleOnChainOpts = {
   mode: "on-chain";
@@ -168,7 +169,7 @@ export const fetchScopeOraclePricesFromChain = async (
   requestKeys: string[],
   connection: Connection
 ): Promise<Record<string, OraclePrice>> => {
-  const uniqueOracleKeys = Array.from(new Set(requestKeys.map((key) => key.split(":")[0]!)));
+  const uniqueOracleKeys = Array.from(new Set(requestKeys.map((key) => key.split(":")[0])));
   const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
     connection,
     uniqueOracleKeys
@@ -183,7 +184,7 @@ export const fetchScopeOraclePricesFromChain = async (
 
   for (const requestKey of requestKeys) {
     const [oracleKey, entryIndexRaw] = requestKey.split(":");
-    const data = accountDataByKey[oracleKey!];
+    const data = accountDataByKey[oracleKey];
 
     let price = new BigNumber(0);
     let timestamp = new BigNumber(0);

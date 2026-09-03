@@ -5,7 +5,11 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 
+import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from "../types";
+import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
+
 import instructions from "~/instructions";
+import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -14,18 +18,15 @@ import {
   selectLutsForAccountAction,
   TransactionType,
 } from "~/services/transaction";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
 import syncInstructions from "~/sync-instructions";
+import { uiToNative } from "~/utils";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
 } from "~/vendor/spl";
-import { uiToNative } from "~/utils";
 
-import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
-import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from "../types";
 
 export async function makeBorrowIx({
   program,
@@ -162,7 +163,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
 
-  let feedCrankTxs: ExtendedV0Transaction[] = [];
+  const feedCrankTxs: ExtendedV0Transaction[] = [];
 
   if (updateFeedIxs.length > 0) {
     feedCrankTxs.push(

@@ -1,5 +1,5 @@
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { Program as AnchorProgram, AnchorProvider, Idl } from "@coral-xyz/anchor";
+import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { MarginfiIdlType } from "./idl";
@@ -157,7 +157,7 @@ export type TypedAmount = {
 
 export function resolveAmount(amount: Amount | TypedAmount): { value: Amount; type: AmountType } {
   if (typeof amount === "object" && amount !== null && "type" in amount && "value" in amount) {
-    return amount as TypedAmount;
+    return amount;
   }
   return { value: amount as Amount, type: "uiToken" };
 }

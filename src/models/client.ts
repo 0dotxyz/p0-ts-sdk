@@ -1,26 +1,21 @@
+import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { AnchorProvider, Program } from "@coral-xyz/anchor";
 
-import {
-  Project0Config,
-  MintData,
-  MarginfiProgram,
-  BankIntegrationMetadataMap,
-  Wallet,
-} from "~/types";
-import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
+
+import { Balance } from "./balance";
+import { Bank } from "./bank";
+import { MarginfiGroup } from "./group";
+import { MarginfiAccount } from "./account";
+import { MarginfiAccountWrapper } from "./account-wrapper";
+
+import { AssetTag } from "../services";
+
 import {
   ADDRESS_LOOKUP_TABLE_FOR_GROUP,
   ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
 } from "~/constants";
-import { fetchOracleData, OraclePrice } from "~/services/price";
-import { fetchProgramForMints } from "~/services/misc";
-import {
-  fetchBankIntegrationMetadata,
-  getKaminoCTokenMultiplier,
-  getJupLendFTokenMultiplier,
-} from "~/services/integration";
+import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import {
   makeCreateMarginfiAccountTx,
   makeCreateAccountIxWithProjection,
@@ -32,15 +27,22 @@ import {
   computeLowestEmodeWeights,
 } from "~/services/account";
 import { EmodePair } from "~/services/bank";
-
-import { MarginfiGroup } from "./group";
-import { Bank } from "./bank";
-import { Balance } from "./balance";
-import { MarginfiAccount } from "./account";
-import { MarginfiAccountWrapper } from "./account-wrapper";
-import { AssetTag } from "../services";
+import {
+  fetchBankIntegrationMetadata,
+  getKaminoCTokenMultiplier,
+  getJupLendFTokenMultiplier,
+} from "~/services/integration";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
+import { fetchProgramForMints } from "~/services/misc";
 import { computeStakedBankMultipliers } from "~/services/native-stake";
+import { fetchOracleData, OraclePrice } from "~/services/price";
+import {
+  Project0Config,
+  MintData,
+  MarginfiProgram,
+  BankIntegrationMetadataMap,
+  Wallet,
+} from "~/types";
 
 /**
  * An authority's active balance in a specific bank for a queried mint. One row per

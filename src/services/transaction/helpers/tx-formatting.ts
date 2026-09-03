@@ -8,14 +8,15 @@ import {
   Blockhash,
 } from "@solana/web3.js";
 
-import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
-import { MAX_TX_SIZE, ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
-import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
 import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
 
 import { decodeInstruction, decompileV0Transaction } from "./decode";
 import { getTxSize } from "./tx-size";
+
+import { MAX_TX_SIZE, ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
+import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
+import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
 /** Base58 keys of every native-stake LUT across all groups (group-agnostic membership test). */
 const NATIVE_STAKE_LUT_KEYS = new Set(

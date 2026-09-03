@@ -1,5 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 
+import { BankVaultType } from "../../types";
+
 import {
   PDA_BANK_LIQUIDITY_VAULT_SEED,
   PDA_BANK_INSURANCE_VAULT_SEED,
@@ -9,7 +11,6 @@ import {
   PDA_BANK_FEE_VAULT_AUTH_SEED,
 } from "~/utils";
 
-import { BankVaultType } from "../../types";
 
 /**
  * Vault PDA Utilities

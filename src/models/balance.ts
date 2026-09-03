@@ -1,7 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { Bank } from "./bank";
 import {
   BalanceType,
   BalanceRaw,
@@ -16,6 +15,8 @@ import {
   computeTotalOutstandingEmissions,
   computeClaimedEmissions,
 } from "../services";
+
+import { Bank } from "./bank";
 
 // ----------------------------------------------------------------------------
 // Client types

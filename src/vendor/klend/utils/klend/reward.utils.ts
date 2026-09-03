@@ -1,4 +1,5 @@
 import { KaminoReserve } from "../../types";
+
 import { calculateUtilizationRatio } from "./interest-rate.utils";
 
 function calculateSupplyAPR(reserve: KaminoReserve, referralFeeBps: number) {

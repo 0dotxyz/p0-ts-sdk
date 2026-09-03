@@ -3,9 +3,9 @@ import BigNumber from "bignumber.js";
 
 import { BankType, OracleSetup } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
 import { decodeMarinadeState } from "~/vendor/marinade";
 import { decodeStakePool } from "~/vendor/spl-stake-pool";
-import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
 
 type FetchOracleMultiplierOnChainOpts = {
   mode: "on-chain";

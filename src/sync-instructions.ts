@@ -25,9 +25,10 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
+
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
 
 // Hardcoded addresses from Marginfi IDL
 const KAMINO_PROGRAM_ID = new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");

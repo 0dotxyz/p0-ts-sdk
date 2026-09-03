@@ -1,4 +1,9 @@
+import { BorshCoder, Idl } from "@coral-xyz/anchor";
+import * as borsh from "@coral-xyz/borsh";
+import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
+
+import { KLEND_IDL } from "../../idl";
 import {
   KaminoInterestRateBasis,
   KaminoObligation,
@@ -8,10 +13,8 @@ import {
   ObligationRaw,
   ReserveRaw,
 } from "../../types";
-import { PublicKey } from "@solana/web3.js";
-import { BorshCoder, Idl } from "@coral-xyz/anchor";
-import { KLEND_IDL } from "../../idl";
-import * as borsh from "@coral-xyz/borsh";
+
+
 
 export const KLEND_ACCOUNT_CODER = new BorshCoder(KLEND_IDL);
 

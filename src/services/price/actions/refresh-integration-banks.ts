@@ -1,13 +1,14 @@
 import { PublicKey } from "@solana/web3.js";
 
+import { makeUpdateDriftMarketIxs } from "./drift-market-update";
+import { makeUpdateJupLendRateIxs } from "./juplend-rate-update";
+import { makeRefreshKaminoBanksIxs } from "./klend-reserve-refresh";
+
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
 import type { BankIntegrationMetadataMap } from "~/types";
 
-import { makeUpdateDriftMarketIxs } from "./drift-market-update";
-import { makeUpdateJupLendRateIxs } from "./juplend-rate-update";
-import { makeRefreshKaminoBanksIxs } from "./klend-reserve-refresh";
 
 /**
  * Groups the per-integration refresh/update instructions (Kamino reserve refresh,

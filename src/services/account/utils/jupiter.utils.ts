@@ -1,11 +1,4 @@
-import {
-  createJupiterClient,
-  type JupiterClientConfig,
-  type QuoteGetRequest,
-  type Instruction as JupiterInstruction,
-} from "~/vendor/jupiter";
 
-import { SwapApiConfig, SwapIxsResult } from "../types";
 import {
   AddressLookupTableAccount,
   Connection,
@@ -13,8 +6,17 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
+import { SwapApiConfig, SwapIxsResult } from "../types";
+
 import { mapJupiterQuoteToSwapQuoteResult } from "./swap.utils";
+
+import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
+import {
+  createJupiterClient,
+  type JupiterClientConfig,
+  type QuoteGetRequest,
+  type Instruction as JupiterInstruction,
+} from "~/vendor/jupiter";
 
 const REFERRAL_PROGRAM_ID = new PublicKey("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
 const REFERRAL_ACCOUNT_PUBKEY = new PublicKey("6rQUBEfS3hASrBbviL7rXA5tRYmZmeFUgHgCYsjeDVBm");

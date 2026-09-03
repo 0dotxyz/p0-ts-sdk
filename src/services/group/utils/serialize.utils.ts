@@ -1,6 +1,7 @@
+import { MarginfiGroupTypeDto, MarginfiGroupType } from "../types";
+
 import { toBankRateLimiterDto } from "~/services/bank";
 
-import { MarginfiGroupTypeDto, MarginfiGroupType } from "../types";
 
 export function groupToDto(group: MarginfiGroupType): MarginfiGroupTypeDto {
   return {

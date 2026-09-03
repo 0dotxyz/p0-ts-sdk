@@ -1,5 +1,5 @@
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 export const SCOPE_PROGRAM_ID = new PublicKey("HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ");
 

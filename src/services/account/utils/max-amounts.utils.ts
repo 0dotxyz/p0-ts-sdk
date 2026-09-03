@@ -1,5 +1,16 @@
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
+
+import { MarginfiAccountType, MarginRequirementType } from "../types";
+
+import {
+  computeFreeCollateralFromCache,
+  computeFreeCollateralFromBalances,
+  computeHealthComponentsFromCache,
+  computeQuantityUi,
+  getActiveBalances,
+  getBalance,
+} from "./compute";
 
 import {
   ActiveEmodePair,
@@ -21,16 +32,7 @@ import {
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 
-import { MarginfiAccountType, MarginRequirementType } from "../types";
 
-import {
-  computeFreeCollateralFromCache,
-  computeFreeCollateralFromBalances,
-  computeHealthComponentsFromCache,
-  computeQuantityUi,
-  getActiveBalances,
-  getBalance,
-} from "./compute";
 
 /**
  * Configuration for computing maximum borrow amount for a bank
@@ -190,7 +192,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     emodeImpactStatus === EmodeImpactStatus.InactiveEmode ||
     emodeImpactStatus === EmodeImpactStatus.ExtendEmode;
 
-  let freeCollateral = useCache
+  const freeCollateral = useCache
     ? computeFreeCollateralFromCache(account).times(_volatilityFactor)
     : computeFreeCollateralFromBalances({
         activeBalances,

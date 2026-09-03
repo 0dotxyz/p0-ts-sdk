@@ -1,8 +1,3 @@
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
-import { TransactionBuildingError } from "~/errors";
-
-import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
-import { SwapApiConfig, SwapProvider } from "~/services/account/types";
 import { getSwapAdapter } from "./adapters";
 import {
   ProviderSwapRoute,
@@ -11,6 +6,11 @@ import {
   SwapEngineRequest,
   SwapEngineResult,
 } from "./types";
+
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import { SwapApiConfig, SwapProvider } from "~/services/account/types";
+import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
 
 interface ResolvedAdapter {
   adapter: SwapAdapter;
@@ -90,7 +90,7 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
     throw TransactionBuildingError.swapSizeExceededLoop(
       closest.fullTxSize,
       closest.totalAccounts,
-      closest.provider as SwapProvider
+      closest.provider
     );
   }
 

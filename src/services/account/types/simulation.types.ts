@@ -1,5 +1,6 @@
-import { BankType } from "~/services/bank";
 import { MarginfiAccountType } from "./account.types";
+
+import { BankType } from "~/services/bank";
 
 export interface SimulationResultRaw {
   marginfiAccount: MarginfiAccountType;

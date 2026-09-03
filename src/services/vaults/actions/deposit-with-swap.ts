@@ -7,6 +7,26 @@ import {
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
+import type { MakeVaultDepositWithSwapTxParams } from "../types";
+import { fetchGammaLpVault } from "../utils";
+
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, WSOL_MINT } from "~/constants";
+import {
+  runSwapEngine,
+  swapEngineProvidersFromOpts,
+  swapEngineQuoteFieldsFromOpts,
+  type SwapEngineRunner,
+  type SwapQuoteResult,
+} from "~/services/account";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  getTotalAccountKeys,
+  getTxSize,
+  makeWrapSolIxs,
+  TransactionType,
+} from "~/services/transaction";
+import { nativeToUi, uiToNative } from "~/utils";
 import {
   deriveGammaAta,
   deriveGammaDepositPolicy,
@@ -19,26 +39,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "~/vendor/spl";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  getTotalAccountKeys,
-  getTxSize,
-  makeWrapSolIxs,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  runSwapEngine,
-  swapEngineProvidersFromOpts,
-  swapEngineQuoteFieldsFromOpts,
-  type SwapEngineRunner,
-  type SwapQuoteResult,
-} from "~/services/account";
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, WSOL_MINT } from "~/constants";
-import { nativeToUi, uiToNative } from "~/utils";
 
-import { fetchGammaLpVault } from "../utils";
-import type { MakeVaultDepositWithSwapTxParams } from "../types";
 
 /**
  * Zap-deposit into a Gamma LP vault: swap `inputMint` into the vault's asset
@@ -86,7 +87,7 @@ export async function makeVaultDepositWithSwapTx(
     (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
       ? TOKEN_2022_PROGRAM_ID
       : TOKEN_PROGRAM_ID);
-  const assetDecimals = mintInfo.data[44]!;
+  const assetDecimals = mintInfo.data[44];
 
   const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
   const [depositPolicy] = deriveGammaDepositPolicy(lpVault);

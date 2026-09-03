@@ -1,5 +1,5 @@
-import BigNumber from "bignumber.js";
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 export const SPL_STAKE_POOL_PROGRAM_ID = new PublicKey(
   "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"

@@ -7,17 +7,6 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import instructions from "~/instructions";
-import { MarginfiProgram } from "~/types";
-import { SINGLE_POOL_PROGRAM_ID } from "~/constants";
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
-import {
-  findPoolAddress,
-  findPoolStakeAddress,
-  findPoolMintAddress,
-  findPoolOnRampAddress,
-} from "~/vendor/single-spl-pool";
-
 import {
   BankConfigOptRaw,
   BankConfigOpt,
@@ -25,6 +14,18 @@ import {
   BankConfigCompactRaw,
 } from "../bank";
 import { InstructionsWrapper } from "../transaction";
+
+import { SINGLE_POOL_PROGRAM_ID } from "~/constants";
+import instructions from "~/instructions";
+import { MarginfiProgram } from "~/types";
+import {
+  findPoolAddress,
+  findPoolStakeAddress,
+  findPoolMintAddress,
+  findPoolOnRampAddress,
+} from "~/vendor/single-spl-pool";
+import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
+
 
 export async function makePoolConfigureBankIx(
   program: MarginfiProgram,
@@ -118,7 +119,7 @@ export async function makePoolAddBankIx(
   tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
   overrideOpt: { admin?: PublicKey; globalFeeWallet?: PublicKey } = {}
 ): Promise<InstructionsWrapper> {
-  let rawBankConfig = serializeBankConfigOpt(bankConfig);
+  const rawBankConfig = serializeBankConfigOpt(bankConfig);
 
   // TODO verify this is correct
   const rawBankConfigCompact = {

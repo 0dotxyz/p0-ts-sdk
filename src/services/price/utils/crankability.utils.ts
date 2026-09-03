@@ -1,9 +1,10 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { OraclePrice } from "../types";
+
 import { BankType } from "~/services/bank";
 import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
 
-import { OraclePrice } from "../types";
 
 /**
  * Result of checking if an oracle can be cranked

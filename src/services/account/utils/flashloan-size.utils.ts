@@ -21,22 +21,15 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { AssetTag, BankType } from "~/services/bank";
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { TransactionBuildingError } from "~/errors";
-import { InstructionsWrapper } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
 
-import { MarginfiAccountType } from "../types";
-import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "./compute";
 
+import { makeBorrowIx } from "../actions/borrow";
 import {
   makeDepositIx,
   makeDriftDepositIx,
   makeJuplendDepositIx,
   makeKaminoDepositIx,
 } from "../actions/deposit";
-import { makeBorrowIx } from "../actions/borrow";
 import { makeRepayIx } from "../actions/repay";
 import {
   makeDriftWithdrawIx,
@@ -44,7 +37,16 @@ import {
   makeKaminoWithdrawIx,
   makeWithdrawIx,
 } from "../actions/withdraw";
+import { MarginfiAccountType } from "../types";
+
+import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "./compute";
+
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import { AssetTag, BankType } from "~/services/bank";
+import { InstructionsWrapper } from "~/services/transaction";
+import syncInstructions from "~/sync-instructions";
+import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 // V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
 // causes the compiler to redistribute key resolution. Multi-hop routes add many

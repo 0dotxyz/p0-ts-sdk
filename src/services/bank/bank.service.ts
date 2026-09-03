@@ -1,14 +1,16 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import instructions from "~/instructions";
-import { MarginfiProgram } from "~/types";
-import { bigNumberToWrappedI80F48 } from "~/utils";
-
 import { InstructionsWrapper } from "../transaction";
 
 import { BankConfigOpt, BankConfigOptRaw, OracleSetup } from "./types";
 import { serializeBankConfigOpt, serializeOracleSetupToIndex } from "./utils";
+
+import instructions from "~/instructions";
+import { MarginfiProgram } from "~/types";
+import { bigNumberToWrappedI80F48 } from "~/utils";
+
+
 
 export async function freezeBankConfigIx(
   program: MarginfiProgram,
@@ -115,7 +117,7 @@ export async function addOracleToBanksIx({
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
   }
   // The program reads the primary feed from remaining[0] and requires it to match `oracle`
-  if (expectedAccountCount !== undefined && !resolvedOracleAccounts[0]!.equals(feedId)) {
+  if (expectedAccountCount !== undefined && !resolvedOracleAccounts[0].equals(feedId)) {
     throw new Error(
       `${setup} requires oracleAccounts[0] to be the primary feed ${feedId.toBase58()}`
     );

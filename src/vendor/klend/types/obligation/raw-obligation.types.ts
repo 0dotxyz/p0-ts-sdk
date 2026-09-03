@@ -1,6 +1,7 @@
-import BN from "bn.js";
-import { BigFractionBytesFields, LastUpdateFields } from "../internal";
 import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
+import { BigFractionBytesFields, LastUpdateFields } from "../internal";
 
 export interface ObligationRaw {
   /** Version of the struct */

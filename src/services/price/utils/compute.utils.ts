@@ -1,13 +1,13 @@
 import BigNumber from "bignumber.js";
 
-import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
-import { OracleSetup } from "~/services/bank/types";
-
 import { OraclePrice, PriceWithConfidence, PriceBias } from "../types";
 
-import { parseSwbOraclePriceData } from "./swb-data.utils";
-import { parseRpcPythPriceData } from "./pyth-data.utils";
 import { getOracleSourceFromOracleSetup } from "./detection.utils";
+import { parseRpcPythPriceData } from "./pyth-data.utils";
+import { parseSwbOraclePriceData } from "./swb-data.utils";
+
+import { OracleSetup } from "~/services/bank/types";
+import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
 
 export function getPriceWithConfidence(
   oraclePrice: OraclePrice,
@@ -37,7 +37,7 @@ export function capConfidenceInterval(
   confidence: BigNumber,
   maxConfidence: BigNumber
 ): BigNumber {
-  let maxConfidenceInterval = price.times(maxConfidence);
+  const maxConfidenceInterval = price.times(maxConfidence);
 
   return BigNumber.min(confidence, maxConfidenceInterval);
 }

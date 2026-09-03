@@ -6,9 +6,10 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { GAMMA_VAULT_PROGRAM_ID } from "./constants";
+
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
-import { GAMMA_VAULT_PROGRAM_ID } from "./constants";
 
 // Anchor instruction discriminators (from the Gamma vault IDL).
 const DEPOSIT_DISCRIMINATOR = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);

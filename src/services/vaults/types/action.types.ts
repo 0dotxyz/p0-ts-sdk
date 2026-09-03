@@ -1,7 +1,7 @@
 import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
 
-import { Amount } from "~/types";
 import type { SwapOpts, SwapEngineRunner } from "~/services/account";
+import { Amount } from "~/types";
 
 // -- Gamma Vault Actions ----
 

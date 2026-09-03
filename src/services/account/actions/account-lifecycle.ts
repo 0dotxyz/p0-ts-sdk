@@ -8,24 +8,8 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
-import BN from "bn.js";
 import BigNumber from "bignumber.js";
-
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  SolanaTransaction,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
-import instructions from "~/instructions";
-import { MarginfiProgram } from "~/types";
-import { BankType } from "~/services/bank";
-import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
+import BN from "bn.js";
 
 import {
   BalanceRaw,
@@ -41,6 +25,23 @@ import {
   computeHealthCheckAccounts,
   parseMarginfiAccountRaw,
 } from "../utils";
+
+import instructions from "~/instructions";
+import { BankType } from "~/services/bank";
+import {
+  addTransactionMetadata,
+  ExtendedV0Transaction,
+  SolanaTransaction,
+  TransactionType,
+} from "~/services/transaction";
+import { MarginfiProgram } from "~/types";
+import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+} from "~/vendor/spl";
+
 
 /**
  * Creates an instruction to close a Marginfi account.
@@ -365,7 +366,7 @@ export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIx
       );
     });
 
-    let ixs = [];
+    const ixs = [];
     const userAtaAis = await connection.getMultipleAccountsInfo(userAtas);
 
     for (const [i, userAta] of userAtaAis.entries()) {

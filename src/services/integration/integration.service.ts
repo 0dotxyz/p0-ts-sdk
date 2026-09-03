@@ -1,9 +1,11 @@
 import { Connection } from "@solana/web3.js";
-import { Bank } from "~/models/bank";
-import { BankIntegrationMetadataMap } from "~/types";
-import { getKaminoMetadata, KaminoMetadata } from "./kamino";
+
 import { getDriftMetadata, DriftMetadata } from "./drift";
 import { getJupLendMetadata, JupLendMetadata } from "./juplend";
+import { getKaminoMetadata, KaminoMetadata } from "./kamino";
+
+import { Bank } from "~/models/bank";
+import { BankIntegrationMetadataMap } from "~/types";
 
 export type IntegrationType = "kamino" | "drift" | "juplend";
 

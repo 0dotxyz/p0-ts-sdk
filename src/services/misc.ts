@@ -13,13 +13,6 @@ import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
-  BankIntegrationMetadata,
-  BankIntegrationMetadataDto,
-  BankIntegrationMetadataMap,
-  BankIntegrationMetadataMapDto,
-} from "~/types";
-
-import {
   driftRewardsRawToDto,
   driftSpotMarketRawToDto,
   driftUserRawToDto,
@@ -43,6 +36,13 @@ import {
   kaminoObligationToDto,
   kaminoReserveToDto,
 } from "../vendor";
+
+import {
+  BankIntegrationMetadata,
+  BankIntegrationMetadataDto,
+  BankIntegrationMetadataMap,
+  BankIntegrationMetadataMapDto,
+} from "~/types";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 export function bankMetadataMapToDto(

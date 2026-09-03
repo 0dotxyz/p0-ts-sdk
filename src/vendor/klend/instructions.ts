@@ -1,12 +1,13 @@
 import { Address, Program } from "@coral-xyz/anchor";
+import { bool, struct } from "@coral-xyz/borsh";
 import {
   AccountMeta,
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { KlendIdlType } from "./idl";
-import { bool, struct } from "@coral-xyz/borsh";
+
 import { KLEND_PROGRAM_ID } from "./constants";
+import { KlendIdlType } from "./idl";
 
 /**
  * Refresh a generic Kamino reserve with a legacy Pyth oracle

@@ -1,14 +1,6 @@
 import { Connection } from "@solana/web3.js";
 import BN from "bn.js";
 
-import {
-  CrossbarSimulatePayload,
-  decodeSwitchboardPullFeedData,
-  FeedResponse,
-} from "~/vendor/switchboard_pull";
-import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
-
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
 import {
   getFallbackPricesByFeedId,
@@ -16,6 +8,14 @@ import {
   mapSwbBanksToOraclePrices,
   getOracleSourceFromOracleSetup,
 } from "../utils";
+
+import { BankType } from "~/services/bank";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import {
+  CrossbarSimulatePayload,
+  decodeSwitchboardPullFeedData,
+  FeedResponse,
+} from "~/vendor/switchboard_pull";
 
 type FetchSwbOracleOnChainOpts = {
   mode: "on-chain";
@@ -74,7 +74,7 @@ export const fetchSwbOracleData = async (
   }
 
   let swbOracleAiDataByKey: SwbOracleAiDataByKey;
-  const oracleKeys = switchboardBanks.map((bank) => bank.config.oracleKeys[0]!.toBase58());
+  const oracleKeys = switchboardBanks.map((bank) => bank.config.oracleKeys[0].toBase58());
   if (opts.mode === "api") {
     swbOracleAiDataByKey = await fetchSwbOracleAccountsFromAPI(
       oracleKeys,
@@ -90,7 +90,7 @@ export const fetchSwbOracleData = async (
   const brokenSwbFeeds: { feedId: string; mintAddress: string }[] = [];
 
   Object.keys(swbOracleAiDataByKey).forEach((oracleKey) => {
-    const oracleAiData = swbOracleAiDataByKey[oracleKey]!;
+    const oracleAiData = swbOracleAiDataByKey[oracleKey];
 
     const rawPriceBN = new BN(oracleAiData.rawPrice);
 
@@ -99,7 +99,7 @@ export const fetchSwbOracleData = async (
 
     if (isFeedBroken) {
       const bank = switchboardBanks.find(
-        (bank) => bank.config.oracleKeys[0]!.toBase58() === oracleKey
+        (bank) => bank.config.oracleKeys[0].toBase58() === oracleKey
       );
       if (bank) {
         brokenSwbFeeds.push({

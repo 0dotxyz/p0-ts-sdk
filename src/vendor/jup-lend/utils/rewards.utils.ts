@@ -1,6 +1,8 @@
-import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
 import { JupLendingState, JupLendingRewardsRateModel } from "../types";
+
 import {
   calculateJupLendTotalAssets,
   calculateJupLendRewardsRate,

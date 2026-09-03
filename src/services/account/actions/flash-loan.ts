@@ -1,18 +1,19 @@
 import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import BN from "bn.js";
 
+import { MakeFlashLoanTxParams } from "../types";
+import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
+
+import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
 import {
   addTransactionMetadata,
   InstructionsWrapper,
   TransactionType,
 } from "~/services/transaction";
-import { MarginfiProgram } from "~/types";
-import instructions from "~/instructions";
 import syncInstructions from "~/sync-instructions";
+import { MarginfiProgram } from "~/types";
 
-import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
-import { MakeFlashLoanTxParams } from "../types";
 
 export async function makeBeginFlashLoanIx(
   program: MarginfiProgram,

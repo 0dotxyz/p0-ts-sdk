@@ -43,17 +43,17 @@ export function readBigInt64LE(buffer: Buffer, offset = 0): bigint {
     boundsError(offset, buffer.length - 8);
   // tslint:disable-next-line:no-bitwise
   const val =
-    buffer[offset + 4]! +
-    buffer[offset + 5]! * 2 ** 8 +
-    buffer[offset + 6]! * 2 ** 16 +
-    (last! << 24); // Overflow
+    buffer[offset + 4] +
+    buffer[offset + 5] * 2 ** 8 +
+    buffer[offset + 6] * 2 ** 16 +
+    (last << 24); // Overflow
   return (
     (BigInt(val) << BigInt(32)) + // tslint:disable-line:no-bitwise
     BigInt(
-      first! +
-        buffer[++offset]! * 2 ** 8 +
-        buffer[++offset]! * 2 ** 16 +
-        buffer[++offset]! * 2 ** 24
+      first +
+        buffer[++offset] * 2 ** 8 +
+        buffer[++offset] * 2 ** 16 +
+        buffer[++offset] * 2 ** 24
     )
   );
 }
@@ -67,16 +67,16 @@ export function readBigUInt64LE(buffer: Buffer, offset = 0): bigint {
     boundsError(offset, buffer.length - 8);
 
   const lo =
-    first! +
-    buffer[++offset]! * 2 ** 8 +
-    buffer[++offset]! * 2 ** 16 +
-    buffer[++offset]! * 2 ** 24;
+    first +
+    buffer[++offset] * 2 ** 8 +
+    buffer[++offset] * 2 ** 16 +
+    buffer[++offset] * 2 ** 24;
 
   const hi =
-    buffer[++offset]! +
-    buffer[++offset]! * 2 ** 8 +
-    buffer[++offset]! * 2 ** 16 +
-    last! * 2 ** 24;
+    buffer[++offset] +
+    buffer[++offset] * 2 ** 8 +
+    buffer[++offset] * 2 ** 16 +
+    last * 2 ** 24;
 
   return BigInt(lo) + (BigInt(hi) << BigInt(32)); // tslint:disable-line:no-bitwise
 }

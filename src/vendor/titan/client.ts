@@ -6,8 +6,8 @@
 // - Uses `ws` package instead of `websocket`
 // - Only implements connect, newSwapQuoteStream, stopStream, close
 
-import WebSocket from "ws";
 import { Encoder, Decoder } from "@msgpack/msgpack";
+import WebSocket from "ws";
 
 import type {
   ClientRequest,

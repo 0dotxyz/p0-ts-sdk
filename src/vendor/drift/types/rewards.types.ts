@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+
 import { SpotPosition, SpotPositionJSON } from "./internal";
 
 export type DriftRewards = {

@@ -1,4 +1,3 @@
-import { WrappedI80F48 } from "~/types";
 
 import {
   AssetTag,
@@ -16,6 +15,8 @@ import {
   OracleSetupRaw,
   RiskTierRaw,
 } from "./raw-bank.types";
+
+import { WrappedI80F48 } from "~/types";
 
 /*
  * Bank types Dto

@@ -1,6 +1,8 @@
-import BN from "bn.js";
-import { PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
+import { DRIFT_IDL } from "../idl";
 import {
   DriftUserStats,
   DriftUserStatsJSON,
@@ -14,7 +16,6 @@ import {
   DriftRewards,
   DriftRewardsJSON,
 } from "../types";
-import { DRIFT_IDL } from "../idl";
 
 const DRIFT_ACCOUNTS_CODER = new BorshAccountsCoder(DRIFT_IDL);
 
@@ -164,7 +165,7 @@ export function decodeDriftSpotMarketData(data: Buffer): DriftSpotMarketRaw {
   }
 
   // BorshAccountsCoder.decode() expects the full buffer with discriminator
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("SpotMarket", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("SpotMarket", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -240,7 +241,7 @@ export function decodeDriftStateData(data: Buffer): DriftState {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("State", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("State", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -277,7 +278,7 @@ export function decodeDriftUserData(data: Buffer): DriftUser {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("User", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("User", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {
@@ -329,7 +330,7 @@ export function decodeDriftUserStatsData(data: Buffer): DriftUserStats {
     throw new Error("invalid account discriminator");
   }
 
-  const decoded = DRIFT_ACCOUNTS_CODER.decode("UserStats", data) as any;
+  const decoded = DRIFT_ACCOUNTS_CODER.decode("UserStats", data);
 
   // Transform snake_case field names from IDL to camelCase for TypeScript types
   return {

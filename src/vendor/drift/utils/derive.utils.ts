@@ -1,5 +1,6 @@
-import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
+
 import { DRIFT_PROGRAM_ID } from "../constants";
 
 export const SEED_DRIFT_STATE = "drift_state";

@@ -1,23 +1,26 @@
+import { AnchorProvider } from "@coral-xyz/anchor";
 import {
   AddressLookupTableAccount,
   Connection,
   PublicKey,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { BN } from "bn.js";
-import { AnchorProvider } from "@coral-xyz/anchor";
-import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
 import { CrossbarClient } from "@switchboard-xyz/common";
-
-import { MarginfiAccountType } from "~/services/account";
-import { BankType, OracleSetup } from "~/services/bank";
-import { MarginfiProgram } from "~/types";
-import { TransactionBuildingError } from "~/errors";
+import { AnchorUtils, PullFeed, PullFeedAccountData } from "@switchboard-xyz/on-demand";
+import { BN } from "bn.js";
 
 import { OraclePrice } from "../types";
 import { computeSmartCrank } from "../utils";
-import { ZERO_ORACLE_KEY } from "~/constants";
 import { getOracleSourceFromOracleSetup } from "../utils/detection.utils";
+
+import { ZERO_ORACLE_KEY } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
+import { MarginfiAccountType } from "~/services/account";
+import { BankType, OracleSetup } from "~/services/bank";
+import { MarginfiProgram } from "~/types";
+
+
+
 
 type MakeSmartCrankSwbFeedIxParams = {
   marginfiAccount: MarginfiAccountType;
@@ -164,7 +167,7 @@ export async function makeSmartCrankSwbFeedIxForAccounts(
   // are cranked once.
   return makeUpdateSwbFeedIx({
     swbPullOracles: crankResults.flatMap((r) => r.requiredOracles),
-    feePayer: params.marginfiAccounts[0]!.authority,
+    feePayer: params.marginfiAccounts[0].authority,
     connection: params.connection,
     crossbarUrl: params.crossbarUrl,
   });

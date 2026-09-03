@@ -1,11 +1,17 @@
-import { BigNumber } from "bignumber.js";
 import {
   AddressLookupTableAccount,
   PublicKey,
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
 
+import { MarginfiAccountType, SwapQuoteResult } from "../types";
+import { computeProjectedActiveBalancesNoCpi } from "../utils";
+
+import { MarginfiAccount } from "~/models/account";
+import { Balance } from "~/models/balance";
+import { BankType } from "~/services/bank";
 import {
   addTransactionMetadata,
   decompileV0Transaction,
@@ -14,13 +20,8 @@ import {
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { BankType } from "~/services/bank";
 import { MarginfiProgram } from "~/types";
-import { MarginfiAccount } from "~/models/account";
-import { Balance } from "~/models/balance";
 
-import { computeProjectedActiveBalancesNoCpi } from "../utils";
-import { MarginfiAccountType, SwapQuoteResult } from "../types";
 
 /**
  * Bridge / double-hop swaps — the flow-agnostic mechanics.
@@ -124,13 +125,13 @@ function mergeSetupTxs(
   blockhash: string,
 ): ExtendedV0Transaction | null {
   if (txs.length === 0) return null;
-  if (txs.length === 1) return txs[0]!;
+  if (txs.length === 1) return txs[0];
 
   const lutMap = new Map<string, AddressLookupTableAccount>();
   const seen = new Set<string>();
   const ixs: TransactionInstruction[] = [];
   for (const tx of txs) {
-    const luts = (tx.addressLookupTables ?? []) as AddressLookupTableAccount[];
+    const luts = (tx.addressLookupTables ?? []);
     luts.forEach((l) => lutMap.set(l.key.toBase58(), l));
     const msg = decompileV0Transaction(tx as VersionedTransaction, luts);
     for (const ix of msg.instructions) {
@@ -144,7 +145,7 @@ function mergeSetupTxs(
   const luts = [...lutMap.values()];
   const split = splitInstructionsToFitTransactions([], ixs, { blockhash, payerKey: payer, luts });
   if (split.length !== 1) return null; // merged setup spilled to >1 tx
-  return addTransactionMetadata(split[0]!, {
+  return addTransactionMetadata(split[0], {
     type: TransactionType.CREATE_ATA,
     addressLookupTables: luts,
   }) as ExtendedV0Transaction;
@@ -165,7 +166,7 @@ function projectAccountAfterFirstLeg(
 ): MarginfiAccountType {
   const ixs: TransactionInstruction[] = [];
   for (const tx of firstLegFlashloanTxs as ExtendedV0Transaction[]) {
-    const luts = (tx.addressLookupTables ?? []) as AddressLookupTableAccount[];
+    const luts = (tx.addressLookupTables ?? []);
     ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
   }
 

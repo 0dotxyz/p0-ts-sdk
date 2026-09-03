@@ -87,7 +87,7 @@ export function createActiveEmodePairFromPairs(pairs: EmodePair[]): ActiveEmodeP
   }
 
   // Find the pair with lowest assetWeightInit
-  let bestPair = pairs[0]!;
+  let bestPair = pairs[0];
   for (const p of pairs) {
     if (p.assetWeightInit.lt(bestPair.assetWeightInit)) {
       bestPair = p;
@@ -258,7 +258,7 @@ export function computeEmodeImpacts(
   // Helper for min initial weight (used in diffState only)
   function minWeight(ps: EmodePair[]): BigNumber {
     // TODO: handle empty array
-    let m = ps[0]!.assetWeightInit;
+    let m = ps[0].assetWeightInit;
     for (const x of ps) if (x.assetWeightInit.lt(m)) m = x.assetWeightInit;
     return m;
   }
