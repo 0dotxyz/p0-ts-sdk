@@ -474,6 +474,7 @@ describe("resolveExponentStripContext", () => {
     syForPt: 0n,
     ptSupply: 0n,
     lastSeenSyExchangeRate: new BigNumber("1.0875"),
+    allTimeHighSyExchangeRate: new BigNumber("1.0875"),
     finalSyExchangeRate: new BigNumber(0),
     status: 0,
   };
@@ -595,6 +596,7 @@ describe("resolveExponentWrapperMergeContext", () => {
     syForPt: 919n,
     ptSupply: 1000n,
     lastSeenSyExchangeRate: new BigNumber("1.0875"),
+    allTimeHighSyExchangeRate: new BigNumber("1.0875"),
     finalSyExchangeRate: new BigNumber(0),
     status: 0,
   };

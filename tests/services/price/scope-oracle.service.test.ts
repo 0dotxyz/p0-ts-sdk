@@ -100,6 +100,21 @@ describe("fetchScopeOracleData", () => {
     ).toBe(true);
   });
 
+  it("zeroes future-dated entries, which the program rejects", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 3600 });
+    stubFetch({ [`${ORACLE_PRICES_KEY.toBase58()}:13`]: priceDto("100", `${now + 120}`) });
+
+    const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
+      mode: "api",
+      scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
+    });
+
+    expect(bankOraclePriceMap.get(bank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
+      true
+    );
+  });
+
   it("prices a bank without scopeEntryIndex at zero instead of reading entry 0", async () => {
     const bank = scopeBank({ address: PublicKey.unique(), oracleMaxAge: 3600 });
     const now = Math.floor(Date.now() / 1000);

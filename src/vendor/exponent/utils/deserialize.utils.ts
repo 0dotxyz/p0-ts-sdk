@@ -72,6 +72,9 @@ export function decodeExponentVault(data: Buffer): ExponentVault {
     lastSeenSyExchangeRate: exponentNumberToBigNumber(
       get("last_seen_sy_exchange_rate", "lastSeenSyExchangeRate")
     ),
+    allTimeHighSyExchangeRate: exponentNumberToBigNumber(
+      get("all_time_high_sy_exchange_rate", "allTimeHighSyExchangeRate")
+    ),
     finalSyExchangeRate: exponentNumberToBigNumber(
       get("final_sy_exchange_rate", "finalSyExchangeRate")
     ),

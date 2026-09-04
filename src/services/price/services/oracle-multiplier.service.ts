@@ -79,6 +79,10 @@ export function computePtMultiplier(
   if (vault.ptSupply === 0n) {
     throw new Error("Exponent vault has zero PT supply");
   }
+  // The program refuses to price a vault in emergency mode (SY rate fell below its all-time high).
+  if (vault.lastSeenSyExchangeRate.lt(vault.allTimeHighSyExchangeRate)) {
+    throw new Error("Exponent vault is in emergency mode");
+  }
 
   let expectedRate: BigNumber;
   if (nowSeconds <= vault.startTs) {

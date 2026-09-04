@@ -90,7 +90,9 @@ export const fetchScopeOracleData = async (
     const requestKey = scopeRequestKey(bank);
     let oraclePrice = requestKey ? oraclePrices[requestKey] : undefined;
 
-    if (!oraclePrice || nowSeconds - oraclePrice.timestamp.toNumber() > bank.config.oracleMaxAge) {
+    const age = oraclePrice ? nowSeconds - oraclePrice.timestamp.toNumber() : undefined;
+    // The program rejects future-dated entries as well as stale ones.
+    if (!oraclePrice || age === undefined || age < 0 || age > bank.config.oracleMaxAge) {
       oraclePrice = {
         priceRealtime: {
           price: new BigNumber(0),

@@ -20,6 +20,7 @@ function vault(overrides: Partial<ExponentVault> = {}): ExponentVault {
     syForPt: 500_000_000_000n,
     ptSupply: 1_000_000_000_000n,
     lastSeenSyExchangeRate: new BigNumber(2),
+    allTimeHighSyExchangeRate: new BigNumber(2),
     finalSyExchangeRate: new BigNumber(0),
     status: 0,
     startTs: 1_000,
@@ -44,6 +45,12 @@ describe("computePtMultiplier", () => {
     const halfStart = new BigNumber(0.5);
     expect(computePtMultiplier(underBacked, halfStart, 2_000).toNumber()).toBe(0.875);
     expect(computePtMultiplier(underBacked, halfStart, 1_500).toNumber()).toBe(0.75);
+  });
+
+  it("throws when the vault is in emergency mode (SY rate below its all-time high)", () => {
+    const depegged = vault({ allTimeHighSyExchangeRate: new BigNumber(3) });
+    expect(() => computePtMultiplier(depegged, startPrice, 1_500)).toThrow("emergency mode");
+    expect(computePtMultiplier(vault(), startPrice, 1_500).toNumber()).toBeCloseTo(0.9, 9);
   });
 
   it("throws on zero PT supply", () => {
