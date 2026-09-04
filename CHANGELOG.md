@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.1
+
+### Patch Changes
+
+- chore: mirror program hardening
+- cbb1a2b: fix: mirror program oracle hardening — reject Exponent vaults in emergency mode (SY rate below all-time high) and future-dated Scope entries
+
 ## 2.8.0
 
 ### Minor Changes
