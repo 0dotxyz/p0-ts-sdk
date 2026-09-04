@@ -28,6 +28,8 @@ export interface ExponentVault {
   ptSupply: bigint;
   /** Last-seen SY exchange rate (underlying per SY), scaled by 1e12 → BigNumber. Sizes `strip`. */
   lastSeenSyExchangeRate: BigNumber;
+  /** All-time-high SY exchange rate, scaled by 1e12 → BigNumber. A last-seen rate below it means the vault is in emergency mode. */
+  allTimeHighSyExchangeRate: BigNumber;
   /** Final (maturity) SY exchange rate, already scaled by 1e12 → BigNumber (informational). */
   finalSyExchangeRate: BigNumber;
   /** Raw status byte. */
