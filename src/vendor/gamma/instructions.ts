@@ -81,6 +81,7 @@ export interface GammaWithdrawAccounts {
   user: PublicKey;
   lpVault: PublicKey;
   withdrawalPolicy: PublicKey;
+  depositPolicy: PublicKey;
   assetsAccount: PublicKey;
   userShareAta: PublicKey;
   assetsMint: PublicKey;
@@ -123,6 +124,9 @@ export function makeGammaWithdrawIx(
     meta(SystemProgram.programId, false, false),
     meta(tokenProgram, false, false),
     meta(associatedTokenProgram, false, false),
+    // Program ≥2.3.0 reads DepositPolicy from remaining_accounts to base
+    // withdrawal caps on max(NAV, capacity); it is not in the IDL account list.
+    meta(accounts.depositPolicy, false, false),
   ];
 
   return new TransactionInstruction({

@@ -23,6 +23,7 @@ import {
 } from "~/services/transaction";
 import {
   deriveGammaAta,
+  deriveGammaDepositPolicy,
   deriveGammaWithdrawEscrow,
   deriveGammaWithdrawReceipt,
   deriveGammaWithdrawalPolicy,
@@ -48,6 +49,7 @@ export async function makeVaultWithdrawIx(
     params.tokenProgram ?? (await resolveVaultTokenProgram(connection, vault.assetsMint));
 
   const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
+  const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
   const [withdrawEscrow] = deriveGammaWithdrawEscrow(user, lpVault);
   const [withdrawReceipt] = deriveGammaWithdrawReceipt(user, lpVault);
 
@@ -77,6 +79,7 @@ export async function makeVaultWithdrawIx(
       user,
       lpVault,
       withdrawalPolicy,
+      depositPolicy,
       assetsAccount: vault.assetsAccount,
       userShareAta,
       assetsMint: vault.assetsMint,
