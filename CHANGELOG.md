@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.2
+
+### Patch Changes
+
+- Gamma vaults: bump to the latest Gamma program IDL (renamed `gamma-idl-2.*` → `gamma-idl.*`). Wire the new instruction into `vaults/actions/withdraw.ts` and the Gamma instructions helper.
+
 ## 2.8.1
 
 ### Patch Changes
