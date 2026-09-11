@@ -33,7 +33,8 @@ type FetchSwbOracleApiOpts = {
     endpoint: string;
     queryKey?: string;
   };
-  stakedCollatData: {
+  /** @deprecated Unused; will be removed in a future release. */
+  stakedCollatData?: {
     endpoint: string;
     queryKey?: string;
   };

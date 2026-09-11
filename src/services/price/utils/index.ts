@@ -7,3 +7,4 @@ export * from "./swb-data.utils";
 export * from "./price-fallback.utils";
 export * from "./smart-crank.utils";
 export * from "./detection.utils";
+export * from "./multiplier-data.utils";
