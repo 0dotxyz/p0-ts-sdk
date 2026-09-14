@@ -1,0 +1,11 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@0dotxyz/p0-ts-sdk": "2.8.2"
+  },
+  "changesets": [
+    "decouple-oracle-multiplier-inputs",
+    "deprecate-staked-collat-data"
+  ]
+}
