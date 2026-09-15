@@ -1,3 +1,5 @@
+import { SystemProgram, TransactionInstruction } from "@solana/web3.js";
+
 import { getSwapAdapter } from "./adapters";
 import {
   ProviderSwapRoute,
@@ -11,6 +13,12 @@ import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { SwapApiConfig } from "~/services/account/types";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
+import {
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
+  TokenInstruction,
+} from "~/vendor/spl";
 
 interface ResolvedAdapter {
   adapter: SwapAdapter;
@@ -77,7 +85,33 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
     );
   }
 
-  const candidates = routes.map((route) => annotateFit(route, req));
+  // Our flows own SOL wrapping: the wSOL ATA is funded in-tx (borrow / withdraw / explicit wrap)
+  // and its output is consumed by a following ix. A provider that wraps the input from the
+  // taker's lamports (transfer + SyncNative) or unwraps the output (CloseAccount) — Titan's raw
+  // routes do the former, Titan has no input-side `outputWsol` analog — would double-wrap or
+  // break the consumer, so those ixs are dropped from every route.
+  const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, req.taker, true);
+  const isProviderSolWrapIx = (ix: TransactionInstruction) =>
+    (ix.programId.equals(SystemProgram.programId) &&
+      ix.data.length >= 12 &&
+      ix.data.readUInt32LE(0) === 2 &&
+      ix.keys[0]?.pubkey.equals(req.taker) &&
+      ix.keys[1]?.pubkey.equals(wsolAta)) ||
+    (ix.programId.equals(TOKEN_PROGRAM_ID) &&
+      (ix.data[0] === TokenInstruction.SyncNative ||
+        ix.data[0] === TokenInstruction.CloseAccount) &&
+      ix.keys[0]?.pubkey.equals(wsolAta));
+
+  const candidates = routes.map((route) =>
+    annotateFit(
+      {
+        ...route,
+        swapInstructions: route.swapInstructions.filter((ix) => !isProviderSolWrapIx(ix)),
+        setupInstructions: route.setupInstructions.filter((ix) => !isProviderSolWrapIx(ix)),
+      },
+      req
+    )
+  );
   // A route must both fit the budget AND actually yield output — providers can
   // occasionally return a degenerate route (instructions present, outAmount 0);
   // selecting one would patch the deposit to ~0 and produce a broken tx.
