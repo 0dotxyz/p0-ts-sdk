@@ -122,8 +122,8 @@ export async function makeRepayIx({
             bank: bank.address,
             tokenProgram: tokenProgram,
             authority: opts.overrideInferAccounts?.authority ?? authority,
-            group: opts.overrideInferAccounts?.group,
-            liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+            group: opts.overrideInferAccounts?.group ?? bank.group,
+            liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
           },
           { amount: uiToNative(amount, bank.mintDecimals), repayAll },
           remainingAccounts

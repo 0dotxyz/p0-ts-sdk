@@ -103,8 +103,9 @@ export async function makeBorrowIx({
           bank: bank.address,
           destinationTokenAccount: userAta,
           tokenProgram: tokenProgram,
-          authority: opts?.overrideInferAccounts?.authority,
-          group: opts?.overrideInferAccounts?.group,
+          authority: opts?.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          group: opts?.overrideInferAccounts?.group ?? marginfiAccount.group,
+          liquidityVault: bank.liquidityVault,
         },
         { amount: uiToNative(amount, bank.mintDecimals) },
         remainingAccounts.map((account) => ({

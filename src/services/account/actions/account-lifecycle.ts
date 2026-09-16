@@ -61,6 +61,7 @@ export async function makeCloseMarginfiAccountIx({
 }: MakeCloseAccountIxParams) {
   const closeIx = await instructions.makeCloseAccountIx(program, {
     marginfiAccount: marginfiAccount.address,
+    authority: marginfiAccount.authority,
     feePayer: authority,
   });
 
@@ -88,6 +89,7 @@ export async function makeCloseMarginfiAccountTx({
 }: MakeCloseAccountTxParams) {
   const closeIx = await instructions.makeCloseAccountIx(program, {
     marginfiAccount: marginfiAccount.address,
+    authority: marginfiAccount.authority,
     feePayer: authority,
   });
 
@@ -151,6 +153,8 @@ export async function makeAccountTransferToNewAccountTx({
   const feeState = await program.account.feeState.fetch(feeStateKey);
 
   const transferIx = await instructions.makeAccountTransferToNewAccountIx(program, {
+    group: marginfiAccount.group,
+    authority: marginfiAccount.authority,
     oldMarginfiAccount: marginfiAccount.address,
     newMarginfiAccount: newMarginfiAccount.publicKey,
     newAuthority,
@@ -417,6 +421,7 @@ export async function makePulseHealthIx(
     program,
     {
       marginfiAccount: marginfiAccount.address,
+      group: marginfiAccount.group,
     },
     accountMetas.map((account) => ({
       pubkey: account,

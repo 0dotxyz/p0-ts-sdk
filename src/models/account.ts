@@ -573,7 +573,7 @@ class MarginfiAccount implements MarginfiAccountType {
     endIndex: number,
     authority?: PublicKey
   ): Promise<InstructionsWrapper> {
-    return await makeBeginFlashLoanIx(program, this.address, endIndex, authority);
+    return await makeBeginFlashLoanIx(program, this.address, endIndex, authority ?? this.authority);
   }
 
   /**
@@ -609,7 +609,13 @@ class MarginfiAccount implements MarginfiAccountType {
 
     const banks = projectedActiveBanks.map((account) => bankMap.get(account.toBase58())!);
 
-    return makeEndFlashLoanIx(program, this.address, this.group, banks, authority);
+    return makeEndFlashLoanIx(
+      program,
+      this.address,
+      this.group,
+      banks,
+      authority ?? this.authority
+    );
   }
 
   /**
@@ -658,6 +664,7 @@ class MarginfiAccount implements MarginfiAccountType {
   async makeCloseAccountIx(program: MarginfiProgram): Promise<InstructionsWrapper> {
     const ix = await instructions.makeCloseAccountIx(program, {
       marginfiAccount: this.address,
+      authority: this.authority,
       feePayer: this.authority,
     });
     return { instructions: [ix], keys: [] };

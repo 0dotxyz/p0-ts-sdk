@@ -21,13 +21,17 @@ import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 export async function makePoolConfigureBankIx(
   program: MarginfiProgram,
+  group: PublicKey,
+  admin: PublicKey,
   bank: PublicKey,
   args: BankConfigOptRaw
 ): Promise<InstructionsWrapper> {
   const ix = await instructions.makePoolConfigureBankIx(
     program,
     {
-      bank: bank,
+      group,
+      admin,
+      bank,
     },
     { bankConfigOpt: args }
   );
@@ -59,6 +63,7 @@ export async function makeAddPermissionlessStakedBankIx(
   const ix = await instructions.makePoolAddPermissionlessStakedBankIx(
     program,
     {
+      marginfiGroup: group,
       stakedSettings: settingsKey,
       feePayer: feePayer,
       bankMint: lstMint,
@@ -90,8 +95,9 @@ export async function makePoolAddBankIx(
   feePayer: PublicKey,
   bankMint: PublicKey,
   bankConfig: BankConfigOpt,
-  tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
-  overrideOpt: { admin?: PublicKey; globalFeeWallet?: PublicKey } = {}
+  admin: PublicKey,
+  globalFeeWallet: PublicKey,
+  tokenProgram: PublicKey = TOKEN_PROGRAM_ID
 ): Promise<InstructionsWrapper> {
   const rawBankConfig = serializeBankConfigOpt(bankConfig);
 
@@ -112,8 +118,8 @@ export async function makePoolAddBankIx(
       bankMint,
       bank,
       tokenProgram,
-      ...overrideOpt,
-      // if two oracle keys: first is feed id, second is oracle key
+      admin,
+      globalFeeWallet,
     },
     {
       bankConfig: rawBankConfigCompact,

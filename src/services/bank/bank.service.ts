@@ -12,6 +12,8 @@ import { bigNumberToWrappedI80F48 } from "~/utils";
 
 export async function freezeBankConfigIx(
   program: MarginfiProgram,
+  groupAddress: PublicKey,
+  adminAddress: PublicKey,
   bankAddress: PublicKey,
   bankConfigOpt: BankConfigOpt
 ): Promise<InstructionsWrapper> {
@@ -21,6 +23,8 @@ export async function freezeBankConfigIx(
   const ix = await instructions.makePoolConfigureBankIx(
     program,
     {
+      group: groupAddress,
+      admin: adminAddress,
       bank: bankAddress,
     },
     {
@@ -65,8 +69,8 @@ type AddOracleToBanksIxArgs = {
   /** Ordered exactly as the program's oracle accounts for the selected setup. */
   oracleAccounts?: PublicKey[];
   setup: OracleSetup;
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  groupAddress: PublicKey;
+  adminAddress: PublicKey;
 };
 
 export async function addOracleToBanksIx({
@@ -149,8 +153,8 @@ type SetOraclePriceIxArgs = {
   setup: OracleSetup.Fixed | OracleSetup.PTPyth | OracleSetup.PTFixed;
   /** Fixed venue account, [Pyth, Exponent vault], or [Exponent vault], depending on setup. */
   oracleAccounts?: PublicKey[];
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  groupAddress: PublicKey;
+  adminAddress: PublicKey;
 };
 
 /** Configure a flat fixed price or an Exponent PT price using the 0.1.11 instruction. */
@@ -194,8 +198,8 @@ type ConfigureScopeOracleIxArgs = {
   bankAddress: PublicKey;
   oracle: PublicKey;
   entryIndex: number;
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  groupAddress: PublicKey;
+  adminAddress: PublicKey;
 };
 
 export async function configureScopeOracleIx({

@@ -95,7 +95,7 @@ class MarginfiGroup implements MarginfiGroupType {
     bank: PublicKey,
     args: BankConfigOptRaw
   ): Promise<InstructionsWrapper> {
-    return makePoolConfigureBankIx(program, bank, args);
+    return makePoolConfigureBankIx(program, this.address, this.admin, bank, args);
   }
 
   public async makeAddPermissionlessStakedBankIx(
@@ -118,6 +118,7 @@ class MarginfiGroup implements MarginfiGroupType {
     bankPubkey: PublicKey,
     bankMint: PublicKey,
     bankConfig: BankConfigOpt,
+    globalFeeWallet: PublicKey,
     feePayer?: PublicKey
   ): Promise<InstructionsWrapper> {
     return makePoolAddBankIx(
@@ -126,7 +127,9 @@ class MarginfiGroup implements MarginfiGroupType {
       bankPubkey,
       feePayer ?? this.admin,
       bankMint,
-      bankConfig
+      bankConfig,
+      this.admin,
+      globalFeeWallet
     );
   }
 }

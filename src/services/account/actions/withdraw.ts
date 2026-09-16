@@ -188,8 +188,13 @@ export async function makeDriftWithdrawIx({
           driftRewardSpotMarket2,
           driftRewardMint2,
 
-          authority: opts.overrideInferAccounts?.authority,
-          group: opts.overrideInferAccounts?.group,
+          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
+          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
+          liquidityVault: bank.liquidityVault,
+          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
+          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+          mint: bank.mint,
         },
         {
           amount: uiToNative(amount, bank.mintDecimals),
@@ -439,6 +444,9 @@ export async function makeKaminoWithdrawIx({
 
           authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
+          liquidityVault: bank.liquidityVault,
+          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
+          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
         },
         {
           amount: uiToNative(cTokenAmount, bank.mintDecimals),
@@ -551,6 +559,7 @@ export async function makeWithdrawIx({
           tokenProgram: tokenProgram,
           authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
           group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
+          liquidityVault: bank.liquidityVault,
         },
         { amount: uiToNative(amount, bank.mintDecimals), withdrawAll },
         remainingAccounts.map((account) => ({
@@ -864,7 +873,7 @@ export async function makeJuplendWithdrawIx({
       tokenProgram,
 
       authority: opts.overrideInferAccounts?.authority ?? authority,
-      group: opts.overrideInferAccounts?.group,
+      group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
       mint: bank.mint,
       fTokenMint,
       integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,

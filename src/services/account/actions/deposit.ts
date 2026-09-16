@@ -140,7 +140,11 @@ export async function makeDriftDepositIx({
 
           authority: opts.overrideInferAccounts?.authority ?? authority,
           group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+          liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
+          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
+          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+          mint: bank.mint,
         },
         { amount: uiToNative(amount, bank.mintDecimals) }
       );
@@ -345,7 +349,10 @@ export async function makeKaminoDepositIx({
 
           authority: opts.overrideInferAccounts?.authority ?? authority,
           group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+          liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
+          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
+          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
+          mint: bank.mint,
         },
         { amount: uiToNative(amount, bank.mintDecimals) }
       );
@@ -516,7 +523,7 @@ export async function makeDepositIx({
           tokenProgram: tokenProgram,
           authority: opts.overrideInferAccounts?.authority ?? authority,
           group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+          liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
         },
         { amount: uiToNative(amount, bank.mintDecimals) },
         remainingAccounts
@@ -530,7 +537,7 @@ export async function makeDepositIx({
           tokenProgram: tokenProgram,
           authority: opts.overrideInferAccounts?.authority ?? authority,
           group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
+          liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
         },
         { amount: uiToNative(amount, bank.mintDecimals) },
         remainingAccounts

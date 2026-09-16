@@ -58,14 +58,14 @@ async function makeJuplendDepositIx(
     rewardsRateModel: PublicKey;
     tokenProgram: PublicKey;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    fTokenMint?: PublicKey;
-    integrationAcc1?: PublicKey;
-    integrationAcc2?: PublicKey;
-    mint?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
+    fTokenMint: PublicKey;
+    integrationAcc1: PublicKey;
+    integrationAcc2: PublicKey;
+    mint: PublicKey;
   },
   args: {
     amount: BN;
@@ -85,13 +85,13 @@ async function makeJuplendDepositIx(
     liquidityProgram,
     rewardsRateModel,
     tokenProgram,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
     .juplendDeposit(args.amount)
     .accounts(accounts)
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -113,14 +113,14 @@ async function makeJuplendWithdrawIx(
     rewardsRateModel: PublicKey;
     tokenProgram: PublicKey;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    mint?: PublicKey;
-    integrationAcc1?: PublicKey;
-    fTokenMint?: PublicKey;
-    integrationAcc2?: PublicKey;
-    integrationAcc3?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    mint: PublicKey;
+    integrationAcc1: PublicKey;
+    fTokenMint: PublicKey;
+    integrationAcc2: PublicKey;
+    integrationAcc3: PublicKey;
   },
   args: {
     amount: BN;
@@ -142,13 +142,13 @@ async function makeJuplendWithdrawIx(
     liquidityProgram,
     rewardsRateModel,
     tokenProgram,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
     .juplendWithdraw(args.amount, args.withdrawAll ?? null)
     .accounts(accounts)
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -170,13 +170,13 @@ async function makeKaminoDepositIx(
     obligationFarmUserState: PublicKey | null;
     reserveFarmState: PublicKey | null;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    integrationAcc1?: PublicKey;
-    integrationAcc2?: PublicKey;
-    mint?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
+    integrationAcc1: PublicKey;
+    integrationAcc2: PublicKey;
+    mint: PublicKey;
   },
   args: {
     amount: BN;
@@ -197,13 +197,13 @@ async function makeKaminoDepositIx(
     liquidityTokenProgram,
     obligationFarmUserState,
     reserveFarmState,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
     .kaminoDeposit(args.amount, args.refreshReserve ?? null)
     .accounts(accounts)
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -235,14 +235,14 @@ async function makeDriftDepositIx(
     tokenProgram: PublicKey;
     driftOracle: PublicKey | null;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    integrationAcc2?: PublicKey;
-    integrationAcc3?: PublicKey;
-    integrationAcc1?: PublicKey;
-    mint?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
+    integrationAcc2: PublicKey;
+    integrationAcc3: PublicKey;
+    integrationAcc1: PublicKey;
+    mint: PublicKey;
     driftProgram?: PublicKey;
     systemProgram?: PublicKey;
   },
@@ -258,7 +258,7 @@ async function makeDriftDepositIx(
     driftSpotMarketVault,
     tokenProgram,
     driftOracle,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
@@ -272,7 +272,7 @@ async function makeDriftDepositIx(
       tokenProgram,
       driftOracle,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -284,10 +284,10 @@ async function makeDepositIx(
     signerTokenAccount: PublicKey;
     bank: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
   },
   args: {
     amount: BN;
@@ -295,7 +295,8 @@ async function makeDepositIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
+  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...resolvableAccounts } =
+    accounts;
 
   return mfProgram.methods
     .lendingAccountDeposit(args.amount, args.depositUpToLimit ?? null)
@@ -305,7 +306,7 @@ async function makeDepositIx(
       bank,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -318,10 +319,10 @@ async function makeRepayIx(
     signerTokenAccount: PublicKey;
     bank: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
   },
   args: {
     amount: BN;
@@ -329,7 +330,8 @@ async function makeRepayIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
+  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...resolvableAccounts } =
+    accounts;
 
   return mfProgram.methods
     .lendingAccountRepay(args.amount, args.repayAll ?? null)
@@ -339,7 +341,7 @@ async function makeRepayIx(
       bank,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -364,9 +366,14 @@ async function makeDriftWithdrawIx(
     driftRewardSpotMarket2: PublicKey | null;
     driftRewardMint2: PublicKey | null;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
+    integrationAcc1: PublicKey;
+    integrationAcc2: PublicKey;
+    integrationAcc3: PublicKey;
+    mint: PublicKey;
   },
   args: {
     amount: BN;
@@ -389,7 +396,7 @@ async function makeDriftWithdrawIx(
     driftRewardOracle2,
     driftRewardSpotMarket2,
     driftRewardMint2,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
@@ -410,7 +417,7 @@ async function makeDriftWithdrawIx(
       driftRewardSpotMarket2,
       driftRewardMint2,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -433,9 +440,12 @@ async function makeKaminoWithdrawIx(
     obligationFarmUserState: PublicKey | null;
     reserveFarmState: PublicKey | null;
 
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
+    integrationAcc1: PublicKey;
+    integrationAcc2: PublicKey;
   },
   args: {
     amount: BN;
@@ -460,7 +470,7 @@ async function makeKaminoWithdrawIx(
     liquidityTokenProgram,
     obligationFarmUserState,
     reserveFarmState,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   // flags bit 0 = withdraw all, bit 1 = batch refresh. `isFinalWithdrawal ? 1 : null` is
@@ -483,7 +493,7 @@ async function makeKaminoWithdrawIx(
       obligationFarmUserState,
       reserveFarmState,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -496,9 +506,10 @@ async function makeWithdrawIx(
     bank: PublicKey;
     destinationTokenAccount: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
   },
   args: {
     amount: BN;
@@ -506,7 +517,7 @@ async function makeWithdrawIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
+  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...resolvableAccounts } =
     accounts;
 
   return mfProgram.methods
@@ -517,7 +528,7 @@ async function makeWithdrawIx(
       bank,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -530,16 +541,17 @@ async function makeBorrowIx(
     bank: PublicKey;
     destinationTokenAccount: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
+    liquidityVault: PublicKey;
   },
   args: {
     amount: BN;
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
+  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...resolvableAccounts } =
     accounts;
 
   return mfProgram.methods
@@ -550,7 +562,7 @@ async function makeBorrowIx(
       bank,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -564,9 +576,9 @@ function makeLendingAccountLiquidateIx(
     liquidatorMarginfiAccount: PublicKey;
     liquidateeMarginfiAccount: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
   },
   args: {
     assetAmount: BN;
@@ -581,7 +593,7 @@ function makeLendingAccountLiquidateIx(
     liquidatorMarginfiAccount,
     liquidateeMarginfiAccount,
     tokenProgram,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfiProgram.methods
@@ -593,7 +605,7 @@ function makeLendingAccountLiquidateIx(
       liquidateeMarginfiAccount,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -603,22 +615,22 @@ function makePoolConfigureBankIx(
   accounts: {
     // Required accounts
     bank: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    admin?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    admin: PublicKey;
   },
   args: {
     bankConfigOpt: BankConfigOptRaw;
   }
 ) {
-  const { bank, ...optionalAccounts } = accounts;
+  const { bank, ...resolvableAccounts } = accounts;
 
   return mfiProgram.methods
     .lendingPoolConfigureBank(args.bankConfigOpt)
     .accounts({
       bank,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -627,22 +639,22 @@ function makeBeginFlashLoanIx(
   accounts: {
     // Required accounts
     marginfiAccount: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    authority: PublicKey;
     ixsSysvar?: PublicKey;
   },
   args: {
     endIndex: BN;
   }
 ) {
-  const { marginfiAccount, ...optionalAccounts } = accounts;
+  const { marginfiAccount, ...resolvableAccounts } = accounts;
 
   return mfiProgram.methods
     .lendingAccountStartFlashloan(args.endIndex)
     .accounts({
       marginfiAccount,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -651,19 +663,20 @@ async function makeEndFlashLoanIx(
   accounts: {
     // Required accounts
     marginfiAccount: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { marginfiAccount, ...optionalAccounts } = accounts;
+  const { marginfiAccount, ...resolvableAccounts } = accounts;
 
   return mfiProgram.methods
     .lendingAccountEndFlashloan()
     .accounts({
       marginfiAccount,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -677,9 +690,9 @@ async function makeAccountTransferToNewAccountIx(
     newAuthority: PublicKey;
     globalFeeWallet: PublicKey;
     feePayer: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    authority: PublicKey;
   }
 ) {
   const {
@@ -688,7 +701,7 @@ async function makeAccountTransferToNewAccountIx(
     newAuthority,
     globalFeeWallet,
     feePayer,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
@@ -700,7 +713,7 @@ async function makeAccountTransferToNewAccountIx(
       globalFeeWallet,
       feePayer,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -732,9 +745,9 @@ async function makeLendingPoolConfigureBankOracleIx(
   accounts: {
     // Required accounts
     bank: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    admin?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    group: PublicKey;
+    admin: PublicKey;
   },
   args: {
     /**
@@ -751,14 +764,14 @@ async function makeLendingPoolConfigureBankOracleIx(
    */
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { bank, ...optionalAccounts } = accounts;
+  const { bank, ...resolvableAccounts } = accounts;
 
   return mfProgram.methods
     .lendingPoolConfigureBankOracle(args.setup, args.feedId)
     .accounts({
       bank,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -773,20 +786,20 @@ async function makeLendingPoolConfigureBankOracleScopeIx(
   mfProgram: MarginfiProgram,
   accounts: {
     bank: PublicKey;
-    group?: PublicKey;
-    admin?: PublicKey;
+    group: PublicKey;
+    admin: PublicKey;
   },
   args: {
     oracle: PublicKey;
     entryIndex: number;
   }
 ) {
-  const { bank, ...optionalAccounts } = accounts;
+  const { bank, ...resolvableAccounts } = accounts;
 
   return mfProgram.methods
     .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
     .accounts({ bank })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts([{ pubkey: args.oracle, isSigner: false, isWritable: false }])
     .instruction();
 }
@@ -796,8 +809,8 @@ async function makeLendingPoolSetOraclePriceIx(
   mfProgram: MarginfiProgram,
   accounts: {
     bank: PublicKey;
-    group?: PublicKey;
-    admin?: PublicKey;
+    group: PublicKey;
+    admin: PublicKey;
   },
   args: {
     price: WrappedI80F48;
@@ -805,12 +818,12 @@ async function makeLendingPoolSetOraclePriceIx(
   },
   remainingAccounts: AccountMeta[] = []
 ) {
-  const { bank, ...optionalAccounts } = accounts;
+  const { bank, ...resolvableAccounts } = accounts;
 
   return mfProgram.methods
     .lendingPoolSetOraclePrice(args.price, args.setup)
     .accounts({ bank })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -835,8 +848,8 @@ async function makePoolAddPermissionlessStakedBankIx(
     stakePool: PublicKey;
     /** The validator vote account backing the stake pool (0.1.9+ program only) */
     validatorVoteAccount: PublicKey;
-    // Optional accounts - to override inference
-    marginfiGroup?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    marginfiGroup: PublicKey;
     /**
      * The token program to use for this instruction, defaults to the SPL token program
      */
@@ -868,7 +881,7 @@ async function makePoolAddPermissionlessStakedBankIx(
     stakePool,
     validatorVoteAccount,
     tokenProgram = TOKEN_PROGRAM_ID,
-    ...optionalAccounts
+    ...resolvableAccounts
   } = accounts;
 
   return mfProgram.methods
@@ -883,7 +896,7 @@ async function makePoolAddPermissionlessStakedBankIx(
       validatorVoteAccount,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }
@@ -897,15 +910,15 @@ async function makePoolAddBankIx(
     bankMint: PublicKey;
     bank: PublicKey;
     tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    admin?: PublicKey;
-    globalFeeWallet?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    admin: PublicKey;
+    globalFeeWallet: PublicKey;
   },
   args: {
     bankConfig: BankConfigCompactRaw;
   }
 ) {
-  const { marginfiGroup, feePayer, bankMint, bank, tokenProgram, ...optionalAccounts } = accounts;
+  const { marginfiGroup, feePayer, bankMint, bank, tokenProgram, ...resolvableAccounts } = accounts;
 
   return mfProgram.methods
     .lendingPoolAddBank({
@@ -920,7 +933,7 @@ async function makePoolAddBankIx(
       bank,
       tokenProgram,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -930,18 +943,18 @@ async function makeCloseAccountIx(
     // Required accounts
     marginfiAccount: PublicKey;
     feePayer: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
+    // IDL-resolvable accounts, passed explicitly so Anchor never fetches them
+    authority: PublicKey;
   }
 ) {
-  const { marginfiAccount, feePayer, ...optionalAccounts } = accounts;
+  const { marginfiAccount, feePayer, ...resolvableAccounts } = accounts;
   return mfProgram.methods
     .marginfiAccountClose()
     .accounts({
       marginfiAccount,
       feePayer,
     })
-    .accountsPartial(optionalAccounts)
+    .accountsPartial(resolvableAccounts)
     .instruction();
 }
 
@@ -964,6 +977,7 @@ async function makePulseHealthIx(
   mfProgram: MarginfiProgram,
   accounts: {
     marginfiAccount: PublicKey;
+    group: PublicKey;
   },
   /**
    * The remaining accounts required for this instruction. Should include:
@@ -973,9 +987,7 @@ async function makePulseHealthIx(
 ) {
   return mfProgram.methods
     .lendingAccountPulseHealth()
-    .accounts({
-      marginfiAccount: accounts.marginfiAccount,
-    })
+    .accounts(accounts)
     .remainingAccounts(remainingAccounts)
     .instruction();
 }

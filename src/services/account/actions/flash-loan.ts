@@ -18,27 +18,26 @@ export async function makeBeginFlashLoanIx(
   program: MarginfiProgram,
   marginfiAccountPk: PublicKey,
   endIndex: number,
-  authority?: PublicKey,
+  authority: PublicKey,
   isSync?: boolean
 ): Promise<InstructionsWrapper> {
-  const ix =
-    isSync && authority
-      ? syncInstructions.makeBeginFlashLoanIx(
-          program.programId,
-          {
-            marginfiAccount: marginfiAccountPk,
-            authority,
-          },
-          { endIndex: new BN(endIndex) }
-        )
-      : await instructions.makeBeginFlashLoanIx(
-          program,
-          {
-            marginfiAccount: marginfiAccountPk,
-            authority,
-          },
-          { endIndex: new BN(endIndex) }
-        );
+  const ix = isSync
+    ? syncInstructions.makeBeginFlashLoanIx(
+        program.programId,
+        {
+          marginfiAccount: marginfiAccountPk,
+          authority,
+        },
+        { endIndex: new BN(endIndex) }
+      )
+    : await instructions.makeBeginFlashLoanIx(
+        program,
+        {
+          marginfiAccount: marginfiAccountPk,
+          authority,
+        },
+        { endIndex: new BN(endIndex) }
+      );
   return { instructions: [ix], keys: [] };
 }
 
@@ -47,37 +46,37 @@ export async function makeEndFlashLoanIx(
   marginfiAccountPk: PublicKey,
   group: PublicKey,
   projectedActiveBanks: BankType[],
-  authority?: PublicKey,
+  authority: PublicKey,
   isSync?: boolean
 ): Promise<InstructionsWrapper> {
   const remainingAccounts = computeHealthAccountMetas({ banksToInclude: projectedActiveBanks });
-  const ix =
-    isSync && authority
-      ? syncInstructions.makeEndFlashLoanIx(
-          program.programId,
-          {
-            marginfiAccount: marginfiAccountPk,
-            group,
-            authority,
-          },
-          remainingAccounts.map((account) => ({
-            pubkey: account,
-            isSigner: false,
-            isWritable: false,
-          }))
-        )
-      : await instructions.makeEndFlashLoanIx(
-          program,
-          {
-            marginfiAccount: marginfiAccountPk,
-            authority,
-          },
-          remainingAccounts.map((account) => ({
-            pubkey: account,
-            isSigner: false,
-            isWritable: false,
-          }))
-        );
+  const ix = isSync
+    ? syncInstructions.makeEndFlashLoanIx(
+        program.programId,
+        {
+          marginfiAccount: marginfiAccountPk,
+          group,
+          authority,
+        },
+        remainingAccounts.map((account) => ({
+          pubkey: account,
+          isSigner: false,
+          isWritable: false,
+        }))
+      )
+    : await instructions.makeEndFlashLoanIx(
+        program,
+        {
+          marginfiAccount: marginfiAccountPk,
+          group,
+          authority,
+        },
+        remainingAccounts.map((account) => ({
+          pubkey: account,
+          isSigner: false,
+          isWritable: false,
+        }))
+      );
   return { instructions: [ix], keys: [] };
 }
 

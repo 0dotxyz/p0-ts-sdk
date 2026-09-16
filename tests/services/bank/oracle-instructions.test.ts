@@ -105,6 +105,8 @@ describe("Scope oracle configuration instruction", () => {
       feedId,
       setup: OracleSetup.PythMSOL,
       oracleAccounts: [feedId, marinadeState],
+      groupAddress: publicKey(2),
+      adminAddress: publicKey(3),
     });
 
     expect(lendingPoolConfigureBankOracle).toHaveBeenCalledWith(19, feedId);
@@ -124,6 +126,8 @@ describe("Scope oracle configuration instruction", () => {
         feedId: publicKey(5),
         setup: OracleSetup.PythMSOL,
         oracleAccounts: [publicKey(6), publicKey(7)],
+        groupAddress: publicKey(2),
+        adminAddress: publicKey(3),
       })
     ).rejects.toThrow("oracleAccounts[0]");
   });
@@ -143,6 +147,8 @@ describe("Scope oracle configuration instruction", () => {
           bankAddress: publicKey(4),
           feedId: publicKey(5),
           setup,
+          groupAddress: publicKey(2),
+          adminAddress: publicKey(3),
         })
       ).rejects.toThrow("setOraclePriceIx");
     }
@@ -172,6 +178,8 @@ describe("Scope oracle configuration instruction", () => {
       price: new BigNumber(0.8),
       setup: OracleSetup.PTPyth,
       oracleAccounts: [pyth, vault],
+      groupAddress: publicKey(2),
+      adminAddress: publicKey(3),
     });
 
     expect(lendingPoolSetOraclePrice).toHaveBeenCalledWith(expect.anything(), 25);
@@ -187,6 +195,8 @@ describe("Scope oracle configuration instruction", () => {
         price: new BigNumber(0.8),
         setup: OracleSetup.PTFixed,
         oracleAccounts: [],
+        groupAddress: publicKey(2),
+        adminAddress: publicKey(3),
       })
     ).rejects.toThrow("PTFixed requires 1 ordered oracle accounts");
   });
