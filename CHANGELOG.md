@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.3-alpha.0
+
+### Patch Changes
+
+- 28ed9f5: Oracle multipliers split into two steps: `fetchMultiplierAccountStates` / `fetchMultiplierAccountStatesFromAPI` read and decode the multiplier accounts (Marinade state, SPL stake pool, Exponent vault; JSON-safe `MultiplierAccountState`), and the sync `computeOracleMultipliers` maps them onto banks via `OracleMultiplierBankInput` (from `getOracleMultiplierBankInput`). `fetchOracleMultipliersFromChain` / `fetchOracleMultipliersFromAPI` now take inputs instead of `BankType[]`; the api mode sends only `multiplierAccounts` and expects `{ data: MultiplierAccountStates }`. `fetchOracleMultipliers(banks, opts)` is unchanged.
+- 28ed9f5: Deprecate `stakedCollatData` on the api-mode Pyth and Switchboard oracle options (now optional; unused, will be removed in a future release).
+
 ## 2.8.2
 
 ### Patch Changes
