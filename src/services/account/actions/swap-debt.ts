@@ -1,4 +1,4 @@
-import { ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { ComputeBudgetProgram } from "@solana/web3.js";
 
 import {
   computeBorrowEstimateForRepay,
@@ -28,7 +28,7 @@ import { makeRepayIx } from "./repay";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -72,17 +72,13 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
   mustBeAtomicBundle: boolean;
 }> {
   const {
-    program,
     marginfiAccount,
     connection,
     bankMap,
-    oraclePrices,
     repayOpts,
     borrowOpts,
     bankMetadataMap,
-    assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
-    crossbarUrl,
     additionalIxs = [],
   } = params;
 
@@ -107,11 +103,10 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     [repayOpts.repayBank.address, borrowOpts.borrowBank.address]
   );
 
-  const { flashloanTx, setupInstructions, swapQuote, borrowIxs, repayIxs } =
-    await buildSwapDebtFlashloanTx({
-      ...params,
-      blockhash,
-    });
+  const { flashloanTx, setupInstructions, swapQuote } = await buildSwapDebtFlashloanTx({
+    ...params,
+    blockhash,
+  });
 
   // Filter Jupiter setup instructions to avoid duplicates with our setup
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
@@ -137,17 +132,6 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
-    instructions: [...borrowIxs.instructions, ...repayIxs.instructions],
-    program,
-    connection,
-    crossbarUrl,
-  });
-
   const additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
@@ -166,22 +150,6 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
           addressLookupTables: addressLookupTableAccounts,
         })
       )
-    );
-  }
-
-  // If crank is needed, add it
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 

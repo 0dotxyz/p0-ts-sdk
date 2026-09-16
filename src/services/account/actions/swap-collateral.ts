@@ -2,8 +2,6 @@ import {
   AddressLookupTableAccount,
   ComputeBudgetProgram,
   TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
@@ -46,7 +44,7 @@ import {
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -91,17 +89,13 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
   mustBeAtomicBundle: boolean;
 }> {
   const {
-    program,
     marginfiAccount,
     connection,
     bankMap,
-    oraclePrices,
     withdrawOpts,
     depositOpts,
     bankMetadataMap,
-    assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
-    crossbarUrl,
   } = params;
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
@@ -124,11 +118,10 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     bankMetadataMap
   );
 
-  const { flashloanTx, setupInstructions, swapQuote, withdrawIxs, depositIxs } =
-    await buildSwapCollateralFlashloanTx({
-      ...params,
-      blockhash,
-    });
+  const { flashloanTx, setupInstructions, swapQuote } = await buildSwapCollateralFlashloanTx({
+    ...params,
+    blockhash,
+  });
 
   // Filter Jupiter setup instructions to avoid duplicates with our setup
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
@@ -154,17 +147,6 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
-    instructions: [...withdrawIxs.instructions, ...depositIxs.instructions],
-    program,
-    connection,
-    crossbarUrl,
-  });
-
   const additionalTxs: ExtendedV0Transaction[] = [];
 
   // If ATAs, additional instructions, or refreshes are needed, add them
@@ -183,22 +165,6 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
           addressLookupTables: addressLookupTableAccounts,
         })
       )
-    );
-  }
-
-  // If crank is needed, add it
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 

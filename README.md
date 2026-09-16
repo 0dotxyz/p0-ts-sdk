@@ -241,7 +241,7 @@ import { fetchOracleData, OraclePrice } from "@0dotxyz/p0-ts-sdk/vendor";
 **Why separate vendor exports?**
 
 - Reduces bundle size for simple use cases
-- Oracle libraries (Pyth, Switchboard) are large
+- Oracle libraries (Pyth, Scope) are large
 - Tree-shake what you don't need
 
 ## 🎯 Key Features

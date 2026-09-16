@@ -17,6 +17,5 @@ export function dtoToOraclePrice(dto: OraclePriceDto): OraclePrice {
       highestPrice: new BigNumber(dto.priceWeighted.highestPrice),
     },
     timestamp: new BigNumber(dto.timestamp),
-    switchboardData: dto.switchboardData,
   };
 }

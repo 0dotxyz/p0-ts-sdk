@@ -39,7 +39,6 @@ export enum TransactionType {
   WITHDRAW_ALL = "WITHDRAW_ALL",
   TRANSFER_AUTH = "TRANSFER_AUTH",
 
-  // SWB
   CRANK = "CRANK",
 
   // NATIVE STAKE ACTIONS
@@ -121,7 +120,6 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
         : "Open short position",
   },
 
-  // SWB
   [TransactionType.CRANK]: { label: () => "Updating latest prices" },
   [TransactionType.JUPITER_SWAP]: {
     label: ({ originAmount, originToken, destinationAmount, destinationToken } = {}) =>

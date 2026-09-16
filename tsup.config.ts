@@ -36,8 +36,6 @@ export default defineConfig({
     "@coral-xyz/anchor",
     "@coral-xyz/borsh",
     "@solana/web3.js",
-    "@switchboard-xyz/on-demand",
-    "@switchboard-xyz/common",
     "bignumber.js",
     "borsh",
     "bs58",

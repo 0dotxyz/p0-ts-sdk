@@ -52,12 +52,8 @@ async function oraclePricesExample() {
 
     if (oraclePrice) {
       console.log(`Bank: ${bank.mint.toBase58()}`);
-      console.log(
-        `   Realtime price: $${oraclePrice.priceRealtime.price.toNumber()}`
-      );
-      console.log(
-        `   Confidence: ±$${oraclePrice.priceRealtime.confidence.toNumber()}`
-      );
+      console.log(`   Realtime price: $${oraclePrice.priceRealtime.price.toNumber()}`);
+      console.log(`   Confidence: ±$${oraclePrice.priceRealtime.confidence.toNumber()}`);
       console.log(
         `   Timestamp: ${new Date(oraclePrice.timestamp.toNumber() * 1000).toISOString()}`
       );
@@ -77,36 +73,24 @@ async function oraclePricesExample() {
         mode: "on-chain", // or "api" for faster lookups
         connection,
       },
-      swbOpts: {
-        mode: "on-chain",
-        connection,
-      },
       isolatedBanksOpts: {
         fetchPrices: true,
       },
     }
   );
 
-  console.log(
-    `✅ Refreshed ${updatedOracleData.bankOraclePriceMap.size} oracle prices`
-  );
+  console.log(`✅ Refreshed ${updatedOracleData.bankOraclePriceMap.size} oracle prices`);
 
   // --------------------------------------------------------------------------
   // Step 5: Access Specific Bank Oracle Price
   // --------------------------------------------------------------------------
   console.log("\n💵 Accessing specific bank oracle price...");
 
-  const usdcMint = new PublicKey(
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-  );
-  const usdcOraclePrice = updatedOracleData.mintOraclePriceMap.get(
-    usdcMint.toBase58()
-  );
+  const usdcMint = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+  const usdcOraclePrice = updatedOracleData.mintOraclePriceMap.get(usdcMint.toBase58());
 
   if (usdcOraclePrice) {
-    console.log(
-      `   USDC Price: $${usdcOraclePrice.priceRealtime.price.toNumber()}`
-    );
+    console.log(`   USDC Price: $${usdcOraclePrice.priceRealtime.price.toNumber()}`);
   }
 }
 

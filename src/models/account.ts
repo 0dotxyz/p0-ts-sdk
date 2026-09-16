@@ -795,7 +795,6 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
    *
    * @returns Object containing transactions array, action index, and swap quote
    *
@@ -950,7 +949,6 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
    *
    * @returns Object containing transactions array, action index, and swap details
    *
@@ -1000,7 +998,6 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
    *
    * @returns Object containing transactions array, action index, and swap quote
    *
@@ -1072,7 +1069,6 @@ class MarginfiAccount implements MarginfiAccountType {
    * @param params.addressLookupTableAccounts - Address lookup tables
    * @param params.overrideInferAccounts - Optional account overrides
    * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
    *
    * @returns Object containing transactions array, action index, and swap quote
    *

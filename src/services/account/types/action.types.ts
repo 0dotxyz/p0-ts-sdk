@@ -286,7 +286,6 @@ export interface MakeWithdrawTxParams extends MakeWithdrawIxParams {
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
 export interface MakeKaminoWithdrawTxParams extends Omit<
@@ -298,7 +297,6 @@ export interface MakeKaminoWithdrawTxParams extends Omit<
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
 export interface MakeBorrowIxOpts {
@@ -335,7 +333,6 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
 export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams {
@@ -343,7 +340,6 @@ export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
 export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
@@ -351,7 +347,6 @@ export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
 export interface MakeCloseAccountIxParams {
@@ -426,7 +421,6 @@ export interface MakeTransferPositionsTxParams {
   maxPositions?: number;
   /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
   groupRateLimiterEnabled?: boolean;
-  crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
@@ -453,10 +447,7 @@ export interface MakeBulkWithdrawTxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   /** Token program per withdrawn bank (base58 bank address → token program id). */
   tokenProgramsByBank: Map<string, PublicKey>;
-  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
-  groupRateLimiterEnabled?: boolean;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
@@ -513,7 +504,6 @@ export interface MakeLoopTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /**
    * Optional override for how the swap engine runs. Defaults to the in-process
    * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
@@ -586,7 +576,6 @@ export interface MakeRepayWithCollatTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -618,7 +607,6 @@ export interface MakeSwapCollateralTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -665,7 +653,6 @@ export interface MakeRollPtTxParams {
     group?: PublicKey;
     authority?: PublicKey;
   };
-  crossbarUrl?: string;
 }
 
 /** One token-account balance snapshot from a {@link makeRollPtTx} quote simulation. */
@@ -756,7 +743,6 @@ export interface MakeSwapDebtTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }

@@ -162,7 +162,6 @@ export type SharedBridgeLegContext = Pick<
   | "swapOpts"
   | "addressLookupTableAccounts"
   | "overrideInferAccounts"
-  | "crossbarUrl"
   | "swapEngineRunner"
 >;
 
@@ -178,7 +177,6 @@ export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBr
     swapOpts: params.swapOpts,
     addressLookupTableAccounts: params.addressLookupTableAccounts,
     overrideInferAccounts: params.overrideInferAccounts,
-    crossbarUrl: params.crossbarUrl,
     swapEngineRunner: params.swapEngineRunner,
   };
 }

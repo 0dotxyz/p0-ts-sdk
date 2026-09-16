@@ -15,6 +15,5 @@ export function oraclePriceToDto(oraclePrice: OraclePrice): OraclePriceDto {
       highestPrice: oraclePrice.priceWeighted.highestPrice.toString(),
     },
     timestamp: oraclePrice.timestamp.toString(),
-    switchboardData: oraclePrice.switchboardData,
   };
 }

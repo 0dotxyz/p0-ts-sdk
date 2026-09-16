@@ -4,8 +4,6 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
 } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
@@ -39,7 +37,7 @@ import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { AssetTag } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedTransaction,
@@ -194,7 +192,6 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTr
 
 export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams) {
   const {
-    program,
     marginfiAccount,
     bankMap,
     withdrawOpts,
@@ -202,8 +199,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     bankMetadataMap,
     addressLookupTableAccounts,
     connection,
-    oraclePrices,
-    crossbarUrl,
   } = params;
 
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
@@ -232,7 +227,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     [withdrawOpts.withdrawBank.address, repayOpts.repayBank.address]
   );
 
-  const { flashloanTx, setupInstructions, swapQuote, amountToRepay, withdrawIxs, repayIxs } =
+  const { flashloanTx, setupInstructions, swapQuote, amountToRepay } =
     await buildRepayWithCollatFlashloanTx({
       ...params,
       blockhash,
@@ -261,17 +256,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    instructions: [...withdrawIxs.instructions, ...repayIxs.instructions],
-    program,
-    connection,
-    crossbarUrl,
-  });
-
   const additionalTxs: ExtendedV0Transaction[] = [];
 
   // if atas are needed, add them
@@ -290,22 +274,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
           addressLookupTables: addressLookupTableAccounts,
         })
       )
-    );
-  }
-
-  // if crank is needed, add it
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 
