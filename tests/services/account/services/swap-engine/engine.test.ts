@@ -222,13 +222,22 @@ describe("runSwapEngine selection", () => {
       keys: [{ pubkey: otherAta, isSigner: false, isWritable: true }],
       data: Buffer.from([17]),
     });
+    const closeOther = new TransactionInstruction({
+      programId: TOKEN_PROGRAM_ID,
+      keys: [
+        { pubkey: otherAta, isSigner: false, isWritable: true },
+        { pubkey: TAKER, isSigner: false, isWritable: true },
+        { pubkey: TAKER, isSigner: true, isWritable: false },
+      ],
+      data: Buffer.from([9]),
+    });
     const route = makeRoute(SwapProvider.JUPITER, 1000, 10, "jup");
-    route.swapInstructions = [transferElsewhere, syncOther, swapIx];
+    route.swapInstructions = [transferElsewhere, syncOther, swapIx, closeOther];
     store.routes.set(SwapProvider.JUPITER, [route]);
     store.routes.set(SwapProvider.TITAN, []);
 
     const result = await runSwapEngine({ ...makeRequest(), taker: TAKER });
 
-    expect(result.swapInstructions).toEqual([transferElsewhere, syncOther, swapIx]);
+    expect(result.swapInstructions).toEqual([transferElsewhere, syncOther, swapIx, closeOther]);
   });
 });
