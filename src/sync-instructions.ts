@@ -75,6 +75,17 @@ function encodeOptionU8(value: number | null | undefined): Buffer {
   return Buffer.concat([Buffer.from([1]), encodeU8(value)]);
 }
 
+// Anchor's convention for an omitted optional account: the program id sits in its slot
+function optionalMeta(
+  pubkey: PublicKey | null | undefined,
+  programId: PublicKey,
+  isWritable: boolean
+): AccountMeta {
+  return pubkey
+    ? { pubkey, isSigner: false, isWritable }
+    : { pubkey: programId, isSigner: false, isWritable: false };
+}
+
 function encodePublicKey(pubkey: PublicKey): Buffer {
   return Buffer.from(pubkey.toBytes());
 }
@@ -450,20 +461,8 @@ function makeKaminoDepositIx(
     },
   ];
 
-  if (accounts.obligationFarmUserState) {
-    keys.push({
-      pubkey: accounts.obligationFarmUserState,
-      isSigner: false,
-      isWritable: true,
-    });
-  }
-  if (accounts.reserveFarmState) {
-    keys.push({
-      pubkey: accounts.reserveFarmState,
-      isSigner: false,
-      isWritable: true,
-    });
-  }
+  keys.push(optionalMeta(accounts.obligationFarmUserState, programId, true));
+  keys.push(optionalMeta(accounts.reserveFarmState, programId, true));
 
   keys.push(
     { pubkey: KAMINO_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -564,20 +563,8 @@ function makeKaminoWithdrawIx(
     },
   ];
 
-  if (accounts.obligationFarmUserState) {
-    keys.push({
-      pubkey: accounts.obligationFarmUserState,
-      isSigner: false,
-      isWritable: true,
-    });
-  }
-  if (accounts.reserveFarmState) {
-    keys.push({
-      pubkey: accounts.reserveFarmState,
-      isSigner: false,
-      isWritable: true,
-    });
-  }
+  keys.push(optionalMeta(accounts.obligationFarmUserState, programId, true));
+  keys.push(optionalMeta(accounts.reserveFarmState, programId, true));
 
   keys.push(
     { pubkey: KAMINO_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -764,9 +751,6 @@ function makeGroupInitIx(
     marginfiGroup: PublicKey;
     admin: PublicKey;
     feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive
-  },
-  args?: {
-    isArenaGroup?: boolean;
   }
 ): TransactionInstruction {
   const keys: AccountMeta[] = [
@@ -776,10 +760,7 @@ function makeGroupInitIx(
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
 
-  const data = Buffer.concat([
-    DISCRIMINATORS.MARGINFI_GROUP_INITIALIZE,
-    encodeBool(args?.isArenaGroup ?? false),
-  ]);
+  const data = DISCRIMINATORS.MARGINFI_GROUP_INITIALIZE;
 
   return new TransactionInstruction({
     keys,
@@ -972,14 +953,7 @@ function makeDriftDepositIx(
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
   ];
 
-  // drift_oracle is optional
-  if (accounts.driftOracle) {
-    keys.push({
-      pubkey: accounts.driftOracle,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftOracle, programId, false));
 
   keys.push(
     { pubkey: liquidityVaultAuthority, isSigner: false, isWritable: false },
@@ -1051,14 +1025,7 @@ function makeDriftWithdrawIx(
     { pubkey: accounts.bank, isSigner: false, isWritable: true },
   ];
 
-  // Add optional driftOracle
-  if (accounts.driftOracle) {
-    keys.push({
-      pubkey: accounts.driftOracle,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftOracle, programId, false));
 
   // Add required accounts in IDL order
   keys.push(
@@ -1077,53 +1044,17 @@ function makeDriftWithdrawIx(
   );
 
   // Add optional reward accounts (in IDL order)
-  if (accounts.driftRewardOracle) {
-    keys.push({
-      pubkey: accounts.driftRewardOracle,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardOracle, programId, false));
 
-  if (accounts.driftRewardSpotMarket) {
-    keys.push({
-      pubkey: accounts.driftRewardSpotMarket,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardSpotMarket, programId, false));
 
-  if (accounts.driftRewardMint) {
-    keys.push({
-      pubkey: accounts.driftRewardMint,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardMint, programId, false));
 
-  if (accounts.driftRewardOracle2) {
-    keys.push({
-      pubkey: accounts.driftRewardOracle2,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardOracle2, programId, false));
 
-  if (accounts.driftRewardSpotMarket2) {
-    keys.push({
-      pubkey: accounts.driftRewardSpotMarket2,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardSpotMarket2, programId, false));
 
-  if (accounts.driftRewardMint2) {
-    keys.push({
-      pubkey: accounts.driftRewardMint2,
-      isSigner: false,
-      isWritable: false,
-    });
-  }
+  keys.push(optionalMeta(accounts.driftRewardMint2, programId, false));
 
   // Add final required accounts
   keys.push(
@@ -1140,7 +1071,7 @@ function makeDriftWithdrawIx(
   const data = Buffer.concat([
     DISCRIMINATORS.DRIFT_WITHDRAW,
     encodeU64(args.amount),
-    encodeBool(args.withdrawAll),
+    encodeOptionBool(args.withdrawAll),
   ]);
 
   return new TransactionInstruction({ keys, programId, data });

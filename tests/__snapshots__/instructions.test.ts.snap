@@ -1,0 +1,1552 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`instruction builders > 'drift_deposit' matches the recorded wire format 1`] = `
+{
+  "data": "/D/6yWI3ggwBAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'drift_withdraw' matches the recorded wire format 1`] = `
+{
+  "data": "Vju6e7e16okBAAAAAAAAAAEA",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2HTciirCEfeJeikeHgCTXdfVe1zpoD3ackfU7DrPCL8S",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'juplend_deposit' matches the recorded wire format 1`] = `
+{
+  "data": "cgvaUbelj/8BAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2tjH1S3HZMKLuY1DDN8j9WcMqStdrnDxeRfNdeFmvL2o",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2poys8aGy427mSkhn4oordqbbHgSBiY961ziaGDBAzi6",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'juplend_withdraw' matches the recorded wire format 1`] = `
+{
+  "data": "9aT9yjVN+90BAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2tjH1S3HZMKLuY1DDN8j9WcMqStdrnDxeRfNdeFmvL2o",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "2poys8aGy427mSkhn4oordqbbHgSBiY961ziaGDBAzi6",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'kamino_deposit' matches the recorded wire format 1`] = `
+{
+  "data": "7Qi8u3NjMVUBAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "Sysvar1nstructions1111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'kamino_withdraw' matches the recorded wire format 1`] = `
+{
+  "data": "x2UpLdVi4MgBAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "Sysvar1nstructions1111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_borrow' matches the recorded wire format 1`] = `
+{
+  "data": "BH50NTAF1B8BAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_deposit' matches the recorded wire format 1`] = `
+{
+  "data": "q17rZ1JA1IwBAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_end_flashloan' matches the recorded wire format 1`] = `
+{
+  "data": "aXzJapkCCJw=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_liquidate' matches the recorded wire format 1`] = `
+{
+  "data": "1qmX1funVtsBAAAAAAAAAAEB",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "9BLWBH7k3az1noeM31X4rZ9ddxzgda2U5px746GAQhyg",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "FHgZerZuvrzvRB3qf93AUnLwoykDLoAwwZ4LK9toiA4Z",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "EaYBKnm7mSYD2BRdKBu96m9peMG5fQa5aE5RK73GMPbz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_pulse_health' matches the recorded wire format 1`] = `
+{
+  "data": "ujR1YSJKJ/0=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_repay' matches the recorded wire format 1`] = `
+{
+  "data": "T9Gssd4zrZcBAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_start_flashloan' matches the recorded wire format 1`] = `
+{
+  "data": "DoMh3FG6tGsCAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "Sysvar1nstructions1111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_account_withdraw' matches the recorded wire format 1`] = `
+{
+  "data": "JEhKE9LSwMABAAAAAAAAAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "7DtGfc5XYunJ4SdE3d56iAfCu5fTovpPQM3qpWwkFepq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "F9dCmqkgAytZvYEykUkwEGvC7CguStPWyVw8ABNvxobz",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_pool_add_bank_permissionless' matches the recorded wire format 1`] = `
+{
+  "data": "f7t5Irun7mYAAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3S5e9qmNHjhA2G1Ghkk5UWnTniaFFHiX7gzd6gcZtzcT",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3VzwJ9ENt2zPAMFn944zmPZE2snSvMQLg6fHA4fAeKwA",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3ZvESShPULHcJSWHaMPv4GKzH2zebR6AEWKwDShmPfFs",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3dqXakAQ4daqSXko1eiqM96kXCCrGUmynuzbGpkN8zaa",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "HTtnG6qJQnGHp4Df9wgdcadmRvVWX1XWoZn7FUgYk9Fj",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8ugjY9sJwUnc5QgLmE4ZoGAmHfZaiN9qkbFGf3Q5prdJ",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "Gr7a9KDu6tJiAvfvnJkpz3EdXaZHrPBjzq8WqK74YZqb",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8xHXFVSPDxFynZLcppV7hnVhbkMGpRpdf5rWX7SuGR91",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "HmiAxRbU9im8sZxZQVxEb238SJNxZtAa7eHS6npg4FiX",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "A4rSBfUtuPk3EhFhtnVUKMPhUFapb6LEuYHCAg2kJrs1",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "BFRb6Qy1NLSeenAMT37VkNLZLp1WkSWmvPsyZ9JjaGuv",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_pool_configure_bank' matches the recorded wire format 1`] = `
+{
+  "data": "ea2cKF2UOO0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_pool_configure_bank_oracle' matches the recorded wire format 1`] = `
+{
+  "data": "0VL/q3wVR1EDKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCg=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_pool_configure_bank_oracle_sc…' matches the recorded wire format 1`] = `
+{
+  "data": "huR/A3WEVZIoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKAEA",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'lending_pool_set_oracle_price' matches the recorded wire format 1`] = `
+{
+  "data": "6vQlQWX/2aAAAAAAAAABAAAAAAAAAAAAGA==",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "79cu2QNvp92chEmBhBgcUfERDT9KHnUcr8eiJb5WzKML",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'marginfi_account_close' matches the recorded wire format 1`] = `
+{
+  "data": "ut1dIjJhwvE=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'marginfi_account_initialize' matches the recorded wire format 1`] = `
+{
+  "data": "K049/5Q0+Zo=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'marginfi_account_initialize_pda' matches the recorded wire format 1`] = `
+{
+  "data": "V7FbUNp39R8AAAA=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "Sysvar1nstructions1111111111111111111111111",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'marginfi_group_initialize' matches the recorded wire format 1`] = `
+{
+  "data": "/0NDGl4fIhQ=",
+  "keys": [
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "H9mYNeS5eRjGasZiGrvVg9XCK1VXLH39iVHgC4zuuMTx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`instruction builders > 'transfer_to_new_account' matches the recorded wire format 1`] = `
+{
+  "data": "HE+B56lFRUE=",
+  "keys": [
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+    },
+    {
+      "isSigner": true,
+      "isWritable": false,
+      "pubkey": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    },
+    {
+      "isSigner": true,
+      "isWritable": true,
+      "pubkey": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+    },
+    {
+      "isSigner": false,
+      "isWritable": true,
+      "pubkey": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "H9mYNeS5eRjGasZiGrvVg9XCK1VXLH39iVHgC4zuuMTx",
+    },
+    {
+      "isSigner": false,
+      "isWritable": false,
+      "pubkey": "11111111111111111111111111111111",
+    },
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
