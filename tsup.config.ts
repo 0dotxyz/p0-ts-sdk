@@ -1,4 +1,8 @@
+import { readFile } from "node:fs/promises";
+
 import { defineConfig } from "tsup";
+
+import { trimIdl } from "./build/idl-trim";
 
 export default defineConfig({
   entry: {
@@ -15,6 +19,19 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   minify: false,
+  esbuildPlugins: [
+    {
+      name: "idl-trim",
+      setup(build) {
+        build.onLoad({ filter: /\/(idl\/[^/]+|idl)\.json$/ }, async (args) => ({
+          contents: JSON.stringify(
+            trimIdl(JSON.parse(await readFile(args.path, "utf8")), args.path)
+          ),
+          loader: "json",
+        }));
+      },
+    },
+  ],
   external: [
     "@coral-xyz/anchor",
     "@coral-xyz/borsh",
