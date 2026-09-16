@@ -1,17 +1,12 @@
 import { Buffer } from "buffer";
 
-import {
-  Connection,
-  PublicKey,
-  StakeProgram,
-  ParsedAccountData,
-  LAMPORTS_PER_SOL,
-} from "@solana/web3.js";
+import { PublicKey, StakeProgram, ParsedAccountData, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
 
 import { MAX_U64 } from "~/constants";
 import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   findPoolAddress,
   findPoolStakeAddress,
@@ -30,7 +25,7 @@ import {
  * @returns {Promise<ValidatorStakeGroup[]>} An array of validator stake groups
  */
 export const fetchNativeStakeAccounts = async (
-  connection: Connection,
+  connection: SolanaRpc,
   publicKey: PublicKey,
   opts: {
     filterInactive: boolean;
@@ -132,7 +127,7 @@ export const fetchNativeStakeAccounts = async (
  * @returns Promise<Map<string, boolean>> - Map of bank addresses to active states
  */
 export const fetchStakePoolActiveStates = async (
-  connection: Connection,
+  connection: SolanaRpc,
   validatorVoteAccounts: PublicKey[]
 ): Promise<Map<string, boolean>> => {
   const currentEpoch = await connection.getEpochInfo();
@@ -289,7 +284,7 @@ export const fetchStakeAccount = function (data: Buffer): StakeAccount {
 };
 
 export const fetchStakePoolMev = async (
-  connection: Connection,
+  connection: SolanaRpc,
   validatorVoteAccounts: PublicKey[]
 ): Promise<StakePoolMevMap> => {
   const poolAddressRecord: Record<string, PublicKey> = {};

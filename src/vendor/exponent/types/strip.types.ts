@@ -1,11 +1,8 @@
-import {
-  AccountMeta,
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-} from "@solana/web3.js";
+import { AccountMeta, AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
 import { ExponentVault } from "./vault.types";
+
+import type { SolanaRpc } from "~/types";
 
 /**
  * Accounts required by `strip` (SY → PT + YT). The first 15 are the fixed
@@ -44,7 +41,7 @@ export interface ExponentStripAccounts {
 }
 
 export interface ResolveExponentStripContextParams {
-  connection: Connection;
+  connection: SolanaRpc;
   /** Depositor / signer (the marginfi account authority). */
   owner: PublicKey;
   /** The (active, successor) vault to strip into, or… */

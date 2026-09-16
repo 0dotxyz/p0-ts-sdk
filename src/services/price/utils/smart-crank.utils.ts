@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction, Connection } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice } from "../types";
@@ -19,7 +19,7 @@ import {
   getEmodePairs,
 } from "~/services/account/utils";
 import { BankType } from "~/services/bank";
-import { MarginfiProgram } from "~/types";
+import { MarginfiProgram, SolanaRpc } from "~/types";
 
 /**
  * A combination of banks that need to be cranked
@@ -40,7 +40,7 @@ export interface SmartCrankParams {
   instructions: TransactionInstruction[];
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   program: MarginfiProgram;
-  connection?: Connection;
+  connection?: SolanaRpc;
   crossbarUrl?: string;
   /**
    * Whether the group's net-outflow rate limiter is enabled (see

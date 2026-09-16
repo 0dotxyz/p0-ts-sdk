@@ -1,4 +1,4 @@
-import { AccountInfo, Connection, GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
+import { AccountInfo, GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { simulateAccountHealthCache } from "../services";
@@ -12,7 +12,7 @@ import {
 import { parseMarginfiAccountRaw } from "./deserialize.utils";
 
 import { BankType } from "~/services/bank";
-import { AccountType, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { AccountType, BankIntegrationMetadataMap, MarginfiProgram, SolanaRpc } from "~/types";
 import { deriveMarginfiAccount } from "~/utils";
 
 export const fetchMarginfiAccountAddresses = async (
@@ -251,7 +251,7 @@ function randomDistinctIndices(count: number, maxExclusive: number): number[] {
  * @returns A random available account index (0-255)
  */
 export async function findRandomAvailableAccountIndex(
-  connection: Connection,
+  connection: SolanaRpc,
   programId: PublicKey,
   group: PublicKey,
   authority: PublicKey,

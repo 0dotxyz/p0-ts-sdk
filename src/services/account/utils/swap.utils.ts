@@ -1,9 +1,4 @@
-import {
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-  AddressLookupTableAccount,
-} from "@solana/web3.js";
+import { PublicKey, TransactionInstruction, AddressLookupTableAccount } from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
@@ -19,6 +14,7 @@ import { getJupiterSwapIxsForFlashloan, toJupiterConfig } from "./jupiter.utils"
 import { getTitanSwapIxsForFlashloan, getTitanExactOutEstimate } from "./titan.utils";
 
 import { TransactionBuildingError } from "~/errors";
+import type { SolanaRpc } from "~/types";
 import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 
 /** The canonical shape a resolved pinned route yields — mirrors an engine-selected route. */
@@ -103,7 +99,7 @@ function getSwapProviderFn({
   amount: number;
   swapMode: "ExactIn" | "ExactOut";
   authority: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   destinationTokenAccount: PublicKey;
   swapOpts: SwapOpts;
   sizeConstraint?: number;
@@ -214,7 +210,7 @@ export type GetSwapIxsForFlashloanParams = {
   amount: number;
   swapMode: "ExactIn" | "ExactOut";
   authority: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   destinationTokenAccount: PublicKey;
   swapOpts: SwapOpts;
   sizeConstraint?: number;
@@ -298,7 +294,7 @@ export type GetExactOutEstimateParams = {
   outputMint: string;
   amount: number;
   swapOpts: SwapOpts;
-  connection: Connection;
+  connection: SolanaRpc;
 };
 
 export type ExactOutEstimateResult = {

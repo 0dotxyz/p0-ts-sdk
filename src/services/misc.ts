@@ -9,7 +9,7 @@
  * them to their proper location first, then implement new functionality.
  */
 
-import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
+import { AccountInfo, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
@@ -42,6 +42,7 @@ import {
   BankIntegrationMetadataDto,
   BankIntegrationMetadataMap,
   BankIntegrationMetadataMapDto,
+  SolanaRpc,
 } from "~/types";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
@@ -149,7 +150,7 @@ export function bankMetadataToDto(
   };
 }
 
-export async function fetchProgramForMints(connection: Connection, mintAddress: PublicKey[]) {
+export async function fetchProgramForMints(connection: SolanaRpc, mintAddress: PublicKey[]) {
   const chunkSize = 100;
   const mintData: {
     mint: PublicKey;
@@ -185,7 +186,7 @@ interface Result {
 }
 
 export async function chunkedGetRawMultipleAccountInfos(
-  connection: Connection,
+  connection: SolanaRpc,
   pks: string[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100
@@ -250,7 +251,7 @@ export async function chunkedGetRawMultipleAccountInfos(
 }
 
 export async function chunkedGetRawMultipleAccountInfoOrderedWithNulls(
-  connection: Connection,
+  connection: SolanaRpc,
   pks: string[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100
@@ -313,7 +314,7 @@ export async function chunkedGetRawMultipleAccountInfoOrderedWithNulls(
 }
 
 export async function chunkedGetRawMultipleAccountInfoOrdered(
-  connection: Connection,
+  connection: SolanaRpc,
   pks: string[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100

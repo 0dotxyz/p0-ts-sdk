@@ -1,14 +1,10 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { SwapEngineRequest, SwapEngineResult, TxFootprint } from "../types";
 
 import { SwapApiConfig, SwapProvider } from "~/services/account/types";
+import type { SolanaRpc } from "~/types";
 
 /**
  * Wire serialization for the swap engine, so the provider fan-out can run behind
@@ -148,7 +144,7 @@ function serializeFootprint(f: TxFootprint): SerializedTxFootprint {
 export function deserializeSwapEngineRequest(
   s: SerializedSwapEngineRequest,
   ctx: {
-    connection: Connection;
+    connection: SolanaRpc;
     providerApiConfigs?: Partial<Record<SwapProvider, SwapApiConfig>>;
   }
 ): SwapEngineRequest {

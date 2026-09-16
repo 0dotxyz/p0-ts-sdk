@@ -1,4 +1,3 @@
-import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
@@ -6,11 +5,12 @@ import { getOracleSourceFromBank } from "../utils";
 
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
 type FetchScopeOracleOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  connection: SolanaRpc;
 };
 
 type FetchScopeOracleApiOpts = {
@@ -168,7 +168,7 @@ export const fetchScopeOraclePricesFromAPI = async (
  */
 export const fetchScopeOraclePricesFromChain = async (
   requestKeys: string[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<Record<string, OraclePrice>> => {
   const uniqueOracleKeys = Array.from(new Set(requestKeys.map((key) => key.split(":")[0])));
   const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(

@@ -16,7 +16,7 @@ import { ZERO_ORACLE_KEY } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
-import { MarginfiProgram } from "~/types";
+import { MarginfiProgram, SolanaRpc } from "~/types";
 
 type MakeSmartCrankSwbFeedIxParams = {
   marginfiAccount: MarginfiAccountType;
@@ -25,7 +25,7 @@ type MakeSmartCrankSwbFeedIxParams = {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   instructions: TransactionInstruction[];
   program: MarginfiProgram;
-  connection: Connection;
+  connection: SolanaRpc;
   crossbarUrl?: string;
   /**
    * Pass `isGroupRateLimiterEnabled(group.rateLimiter)`. While the group rate limiter
@@ -225,7 +225,7 @@ export async function makeUpdateSwbFeedIx(props: {
     price?: OraclePrice;
   }[];
   feePayer: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   crossbarUrl?: string;
   fallbackCrossbarUrl?: string;
 }): Promise<{
@@ -247,7 +247,10 @@ export async function makeUpdateSwbFeedIx(props: {
     signTransaction: async (tx: any) => tx,
     signAllTransactions: async (txs: any[]) => txs,
   } as any;
-  const swbProgram = await AnchorUtils.loadProgramFromConnection(props.connection, dummyWallet);
+  const swbProgram = await AnchorUtils.loadProgramFromConnection(
+    props.connection as Connection,
+    dummyWallet
+  );
 
   const pullFeedInstances: PullFeed[] = uniqueOracles.map((oracle) => {
     const pullFeed = new PullFeed(swbProgram, oracle.key);

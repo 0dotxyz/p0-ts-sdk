@@ -1,5 +1,4 @@
 import {
-  Connection,
   LAMPORTS_PER_SOL,
   PublicKey,
   STAKE_CONFIG_ID,
@@ -24,6 +23,7 @@ import {
   SYSVAR_RENT_ID,
   SYSVAR_STAKE_HISTORY_ID,
 } from "~/constants";
+import type { SolanaRpc } from "~/types";
 
 interface AccountMeta {
   pubkey: PublicKey;
@@ -290,7 +290,7 @@ const STAKE_ACCOUNT_SIZE = BigInt(200);
 const MINT_SIZE = BigInt(82);
 
 async function initializeStakedPoolTx(
-  connection: Connection,
+  connection: SolanaRpc,
   payer: PublicKey,
   voteAccountAddress: PublicKey
 ) {
@@ -300,7 +300,7 @@ async function initializeStakedPoolTx(
 }
 
 async function initializeStakedPoolIxs(
-  connection: Connection,
+  connection: SolanaRpc,
   payer: PublicKey,
   voteAccountAddress: PublicKey
 ) {

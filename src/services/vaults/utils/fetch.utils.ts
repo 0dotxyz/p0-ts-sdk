@@ -1,5 +1,6 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
+import type { SolanaRpc } from "~/types";
 import {
   decodeGammaLpVaultData,
   decodeGammaWithdrawReceiptData,
@@ -11,7 +12,7 @@ import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /** Fetch and decode a Gamma `LpVault` account. Throws if it does not exist. */
 export async function fetchGammaLpVault(
-  connection: Connection,
+  connection: SolanaRpc,
   lpVault: PublicKey
 ): Promise<GammaLpVaultRaw> {
   const info = await connection.getAccountInfo(lpVault);
@@ -30,7 +31,7 @@ export async function fetchGammaLpVault(
  * queue when the vault is temporarily illiquid).
  */
 export async function fetchGammaWithdrawReceipt(
-  connection: Connection,
+  connection: SolanaRpc,
   user: PublicKey,
   lpVault: PublicKey
 ): Promise<GammaWithdrawReceiptRaw | null> {
@@ -46,7 +47,7 @@ export async function fetchGammaWithdrawReceipt(
  * for both the asset and share mints, so one lookup is sufficient.
  */
 export async function resolveVaultTokenProgram(
-  connection: Connection,
+  connection: SolanaRpc,
   assetsMint: PublicKey
 ): Promise<PublicKey> {
   const info = await connection.getAccountInfo(assetsMint);

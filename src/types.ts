@@ -1,5 +1,5 @@
 import { Program as AnchorProgram, AnchorProvider, Idl } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { MarginfiIdlType } from "./idl";
@@ -43,6 +43,31 @@ export type Program<T extends Idl> = Omit<AnchorProgram<T>, "provider"> & {
 };
 
 export type MarginfiProgram = Program<MarginfiIdlType>;
+
+/**
+ * The subset of `Connection` the SDK reads from. Every read-side call in the SDK goes through
+ * this surface, so a consumer can pass any object that implements it.
+ */
+export type SolanaRpc = Pick<
+  Connection,
+  // underscored but public: the only way to batch getMultipleAccounts over JSON-RPC
+  | "_buildArgs"
+  | "rpcEndpoint"
+  | "commitment"
+  | "getAccountInfo"
+  | "getMultipleAccountsInfo"
+  | "getParsedAccountInfo"
+  | "getProgramAccounts"
+  | "getParsedProgramAccounts"
+  | "getAddressLookupTable"
+  | "getLatestBlockhash"
+  | "getLatestBlockhashAndContext"
+  | "getMinimumBalanceForRentExemption"
+  | "getEpochInfo"
+  | "getStakeMinimumDelegation"
+  | "getTokenLargestAccounts"
+  | "simulateTransaction"
+>;
 
 export type Wallet = {
   publicKey: PublicKey;

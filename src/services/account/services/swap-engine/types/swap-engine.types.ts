@@ -1,12 +1,13 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { SwapApiConfig, SwapProvider, SwapProviderEntry, SwapQuoteResult } from "~/services/account/types";
+import {
+  SwapApiConfig,
+  SwapProvider,
+  SwapProviderEntry,
+  SwapQuoteResult,
+} from "~/services/account/types";
+import type { SolanaRpc } from "~/types";
 
 /**
  * The footprint of everything in the flashloan transaction *except* the swap.
@@ -43,7 +44,7 @@ export interface SwapEngineRequest {
 
   taker: PublicKey;
   destinationTokenAccount: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
 
   /** Required for the build path; ignored by the ExactOut estimate path. */
   footprint?: TxFootprint;
@@ -106,8 +107,5 @@ export interface SwapAdapter {
   name: SwapProvider;
   supportsBuild: boolean;
   /** Fetch one or more candidate routes (Jupiter returns several rungs). */
-  buildCandidates(
-    req: SwapEngineRequest,
-    apiConfig?: SwapApiConfig
-  ): Promise<ProviderSwapRoute[]>;
+  buildCandidates(req: SwapEngineRequest, apiConfig?: SwapApiConfig): Promise<ProviderSwapRoute[]>;
 }

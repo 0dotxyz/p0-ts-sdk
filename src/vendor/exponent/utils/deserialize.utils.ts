@@ -1,5 +1,5 @@
 import { BorshAccountsCoder, type Idl } from "@coral-xyz/anchor";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 import BN from "bn.js";
 
@@ -10,6 +10,8 @@ import {
   ExponentMarketTwo,
   ExponentVault,
 } from "../types";
+
+import type { SolanaRpc } from "~/types";
 
 /**
  * Exponent's high-precision `Number` is a little-endian U256 (`[u64; 4]`) scaled by 1e12
@@ -130,7 +132,7 @@ export function decodeExponentMarketTwo(data: Buffer): ExponentMarketTwo {
 
 /** Fetch + decode an Exponent `MarketTwo` account. */
 export async function fetchExponentMarketTwo(
-  connection: Connection,
+  connection: SolanaRpc,
   market: PublicKey
 ): Promise<ExponentMarketTwo> {
   const info = await connection.getAccountInfo(market);
@@ -168,7 +170,7 @@ export function decodeExponentMarketThree(data: Buffer): ExponentMarketThree {
 
 /** Fetch + decode an Exponent `MarketThree` (CLMM) pool account. */
 export async function fetchExponentMarketThree(
-  connection: Connection,
+  connection: SolanaRpc,
   market: PublicKey
 ): Promise<ExponentMarketThree> {
   const info = await connection.getAccountInfo(market);
@@ -178,7 +180,7 @@ export async function fetchExponentMarketThree(
 
 /** Fetch + decode an Exponent `Vault` account. */
 export async function fetchExponentVault(
-  connection: Connection,
+  connection: SolanaRpc,
   vault: PublicKey
 ): Promise<ExponentVault> {
   const info = await connection.getAccountInfo(vault);
@@ -188,7 +190,7 @@ export async function fetchExponentVault(
 
 /** Fetch a `MarketTwo` account and resolve + fetch its `Vault`. */
 export async function fetchExponentVaultFromMarket(
-  connection: Connection,
+  connection: SolanaRpc,
   market: PublicKey
 ): Promise<{ vault: PublicKey; account: ExponentVault }> {
   const info = await connection.getAccountInfo(market);
@@ -198,7 +200,7 @@ export async function fetchExponentVaultFromMarket(
 }
 
 /** Read an SPL mint's decimals (classic + token-2022 share the offset-44 layout). */
-export async function getMintDecimals(connection: Connection, mint: PublicKey): Promise<number> {
+export async function getMintDecimals(connection: SolanaRpc, mint: PublicKey): Promise<number> {
   const info = await connection.getAccountInfo(mint);
   if (!info) throw new Error(`mint account not found: ${mint.toBase58()}`);
   return info.data[44];

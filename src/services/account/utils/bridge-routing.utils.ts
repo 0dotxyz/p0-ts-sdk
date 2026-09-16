@@ -1,4 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import { MakeSwapDebtTxParams, MarginfiAccountType, SwapQuoteResult } from "../types";
 
@@ -8,6 +8,7 @@ import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
 import { SolanaTransaction } from "~/services/transaction";
+import type { SolanaRpc } from "~/types";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /**
@@ -64,7 +65,7 @@ export interface BridgedTxResult {
 /** A mint's token program: the cache (seedable by the caller), else the mint account's owner. */
 export async function resolveTokenProgramForMint(
   mint: PublicKey,
-  connection: Connection,
+  connection: SolanaRpc,
   tokenProgramCacheByMint: Map<string, PublicKey>
 ): Promise<PublicKey> {
   const mintKey = mint.toBase58();

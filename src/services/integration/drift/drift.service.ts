@@ -1,10 +1,11 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import { DriftStateJsonByBank } from "./drift.types";
 
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   DriftSpotMarket,
   DriftUser,
@@ -30,7 +31,7 @@ export interface DriftMetadata {
 }
 
 export interface FetchDriftMetadataOptions {
-  connection: Connection;
+  connection: SolanaRpc;
   banks: Bank[];
 }
 
@@ -104,7 +105,7 @@ export async function getDriftMetadata(
 }
 
 export async function getDriftStatesDto(
-  connection: Connection,
+  connection: SolanaRpc,
   driftBanks: DriftBankInput[]
 ): Promise<DriftStateJsonByBank> {
   const DEFAULT_PUBKEY = PublicKey.default;

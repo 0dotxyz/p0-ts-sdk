@@ -1,8 +1,9 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import { OraclePrice } from "../types";
 
 import { BankType } from "~/services/bank";
+import type { SolanaRpc } from "~/types";
 import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
 
 /**
@@ -101,7 +102,7 @@ export async function checkBatchOracleCrankability(
  */
 async function fetchFeedHashes(
   banks: BankType[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<Map<string, string>> {
   const feedHashMap = new Map<string, string>();
 
@@ -148,7 +149,7 @@ async function fetchFeedHashes(
 export async function checkMultipleOraclesCrankability(
   banks: BankType[],
   oraclePrices: Map<string, OraclePrice>,
-  connection?: Connection,
+  connection?: SolanaRpc,
   crossbarUrl?: string
 ): Promise<Map<string, CrankabilityResult>> {
   const results = new Map<string, CrankabilityResult>();

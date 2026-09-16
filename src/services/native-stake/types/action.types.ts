@@ -1,10 +1,6 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
-import { Amount } from "~/types";
+import { Amount, SolanaRpc } from "~/types";
 
 // -- Native Stake Actions ----
 
@@ -13,7 +9,7 @@ export interface MakeMintStakedLstIxParams {
   authority: PublicKey;
   stakeAccountPk: PublicKey;
   validator: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
 }
 
 export interface MakeMintStakedLstTxParams extends MakeMintStakedLstIxParams {
@@ -25,7 +21,7 @@ export interface MakeRedeemStakedLstIxParams {
   amount: Amount;
   authority: PublicKey;
   validator: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
 }
 
 export interface MakeRedeemStakedLstTxParams extends MakeRedeemStakedLstIxParams {
@@ -37,7 +33,7 @@ export interface MakeMergeStakeAccountsTxParams {
   authority: PublicKey;
   sourceStakeAccount: PublicKey;
   destinationStakeAccount: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   luts: AddressLookupTableAccount[];
   blockhash?: string;
 }

@@ -1,9 +1,6 @@
-import {
-  AccountMeta,
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-} from "@solana/web3.js";
+import { AccountMeta, AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
+
+import type { SolanaRpc } from "~/types";
 
 /**
  * An Exponent `CpiInterfaceContext` — one SY-program account a `trade_pt` CPI needs,
@@ -82,7 +79,7 @@ export interface ExponentTradePtAccounts {
 }
 
 export interface ResolveExponentTradePtContextParams {
-  connection: Connection;
+  connection: SolanaRpc;
   /** Trader / signer (the marginfi account authority). */
   owner: PublicKey;
   /** The successor maturity's `MarketTwo` address (where the new PT trades). */

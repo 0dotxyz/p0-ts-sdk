@@ -1,4 +1,3 @@
-import { Connection } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { OraclePrice, SwbOracleAiDataByKey } from "../types";
@@ -11,6 +10,7 @@ import {
 
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   CrossbarSimulatePayload,
   decodeSwitchboardPullFeedData,
@@ -19,7 +19,7 @@ import {
 
 type FetchSwbOracleOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  connection: SolanaRpc;
   crossbarEndpoint?: string;
 };
 
@@ -202,7 +202,7 @@ export const fetchSwbOracleAccountsFromAPI = async (
  */
 export const fetchSwbOracleAccountsFromChain = async (
   oracleKeys: string[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<SwbOracleAiDataByKey> => {
   const swbOracleAiDataByKey: SwbOracleAiDataByKey = {};
 

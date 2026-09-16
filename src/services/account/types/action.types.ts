@@ -1,6 +1,5 @@
 import {
   AddressLookupTableAccount,
-  Connection,
   Keypair,
   PublicKey,
   Signer,
@@ -15,7 +14,13 @@ import { MarginfiAccountType } from "./account.types";
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { ExtendedV0Transaction, SolanaTransaction } from "~/services/transaction";
-import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import {
+  Amount,
+  TypedAmount,
+  BankIntegrationMetadataMap,
+  MarginfiProgram,
+  SolanaRpc,
+} from "~/types";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { KaminoReserve } from "~/vendor/klend";
@@ -164,19 +169,19 @@ export interface MakeDepositTxParams extends MakeDepositIxParams {
 
 export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams {
   luts: AddressLookupTableAccount[];
-  connection: Connection;
+  connection: SolanaRpc;
   blockhash?: string;
 }
 
 export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams {
   luts: AddressLookupTableAccount[];
-  connection: Connection;
+  connection: SolanaRpc;
   blockhash?: string;
 }
 
 export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams {
   luts: AddressLookupTableAccount[];
-  connection: Connection;
+  connection: SolanaRpc;
   blockhash?: string;
 }
 
@@ -277,7 +282,7 @@ export interface MakeWithdrawIxParams {
 }
 
 export interface MakeWithdrawTxParams extends MakeWithdrawIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
@@ -289,7 +294,7 @@ export interface MakeKaminoWithdrawTxParams extends Omit<
   "cTokenAmount"
 > {
   amount: Amount | TypedAmount;
-  connection: Connection;
+  connection: SolanaRpc;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
@@ -325,7 +330,7 @@ export interface MakeBorrowIxParams {
 }
 
 export interface MakeBorrowTxParams extends MakeBorrowIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -334,7 +339,7 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
 }
 
 export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
@@ -342,7 +347,7 @@ export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams
 }
 
 export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
@@ -356,11 +361,11 @@ export interface MakeCloseAccountIxParams {
 }
 
 export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
 }
 
 export interface MakeAccountTransferToNewAccountTxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   program: MarginfiProgram;
   /** The account being transferred (its current authority is the signer). */
   marginfiAccount: MarginfiAccountType;
@@ -399,7 +404,7 @@ export type TransferPositionSide = "collateral" | "debt";
 
 export interface MakeTransferPositionsTxParams {
   program: MarginfiProgram;
-  connection: Connection;
+  connection: SolanaRpc;
   /** Source account A (positions move out of this account). */
   marginfiAccount: MarginfiAccountType;
   /** Banks whose A-positions to move; the side is inferred from A's balance. */
@@ -438,7 +443,7 @@ export interface TransferPositionsResult {
 
 export interface MakeBulkWithdrawTxParams {
   program: MarginfiProgram;
-  connection: Connection;
+  connection: SolanaRpc;
   marginfiAccount: MarginfiAccountType;
   /** Banks whose FULL positions to withdraw, in execution order. */
   bankAddresses: PublicKey[];
@@ -457,7 +462,7 @@ export interface MakeBulkWithdrawTxParams {
 
 export interface MakeBulkRepayTxParams {
   program: MarginfiProgram;
-  connection: Connection;
+  connection: SolanaRpc;
   marginfiAccount: MarginfiAccountType;
   /** Banks whose FULL debts to repay from the wallet. */
   bankAddresses: PublicKey[];
@@ -480,7 +485,7 @@ export interface BulkLendTxsResult {
 export interface MakeLoopTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  connection: SolanaRpc;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -553,7 +558,7 @@ export interface LoopFlashloanDescriptor {
 export interface MakeRepayWithCollatTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  connection: SolanaRpc;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
@@ -589,7 +594,7 @@ export interface MakeRepayWithCollatTxParams {
 export interface MakeSwapCollateralTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  connection: SolanaRpc;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -634,7 +639,7 @@ export interface MakeSwapCollateralTxParams {
 export interface MakeRollPtTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  connection: SolanaRpc;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -721,7 +726,7 @@ export interface RollPtOpts {
 export interface MakeSwapDebtTxParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  connection: SolanaRpc;
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -757,7 +762,7 @@ export interface MakeSwapDebtTxParams {
 }
 
 export interface MakeSetupIxParams {
-  connection: Connection;
+  connection: SolanaRpc;
   authority: PublicKey;
   tokens: {
     mint: PublicKey;

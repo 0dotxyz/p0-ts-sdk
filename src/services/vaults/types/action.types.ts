@@ -1,7 +1,7 @@
-import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
 import type { SwapOpts, SwapEngineRunner } from "~/services/account";
-import { Amount } from "~/types";
+import { Amount, SolanaRpc } from "~/types";
 
 // -- Gamma Vault Actions ----
 
@@ -14,7 +14,7 @@ import { Amount } from "~/types";
 interface VaultActionBaseParams {
   user: PublicKey;
   lpVault: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   tokenProgram?: PublicKey;
 }
 

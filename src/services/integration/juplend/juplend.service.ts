@@ -1,4 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { JupLendStateJsonByBank } from "./juplend.types";
@@ -6,6 +6,7 @@ import { JupLendStateJsonByBank } from "./juplend.types";
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   JupLendingState,
   JupLendingStateRaw,
@@ -39,7 +40,7 @@ export interface JupLendMetadata {
 }
 
 export interface FetchJupLendMetadataOptions {
-  connection: Connection;
+  connection: SolanaRpc;
   banks: Bank[];
 }
 
@@ -105,7 +106,7 @@ export async function getJupLendMetadata(
 }
 
 export async function getJupLendStatesDto(
-  connection: Connection,
+  connection: SolanaRpc,
   jupLendBanks: JupLendBankInput[]
 ): Promise<JupLendStateJsonByBank> {
   const DEFAULT_PUBKEY_BASE = PublicKey.default.toBase58();

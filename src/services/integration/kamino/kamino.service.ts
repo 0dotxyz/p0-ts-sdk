@@ -1,10 +1,11 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import { KaminoStateJsonByBank } from "./kamino.types";
 
 import { Bank } from "~/models/bank";
 import { AssetTag } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   KaminoObligation,
   KaminoReserve,
@@ -29,7 +30,7 @@ export interface KaminoMetadata {
 }
 
 export interface FetchKaminoMetadataOptions {
-  connection: Connection;
+  connection: SolanaRpc;
   banks: Bank[];
 }
 
@@ -95,7 +96,7 @@ export async function getKaminoMetadata(
 }
 
 export async function getKaminoStatesDto(
-  connection: Connection,
+  connection: SolanaRpc,
   kaminoBanks: KaminoBankInput[]
 ): Promise<KaminoStateJsonByBank> {
   const DEFAULT_PUBKEY = PublicKey.default;

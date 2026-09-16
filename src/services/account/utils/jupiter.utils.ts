@@ -1,15 +1,11 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { SwapApiConfig, SwapIxsResult } from "../types";
 
 import { mapJupiterQuoteToSwapQuoteResult } from "./swap.utils";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_SWAP } from "~/constants";
+import type { SolanaRpc } from "~/types";
 import {
   createJupiterClient,
   type JupiterClientConfig,
@@ -29,7 +25,7 @@ export const getJupiterReferralFeeAccount = (mint: PublicKey): string => {
 };
 
 export const checkJupiterFeeAccount = async (
-  connection: Connection,
+  connection: SolanaRpc,
   mint: PublicKey
 ): Promise<{ feeAccount: string; hasFeeAccount: boolean }> => {
   const feeAccount = getJupiterReferralFeeAccount(mint);
@@ -61,7 +57,7 @@ export function toJupiterConfig(apiConfig?: SwapApiConfig): JupiterClientConfig 
 type GetJupiterSwapIxsForFlashloanParams = {
   quoteParams: QuoteGetRequest;
   authority: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   destinationTokenAccount: PublicKey;
   apiConfig?: SwapApiConfig;
   maxSwapAccounts?: number;

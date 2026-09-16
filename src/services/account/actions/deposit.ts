@@ -1,4 +1,4 @@
-import { AnchorProvider, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
@@ -404,20 +404,7 @@ export async function makeKaminoDepositTx(
     throw new Error("Bank has no kamino integration accounts");
   }
 
-  // TODO: create dummy provider util in common
-  const provider = new AnchorProvider(
-    connection,
-    {
-      publicKey: params.authority,
-      signTransaction: async (tx) => tx,
-      signAllTransactions: async (txs) => txs,
-    },
-    {
-      commitment: "confirmed",
-    }
-  );
-
-  const klendProgram = new Program<KlendIdlType>(KLEND_IDL, provider);
+  const klendProgram = new Program<KlendIdlType>(KLEND_IDL, depositIxParams.program.provider);
 
   const refreshIxs = await makeRefreshingIxs({
     klendProgram,

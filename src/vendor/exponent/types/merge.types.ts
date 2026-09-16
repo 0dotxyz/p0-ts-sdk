@@ -1,6 +1,8 @@
-import { AccountMeta, AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
+import { AccountMeta, AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
 import { ExponentVault } from "./vault.types";
+
+import type { SolanaRpc } from "~/types";
 
 /**
  * Accounts required by `merge`. Most are read off the maturity's `Vault` account
@@ -46,7 +48,7 @@ export interface ExponentMergeAccounts {
 }
 
 export interface ResolveExponentMergeContextParams {
-  connection: Connection;
+  connection: SolanaRpc;
   /** Position owner / signer (the marginfi account authority). */
   owner: PublicKey;
   /** The maturity vault, or… */

@@ -1,4 +1,4 @@
-import { PublicKey, Connection } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import {
   DriftUser,
@@ -12,6 +12,7 @@ import { deriveDriftSpotMarket } from "./derive.utils";
 import { decodeDriftSpotMarketData } from "./deserialize.utils";
 
 import { USDC_MINT } from "~/constants";
+import type { SolanaRpc } from "~/types";
 
 /*
  *   Drift rewards get distributed to users in the form of spot positions.
@@ -30,7 +31,7 @@ export async function getDriftRewards(
     marketMint: PublicKey;
     driftUser: DriftUser;
   }[],
-  connection: Connection
+  connection: SolanaRpc
 ) {
   // Not all rewards will be in spot markets we have fetched, so need to fetch seperately
   const missingMarketIndexes: Set<number> = new Set();
@@ -128,7 +129,7 @@ export async function getDriftRewards(
 export async function getAllRequiredMarkets(
   spotMarkets: DriftSpotMarket[],
   driftUsers: DriftUser[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<DriftSpotMarketRaw[]> {
   const allKeys = driftUsers.map((user) =>
     user.spotPositions.map((position) => position.marketIndex)

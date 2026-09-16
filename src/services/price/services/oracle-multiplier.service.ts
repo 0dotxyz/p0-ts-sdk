@@ -1,5 +1,3 @@
-import { Connection } from "@solana/web3.js";
-
 import {
   MultiplierAccountState,
   MultiplierAccountStates,
@@ -13,10 +11,11 @@ import {
 
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 
 type FetchOracleMultiplierOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  connection: SolanaRpc;
 };
 
 type FetchOracleMultiplierApiOpts = {
@@ -87,7 +86,7 @@ export const fetchOracleMultipliersFromAPI = async (
  */
 export const fetchOracleMultipliersFromChain = async (
   inputs: OracleMultiplierBankInput[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<Record<string, number>> => {
   const accountStates = await fetchMultiplierAccountStates(
     inputs.map((input) => input.multiplierAccountKey),
@@ -127,7 +126,7 @@ export const fetchMultiplierAccountStatesFromAPI = async (
  */
 export const fetchMultiplierAccountStates = async (
   accountKeys: string[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<MultiplierAccountStates> => {
   const uniqueKeys = Array.from(new Set(accountKeys));
   const accountAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, uniqueKeys);

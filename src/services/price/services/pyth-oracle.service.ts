@@ -1,4 +1,3 @@
-import { Connection } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
@@ -11,6 +10,7 @@ import {
 
 import { BankType } from "~/services/bank";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 
 type ValidatorVoteAccountByBank = {
   [address: string]: string;
@@ -18,7 +18,7 @@ type ValidatorVoteAccountByBank = {
 
 type FetchPythOracleOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  connection: SolanaRpc;
   validatorVoteAccountByBank?: ValidatorVoteAccountByBank;
 };
 
@@ -176,7 +176,7 @@ export const fetchPythOraclePricesFromAPI = async (
  */
 export const fetchPythOraclePricesFromChain = async (
   requestedPythOracleKeys: string[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<Record<string, OraclePrice>> => {
   const updatedOraclePriceByKey: Record<string, OraclePrice> = {};
   const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(

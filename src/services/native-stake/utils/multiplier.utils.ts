@@ -1,11 +1,12 @@
 import { Buffer } from "buffer";
 
-import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { getStakedBankMetadataMap } from "./metadata.utils";
 
 import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import type { SolanaRpc } from "~/types";
 import {
   findPoolAddress,
   findPoolStakeAddress,
@@ -35,7 +36,7 @@ interface StakedBankLike {
  */
 export async function computeStakedBankMultipliers(
   stakedBanks: StakedBankLike[],
-  connection: Connection
+  connection: SolanaRpc
 ): Promise<Map<string, BigNumber>> {
   const multiplierByBank = new Map<string, BigNumber>();
 

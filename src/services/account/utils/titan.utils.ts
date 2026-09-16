@@ -1,7 +1,8 @@
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { SwapApiConfig, SwapIxsResult, SwapProvider, SwapQuoteResult } from "../types";
 
+import type { SolanaRpc } from "~/types";
 import { getAssociatedTokenAddressSync } from "~/vendor/spl";
 import {
   V1Client,
@@ -28,7 +29,7 @@ const getTitanFeeAccount = (mint: PublicKey): PublicKey => {
 };
 
 export const checkTitanFeeAccount = async (
-  connection: Connection,
+  connection: SolanaRpc,
   mint: PublicKey
 ): Promise<{ feeAccount: PublicKey; hasFeeAccount: boolean; feeWallet: PublicKey }> => {
   const feeAccount = getTitanFeeAccount(mint);
@@ -70,7 +71,7 @@ export type TitanQuoteParams = {
 export type GetTitanSwapIxsParams = {
   quoteParams: TitanQuoteParams;
   authority: PublicKey;
-  connection: Connection;
+  connection: SolanaRpc;
   destinationTokenAccount: PublicKey;
   apiConfig?: SwapApiConfig;
 };

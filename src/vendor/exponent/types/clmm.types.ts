@@ -1,11 +1,8 @@
-import {
-  AccountMeta,
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-} from "@solana/web3.js";
+import { AccountMeta, AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
 import { ExponentCpiInterfaceContext } from "./market.types";
+
+import type { SolanaRpc } from "~/types";
 
 /**
  * The SY-program CPI account lists a CLMM `trade_pt` appends as remaining accounts.
@@ -92,7 +89,7 @@ export interface ExponentClmmTradePtAccounts {
 }
 
 export interface ResolveExponentClmmTradePtContextParams {
-  connection: Connection;
+  connection: SolanaRpc;
   /** Trader / signer (the marginfi account authority). */
   owner: PublicKey;
   /** The successor maturity's `MarketThree` (CLMM pool) where the new PT trades. */

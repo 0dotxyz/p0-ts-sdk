@@ -1,6 +1,6 @@
 import { struct, u32, u8 } from "@solana/buffer-layout";
 import { bool, publicKey, u64 } from "@solana/buffer-layout-utils";
-import { Commitment, Connection, PublicKey } from "@solana/web3.js";
+import { Commitment, PublicKey } from "@solana/web3.js";
 
 import { TOKEN_PROGRAM_ID } from "../constants";
 import {
@@ -9,6 +9,8 @@ import {
   TokenInvalidAccountSizeError,
 } from "../errors";
 import { Mint, RawMint } from "../types";
+
+import type { SolanaRpc } from "~/types";
 
 /** Buffer layout for de/serializing a mint */
 export const MintLayout = struct<RawMint>([
@@ -35,7 +37,7 @@ export const MINT_SIZE = MintLayout.span;
  * @return Mint information
  */
 export async function getMint(
-  connection: Connection,
+  connection: SolanaRpc,
   address: PublicKey,
   commitment?: Commitment,
   programId = TOKEN_PROGRAM_ID

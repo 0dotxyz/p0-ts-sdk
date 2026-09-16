@@ -2,12 +2,9 @@
 // to deserialize, select, and build results from the HTTP proxy's
 // base64-serialized responses.
 
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
+
+import type { SolanaRpc } from "~/types";
 
 // --- Serialized (base64) types from the HTTP proxy ---
 
@@ -51,11 +48,10 @@ export interface TitanProxyExactOutResponse {
  * marker, so we drop it to keep the swap landable inside a Jito bundle (our
  * flashloan swaps are bundled).
  */
-export const isJitoDontFront = (pubkey: PublicKey) =>
-  pubkey.toBase58().startsWith("jitodontfront");
+export const isJitoDontFront = (pubkey: PublicKey) => pubkey.toBase58().startsWith("jitodontfront");
 
 export function deserializeSerializedInstruction(
-  ix: SerializedInstruction,
+  ix: SerializedInstruction
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(Buffer.from(ix.p, "base64")),
@@ -74,7 +70,7 @@ export function deserializeSerializedInstruction(
 
 export function selectBestRoute<T extends { inAmount: number; outAmount: number }>(
   quotes: { [id: string]: T },
-  swapMode: "ExactIn" | "ExactOut",
+  swapMode: "ExactIn" | "ExactOut"
 ): T | null {
   const routes = Object.values(quotes);
   if (routes.length === 0) return null;
@@ -108,7 +104,7 @@ export function buildSwapQuoteResult(
     contextSlot?: number;
     timeTaken?: number;
   },
-  swapMode: "ExactIn" | "ExactOut",
+  swapMode: "ExactIn" | "ExactOut"
 ): TitanSwapQuoteResult {
   const slippageBps = route.slippageBps;
   // The WebSocket/protobuf path decodes int64 amounts as BigInt; token amounts fit safely in a
@@ -142,8 +138,8 @@ export function buildSwapQuoteResult(
 // --- LUT resolution ---
 
 export async function resolveLookupTables(
-  connection: Connection,
-  lutPubkeys: PublicKey[],
+  connection: SolanaRpc,
+  lutPubkeys: PublicKey[]
 ): Promise<AddressLookupTableAccount[]> {
   if (lutPubkeys.length === 0) return [];
 

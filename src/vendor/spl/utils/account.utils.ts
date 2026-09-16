@@ -2,7 +2,7 @@ import { Buffer } from "buffer";
 
 import { struct, u32, u8 } from "@solana/buffer-layout";
 import { publicKey, u64 } from "@solana/buffer-layout-utils";
-import { AccountInfo, Commitment, Connection, PublicKey } from "@solana/web3.js";
+import { AccountInfo, Commitment, PublicKey } from "@solana/web3.js";
 
 import { TOKEN_PROGRAM_ID } from "../constants";
 import {
@@ -14,6 +14,8 @@ import {
 import { Account, AccountState, RawAccount } from "../types";
 
 import { MULTISIG_SIZE } from "./multisig.utils";
+
+import type { SolanaRpc } from "~/types";
 
 export enum SplAccountType {
   Uninitialized,
@@ -54,7 +56,7 @@ export const NATIVE_MINT = new PublicKey("So111111111111111111111111111111111111
  * @return Token account information
  */
 export async function getAccount(
-  connection: Connection,
+  connection: SolanaRpc,
   address: PublicKey,
   commitment?: Commitment,
   programId = TOKEN_PROGRAM_ID
@@ -74,7 +76,7 @@ export async function getAccount(
  * @return Token account information
  */
 export async function getMultipleAccounts(
-  connection: Connection,
+  connection: SolanaRpc,
   addresses: PublicKey[],
   commitment?: Commitment,
   programId = TOKEN_PROGRAM_ID
@@ -91,7 +93,7 @@ export async function getMultipleAccounts(
  * @return Amount of lamports required
  */
 export async function getMinimumBalanceForRentExemptAccount(
-  connection: Connection,
+  connection: SolanaRpc,
   commitment?: Commitment
 ): Promise<number> {
   return await getMinimumBalanceForRentExemptAccountWithExtensions(connection, [], commitment);
@@ -140,7 +142,7 @@ function getLen(extensionTypes: ExtensionType[], baseSize: number): number {
  * @return Amount of lamports required
  */
 export async function getMinimumBalanceForRentExemptAccountWithExtensions(
-  connection: Connection,
+  connection: SolanaRpc,
   extensions: ExtensionType[],
   commitment?: Commitment
 ): Promise<number> {
