@@ -1,7 +1,6 @@
 import {
   PublicKey,
   TransactionInstruction,
-  AddressLookupTableAccount,
   VersionedTransaction,
   TransactionMessage,
 } from "@solana/web3.js";
@@ -21,10 +20,9 @@ import {
 import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
 
 import instructions from "~/instructions";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
-  ExtendedV0Transaction,
   InstructionsWrapper,
   makeUnwrapSolIx,
   selectLutsForAccountAction,
@@ -226,29 +224,7 @@ export async function makeDriftWithdrawTx(
     params.bankMap
   );
 
-  const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
-    return balance.liabilityShares.gt(0);
-  });
-
-  let updateFeedIxs: TransactionInstruction[] = [];
-  let feedLuts: AddressLookupTableAccount[] = [];
-
   const withdrawIxs = await makeDriftWithdrawIx(withdrawIxParams);
-
-  if (hasLiabilities) {
-    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
-      marginfiAccount: params.marginfiAccount,
-      bankMap: params.bankMap,
-      oraclePrices: params.oraclePrices,
-      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-      instructions: withdrawIxs.instructions,
-      program: params.program,
-      connection: params.connection,
-      crossbarUrl: params.crossbarUrl,
-    });
-    updateFeedIxs = _updateFeedIxs;
-    feedLuts = _feedLuts;
-  }
 
   const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
@@ -260,26 +236,6 @@ export async function makeDriftWithdrawTx(
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const feedCrankTxs: ExtendedV0Transaction[] = [];
-
-  if (updateFeedIxs.length > 0) {
-    feedCrankTxs.push(
-      addTransactionMetadata(
-        new VersionedTransaction(
-          new TransactionMessage({
-            instructions: [...updateFeedIxs],
-            payerKey: params.authority,
-            recentBlockhash: blockhash,
-          }).compileToV0Message(feedLuts)
-        ),
-        {
-          addressLookupTables: feedLuts,
-          type: TransactionType.CRANK,
-        }
-      )
-    );
-  }
 
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -296,7 +252,7 @@ export async function makeDriftWithdrawTx(
     }
   );
 
-  const transactions = [...feedCrankTxs, withdrawTx];
+  const transactions = [withdrawTx];
 
   return { transactions, actionTxIndex: transactions.length - 1 };
 }
@@ -586,29 +542,7 @@ export async function makeWithdrawTx(
     params.bankMap
   );
 
-  const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
-    return balance.liabilityShares.gt(0);
-  });
-
-  let updateFeedIxs: TransactionInstruction[] = [];
-  let feedLuts: AddressLookupTableAccount[] = [];
-
   const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
-
-  if (hasLiabilities) {
-    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
-      marginfiAccount: params.marginfiAccount,
-      bankMap: params.bankMap,
-      oraclePrices: params.oraclePrices,
-      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-      instructions: withdrawIxs.instructions,
-      program: params.program,
-      connection: params.connection,
-      crossbarUrl: params.crossbarUrl,
-    });
-    updateFeedIxs = _updateFeedIxs;
-    feedLuts = _feedLuts;
-  }
 
   const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
@@ -620,26 +554,6 @@ export async function makeWithdrawTx(
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const feedCrankTxs: ExtendedV0Transaction[] = [];
-
-  if (updateFeedIxs.length > 0) {
-    feedCrankTxs.push(
-      addTransactionMetadata(
-        new VersionedTransaction(
-          new TransactionMessage({
-            instructions: [...updateFeedIxs],
-            payerKey: params.authority,
-            recentBlockhash: blockhash,
-          }).compileToV0Message(feedLuts)
-        ),
-        {
-          addressLookupTables: feedLuts,
-          type: TransactionType.CRANK,
-        }
-      )
-    );
-  }
 
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -656,7 +570,7 @@ export async function makeWithdrawTx(
     }
   );
 
-  const transactions = [...feedCrankTxs, withdrawTx];
+  const transactions = [withdrawTx];
 
   return { transactions, actionTxIndex: transactions.length - 1 };
 }
@@ -698,40 +612,9 @@ export async function makeKaminoWithdrawTx(
     ...withdrawIxParams,
   });
 
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount: params.marginfiAccount,
-    bankMap: params.bankMap,
-    oraclePrices: params.oraclePrices,
-    instructions: withdrawIxs.instructions,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    program: params.program,
-    connection: params.connection,
-    crossbarUrl: params.crossbarUrl,
-  });
-
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const feedCrankTxs: ExtendedV0Transaction[] = [];
-
-  if (updateFeedIxs.length > 0) {
-    feedCrankTxs.push(
-      addTransactionMetadata(
-        new VersionedTransaction(
-          new TransactionMessage({
-            instructions: [...updateFeedIxs],
-            payerKey: params.authority,
-            recentBlockhash: blockhash,
-          }).compileToV0Message(feedLuts)
-        ),
-        {
-          addressLookupTables: feedLuts,
-          type: TransactionType.CRANK,
-        }
-      )
-    );
-  }
 
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -748,7 +631,7 @@ export async function makeKaminoWithdrawTx(
     }
   );
 
-  const transactions = [...feedCrankTxs, withdrawTx];
+  const transactions = [withdrawTx];
 
   return { transactions, actionTxIndex: transactions.length - 1 };
 }
@@ -906,29 +789,7 @@ export async function makeJuplendWithdrawTx(
     params.bankMap
   );
 
-  const hasLiabilities = params.marginfiAccount.balances.some((balance) => {
-    return balance.liabilityShares.gt(0);
-  });
-
-  let updateFeedIxs: TransactionInstruction[] = [];
-  let feedLuts: AddressLookupTableAccount[] = [];
-
   const withdrawIxs = await makeJuplendWithdrawIx(withdrawIxParams);
-
-  if (hasLiabilities) {
-    const { instructions: _updateFeedIxs, luts: _feedLuts } = await makeSmartCrankSwbFeedIx({
-      marginfiAccount: params.marginfiAccount,
-      bankMap: params.bankMap,
-      oraclePrices: params.oraclePrices,
-      assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-      instructions: withdrawIxs.instructions,
-      program: params.program,
-      connection: params.connection,
-      crossbarUrl: params.crossbarUrl,
-    });
-    updateFeedIxs = _updateFeedIxs;
-    feedLuts = _feedLuts;
-  }
 
   const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
@@ -940,26 +801,6 @@ export async function makeJuplendWithdrawTx(
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const feedCrankTxs: ExtendedV0Transaction[] = [];
-
-  if (updateFeedIxs.length > 0) {
-    feedCrankTxs.push(
-      addTransactionMetadata(
-        new VersionedTransaction(
-          new TransactionMessage({
-            instructions: [...updateFeedIxs],
-            payerKey: params.authority,
-            recentBlockhash: blockhash,
-          }).compileToV0Message(feedLuts)
-        ),
-        {
-          addressLookupTables: feedLuts,
-          type: TransactionType.CRANK,
-        }
-      )
-    );
-  }
 
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -976,7 +817,7 @@ export async function makeJuplendWithdrawTx(
     }
   );
 
-  const transactions = [...feedCrankTxs, withdrawTx];
+  const transactions = [withdrawTx];
 
   return { transactions, actionTxIndex: transactions.length - 1 };
 }

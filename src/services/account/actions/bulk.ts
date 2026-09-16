@@ -1,9 +1,4 @@
-import {
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
 import { computeHealthAccountMetas, computeHealthCheckAccounts, computeQuantityUi } from "../utils";
@@ -19,7 +14,7 @@ import {
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { AssetTag, requireBank, requireTokenProgram } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -61,10 +56,7 @@ export async function makeBulkWithdrawTx(
     bankAddresses,
     bankMap,
     bankMetadataMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
     tokenProgramsByBank,
-    groupRateLimiterEnabled = false,
     overrideInferAccounts,
     luts,
   } = params;
@@ -205,11 +197,8 @@ export async function makeBulkWithdrawTx(
     })
   );
 
-  // Prelude: ATAs for every withdrawn mint, then one deduped smart crank for
-  // every switchboard feed the withdraws' health packs (and, with the group
-  // rate limiter, the withdrawn banks themselves) require, then one shared
-  // integration-refresh tx for the whole batch (see the atomic-bundle note
-  // in the doc comment).
+  // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
+  // tx for the whole batch (see the atomic-bundle note in the doc comment).
   const additionalTxs: ExtendedV0Transaction[] = [];
 
   const setupIxs = await makeSetupIx({
@@ -230,31 +219,6 @@ export async function makeBulkWithdrawTx(
           addressLookupTables: selectedLuts,
         })
       )
-    );
-  }
-
-  const { instructions: crankIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
-    instructions: withdrawIxs,
-    program,
-    connection,
-    groupRateLimiterEnabled,
-    crossbarUrl: params.crossbarUrl,
-  });
-  if (crankIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: authority,
-      recentBlockhash: blockhash,
-      instructions: crankIxs,
-    }).compileToV0Message(feedLuts);
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 

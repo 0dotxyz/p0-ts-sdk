@@ -9,10 +9,9 @@ import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from
 import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
 
 import instructions from "~/instructions";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
-  ExtendedV0Transaction,
   InstructionsWrapper,
   makeUnwrapSolIx,
   selectLutsForAccountAction,
@@ -147,40 +146,9 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
 
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount: params.marginfiAccount,
-    bankMap: params.bankMap,
-    oraclePrices: params.oraclePrices,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    instructions: borrowIxs.instructions,
-    program: params.program,
-    connection: params.connection,
-    crossbarUrl: params.crossbarUrl,
-  });
-
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const feedCrankTxs: ExtendedV0Transaction[] = [];
-
-  if (updateFeedIxs.length > 0) {
-    feedCrankTxs.push(
-      addTransactionMetadata(
-        new VersionedTransaction(
-          new TransactionMessage({
-            instructions: updateFeedIxs,
-            payerKey: params.authority,
-            recentBlockhash: blockhash,
-          }).compileToV0Message(feedLuts)
-        ),
-        {
-          addressLookupTables: feedLuts,
-          type: TransactionType.CRANK,
-        }
-      )
-    );
-  }
 
   const borrowTx = addTransactionMetadata(
     new VersionedTransaction(
@@ -197,6 +165,6 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
     }
   );
 
-  const transactions = [...feedCrankTxs, borrowTx];
+  const transactions = [borrowTx];
   return { transactions, actionTxIndex: transactions.length - 1 };
 }

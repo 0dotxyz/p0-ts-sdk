@@ -338,10 +338,6 @@ export class Project0Client {
         mode: "on-chain",
         connection,
       },
-      swbOpts: {
-        mode: "on-chain",
-        connection,
-      },
       scopeOpts: {
         mode: "on-chain",
         connection,

@@ -31,7 +31,6 @@ import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
-import { makeSmartCrankSwbFeedIx } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -88,17 +87,12 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   quoteResponse: SwapQuoteResult | undefined;
 }> {
   const {
-    program,
     marginfiAccount,
     connection,
-    bankMap,
-    oraclePrices,
     withdrawOpts,
     depositOpts,
     rollOpts,
-    assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
-    crossbarUrl,
   } = params;
 
   if (!rollOpts.maturedMarket && !rollOpts.maturedVault) {
@@ -141,23 +135,12 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     ],
   });
 
-  const { flashloanTx, swapQuote, withdrawIxs, depositIxs } = await buildRollPtFlashloanTx({
+  const { flashloanTx, swapQuote } = await buildRollPtFlashloanTx({
     params,
     merge,
     clmm,
     setupIxs,
     blockhash,
-  });
-
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
-    instructions: [...withdrawIxs.instructions, ...depositIxs.instructions],
-    program,
-    connection,
-    crossbarUrl,
   });
 
   const additionalTxs: ExtendedV0Transaction[] = [];
@@ -175,20 +158,6 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
           addressLookupTables: addressLookupTableAccounts,
         })
       )
-    );
-  }
-
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 

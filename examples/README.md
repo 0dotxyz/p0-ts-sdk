@@ -121,7 +121,7 @@ npx tsx examples/05-oracle-prices.ts
 
 - Access real-time oracle prices
 - Manually refresh price data
-- Work with Pyth and Switchboard oracles
+- Work with Pyth and Scope oracles
 - Understand price confidence intervals
 
 ### Account Health
@@ -330,7 +330,6 @@ For critical operations, refresh prices first:
 ```typescript
 const { bankOraclePriceMap } = await fetchOracleData(client.banks, {
   pythOpts: { mode: "on-chain", connection },
-  swbOpts: { mode: "on-chain", connection },
 });
 ```
 

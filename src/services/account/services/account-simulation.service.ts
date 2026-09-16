@@ -23,15 +23,8 @@ import {
   computeHealthComponentsFromBalances,
 } from "../utils";
 
-import { ZERO_ORACLE_KEY } from "~/constants";
 import { AssetTag, BankType } from "~/services/bank";
-import {
-  getOracleSourceFromOracleSetup,
-  makeCrankSwbFeedIx,
-  makeUpdateSwbFeedIx,
-  makeUpdateJupLendRateIxs,
-  OraclePrice,
-} from "~/services/price";
+import { makeUpdateJupLendRateIxs, OraclePrice } from "~/services/price";
 import {
   addTransactionMetadata,
   simulateBundle,
@@ -210,8 +203,6 @@ export async function simulateAccountHealthCache(params: {
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
-  // this will always return swb oracles regardless of staleness
-  // stale functionality should be re-added once we increase amount of swb oracles
   const activeBanks = activeBalances
     .map((balance) => banksMap.get(balance.bankPk.toBase58()))
     .filter((bank): bank is NonNullable<typeof bank> => !!bank);
@@ -219,10 +210,6 @@ export async function simulateAccountHealthCache(params: {
   const kaminoBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
 
   const driftBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
-
-  const staleSwbOracles = activeBanks
-    .filter((bank) => getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "switchboard")
-    .filter((bank) => !bank.oracleKey.equals(new PublicKey(ZERO_ORACLE_KEY)));
 
   const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_400_000,
@@ -276,17 +263,6 @@ export async function simulateAccountHealthCache(params: {
     refreshReservesIxs.push(refreshIx);
   }
 
-  const crankSwbIxs =
-    staleSwbOracles.length > 0
-      ? await makeUpdateSwbFeedIx({
-          swbPullOracles: staleSwbOracles.map((oracle) => ({
-            key: oracle.oracleKey,
-          })),
-          feePayer: marginfiAccount.authority,
-          connection: program.provider.connection,
-        })
-      : { instructions: [], luts: [] };
-
   const updateDriftMarketIxs = updateDriftMarketData.map((market) => ({
     ix: makeUpdateSpotMarketIx({
       spotMarket: market,
@@ -326,16 +302,6 @@ export async function simulateAccountHealthCache(params: {
 
   txs.push(additionalTx);
 
-  const swbTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: [...crankSwbIxs.instructions],
-    }).compileToV0Message([...crankSwbIxs.luts])
-  );
-
-  txs.push(swbTx);
-
   const healthTx = new VersionedTransaction(
     new TransactionMessage({
       payerKey: marginfiAccount.authority,
@@ -369,10 +335,6 @@ export async function simulateAccountHealthCache(params: {
   );
 
   if (marginfiAccountPost.healthCache.mrgnErr || marginfiAccountPost.healthCache.internalErr) {
-    console.log(
-      "cranked swb oracles",
-      staleSwbOracles.map((oracle) => oracle.oracleKey)
-    );
     console.log(
       "MarginfiAccountPost healthCache internalErr",
       marginfiAccountPost.healthCache.internalErr
@@ -432,9 +394,7 @@ export async function getHealthSimulationTransactions({
   program,
   authority,
   luts,
-  includeCrankTx,
   blockhash,
-  crossbarUrl,
 }: {
   projectedActiveBanks: PublicKey[];
   bankMap: Map<string, BankType>;
@@ -443,30 +403,13 @@ export async function getHealthSimulationTransactions({
   program: MarginfiProgram;
   authority: PublicKey;
   luts: AddressLookupTableAccount[];
-  includeCrankTx: boolean;
   blockhash: string;
-  crossbarUrl?: string;
 }) {
   const additionalTxs: SolanaTransaction[] = [];
 
   const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_400_000,
   });
-
-  let updateFeedIx: {
-    instructions: TransactionInstruction[];
-    luts: AddressLookupTableAccount[];
-  } | null = null;
-
-  if (includeCrankTx) {
-    updateFeedIx = await makeCrankSwbFeedIx(
-      marginfiAccount,
-      bankMap,
-      projectedActiveBanks,
-      program.provider,
-      crossbarUrl
-    );
-  }
 
   const activeBanks: PublicKey[] = marginfiAccount.balances
     .filter((b) => b.active)
@@ -599,24 +542,6 @@ export async function getHealthSimulationTransactions({
       recentBlockhash: blockhash,
     }).compileToV0Message([...luts])
   );
-
-  if (updateFeedIx) {
-    const oracleCrankTx = new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [...updateFeedIx.instructions],
-        payerKey: authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message([...updateFeedIx.luts])
-    );
-
-    additionalTxs.push(
-      addTransactionMetadata(oracleCrankTx, {
-        type: TransactionType.CRANK,
-        signers: [],
-        addressLookupTables: updateFeedIx.luts,
-      })
-    );
-  }
 
   additionalTxs.push(
     addTransactionMetadata(healthCrankTx, {

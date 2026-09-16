@@ -11,14 +11,6 @@ export interface OraclePrice {
   priceRealtime: PriceWithConfidence;
   priceWeighted: PriceWithConfidence;
   timestamp: BigNumber;
-  switchboardData?: {
-    queue: string;
-    feedHash: string;
-    maxVariance: string;
-    minResponses: number;
-    rawPrice: string;
-    stdev: string;
-  };
 }
 
 export enum PriceBias {
@@ -38,12 +30,4 @@ export interface OraclePriceDto {
   priceRealtime: PriceWithConfidenceDto;
   priceWeighted: PriceWithConfidenceDto;
   timestamp: string;
-  switchboardData?: {
-    queue: string;
-    feedHash: string;
-    maxVariance: string;
-    minResponses: number;
-    rawPrice: string;
-    stdev: string;
-  };
 }

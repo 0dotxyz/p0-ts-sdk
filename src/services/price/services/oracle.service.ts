@@ -7,17 +7,16 @@ import { getOracleSourceFromOracleSetup } from "../utils";
 import { fetchOracleMultipliers, OracleMultiplierServiceOpts } from "./oracle-multiplier.service";
 import { fetchPythOracleData, PythOracleServiceOpts } from "./pyth-oracle.service";
 import { fetchScopeOracleData, ScopeOracleServiceOpts } from "./scope-oracle.service";
-import { fetchSwbOracleData, SwbOracleServiceOpts } from "./swb-oracle.service";
 
 import { ZERO_ORACLE_KEY } from "~/constants";
 import { BankType, RiskTier, OracleSetup } from "~/services/bank";
 
 /**
- * Fetches comprehensive oracle data from multiple providers (Pyth and Switchboard)
+ * Fetches comprehensive oracle data from multiple providers (Pyth and Scope)
  * Implements intelligent routing based on oracle type and risk tier:
  * - Zero oracles: Returns 0 price immediately
  * - Isolated assets: Uses enriched bank price (no external calls)
- * - Collateral assets: Uses Pyth/Switchboard with price fallback
+ * - Collateral assets: Uses Pyth/Scope with price fallback
  *
  * @param banks - Array of bank objects
  * @param opts - Optional configuration including API endpoint usage, connection, and enriched banks
@@ -27,7 +26,6 @@ export const fetchOracleData = async (
   banks: BankType[],
   opts: {
     pythOpts: PythOracleServiceOpts;
-    swbOpts: SwbOracleServiceOpts;
     scopeOpts?: ScopeOracleServiceOpts;
     oracleMultiplierOpts?: OracleMultiplierServiceOpts;
     isolatedBanksOpts?: {
@@ -61,7 +59,6 @@ export const fetchOracleData = async (
   // fetch oracle for asset banks
   const assetResults = await handleAssetBanks(assetBanks, {
     pythOpts: opts.pythOpts,
-    swbOpts: opts.swbOpts,
     scopeOpts: opts.scopeOpts,
     priceCoeffByBank: multiplierByBank,
   });
@@ -224,7 +221,7 @@ function handleIsolatedAssetBanks(
 }
 
 /**
- * Handles banks using existing oracle infrastructure (Pyth + Switchboard + price fallback)
+ * Handles banks using existing oracle infrastructure (Pyth + Scope + price fallback)
  * @param banks - Array of banks
  * @param opts - Optional configuration
  * @returns Map of bank addresses to oracle prices from external oracle providers
@@ -233,7 +230,6 @@ async function handleAssetBanks(
   banks: BankType[],
   opts: {
     pythOpts: PythOracleServiceOpts;
-    swbOpts: SwbOracleServiceOpts;
     scopeOpts?: ScopeOracleServiceOpts;
     priceCoeffByBank: Record<string, number>;
   }
@@ -242,9 +238,8 @@ async function handleAssetBanks(
     return new Map<string, OraclePrice>();
   }
 
-  const [pythData, swbData, scopeData] = await Promise.all([
+  const [pythData, scopeData] = await Promise.all([
     fetchPythOracleData(banks, opts.pythOpts, opts.priceCoeffByBank),
-    fetchSwbOracleData(banks, opts.swbOpts),
     fetchScopeOracleData(banks, opts.scopeOpts),
   ]);
 
@@ -252,11 +247,6 @@ async function handleAssetBanks(
 
   // Map pyth data
   pythData.bankOraclePriceMap.forEach((oraclePrice, bankAddress) => {
-    bankOraclePriceMap.set(bankAddress, oraclePrice);
-  });
-
-  // Map swb data
-  swbData.bankOraclePriceMap.forEach((oraclePrice, bankAddress) => {
     bankOraclePriceMap.set(bankAddress, oraclePrice);
   });
 
