@@ -1,57 +1,56 @@
-import { AnchorProvider, Program } from "@coral-xyz/anchor";
-import { address, createNoopSigner, isSignerRole, isWritableRole } from "@solana/kit";
-import { AccountMeta, Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import BN from "bn.js";
+import {
+  AccountRole,
+  createNoopSigner,
+  getAddressDecoder,
+  isSignerRole,
+  isWritableRole,
+  type AccountMeta,
+  type Instruction,
+} from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import { getLendingAccountDepositInstruction } from "~/generated/marginfi";
-import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import instructions from "~/instructions";
-import type { BankConfigCompactRaw, BankConfigOptRaw } from "~/services";
-import type { MarginfiProgram, Wallet } from "~/types";
 
-const key = (fill: number) => new PublicKey(new Uint8Array(32).fill(fill));
+// Wire format recorded from the Anchor 0.30 builders these replaced; never update with `-u`.
 
-const rpcStub = new Proxy({} as Connection, {
-  get: (_, prop) => {
-    throw new Error(`instruction builders must not touch the RPC (accessed ${String(prop)})`);
-  },
+const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
+const signer = (fill: number) => createNoopSigner(key(fill));
+const wrapped = (fill: number) => ({ value: new Uint8Array(16).fill(fill) });
+
+const toWire = (ix: Instruction) => ({
+  programId: ix.programAddress,
+  keys: (ix.accounts ?? []).map((a) => [a.address, isSignerRole(a.role), isWritableRole(a.role)]),
+  data: Buffer.from(ix.data ?? []).toString("hex"),
 });
 
-const program = new Program<MarginfiIdlType>(
-  { ...MARGINFI_IDL, address: key(200).toBase58() },
-  new AnchorProvider(rpcStub, {} as Wallet, {})
-) as unknown as MarginfiProgram;
-
+const programAddress = key(200);
 const remaining: AccountMeta[] = [
-  { pubkey: key(180), isSigner: false, isWritable: false },
-  { pubkey: key(181), isSigner: false, isWritable: true },
+  { address: key(180), role: AccountRole.READONLY },
+  { address: key(181), role: AccountRole.WRITABLE },
 ];
 
-const wrapped = (fill: number) => ({ value: new Array(16).fill(fill) });
-
-const toWire = (ix: TransactionInstruction) => ({
-  programId: ix.programId.toBase58(),
-  keys: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]),
-  data: ix.data.toString("hex"),
-});
-
 const group = key(1);
-const authority = key(2);
+const authority = signer(2);
 const marginfiAccount = key(3);
 const bank = key(4);
 const tokenAccount = key(5);
 const liquidityVault = key(6);
 const tokenProgram = key(7);
-const feePayer = key(8);
+const feePayer = signer(8);
 const mint = key(9);
 const integrationAcc1 = key(10);
 const integrationAcc2 = key(11);
 const integrationAcc3 = key(12);
 
 const juplendAccounts = {
+  group,
   marginfiAccount,
+  authority,
   bank,
+  mint,
+  integrationAcc1,
+  fTokenMint: key(28),
+  integrationAcc2,
   lendingAdmin: key(20),
   supplyTokenReservesLiquidity: key(21),
   lendingSupplyPositionOnLiquidity: key(22),
@@ -61,272 +60,203 @@ const juplendAccounts = {
   liquidityProgram: key(26),
   rewardsRateModel: key(27),
   tokenProgram,
-  group,
-  authority,
-  mint,
-  integrationAcc1,
-  fTokenMint: key(28),
-  integrationAcc2,
 };
 
-// Accounts Anchor resolves from IDL `relations` over RPC; the builder types don't expose them,
-// but the builders forward unknown keys to `accountsPartial`.
-const bankRelations = { liquidityVault, mint, integrationAcc1, integrationAcc2, integrationAcc3 };
-const flashloanRelations = { group };
-
 const kaminoAccounts = {
+  group,
   marginfiAccount,
+  authority,
   bank,
+  integrationAcc1,
+  integrationAcc2,
+  mint,
   lendingMarket: key(30),
   lendingMarketAuthority: key(31),
   reserveLiquiditySupply: key(32),
   reserveCollateralMint: key(33),
   liquidityTokenProgram: tokenProgram,
-  group,
-  authority,
 };
 
 const driftAccounts = {
+  group,
   marginfiAccount,
+  authority,
   bank,
+  liquidityVault,
+  integrationAcc1,
+  integrationAcc2,
+  integrationAcc3,
+  mint,
   driftState: key(40),
   driftSpotMarketVault: key(41),
   tokenProgram,
-  group,
-  authority,
 };
 
-const bankConfigOpt: BankConfigOptRaw = {
-  assetWeightInit: wrapped(1),
-  assetWeightMaint: null,
-  liabilityWeightInit: wrapped(2),
-  liabilityWeightMaint: null,
-  depositLimit: new BN(1_000_000),
-  borrowLimit: null,
-  operationalState: { operational: {} },
-  interestRateConfig: {
-    insuranceFeeFixedApr: wrapped(3),
-    insuranceIrFee: wrapped(4),
-    protocolFixedFeeApr: wrapped(5),
-    protocolIrFee: wrapped(6),
-    protocolOriginationFee: wrapped(7),
-    zeroUtilRate: 10,
-    hundredUtilRate: 20,
-    points: Array.from({ length: 5 }, (_, i) => ({ util: i, rate: i * 2 })),
-  },
-  riskTier: { isolated: {} },
-  assetTag: 2,
-  totalAssetValueInitLimit: null,
-  oracleMaxConfidence: 100,
-  oracleMaxAge: 60,
-  permissionlessBadDebtSettlement: true,
-  freezeSettings: false,
-  tokenlessRepaymentsAllowed: null,
-  liquidationLiquidatorFee: null,
-  liquidationInsuranceFee: null,
-  circuitBreakerEnabled: null,
-  cbDeviationBpsTiers: null,
-  cbTierDurationsSeconds: null,
-  cbEscalationWindowMult: null,
-  cbEmaAlphaBps: null,
-  cbWindowSeconds: null,
-  cbWindowMaxUpBps: null,
-  cbWindowMaxDownBps: null,
-};
+const interestRateConfig = (fill: number) => ({
+  insuranceFeeFixedApr: wrapped(fill),
+  insuranceIrFee: wrapped(fill + 1),
+  protocolFixedFeeApr: wrapped(fill + 2),
+  protocolIrFee: wrapped(fill + 3),
+  protocolOriginationFee: wrapped(fill + 4),
+  zeroUtilRate: 10,
+  hundredUtilRate: 20,
+  points: Array.from({ length: 5 }, (_, i) => ({ util: i, rate: i * 2 })),
+});
 
-const bankConfigCompact = {
-  assetWeightInit: wrapped(1),
-  assetWeightMaint: wrapped(2),
-  liabilityWeightInit: wrapped(3),
-  liabilityWeightMaint: wrapped(4),
-  depositLimit: new BN(1_000_000),
-  interestRateConfig: {
-    insuranceFeeFixedApr: wrapped(5),
-    insuranceIrFee: wrapped(6),
-    protocolFixedFeeApr: wrapped(7),
-    protocolIrFee: wrapped(8),
-    protocolOriginationFee: wrapped(9),
-    zeroUtilRate: 10,
-    hundredUtilRate: 20,
-    points: Array.from({ length: 5 }, (_, i) => ({ util: i, rate: i * 2 })),
-  },
-  operationalState: { operational: {} },
-  borrowLimit: new BN(500_000),
-  riskTier: { collateral: {} },
-  assetTag: 1,
-  totalAssetValueInitLimit: new BN(9_000_000),
-  oracleMaxAge: 60,
-  oracleMaxConfidence: 100,
-} as BankConfigCompactRaw;
-
-const cases: Record<string, () => Promise<TransactionInstruction> | TransactionInstruction> = {
+const cases: Record<string, () => Promise<Instruction>> = {
   makeInitMarginfiAccountIx: () =>
-    instructions.makeInitMarginfiAccountIx(program, {
+    instructions.makeInitMarginfiAccountIx(programAddress, {
       marginfiGroup: group,
-      marginfiAccount,
+      marginfiAccount: signer(3),
       authority,
       feePayer,
     }),
   "makeInitMarginfiAccountPdaIx thirdPartyId none": () =>
-    instructions.makeInitMarginfiAccountPdaIx(
-      program,
-      { marginfiGroup: group, marginfiAccount, authority, feePayer },
-      { accountIndex: 3 }
-    ),
+    instructions.makeInitMarginfiAccountPdaIx(programAddress, {
+      marginfiGroup: group,
+      marginfiAccount,
+      authority,
+      feePayer,
+      accountIndex: 3,
+      thirdPartyId: null,
+    }),
   "makeInitMarginfiAccountPdaIx thirdPartyId some": () =>
-    instructions.makeInitMarginfiAccountPdaIx(
-      program,
-      { marginfiGroup: group, marginfiAccount, authority, feePayer },
-      { accountIndex: 3, thirdPartyId: 7 }
-    ),
+    instructions.makeInitMarginfiAccountPdaIx(programAddress, {
+      marginfiGroup: group,
+      marginfiAccount,
+      authority,
+      feePayer,
+      accountIndex: 3,
+      thirdPartyId: 7,
+    }),
   makeJuplendDepositIx: () =>
     instructions.makeJuplendDepositIx(
-      program,
-      { ...juplendAccounts, signerTokenAccount: tokenAccount, liquidityVault },
-      { amount: new BN(1234) },
+      programAddress,
+      { ...juplendAccounts, signerTokenAccount: tokenAccount, liquidityVault, amount: 1234n },
       remaining
     ),
   "makeJuplendWithdrawIx withdrawAll none": () =>
     instructions.makeJuplendWithdrawIx(
-      program,
+      programAddress,
       {
         ...juplendAccounts,
         destinationTokenAccount: tokenAccount,
         claimAccount: key(29),
         integrationAcc3,
+        amount: 1234n,
+        withdrawAll: null,
       },
-      { amount: new BN(1234) },
       remaining
     ),
   "makeJuplendWithdrawIx withdrawAll true": () =>
     instructions.makeJuplendWithdrawIx(
-      program,
+      programAddress,
       {
         ...juplendAccounts,
         destinationTokenAccount: tokenAccount,
         claimAccount: key(29),
         integrationAcc3,
+        amount: 1234n,
+        withdrawAll: true,
       },
-      { amount: new BN(1234), withdrawAll: true },
       remaining
     ),
   "makeKaminoDepositIx farms, refresh none": () =>
     instructions.makeKaminoDepositIx(
-      program,
+      programAddress,
       {
         ...kaminoAccounts,
         signerTokenAccount: tokenAccount,
+        liquidityVault,
         reserveDestinationDepositCollateral: key(34),
         obligationFarmUserState: key(35),
         reserveFarmState: key(36),
-        liquidityVault,
-        integrationAcc1,
-        integrationAcc2,
-        mint,
+        amount: 1234n,
+        refreshReserve: null,
       },
-      { amount: new BN(1234) },
       remaining
     ),
   "makeKaminoDepositIx no farms, refresh true": () =>
     instructions.makeKaminoDepositIx(
-      program,
+      programAddress,
       {
         ...kaminoAccounts,
         signerTokenAccount: tokenAccount,
-        reserveDestinationDepositCollateral: key(34),
-        obligationFarmUserState: null,
-        reserveFarmState: null,
         liquidityVault,
-        integrationAcc1,
-        integrationAcc2,
-        mint,
+        reserveDestinationDepositCollateral: key(34),
+        amount: 1234n,
+        refreshReserve: true,
       },
-      { amount: new BN(1234), refreshReserve: true },
       remaining
     ),
   "makeDriftDepositIx oracle": () =>
-    instructions.makeDriftDepositIx(
-      program,
-      {
-        ...driftAccounts,
-        signerTokenAccount: tokenAccount,
-        driftOracle: key(42),
-        liquidityVault,
-        integrationAcc1,
-        integrationAcc2,
-        integrationAcc3,
-        mint,
-      },
-      { amount: new BN(1234) }
-    ),
+    instructions.makeDriftDepositIx(programAddress, {
+      ...driftAccounts,
+      signerTokenAccount: tokenAccount,
+      driftOracle: key(42),
+      amount: 1234n,
+    }),
   "makeDriftDepositIx no oracle": () =>
-    instructions.makeDriftDepositIx(
-      program,
-      {
-        ...driftAccounts,
-        signerTokenAccount: tokenAccount,
-        driftOracle: null,
-        liquidityVault,
-        integrationAcc1,
-        integrationAcc2,
-        integrationAcc3,
-        mint,
-      },
-      { amount: new BN(1234) }
-    ),
+    instructions.makeDriftDepositIx(programAddress, {
+      ...driftAccounts,
+      signerTokenAccount: tokenAccount,
+      amount: 1234n,
+    }),
   "makeDepositIx depositUpToLimit none": () =>
     instructions.makeDepositIx(
-      program,
+      programAddress,
       {
-        marginfiAccount,
-        signerTokenAccount: tokenAccount,
-        bank,
-        tokenProgram,
         group,
+        marginfiAccount,
         authority,
+        bank,
+        signerTokenAccount: tokenAccount,
         liquidityVault,
+        tokenProgram,
+        amount: 1234n,
+        depositUpToLimit: null,
       },
-      { amount: new BN(1234) },
       remaining
     ),
   "makeDepositIx depositUpToLimit true": () =>
     instructions.makeDepositIx(
-      program,
+      programAddress,
       {
-        marginfiAccount,
-        signerTokenAccount: tokenAccount,
-        bank,
-        tokenProgram,
         group,
+        marginfiAccount,
         authority,
+        bank,
+        signerTokenAccount: tokenAccount,
         liquidityVault,
+        tokenProgram,
+        amount: 1234n,
+        depositUpToLimit: true,
       },
-      { amount: new BN(1234), depositUpToLimit: true },
       remaining
     ),
   "makeRepayIx repayAll true": () =>
     instructions.makeRepayIx(
-      program,
+      programAddress,
       {
-        marginfiAccount,
-        signerTokenAccount: tokenAccount,
-        bank,
-        tokenProgram,
         group,
+        marginfiAccount,
         authority,
+        bank,
+        signerTokenAccount: tokenAccount,
         liquidityVault,
+        tokenProgram,
+        amount: 1234n,
+        repayAll: true,
       },
-      { amount: new BN(1234), repayAll: true },
       remaining
     ),
   "makeDriftWithdrawIx rewards, withdrawAll true": () =>
     instructions.makeDriftWithdrawIx(
-      program,
+      programAddress,
       {
         ...driftAccounts,
         destinationTokenAccount: tokenAccount,
         driftSigner: key(43),
-        ...bankRelations,
         driftOracle: key(42),
         driftRewardOracle: key(44),
         driftRewardSpotMarket: key(45),
@@ -334,27 +264,21 @@ const cases: Record<string, () => Promise<TransactionInstruction> | TransactionI
         driftRewardOracle2: key(47),
         driftRewardSpotMarket2: key(48),
         driftRewardMint2: key(49),
+        amount: 1234n,
+        withdrawAll: true,
       },
-      { amount: new BN(1234), withdrawAll: true },
       remaining
     ),
   "makeDriftWithdrawIx no rewards, withdrawAll false": () =>
     instructions.makeDriftWithdrawIx(
-      program,
+      programAddress,
       {
         ...driftAccounts,
         destinationTokenAccount: tokenAccount,
         driftSigner: key(43),
-        ...bankRelations,
-        driftOracle: null,
-        driftRewardOracle: null,
-        driftRewardSpotMarket: null,
-        driftRewardMint: null,
-        driftRewardOracle2: null,
-        driftRewardSpotMarket2: null,
-        driftRewardMint2: null,
+        amount: 1234n,
+        withdrawAll: false,
       },
-      { amount: new BN(1234), withdrawAll: false },
       remaining
     ),
   ...Object.fromEntries(
@@ -367,173 +291,200 @@ const cases: Record<string, () => Promise<TransactionInstruction> | TransactionI
       `makeKaminoWithdrawIx final=${isFinalWithdrawal} refresh=${refreshReserve}`,
       () =>
         instructions.makeKaminoWithdrawIx(
-          program,
+          programAddress,
           {
             ...kaminoAccounts,
             destinationTokenAccount: tokenAccount,
+            liquidityVault,
             reserveSourceCollateral: key(34),
-            obligationFarmUserState: isFinalWithdrawal ? null : key(35),
-            reserveFarmState: isFinalWithdrawal ? null : key(36),
-            ...bankRelations,
+            obligationFarmUserState: isFinalWithdrawal ? undefined : key(35),
+            reserveFarmState: isFinalWithdrawal ? undefined : key(36),
+            amount: 1234n,
+            isFinalWithdrawal,
+            refreshReserve,
           },
-          { amount: new BN(1234), isFinalWithdrawal, refreshReserve },
           remaining
         ),
     ])
   ),
   "makeWithdrawIx withdrawAll true": () =>
     instructions.makeWithdrawIx(
-      program,
+      programAddress,
       {
+        group,
         marginfiAccount,
+        authority,
         bank,
         destinationTokenAccount: tokenAccount,
+        liquidityVault,
         tokenProgram,
-        group,
-        authority,
-        ...bankRelations,
+        amount: 1234n,
+        withdrawAll: true,
       },
-      { amount: new BN(1234), withdrawAll: true },
       remaining
     ),
   makeBorrowIx: () =>
     instructions.makeBorrowIx(
-      program,
+      programAddress,
       {
+        group,
         marginfiAccount,
+        authority,
         bank,
         destinationTokenAccount: tokenAccount,
+        liquidityVault,
         tokenProgram,
-        group,
-        authority,
-        ...bankRelations,
+        amount: 18446744073709551615n,
       },
-      { amount: new BN("18446744073709551615") },
       remaining
     ),
   makeLendingAccountLiquidateIx: () =>
     instructions.makeLendingAccountLiquidateIx(
-      program,
+      programAddress,
       {
+        group,
         assetBank: key(50),
         liabBank: key(51),
         liquidatorMarginfiAccount: key(52),
+        authority,
         liquidateeMarginfiAccount: key(53),
         tokenProgram,
-        group,
-        authority,
+        assetAmount: 1234n,
+        liquidateeAccounts: 4,
+        liquidatorAccounts: 6,
       },
-      { assetAmount: new BN(1234), liquidateeAccounts: 4, liquidatorAccounts: 6 },
       remaining
     ),
   makePoolConfigureBankIx: () =>
-    instructions.makePoolConfigureBankIx(
-      program,
-      { bank, group, admin: authority },
-      { bankConfigOpt }
-    ),
+    instructions.makePoolConfigureBankIx(programAddress, {
+      group,
+      admin: authority,
+      bank,
+      bankConfigOpt: {
+        assetWeightInit: wrapped(1),
+        assetWeightMaint: null,
+        liabilityWeightInit: wrapped(2),
+        liabilityWeightMaint: null,
+        depositLimit: 1_000_000n,
+        borrowLimit: null,
+        operationalState: 1,
+        interestRateConfig: interestRateConfig(3),
+        riskTier: 1,
+        assetTag: 2,
+        totalAssetValueInitLimit: null,
+        oracleMaxConfidence: 100,
+        oracleMaxAge: 60,
+        permissionlessBadDebtSettlement: true,
+        freezeSettings: false,
+        tokenlessRepaymentsAllowed: null,
+        liquidationLiquidatorFee: null,
+        liquidationInsuranceFee: null,
+        circuitBreakerEnabled: null,
+        cbDeviationBpsTiers: null,
+        cbTierDurationsSeconds: null,
+        cbEscalationWindowMult: null,
+        cbEmaAlphaBps: null,
+        cbWindowSeconds: null,
+        cbWindowMaxUpBps: null,
+        cbWindowMaxDownBps: null,
+      },
+    }),
   makeBeginFlashLoanIx: () =>
-    instructions.makeBeginFlashLoanIx(
-      program,
-      { marginfiAccount, authority },
-      { endIndex: new BN(5) }
-    ),
+    instructions.makeBeginFlashLoanIx(programAddress, { marginfiAccount, authority, endIndex: 5 }),
   makeEndFlashLoanIx: () =>
     instructions.makeEndFlashLoanIx(
-      program,
-      { marginfiAccount, authority, ...flashloanRelations },
+      programAddress,
+      { marginfiAccount, group, authority },
       remaining
     ),
   makeAccountTransferToNewAccountIx: () =>
-    instructions.makeAccountTransferToNewAccountIx(program, {
+    instructions.makeAccountTransferToNewAccountIx(programAddress, {
+      group,
       oldMarginfiAccount: marginfiAccount,
-      newMarginfiAccount: key(60),
+      newMarginfiAccount: signer(60),
+      authority,
+      feePayer,
       newAuthority: key(61),
       globalFeeWallet: key(62),
-      feePayer,
-      group,
-      authority,
     }),
   makeGroupInitIx: () =>
-    instructions.makeGroupInitIx(program, { marginfiGroup: group, admin: authority }),
+    instructions.makeGroupInitIx(programAddress, { marginfiGroup: signer(1), admin: authority }),
   makeLendingPoolConfigureBankOracleIx: () =>
     instructions.makeLendingPoolConfigureBankOracleIx(
-      program,
-      { bank, group, admin: authority },
-      { setup: 3, feedId: key(70) },
+      programAddress,
+      { group, admin: authority, bank, setup: 3, oracle: key(70) },
       remaining
     ),
   makeLendingPoolConfigureBankOracleScopeIx: () =>
-    instructions.makeLendingPoolConfigureBankOracleScopeIx(
-      program,
-      { bank, group, admin: authority },
-      { oracle: key(71), entryIndex: 511 }
-    ),
+    instructions.makeLendingPoolConfigureBankOracleScopeIx(programAddress, {
+      group,
+      admin: authority,
+      bank,
+      oracle: key(71),
+      entryIndex: 511,
+    }),
   makeLendingPoolSetOraclePriceIx: () =>
     instructions.makeLendingPoolSetOraclePriceIx(
-      program,
-      { bank, group, admin: authority },
-      { price: wrapped(9), setup: 11 },
+      programAddress,
+      { group, admin: authority, bank, price: wrapped(9), setup: 11 },
       remaining
     ),
-  "makePoolAddPermissionlessStakedBankIx seed default": () =>
-    instructions.makePoolAddPermissionlessStakedBankIx(
-      program,
-      {
-        stakedSettings: key(80),
-        feePayer,
-        bankMint: mint,
-        solPool: key(81),
-        poolOnramp: key(82),
-        stakePool: key(83),
-        validatorVoteAccount: key(84),
-        marginfiGroup: group,
-        tokenProgram,
-      },
-      remaining,
-      {}
-    ),
-  "makePoolAddPermissionlessStakedBankIx seed 9": () =>
-    instructions.makePoolAddPermissionlessStakedBankIx(
-      program,
-      {
-        stakedSettings: key(80),
-        feePayer,
-        bankMint: mint,
-        solPool: key(81),
-        poolOnramp: key(82),
-        stakePool: key(83),
-        validatorVoteAccount: key(84),
-        marginfiGroup: group,
-        tokenProgram,
-      },
-      remaining,
-      { seed: new BN(9) }
-    ),
+  ...Object.fromEntries(
+    (
+      [
+        ["seed default", undefined],
+        ["seed 9", 9n],
+      ] as const
+    ).map(([label, bankSeed]) => [
+      `makePoolAddPermissionlessStakedBankIx ${label}`,
+      () =>
+        instructions.makePoolAddPermissionlessStakedBankIx(
+          programAddress,
+          {
+            marginfiGroup: group,
+            stakedSettings: key(80),
+            feePayer,
+            bankMint: mint,
+            solPool: key(81),
+            poolOnramp: key(82),
+            stakePool: key(83),
+            validatorVoteAccount: key(84),
+            tokenProgram,
+            bankSeed,
+          },
+          remaining
+        ),
+    ])
+  ),
   makePoolAddBankIx: () =>
-    instructions.makePoolAddBankIx(
-      program,
-      {
-        marginfiGroup: group,
-        feePayer,
-        bankMint: mint,
-        bank,
-        tokenProgram,
-        admin: authority,
-        globalFeeWallet: key(62),
+    instructions.makePoolAddBankIx(programAddress, {
+      marginfiGroup: group,
+      admin: authority,
+      feePayer,
+      globalFeeWallet: key(62),
+      bankMint: mint,
+      bank: signer(4),
+      tokenProgram,
+      bankConfig: {
+        assetWeightInit: wrapped(1),
+        assetWeightMaint: wrapped(2),
+        liabilityWeightInit: wrapped(3),
+        liabilityWeightMaint: wrapped(4),
+        depositLimit: 1_000_000n,
+        interestRateConfig: interestRateConfig(5),
+        operationalState: 1,
+        borrowLimit: 500_000n,
+        riskTier: 0,
+        assetTag: 1,
+        totalAssetValueInitLimit: 9_000_000n,
+        oracleMaxAge: 60,
+        oracleMaxConfidence: 100,
       },
-      { bankConfig: bankConfigCompact }
-    ),
+    }),
   makeCloseAccountIx: () =>
-    instructions.makeCloseAccountIx(program, { marginfiAccount, feePayer, authority }),
-  // makePulseHealthIx only forwards marginfiAccount, so `group` can't reach Anchor through it;
-  // record the identical method chain with the relation supplied.
+    instructions.makeCloseAccountIx(programAddress, { marginfiAccount, authority, feePayer }),
   makePulseHealthIx: () =>
-    program.methods
-      .lendingAccountPulseHealth()
-      .accountsPartial({ marginfiAccount, group })
-      .remainingAccounts(remaining)
-      .instruction(),
+    instructions.makePulseHealthIx(programAddress, { marginfiAccount, group }, remaining),
 };
 
 describe("marginfi instruction wire format", () => {
@@ -544,44 +495,5 @@ describe("marginfi instruction wire format", () => {
   it("covers every exported builder", () => {
     const covered = new Set(Object.keys(cases).map((name) => name.split(" ")[0]));
     expect([...covered].sort()).toEqual(Object.keys(instructions).sort());
-  });
-});
-
-describe("codama-generated marginfi client", () => {
-  it("encodes deposit identically to Anchor", async () => {
-    const toAddress = (pk: PublicKey) => address(pk.toBase58());
-    const ix = getLendingAccountDepositInstruction(
-      {
-        group: toAddress(group),
-        marginfiAccount: toAddress(marginfiAccount),
-        authority: createNoopSigner(toAddress(authority)),
-        bank: toAddress(bank),
-        signerTokenAccount: toAddress(tokenAccount),
-        liquidityVault: toAddress(liquidityVault),
-        tokenProgram: toAddress(tokenProgram),
-        amount: 1234n,
-        depositUpToLimit: true,
-      },
-      { programAddress: toAddress(key(200)) }
-    );
-    const anchorIx = await instructions.makeDepositIx(
-      program,
-      {
-        marginfiAccount,
-        signerTokenAccount: tokenAccount,
-        bank,
-        tokenProgram,
-        group,
-        authority,
-        liquidityVault,
-      },
-      { amount: new BN(1234), depositUpToLimit: true }
-    );
-
-    expect({
-      programId: ix.programAddress,
-      keys: ix.accounts.map((a) => [a.address, isSignerRole(a.role), isWritableRole(a.role)]),
-      data: Buffer.from(ix.data).toString("hex"),
-    }).toEqual(toWire(anchorIx));
   });
 });

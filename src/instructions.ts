@@ -1,983 +1,400 @@
-import { AccountMeta, PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import { AccountRole, type AccountMeta, type Address, type Instruction } from "@solana/kit";
 
-import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
-import { MarginfiProgram, WrappedI80F48 } from "./types";
-import { TOKEN_PROGRAM_ID } from "./vendor/spl";
+import {
+  getDriftDepositInstructionAsync,
+  getDriftWithdrawInstructionAsync,
+  getJuplendDepositInstructionAsync,
+  getJuplendWithdrawInstructionAsync,
+  getKaminoDepositInstructionAsync,
+  getKaminoWithdrawInstructionAsync,
+  getLendingAccountBorrowInstructionAsync,
+  getLendingAccountDepositInstruction,
+  getLendingAccountEndFlashloanInstruction,
+  getLendingAccountLiquidateInstructionAsync,
+  getLendingAccountPulseHealthInstruction,
+  getLendingAccountRepayInstruction,
+  getLendingAccountStartFlashloanInstruction,
+  getLendingAccountWithdrawInstructionAsync,
+  getLendingPoolAddBankInstructionAsync,
+  getLendingPoolAddBankPermissionlessInstructionAsync,
+  getLendingPoolConfigureBankInstruction,
+  getLendingPoolConfigureBankOracleInstruction,
+  getLendingPoolConfigureBankOracleScopeInstruction,
+  getLendingPoolSetOraclePriceInstruction,
+  getMarginfiAccountCloseInstruction,
+  getMarginfiAccountInitializeInstruction,
+  getMarginfiAccountInitializePdaInstruction,
+  getMarginfiGroupInitializeInstructionAsync,
+  getTransferToNewAccountInstructionAsync,
+  type BankConfigCompactArgs,
+  type DriftDepositAsyncInput,
+  type DriftWithdrawAsyncInput,
+  type JuplendDepositAsyncInput,
+  type JuplendWithdrawAsyncInput,
+  type KaminoDepositAsyncInput,
+  type KaminoWithdrawAsyncInput,
+  type LendingAccountBorrowAsyncInput,
+  type LendingAccountDepositInput,
+  type LendingAccountEndFlashloanInput,
+  type LendingAccountLiquidateAsyncInput,
+  type LendingAccountPulseHealthInput,
+  type LendingAccountRepayInput,
+  type LendingAccountStartFlashloanInput,
+  type LendingAccountWithdrawAsyncInput,
+  type LendingPoolAddBankAsyncInput,
+  type LendingPoolAddBankPermissionlessAsyncInput,
+  type LendingPoolConfigureBankInput,
+  type LendingPoolConfigureBankOracleInput,
+  type LendingPoolConfigureBankOracleScopeInput,
+  type LendingPoolSetOraclePriceInput,
+  type MarginfiAccountCloseInput,
+  type MarginfiAccountInitializeInput,
+  type MarginfiAccountInitializePdaInput,
+  type MarginfiGroupInitializeAsyncInput,
+  type TransferToNewAccountAsyncInput,
+} from "./generated/marginfi";
 
+function withRemainingAccounts(ix: Instruction, remainingAccounts: AccountMeta[]): Instruction {
+  return { ...ix, accounts: [...(ix.accounts ?? []), ...remainingAccounts] };
+}
+
+/** Creates a marginfi account at a keypair address; `marginfiAccount` must sign. */
 async function makeInitMarginfiAccountIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiGroup: PublicKey;
-    marginfiAccount: PublicKey;
-    authority: PublicKey;
-    feePayer: PublicKey;
-  }
-) {
-  return mfProgram.methods.marginfiAccountInitialize().accounts(accounts).instruction();
+  programAddress: Address,
+  input: MarginfiAccountInitializeInput
+): Promise<Instruction> {
+  return getMarginfiAccountInitializeInstruction(input, { programAddress });
 }
 
+/** Creates a marginfi account at its PDA (group, authority, `accountIndex`, `thirdPartyId`). */
 async function makeInitMarginfiAccountPdaIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiGroup: PublicKey;
-    marginfiAccount: PublicKey;
-    authority: PublicKey;
-    feePayer: PublicKey;
-  },
-  args: {
-    accountIndex: number;
-    thirdPartyId?: number;
-  }
-) {
-  return mfProgram.methods
-    .marginfiAccountInitializePda(args.accountIndex, args.thirdPartyId ?? null)
-    .accountsPartial({
-      marginfiGroup: accounts.marginfiGroup,
-      marginfiAccount: accounts.marginfiAccount,
-      authority: accounts.authority,
-      feePayer: accounts.feePayer,
-    })
-    .instruction();
-}
-
-async function makeJuplendDepositIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    signerTokenAccount: PublicKey;
-
-    lendingAdmin: PublicKey;
-    supplyTokenReservesLiquidity: PublicKey;
-    lendingSupplyPositionOnLiquidity: PublicKey;
-    rateModel: PublicKey;
-    vault: PublicKey;
-    liquidity: PublicKey;
-    liquidityProgram: PublicKey;
-    rewardsRateModel: PublicKey;
-    tokenProgram: PublicKey;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    fTokenMint?: PublicKey;
-    integrationAcc1?: PublicKey;
-    integrationAcc2?: PublicKey;
-    mint?: PublicKey;
-  },
-  args: {
-    amount: BN;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    marginfiAccount,
-    bank,
-    signerTokenAccount,
-    lendingAdmin,
-    supplyTokenReservesLiquidity,
-    lendingSupplyPositionOnLiquidity,
-    rateModel,
-    vault,
-    liquidity,
-    liquidityProgram,
-    rewardsRateModel,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .juplendDeposit(args.amount)
-    .accounts(accounts)
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeJuplendWithdrawIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    destinationTokenAccount: PublicKey;
-    lendingAdmin: PublicKey;
-    supplyTokenReservesLiquidity: PublicKey;
-    lendingSupplyPositionOnLiquidity: PublicKey;
-    rateModel: PublicKey;
-    vault: PublicKey;
-    claimAccount: PublicKey;
-    liquidity: PublicKey;
-    liquidityProgram: PublicKey;
-    rewardsRateModel: PublicKey;
-    tokenProgram: PublicKey;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    mint?: PublicKey;
-    integrationAcc1?: PublicKey;
-    fTokenMint?: PublicKey;
-    integrationAcc2?: PublicKey;
-    integrationAcc3?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    withdrawAll?: boolean | null;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    marginfiAccount,
-    bank,
-    destinationTokenAccount,
-    lendingAdmin,
-    supplyTokenReservesLiquidity,
-    lendingSupplyPositionOnLiquidity,
-    rateModel,
-    vault,
-    claimAccount,
-    liquidity,
-    liquidityProgram,
-    rewardsRateModel,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .juplendWithdraw(args.amount, args.withdrawAll ?? null)
-    .accounts(accounts)
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeKaminoDepositIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    signerTokenAccount: PublicKey;
-    lendingMarket: PublicKey;
-
-    lendingMarketAuthority: PublicKey;
-    reserveLiquiditySupply: PublicKey;
-    reserveCollateralMint: PublicKey;
-    reserveDestinationDepositCollateral: PublicKey;
-    liquidityTokenProgram: PublicKey;
-
-    obligationFarmUserState: PublicKey | null;
-    reserveFarmState: PublicKey | null;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    integrationAcc1?: PublicKey;
-    integrationAcc2?: PublicKey;
-    mint?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    /** 0.1.9-only: refresh the reserve in-instruction. Ignored by the 1.8 program. */
-    refreshReserve?: boolean;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    marginfiAccount,
-    bank,
-    signerTokenAccount,
-    lendingMarket,
-    lendingMarketAuthority,
-    reserveLiquiditySupply,
-    reserveCollateralMint,
-    reserveDestinationDepositCollateral,
-    liquidityTokenProgram,
-    obligationFarmUserState,
-    reserveFarmState,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .kaminoDeposit(args.amount, args.refreshReserve ?? null)
-    .accounts(accounts)
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+  programAddress: Address,
+  input: MarginfiAccountInitializePdaInput
+): Promise<Instruction> {
+  return getMarginfiAccountInitializePdaInstruction(input, { programAddress });
 }
 
 /**
- * Create a Drift deposit instruction
- * Deposits tokens into a Drift spot market through a marginfi bank account
- *
- * @param mfProgram - The marginfi program instance
- * @param accounts - Required and optional accounts for the instruction
- * @param accounts.marginfiAccount - The marginfi account depositing funds
- * @param accounts.bank - The marginfi bank account for the asset
- * @param accounts.signerTokenAccount - The signer's token account (source of funds)
- * @param accounts.driftState - The Drift program state account
- * @param accounts.driftSpotMarketVault - The Drift spot market vault receiving tokens
- * @param accounts.tokenProgram - The SPL token program
- * @param accounts.driftOracle - (Optional) Oracle account for the asset
- * @param args - Instruction arguments
- * @param args.amount - Amount to deposit in native token decimals
+ * Deposits `amount` (native units) into a JupLend-backed bank.
+ * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
  */
-async function makeDriftDepositIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    signerTokenAccount: PublicKey;
-    driftState: PublicKey;
-    driftSpotMarketVault: PublicKey;
-    tokenProgram: PublicKey;
-    driftOracle: PublicKey | null;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-    integrationAcc2?: PublicKey;
-    integrationAcc3?: PublicKey;
-    integrationAcc1?: PublicKey;
-    mint?: PublicKey;
-    driftProgram?: PublicKey;
-    systemProgram?: PublicKey;
-  },
-  args: {
-    amount: BN;
-  }
-) {
-  const {
-    marginfiAccount,
-    bank,
-    signerTokenAccount,
-    driftState,
-    driftSpotMarketVault,
-    tokenProgram,
-    driftOracle,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .driftDeposit(args.amount)
-    .accounts({
-      marginfiAccount,
-      bank,
-      signerTokenAccount,
-      driftState,
-      driftSpotMarketVault,
-      tokenProgram,
-      driftOracle,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-async function makeDepositIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    signerTokenAccount: PublicKey;
-    bank: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    depositUpToLimit?: boolean;
-  },
+async function makeJuplendDepositIx(
+  programAddress: Address,
+  input: JuplendDepositAsyncInput,
   remainingAccounts: AccountMeta[] = []
-) {
-  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingAccountDeposit(args.amount, args.depositUpToLimit ?? null)
-    .accounts({
-      marginfiAccount,
-      signerTokenAccount,
-      bank,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeRepayIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    signerTokenAccount: PublicKey;
-    bank: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    repayAll?: boolean;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const { marginfiAccount, signerTokenAccount, bank, tokenProgram, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingAccountRepay(args.amount, args.repayAll ?? null)
-    .accounts({
-      marginfiAccount,
-      signerTokenAccount,
-      bank,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeDriftWithdrawIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    destinationTokenAccount: PublicKey;
-
-    driftState: PublicKey;
-    driftSigner: PublicKey;
-    driftSpotMarketVault: PublicKey;
-    tokenProgram: PublicKey;
-
-    driftOracle: PublicKey | null;
-    driftRewardOracle: PublicKey | null;
-    driftRewardSpotMarket: PublicKey | null;
-    driftRewardMint: PublicKey | null;
-    driftRewardOracle2: PublicKey | null;
-    driftRewardSpotMarket2: PublicKey | null;
-    driftRewardMint2: PublicKey | null;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    withdrawAll: boolean;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    marginfiAccount,
-    bank,
-    destinationTokenAccount,
-    driftState,
-    driftSigner,
-    driftSpotMarketVault,
-    tokenProgram,
-    driftOracle,
-    driftRewardOracle,
-    driftRewardSpotMarket,
-    driftRewardMint,
-    driftRewardOracle2,
-    driftRewardSpotMarket2,
-    driftRewardMint2,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .driftWithdraw(args.amount, args.withdrawAll)
-    .accounts({
-      marginfiAccount,
-      bank,
-      destinationTokenAccount,
-      driftState,
-      driftSigner,
-      driftSpotMarketVault,
-      tokenProgram,
-      driftOracle,
-      driftRewardOracle,
-      driftRewardSpotMarket,
-      driftRewardMint,
-      driftRewardOracle2,
-      driftRewardSpotMarket2,
-      driftRewardMint2,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeKaminoWithdrawIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    destinationTokenAccount: PublicKey;
-    lendingMarket: PublicKey;
-    mint: PublicKey;
-
-    lendingMarketAuthority: PublicKey;
-    reserveLiquiditySupply: PublicKey;
-    reserveCollateralMint: PublicKey;
-    reserveSourceCollateral: PublicKey;
-    liquidityTokenProgram: PublicKey;
-
-    obligationFarmUserState: PublicKey | null;
-    reserveFarmState: PublicKey | null;
-
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    isFinalWithdrawal: boolean;
-    /**
-     * 0.1.9-only: refresh the reserve via batch refresh (flags bit 1). Do NOT set while the
-     * 1.8 program is deployed — its `Option<bool>` decoder rejects flag bytes above 1.
-     */
-    refreshReserve?: boolean;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    marginfiAccount,
-    bank,
-    destinationTokenAccount,
-    lendingMarket,
-    lendingMarketAuthority,
-    reserveLiquiditySupply,
-    reserveCollateralMint,
-    reserveSourceCollateral,
-    liquidityTokenProgram,
-    obligationFarmUserState,
-    reserveFarmState,
-    ...optionalAccounts
-  } = accounts;
-
-  // flags bit 0 = withdraw all, bit 1 = batch refresh. `isFinalWithdrawal ? 1 : null` is
-  // byte-identical to the pre-0.1.9 `withdrawAll: Option<bool>` encoding, so it lands on
-  // both the 1.8 and 1.9 programs.
-  const flags = (args.isFinalWithdrawal ? 1 : 0) | (args.refreshReserve ? 2 : 0);
-
-  return mfProgram.methods
-    .kaminoWithdraw(args.amount, flags === 0 ? null : flags)
-    .accounts({
-      marginfiAccount,
-      bank,
-      destinationTokenAccount,
-      lendingMarket,
-      lendingMarketAuthority,
-      reserveLiquiditySupply,
-      reserveCollateralMint,
-      reserveSourceCollateral,
-      liquidityTokenProgram,
-      obligationFarmUserState,
-      reserveFarmState,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeWithdrawIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    destinationTokenAccount: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  },
-  args: {
-    amount: BN;
-    withdrawAll?: boolean;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
-    accounts;
-
-  return mfProgram.methods
-    .lendingAccountWithdraw(args.amount, args.withdrawAll ?? null)
-    .accounts({
-      marginfiAccount,
-      destinationTokenAccount,
-      bank,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeBorrowIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    bank: PublicKey;
-    destinationTokenAccount: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  },
-  args: {
-    amount: BN;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const { marginfiAccount, bank, destinationTokenAccount, tokenProgram, ...optionalAccounts } =
-    accounts;
-
-  return mfProgram.methods
-    .lendingAccountBorrow(args.amount)
-    .accounts({
-      marginfiAccount,
-      destinationTokenAccount,
-      bank,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-function makeLendingAccountLiquidateIx(
-  mfiProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    assetBank: PublicKey;
-    liabBank: PublicKey;
-    liquidatorMarginfiAccount: PublicKey;
-    liquidateeMarginfiAccount: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  },
-  args: {
-    assetAmount: BN;
-    liquidateeAccounts: number;
-    liquidatorAccounts: number;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const {
-    assetBank,
-    liabBank,
-    liquidatorMarginfiAccount,
-    liquidateeMarginfiAccount,
-    tokenProgram,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfiProgram.methods
-    .lendingAccountLiquidate(args.assetAmount, args.liquidateeAccounts, args.liquidatorAccounts)
-    .accounts({
-      assetBank,
-      liabBank,
-      liquidatorMarginfiAccount,
-      liquidateeMarginfiAccount,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-function makePoolConfigureBankIx(
-  mfiProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    bank: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    admin?: PublicKey;
-  },
-  args: {
-    bankConfigOpt: BankConfigOptRaw;
-  }
-) {
-  const { bank, ...optionalAccounts } = accounts;
-
-  return mfiProgram.methods
-    .lendingPoolConfigureBank(args.bankConfigOpt)
-    .accounts({
-      bank,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-function makeBeginFlashLoanIx(
-  mfiProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
-    ixsSysvar?: PublicKey;
-  },
-  args: {
-    endIndex: BN;
-  }
-) {
-  const { marginfiAccount, ...optionalAccounts } = accounts;
-
-  return mfiProgram.methods
-    .lendingAccountStartFlashloan(args.endIndex)
-    .accounts({
-      marginfiAccount,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-async function makeEndFlashLoanIx(
-  mfiProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const { marginfiAccount, ...optionalAccounts } = accounts;
-
-  return mfiProgram.methods
-    .lendingAccountEndFlashloan()
-    .accounts({
-      marginfiAccount,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makeAccountTransferToNewAccountIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    oldMarginfiAccount: PublicKey;
-    newMarginfiAccount: PublicKey;
-    newAuthority: PublicKey;
-    globalFeeWallet: PublicKey;
-    feePayer: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    authority?: PublicKey;
-  }
-) {
-  const {
-    oldMarginfiAccount,
-    newMarginfiAccount,
-    newAuthority,
-    globalFeeWallet,
-    feePayer,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .transferToNewAccount()
-    .accounts({
-      oldMarginfiAccount,
-      newMarginfiAccount,
-      newAuthority,
-      globalFeeWallet,
-      feePayer,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-async function makeGroupInitIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiGroup: PublicKey;
-    admin: PublicKey;
-  }
-) {
-  return mfProgram.methods
-    .marginfiGroupInitialize()
-    .accounts({
-      marginfiGroup: accounts.marginfiGroup,
-      admin: accounts.admin,
-    })
-    .instruction();
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getJuplendDepositInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
 }
 
 /**
- * Configure the oracle for a bank
- * @param mfProgram The marginfi program
- * @param accounts The accounts required for this instruction
- * @param args The oracle setup index and feed id
- * @param remainingAccounts The remaining accounts required for this instruction, should include the feed oracle key
+ * Withdraws `amount` (native units) from a JupLend-backed bank; `withdrawAll` closes the balance.
+ * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ */
+async function makeJuplendWithdrawIx(
+  programAddress: Address,
+  input: JuplendWithdrawAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getJuplendWithdrawInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Deposits `amount` (native units) into a Kamino-backed bank; `refreshReserve` refreshes the
+ * reserve in-instruction.
+ * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
+ */
+async function makeKaminoDepositIx(
+  programAddress: Address,
+  input: KaminoDepositAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getKaminoDepositInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/** Deposits `amount` (native units) into a Drift-backed bank. */
+async function makeDriftDepositIx(
+  programAddress: Address,
+  input: DriftDepositAsyncInput
+): Promise<Instruction> {
+  return getDriftDepositInstructionAsync(input, { programAddress });
+}
+
+/**
+ * Deposits `amount` (native units) from `signerTokenAccount` into the bank.
+ * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
+ */
+async function makeDepositIx(
+  programAddress: Address,
+  input: LendingAccountDepositInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingAccountDepositInstruction(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Repays `amount` (native units) of the bank's liability; `repayAll` closes the balance.
+ * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
+ */
+async function makeRepayIx(
+  programAddress: Address,
+  input: LendingAccountRepayInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingAccountRepayInstruction(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Withdraws `amount` (native units) from a Drift-backed bank; `withdrawAll` closes the balance.
+ * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ */
+async function makeDriftWithdrawIx(
+  programAddress: Address,
+  input: DriftWithdrawAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getDriftWithdrawInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Withdraws `amount` (native units) from a Kamino-backed bank. `isFinalWithdrawal` closes the
+ * balance; `refreshReserve` refreshes the reserve via batch refresh.
+ * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ */
+async function makeKaminoWithdrawIx(
+  programAddress: Address,
+  {
+    isFinalWithdrawal,
+    refreshReserve,
+    ...input
+  }: Omit<KaminoWithdrawAsyncInput, "flags"> & {
+    isFinalWithdrawal: boolean;
+    refreshReserve?: boolean;
+  },
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  // bit 0 = withdraw all, bit 1 = batch refresh; `None` when no flag is set.
+  const flags = (isFinalWithdrawal ? 1 : 0) | (refreshReserve ? 2 : 0);
+  return withRemainingAccounts(
+    await getKaminoWithdrawInstructionAsync(
+      { ...input, flags: flags === 0 ? null : flags },
+      { programAddress }
+    ),
+    remainingAccounts
+  );
+}
+
+/**
+ * Withdraws `amount` (native units) to `destinationTokenAccount`; `withdrawAll` closes the balance.
+ * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ */
+async function makeWithdrawIx(
+  programAddress: Address,
+  input: LendingAccountWithdrawAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getLendingAccountWithdrawInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Borrows `amount` (native units) to `destinationTokenAccount`.
+ * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ */
+async function makeBorrowIx(
+  programAddress: Address,
+  input: LendingAccountBorrowAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getLendingAccountBorrowInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Liquidates `assetAmount` (native units) of the liquidatee's asset bank position.
+ * @param remainingAccounts - Liquidator then liquidatee health-check accounts, sized by
+ * `liquidatorAccounts` / `liquidateeAccounts`.
+ */
+async function makeLendingAccountLiquidateIx(
+  programAddress: Address,
+  input: LendingAccountLiquidateAsyncInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getLendingAccountLiquidateInstructionAsync(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/** Updates a bank's config; `null` fields in `bankConfigOpt` are left unchanged. */
+async function makePoolConfigureBankIx(
+  programAddress: Address,
+  input: LendingPoolConfigureBankInput
+): Promise<Instruction> {
+  return getLendingPoolConfigureBankInstruction(input, { programAddress });
+}
+
+/** Starts a flashloan; `endIndex` is the transaction index of the matching end instruction. */
+async function makeBeginFlashLoanIx(
+  programAddress: Address,
+  input: LendingAccountStartFlashloanInput
+): Promise<Instruction> {
+  return getLendingAccountStartFlashloanInstruction(input, { programAddress });
+}
+
+/**
+ * Ends a flashloan and runs the health check.
+ * @param remainingAccounts - Health-check bank/oracle accounts for the projected active banks.
+ */
+async function makeEndFlashLoanIx(
+  programAddress: Address,
+  input: LendingAccountEndFlashloanInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingAccountEndFlashloanInstruction(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/** Moves the account's positions to `newMarginfiAccount` owned by `newAuthority`. */
+async function makeAccountTransferToNewAccountIx(
+  programAddress: Address,
+  input: TransferToNewAccountAsyncInput
+): Promise<Instruction> {
+  return getTransferToNewAccountInstructionAsync(input, { programAddress });
+}
+
+/** Initializes a marginfi group; `marginfiGroup` and `admin` must sign. */
+async function makeGroupInitIx(
+  programAddress: Address,
+  input: MarginfiGroupInitializeAsyncInput
+): Promise<Instruction> {
+  return getMarginfiGroupInitializeInstructionAsync(input, { programAddress });
+}
+
+/**
+ * Configures a bank's oracle.
+ * @param remainingAccounts - The oracle account(s) for `setup` (read-only).
  */
 async function makeLendingPoolConfigureBankOracleIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    bank: PublicKey;
-    // Optional accounts - to override inference
-    group?: PublicKey;
-    admin?: PublicKey;
-  },
-  args: {
-    /**
-     * The oracle setup index, see {@link serializeOracleSetupToIndex}
-     */
-    setup: number;
-    /**
-     * The oracle feed id
-     */
-    feedId: PublicKey;
-  },
-  /**
-   * The remaining accounts required for this instruction, should include the feed oracle key (non writable & signable)
-   */
+  programAddress: Address,
+  input: LendingPoolConfigureBankOracleInput,
   remainingAccounts: AccountMeta[] = []
-) {
-  const { bank, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingPoolConfigureBankOracle(args.setup, args.feedId)
-    .accounts({
-      bank,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingPoolConfigureBankOracleInstruction(input, { programAddress }),
+    remainingAccounts
+  );
 }
 
-/**
- * Configure a bank to use an entry in a Scope OraclePrices account.
- * @param mfProgram The marginfi program
- * @param accounts The group, admin, and bank accounts required by the instruction
- * @param args The Scope OraclePrices account and its entry index
- */
+/** Points a bank at entry `entryIndex` of the Scope OraclePrices account `oracle`. */
 async function makeLendingPoolConfigureBankOracleScopeIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    bank: PublicKey;
-    group?: PublicKey;
-    admin?: PublicKey;
-  },
-  args: {
-    oracle: PublicKey;
-    entryIndex: number;
-  }
-) {
-  const { bank, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
-    .accounts({ bank })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts([{ pubkey: args.oracle, isSigner: false, isWritable: false }])
-    .instruction();
-}
-
-/** Configure a fixed or Exponent PT oracle through the 0.1.11 set-oracle-price instruction. */
-async function makeLendingPoolSetOraclePriceIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    bank: PublicKey;
-    group?: PublicKey;
-    admin?: PublicKey;
-  },
-  args: {
-    price: WrappedI80F48;
-    setup: number;
-  },
-  remainingAccounts: AccountMeta[] = []
-) {
-  const { bank, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingPoolSetOraclePrice(args.price, args.setup)
-    .accounts({ bank })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+  programAddress: Address,
+  input: LendingPoolConfigureBankOracleScopeInput
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingPoolConfigureBankOracleScopeInstruction(input, { programAddress }),
+    [{ address: input.oracle, role: AccountRole.READONLY }]
+  );
 }
 
 /**
- * Creates an instruction to add a permissionless staked bank to a lending pool.
- * @param mfProgram - The marginfi program instance
- * @param accounts - The accounts required for this instruction
- * @param remainingAccounts - The remaining accounts required for this instruction, including pythOracle, solPool and bankMint
- * @param args - Optional arguments for this instruction
+ * Configures a fixed or Exponent PT oracle price.
+ * @param remainingAccounts - Oracle accounts required by `setup` (read-only).
+ */
+async function makeLendingPoolSetOraclePriceIx(
+  programAddress: Address,
+  input: LendingPoolSetOraclePriceInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingPoolSetOraclePriceInstruction(input, { programAddress }),
+    remainingAccounts
+  );
+}
+
+/**
+ * Adds a permissionless staked-SOL bank; `bankSeed` defaults to 0.
+ * @param remainingAccounts - Pyth oracle, SOL pool and bank mint (read-only).
  */
 async function makePoolAddPermissionlessStakedBankIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    stakedSettings: PublicKey;
-    feePayer: PublicKey;
-    bankMint: PublicKey;
-    solPool: PublicKey;
-    /** The SVSP on-ramp account, derived from the stake pool (0.1.9+ program only) */
-    poolOnramp: PublicKey;
-    stakePool: PublicKey;
-    /** The validator vote account backing the stake pool (0.1.9+ program only) */
-    validatorVoteAccount: PublicKey;
-    // Optional accounts - to override inference
-    marginfiGroup?: PublicKey;
-    /**
-     * The token program to use for this instruction, defaults to the SPL token program
-     */
-    tokenProgram?: PublicKey;
+  programAddress: Address,
+  {
+    bankSeed = 0n,
+    ...input
+  }: Omit<LendingPoolAddBankPermissionlessAsyncInput, "bankSeed"> & {
+    bankSeed?: bigint;
   },
-  /**
-   * The remaining accounts required for this instruction. Should include:
-   * - pythOracle: The pyth oracle key (non writable & non signer)
-   * - solPool: The sol pool key (non writable & non signer)
-   * - bankMint: The bank mint key (non writable & non signer)
-   */
-  remainingAccounts: AccountMeta[] = [],
-  args: {
-    /**
-     * The seed to use for the bank account. Defaults to 0 (new BN(0)).
-     * If the seed is not specified, the seed is set to 0, and the bank account
-     * will be created at the address {@link findPoolAddress} with the default
-     * bump.
-     */
-    seed?: BN;
-  }
-) {
-  const {
-    stakedSettings,
-    feePayer,
-    bankMint,
-    solPool,
-    poolOnramp,
-    stakePool,
-    validatorVoteAccount,
-    tokenProgram = TOKEN_PROGRAM_ID,
-    ...optionalAccounts
-  } = accounts;
-
-  return mfProgram.methods
-    .lendingPoolAddBankPermissionless(args.seed ?? new BN(0))
-    .accounts({
-      stakedSettings,
-      feePayer,
-      bankMint,
-      solPool,
-      poolOnramp,
-      stakePool,
-      validatorVoteAccount,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
-}
-
-async function makePoolAddBankIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiGroup: PublicKey;
-    feePayer: PublicKey;
-    bankMint: PublicKey;
-    bank: PublicKey;
-    tokenProgram: PublicKey;
-    // Optional accounts - to override inference
-    admin?: PublicKey;
-    globalFeeWallet?: PublicKey;
-  },
-  args: {
-    bankConfig: BankConfigCompactRaw;
-  }
-) {
-  const { marginfiGroup, feePayer, bankMint, bank, tokenProgram, ...optionalAccounts } = accounts;
-
-  return mfProgram.methods
-    .lendingPoolAddBank({
-      ...args.bankConfig,
-      configFlags: 0,
-      pad0: [0, 0, 0, 0, 0, 0, 0, 0],
-    })
-    .accounts({
-      marginfiGroup,
-      feePayer,
-      bankMint,
-      bank,
-      tokenProgram,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-async function makeCloseAccountIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    // Required accounts
-    marginfiAccount: PublicKey;
-    feePayer: PublicKey;
-    // Optional accounts - to override inference
-    authority?: PublicKey;
-  }
-) {
-  const { marginfiAccount, feePayer, ...optionalAccounts } = accounts;
-  return mfProgram.methods
-    .marginfiAccountClose()
-    .accounts({
-      marginfiAccount,
-      feePayer,
-    })
-    .accountsPartial(optionalAccounts)
-    .instruction();
-}
-
-// Deprecated
-// async function makeLendingAccountSortBalancesIx(
-//   mfProgram: MarginfiProgram,
-//   accounts: {
-//     marginfiAccount: PublicKey;
-//   }
-// ) {
-//   return mfProgram.methods
-//     .lendingAccountSortBalances()
-//     .accounts({
-//       marginfiAccount: accounts.marginfiAccount,
-//     })
-//     .instruction();
-// }
-
-async function makePulseHealthIx(
-  mfProgram: MarginfiProgram,
-  accounts: {
-    marginfiAccount: PublicKey;
-  },
-  /**
-   * The remaining accounts required for this instruction. Should include:
-   * - For each balance the user has, pass bank and oracle: <bank1, oracle1, bank2, oracle2>
-   */
   remainingAccounts: AccountMeta[] = []
-) {
-  return mfProgram.methods
-    .lendingAccountPulseHealth()
-    .accounts({
-      marginfiAccount: accounts.marginfiAccount,
-    })
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    await getLendingPoolAddBankPermissionlessInstructionAsync(
+      { ...input, bankSeed },
+      { programAddress }
+    ),
+    remainingAccounts
+  );
+}
+
+/** Adds a bank to a group with `bankConfig`; `configFlags` and padding are zeroed. */
+async function makePoolAddBankIx(
+  programAddress: Address,
+  {
+    bankConfig,
+    ...input
+  }: Omit<LendingPoolAddBankAsyncInput, "bankConfig"> & {
+    bankConfig: Omit<BankConfigCompactArgs, "configFlags" | "pad0">;
+  }
+): Promise<Instruction> {
+  return getLendingPoolAddBankInstructionAsync(
+    { ...input, bankConfig: { ...bankConfig, configFlags: 0, pad0: new Uint8Array(5) } },
+    { programAddress }
+  );
+}
+
+/** Closes an empty marginfi account and returns rent to `feePayer`. */
+async function makeCloseAccountIx(
+  programAddress: Address,
+  input: MarginfiAccountCloseInput
+): Promise<Instruction> {
+  return getMarginfiAccountCloseInstruction(input, { programAddress });
+}
+
+/**
+ * Refreshes the account's health cache.
+ * @param remainingAccounts - Bank/oracle accounts for each active balance.
+ */
+async function makePulseHealthIx(
+  programAddress: Address,
+  input: LendingAccountPulseHealthInput,
+  remainingAccounts: AccountMeta[] = []
+): Promise<Instruction> {
+  return withRemainingAccounts(
+    getLendingAccountPulseHealthInstruction(input, { programAddress }),
+    remainingAccounts
+  );
 }
 
 const instructions = {
