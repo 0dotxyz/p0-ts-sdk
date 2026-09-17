@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`drift interest rates > matches recorded rates 1`] = `
+{
+  "borrowApr": 306144n,
+  "borrowAprAt99": 795000n,
+  "borrowAprAtZeroUtilization": 10000n,
+  "borrowApy": 358177n,
+  "lendingApr": 248279n,
+  "lendingApy": 281817n,
+  "utilization": 901098n,
+  "utilizationWithBorrow": 902879n,
+  "utilizationWithDeposit": 899497n,
+}
+`;

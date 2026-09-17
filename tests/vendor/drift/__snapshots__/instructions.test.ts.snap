@@ -1,0 +1,54 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`drift wire format > derived accounts (market 0) 1`] = `
+{
+  "driftSigner": "JCNCMFXo5M5qwUPg2Utu1u6YWp3MbygxqBsBeXXJfrw",
+  "driftSpotMarket": "6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3",
+  "driftSpotMarketVault": "GXWqPpjQpdz7KZw9p7f5PX2eGxHAhvpNXiviFkAB8zXg",
+  "driftState": "5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN",
+  "user": "AFikJAMaqWeJPwYXtP7wwVRKCNS8cQdzdprTEdVk7miG",
+  "userStats": "2HwY79wFyTNRM4U28YCUw4etZFswL8VCa7HFvPKUSYug",
+  "userSubAccount3": "8A5hy66NSceuWtauuUDh92BbAYT4KDxXPaRer96PJaEv",
+}
+`;
+
+exports[`drift wire format > derived accounts (market 7) 1`] = `
+{
+  "driftSigner": "JCNCMFXo5M5qwUPg2Utu1u6YWp3MbygxqBsBeXXJfrw",
+  "driftSpotMarket": "BFvA3B6aRccCoF5vGb2Ph71twjZp1nLjyAzao34dvvnq",
+  "driftSpotMarketVault": "9WDsKiXN8vnJk3riuWrKcPwgNuaBL8D7iUPK7QwXvS8w",
+  "driftState": "5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN",
+  "user": "AFikJAMaqWeJPwYXtP7wwVRKCNS8cQdzdprTEdVk7miG",
+  "userStats": "2HwY79wFyTNRM4U28YCUw4etZFswL8VCa7HFvPKUSYug",
+  "userSubAccount3": "8A5hy66NSceuWtauuUDh92BbAYT4KDxXPaRer96PJaEv",
+}
+`;
+
+exports[`drift wire format > update_spot_market_cumulative_interest 1`] = `
+{
+  "data": "27a68bf39ea59be1",
+  "keys": [
+    [
+      "5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      false,
+    ],
+    [
+      "9WDsKiXN8vnJk3riuWrKcPwgNuaBL8D7iUPK7QwXvS8w",
+      false,
+      false,
+    ],
+  ],
+  "programId": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+}
+`;
