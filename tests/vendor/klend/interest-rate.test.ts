@@ -1,6 +1,5 @@
+import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
 
 import {
   DEFAULT_RECENT_SLOT_DURATION_MS,
@@ -22,10 +21,10 @@ import {
 } from "~/vendor/klend";
 
 const pk = (seed: number) =>
-  new PublicKey(Buffer.from(Array.from({ length: 32 }, (_, i) => (seed + i) % 256)));
+  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
 
 // Scaled-fraction amounts are Q60 (value * 2^60).
-const sf = (amount: number) => new BN(amount).shln(60);
+const sf = (amount: number) => BigInt(amount) << 60n;
 
 /**
  * Reserve with 50% utilization (50 available + 50 borrowed, no fees) and a flat
@@ -37,24 +36,24 @@ const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReser
   liquidity: {
     mintPubkey: pk(3),
     supplyVault: pk(4),
-    mintDecimals: new BN(6),
-    availableAmount: new BN(50),
+    mintDecimals: 6n,
+    totalAvailableAmount: 50n,
     borrowedAmountSf: sf(50),
-    accumulatedProtocolFeesSf: new BN(0),
-    accumulatedReferrerFeesSf: new BN(0),
-    pendingReferrerFeesSf: new BN(0),
+    accumulatedProtocolFeesSf: 0n,
+    accumulatedReferrerFeesSf: 0n,
+    pendingReferrerFeesSf: 0n,
   },
   collateral: {
     mintPubkey: pk(5),
-    mintTotalSupply: new BN(100),
+    mintTotalSupply: 100n,
     supplyVault: pk(6),
   },
   config: {
     protocolTakeRatePct: 0,
     hostFixedInterestRateBps: 0,
     interestRateBasis: KaminoInterestRateBasis.Legacy,
-    depositLimit: new BN("10000000000000000"),
-    borrowLimit: new BN("9000000000000000"),
+    depositLimit: 10000000000000000n,
+    borrowLimit: 9000000000000000n,
     borrowRateCurve: {
       points: [
         { utilizationRateBps: 0, borrowRateBps: 1000 },
@@ -79,9 +78,7 @@ describe("kamino interest rate basis", () => {
     expect(getKaminoInterestRateBasis(trueApr)).toBe(KaminoInterestRateBasis.TrueApr);
 
     const { interestRateBasis, ...config } = legacy.config;
-    expect(getKaminoInterestRateBasis({ ...legacy, config })).toBe(
-      KaminoInterestRateBasis.Legacy
-    );
+    expect(getKaminoInterestRateBasis({ ...legacy, config })).toBe(KaminoInterestRateBasis.Legacy);
     expect(calculateKaminoSupplyAPY({ ...legacy, config }, 400)).toBe(
       calculateKaminoSupplyAPY(legacy, 400)
     );
@@ -110,9 +107,7 @@ describe("kamino interest rate basis", () => {
       periodsPerYear: SLOTS_PER_YEAR,
     });
     expect(calculateSlotAdjustmentFactor(legacy, 400)).toBe(1.25);
-    expect(getKaminoRateBasis(legacy).multiplier).toBe(
-      1000 / 2 / DEFAULT_RECENT_SLOT_DURATION_MS
-    );
+    expect(getKaminoRateBasis(legacy).multiplier).toBe(1000 / 2 / DEFAULT_RECENT_SLOT_DURATION_MS);
   });
 
   it("uses no slot adjustment and per-second compounding for TrueApr", () => {
@@ -144,14 +139,8 @@ describe("kamino rate calculations", () => {
     const apy400 = calculateKaminoSupplyAPY(legacy, 400);
     const apy200 = calculateKaminoSupplyAPY(legacy, 200);
     expect(apy200).toBeGreaterThan(apy400);
-    expect(apy400).toBeCloseTo(
-      Math.pow(1 + 0.0625 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1,
-      12
-    );
-    expect(apy200).toBeCloseTo(
-      Math.pow(1 + 0.125 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1,
-      12
-    );
+    expect(apy400).toBeCloseTo(Math.pow(1 + 0.0625 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1, 12);
+    expect(apy200).toBeCloseTo(Math.pow(1 + 0.125 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1, 12);
   });
 
   it("keeps TrueApr rates invariant to slot duration", () => {
@@ -167,10 +156,7 @@ describe("kamino rate calculations", () => {
     expect(supply400).toBeCloseTo(0.05, 12);
     expect(supply200).toBe(supply400);
     expect(apy200).toBe(apy400);
-    expect(apy400).toBeCloseTo(
-      Math.pow(1 + 0.05 / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1,
-      12
-    );
+    expect(apy400).toBeCloseTo(Math.pow(1 + 0.05 / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1, 12);
 
     // Slot duration is never read for TrueApr, so even an unusable value yields the same result.
     expect(calculateKaminoEstimatedBorrowRate(trueApr, Number.NaN)).toBe(borrow400);
@@ -179,15 +165,11 @@ describe("kamino rate calculations", () => {
   });
 
   it("yields different numbers for the same reserve under each basis", () => {
-    expect(calculateKaminoSupplyAPY(legacy, 400)).not.toBe(
-      calculateKaminoSupplyAPY(trueApr, 400)
-    );
+    expect(calculateKaminoSupplyAPY(legacy, 400)).not.toBe(calculateKaminoSupplyAPY(trueApr, 400));
   });
 
   it("compounds APR by the requested number of periods", () => {
-    expect(calculateAPYFromAPR(0.05)).toBe(
-      Math.pow(1 + 0.05 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1
-    );
+    expect(calculateAPYFromAPR(0.05)).toBe(Math.pow(1 + 0.05 / SLOTS_PER_YEAR, SLOTS_PER_YEAR) - 1);
     expect(calculateAPYFromAPR(0.05, SECONDS_PER_YEAR)).toBe(
       Math.pow(1 + 0.05 / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1
     );

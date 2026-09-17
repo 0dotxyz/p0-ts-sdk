@@ -55,7 +55,7 @@
     "prepublishOnly": "pnpm build",
     "prepack": "pnpm build",
     "knip": "knip",
-    "generate": "codama run js"
+    "generate": "codama run js -c codama/marginfi.mjs && codama run js -c codama/klend.mjs && codama run js -c codama/kfarms.mjs"
   },
   "keywords": [
     "solana",

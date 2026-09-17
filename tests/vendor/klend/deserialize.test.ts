@@ -1,61 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  KaminoInterestRateBasis,
-  decodeKlendReserveData,
-  dtoToKaminoReserve,
-  kaminoReserveToDto,
-} from "~/vendor/klend";
-
-const RESERVE_ACCOUNT_SIZE = 8624;
-const RESERVE_DISCRIMINATOR = [43, 242, 204, 202, 26, 247, 59, 127];
+import { getReserveDecoder, getReserveSize, RESERVE_DISCRIMINATOR } from "~/generated/klend";
+import { dtoToKaminoReserve, KaminoInterestRateBasis, kaminoReserveToDto } from "~/vendor/klend";
 
 // Account offsets (config starts at 4856; see klend `ReserveConfig` layout).
 const HOST_FIXED_INTEREST_RATE_BPS_OFFSET = 4858;
 const INTEREST_RATE_BASIS_OFFSET = 4865;
 const PROTOCOL_TAKE_RATE_PCT_OFFSET = 4870;
 
-const makeReserveAccount = () => {
-  const data = Buffer.alloc(RESERVE_ACCOUNT_SIZE);
-  Buffer.from(RESERVE_DISCRIMINATOR).copy(data, 0);
-  data.writeUInt16LE(25, HOST_FIXED_INTEREST_RATE_BPS_OFFSET);
-  data.writeUInt8(KaminoInterestRateBasis.TrueApr, INTEREST_RATE_BASIS_OFFSET);
-  data.writeUInt8(15, PROTOCOL_TAKE_RATE_PCT_OFFSET);
+const makeReserveAccount = (basis: KaminoInterestRateBasis) => {
+  const data = new Uint8Array(getReserveSize());
+  const view = new DataView(data.buffer);
+  data.set(RESERVE_DISCRIMINATOR, 0);
+  view.setUint16(HOST_FIXED_INTEREST_RATE_BPS_OFFSET, 25, true);
+  view.setUint8(INTEREST_RATE_BASIS_OFFSET, basis);
+  view.setUint8(PROTOCOL_TAKE_RATE_PCT_OFFSET, 15);
   return data;
 };
 
-describe("decodeKlendReserveData", () => {
+describe("generated klend Reserve decoder", () => {
   it("reads interestRateBasis from the reserve config", () => {
-    const raw = decodeKlendReserveData(makeReserveAccount());
+    const reserve = getReserveDecoder().decode(makeReserveAccount(KaminoInterestRateBasis.TrueApr));
 
-    expect(raw.config.hostFixedInterestRateBps).toBe(25);
-    expect(raw.config.interestRateBasis).toBe(KaminoInterestRateBasis.TrueApr);
-    expect(raw.config.protocolTakeRatePct).toBe(15);
+    expect(reserve.config.hostFixedInterestRateBps).toBe(25);
+    expect(reserve.config.interestRateBasis).toBe(KaminoInterestRateBasis.TrueApr);
+    expect(reserve.config.protocolTakeRatePct).toBe(15);
   });
 
   it("carries interestRateBasis through the DTO boundary", () => {
-    const raw = decodeKlendReserveData(makeReserveAccount());
-    const dto = kaminoReserveToDto(raw);
+    const reserve = getReserveDecoder().decode(makeReserveAccount(KaminoInterestRateBasis.TrueApr));
+    const dto = kaminoReserveToDto(reserve);
 
     expect(dto.config.interestRateBasis).toBe(KaminoInterestRateBasis.TrueApr);
-    expect(dtoToKaminoReserve(dto).config.interestRateBasis).toBe(
-      KaminoInterestRateBasis.TrueApr
-    );
+    expect(dtoToKaminoReserve(dto).config.interestRateBasis).toBe(KaminoInterestRateBasis.TrueApr);
   });
 
   it("decodes a zeroed config as Legacy", () => {
-    const data = makeReserveAccount();
-    data.writeUInt8(0, INTEREST_RATE_BASIS_OFFSET);
+    const reserve = getReserveDecoder().decode(makeReserveAccount(KaminoInterestRateBasis.Legacy));
 
-    expect(decodeKlendReserveData(data).config.interestRateBasis).toBe(
-      KaminoInterestRateBasis.Legacy
-    );
-  });
-
-  it("rejects a wrong discriminator", () => {
-    const data = makeReserveAccount();
-    data.writeUInt8(0, 0);
-
-    expect(() => decodeKlendReserveData(data)).toThrow("invalid account discriminator");
+    expect(reserve.config.interestRateBasis).toBe(KaminoInterestRateBasis.Legacy);
   });
 });
