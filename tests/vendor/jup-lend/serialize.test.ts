@@ -1,6 +1,5 @@
+import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
 
 import {
   JupLendingRewardsRateModel,
@@ -15,26 +14,26 @@ import {
 } from "~/vendor/jup-lend";
 
 const pk = (seed: number) =>
-  new PublicKey(Buffer.from(Array.from({ length: 32 }, (_, i) => (seed + i) % 256)));
+  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
 
 const tokenReserve: JupTokenReserve = {
   pubkey: pk(1),
   borrowRate: 550,
   feeOnInterest: 1000,
   lastUtilization: 7500,
-  supplyExchangePrice: new BN("1002340000"),
-  borrowExchangePrice: new BN("1005670000"),
-  totalSupplyWithInterest: new BN("123456789012"),
-  totalSupplyInterestFree: new BN("222"),
-  totalBorrowWithInterest: new BN("98765432101"),
-  totalBorrowInterestFree: new BN("111"),
+  supplyExchangePrice: 1002340000n,
+  borrowExchangePrice: 1005670000n,
+  totalSupplyWithInterest: 123456789012n,
+  totalSupplyInterestFree: 222n,
+  totalBorrowWithInterest: 98765432101n,
+  totalBorrowInterestFree: 111n,
 };
 
 const rewardsModel: JupLendingRewardsRateModel = {
-  startTvl: new BN("1000000000"),
-  duration: new BN("2592000"),
-  startTime: new BN("1780000000"),
-  yearlyReward: new BN("500000000000"),
+  startTvl: 1000000000n,
+  duration: 2592000n,
+  startTime: 1780000000n,
+  yearlyReward: 500000000000n,
 };
 
 const rateModel: JupRateModel = {
@@ -49,9 +48,7 @@ const rateModel: JupRateModel = {
 
 describe("jup-lend curated type round-trips", () => {
   it("round-trips JupTokenReserve through its DTO", () => {
-    expect(dtoToJupTokenReserveRaw(jupTokenReserveRawToDto(tokenReserve))).toEqual(
-      tokenReserve
-    );
+    expect(dtoToJupTokenReserveRaw(jupTokenReserveRawToDto(tokenReserve))).toEqual(tokenReserve);
   });
 
   it("round-trips JupLendingRewardsRateModel through its DTO", () => {
@@ -69,12 +66,12 @@ describe("jup-lend curated type round-trips", () => {
       ...tokenReserve,
       mint: pk(2),
       vault: pk(3),
-      lastUpdateTimestamp: new BN(1),
+      lastUpdateTimestamp: 1n,
       maxUtilization: 10000,
-      totalClaimAmount: new BN(0),
+      totalClaimAmount: 0n,
       interactingProtocol: pk(4),
-      interactingTimestamp: new BN(0),
-      interactingBalance: new BN(0),
+      interactingTimestamp: 0n,
+      interactingBalance: 0n,
     };
     const dto = jupTokenReserveRawToDto(rawLike);
     expect(dto).not.toHaveProperty("mint");

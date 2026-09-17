@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`jup-lend instruction wire format > derived accounts (token) 1`] = `
+{
+  "fTokenMint": "5mSyaME8W2xqnS2dYSisZfVvJ8j6RWmskMGNNewXHKoC",
+  "lendingAdmin": "5nmGjA4s7ATzpBQXC5RNceRpaJ7pYw2wKsNBWyuSAZV6",
+  "lendingSupplyPositionOnLiquidity": "8EKuG8G36u73vJK5HCKK5GtsfbiwCYPdmnuN4Z34qxcH",
+  "liquidity": "7s1da8DduuBFqGra5bJBjpnvL5E9mGzCuMk1Qkh4or2Z",
+  "rateModel": "AKgvCsSH3mUGJKhvLLKcqHcvrGBMeS1B8DwnLvJkZTR7",
+  "rewardsRateModel": "CcNpq5FgXReKA9NYnbtGnyDiFF4G9V86xNhkRiBgaHUU",
+  "supplyTokenReservesLiquidity": "ET3F3vWk14NXjkJL2fCpatch9JiWCH4AhyyoYdqhNimp",
+  "vault": "8KcE4Lp6Gn1SARvKmWtvGGwsNbYmhS7nPbcCrxN6AQVB",
+}
+`;
+
+exports[`jup-lend instruction wire format > derived accounts (token-2022) 1`] = `
+{
+  "fTokenMint": "5mSyaME8W2xqnS2dYSisZfVvJ8j6RWmskMGNNewXHKoC",
+  "lendingAdmin": "5nmGjA4s7ATzpBQXC5RNceRpaJ7pYw2wKsNBWyuSAZV6",
+  "lendingSupplyPositionOnLiquidity": "8EKuG8G36u73vJK5HCKK5GtsfbiwCYPdmnuN4Z34qxcH",
+  "liquidity": "7s1da8DduuBFqGra5bJBjpnvL5E9mGzCuMk1Qkh4or2Z",
+  "rateModel": "AKgvCsSH3mUGJKhvLLKcqHcvrGBMeS1B8DwnLvJkZTR7",
+  "rewardsRateModel": "CcNpq5FgXReKA9NYnbtGnyDiFF4G9V86xNhkRiBgaHUU",
+  "supplyTokenReservesLiquidity": "ET3F3vWk14NXjkJL2fCpatch9JiWCH4AhyyoYdqhNimp",
+  "vault": "Eer6AvfhTdy2WpHunkegNxh6bKksJCZN31B9Z8qkzZ66",
+}
+`;
+
+exports[`jup-lend instruction wire format > update_rate 1`] = `
+{
+  "data": "18e135bd48d4e1b2",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      false,
+    ],
+  ],
+  "programId": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+}
+`;
