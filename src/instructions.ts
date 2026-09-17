@@ -653,6 +653,8 @@ async function makeEndFlashLoanIx(
     marginfiAccount: PublicKey;
     // Optional accounts - to override inference
     authority?: PublicKey;
+    // Pass explicitly when the account isn't on-chain yet (fresh-account flash loans)
+    group?: PublicKey;
   },
   remainingAccounts: AccountMeta[] = []
 ) {

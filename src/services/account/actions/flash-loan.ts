@@ -70,6 +70,7 @@ export async function makeEndFlashLoanIx(
           program,
           {
             marginfiAccount: marginfiAccountPk,
+            group,
             authority,
           },
           remainingAccounts.map((account) => ({
