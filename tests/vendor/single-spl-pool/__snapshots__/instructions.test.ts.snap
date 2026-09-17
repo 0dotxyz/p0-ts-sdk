@@ -1,0 +1,150 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`single-spl-pool wire format > depositStake 1`] = `
+{
+  "data": "02",
+  "keys": [
+    [
+      "87PgDUB5MoA5zYBcX8kn1bfquvKWwYDU3iHEGPQJ3XCC",
+      false,
+      false,
+    ],
+    [
+      "5vtuSqzG9jKgvmeahJRuEWHjYBsjAjk2ggfNaUxseHjD",
+      false,
+      true,
+    ],
+    [
+      "78k2Sc8ocpbZY3gqb1uWvjFZrymgT95FdA4VMBxxVr8A",
+      false,
+      false,
+    ],
+    [
+      "69nnzNAVaU6obiKFg8m9YuJ5P38eDUaiDGuz7WyaftWH",
+      false,
+      true,
+    ],
+    [
+      "ATpAPpMpzxv5PaAC42tLUQp5sBQyiGXv2ymiz33hxcpb",
+      false,
+      false,
+    ],
+    [
+      "9eEJdQeu1YAJiEQnzMf87dw63xH2KYsQP9BKfkfSLZmG",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "SysvarC1ock11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "SysvarStakeHistory1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "Stake11111111111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE",
+}
+`;
+
+exports[`single-spl-pool wire format > pool addresses 1`] = `
+{
+  "mint": "69nnzNAVaU6obiKFg8m9YuJ5P38eDUaiDGuz7WyaftWH",
+  "mintAuthority": "9eEJdQeu1YAJiEQnzMf87dw63xH2KYsQP9BKfkfSLZmG",
+  "onRamp": "78k2Sc8ocpbZY3gqb1uWvjFZrymgT95FdA4VMBxxVr8A",
+  "pool": "87PgDUB5MoA5zYBcX8kn1bfquvKWwYDU3iHEGPQJ3XCC",
+  "stake": "5vtuSqzG9jKgvmeahJRuEWHjYBsjAjk2ggfNaUxseHjD",
+  "stakeAuthority": "ATpAPpMpzxv5PaAC42tLUQp5sBQyiGXv2ymiz33hxcpb",
+}
+`;
+
+exports[`single-spl-pool wire format > withdrawStake 1`] = `
+{
+  "data": "030505050505050505050505050505050505050505050505050505050505050505351cdcdf02000000",
+  "keys": [
+    [
+      "87PgDUB5MoA5zYBcX8kn1bfquvKWwYDU3iHEGPQJ3XCC",
+      false,
+      false,
+    ],
+    [
+      "5vtuSqzG9jKgvmeahJRuEWHjYBsjAjk2ggfNaUxseHjD",
+      false,
+      true,
+    ],
+    [
+      "78k2Sc8ocpbZY3gqb1uWvjFZrymgT95FdA4VMBxxVr8A",
+      false,
+      false,
+    ],
+    [
+      "69nnzNAVaU6obiKFg8m9YuJ5P38eDUaiDGuz7WyaftWH",
+      false,
+      true,
+    ],
+    [
+      "ATpAPpMpzxv5PaAC42tLUQp5sBQyiGXv2ymiz33hxcpb",
+      false,
+      false,
+    ],
+    [
+      "9eEJdQeu1YAJiEQnzMf87dw63xH2KYsQP9BKfkfSLZmG",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "SysvarC1ock11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "Stake11111111111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE",
+}
+`;
