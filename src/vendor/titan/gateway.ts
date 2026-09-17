@@ -10,9 +10,19 @@
 //       developer-doc/swap-api/reference/gateway/gateway-quote-swap
 
 import { Encoder, decode } from "@msgpack/msgpack";
-import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+  getAddressDecoder,
+  getAddressEncoder,
+  getBase64Decoder,
+  isSignerRole,
+  isWritableRole,
+  type AccountMeta,
+  type Address,
+  type AddressesByLookupTableAddress,
+  type Instruction,
+} from "@solana/kit";
 
-import { isJitoDontFront } from "./helpers";
+import { isJitoDontFront, titanAccountRole } from "./helpers";
 import type { Instruction as TitanWireInstruction, SwapRoute } from "./types";
 
 const msgpackEncoder = new Encoder({ useBigInt64: true });
@@ -36,50 +46,40 @@ export interface TitanTransactionTemplate {
   m: { p: Uint8Array; s: boolean; w: boolean }[];
 }
 
-/** Convert a web3.js instruction into Titan wire format (raw bytes). */
-export function instructionToTitanWire(ix: TransactionInstruction): TitanWireInstruction {
-  return {
-    p: ix.programId.toBytes(),
-    a: ix.keys.map((k) => ({
-      p: k.pubkey.toBytes(),
-      s: k.isSigner,
-      w: k.isWritable,
-    })),
-    d: Uint8Array.from(ix.data),
-  };
-}
+const addressBytes = (address: Address) => Uint8Array.from(getAddressEncoder().encode(address));
 
-/** Convert a web3.js ALT into Titan wire format (key + inner addresses). */
-export function lutToTitanWire(lut: AddressLookupTableAccount): TitanTemplateLut {
-  return {
-    p: lut.key.toBytes(),
-    a: lut.state.addresses.map((a) => a.toBytes()),
-  };
-}
+const accountMetaToTitanWire = (account: AccountMeta) => ({
+  p: addressBytes(account.address),
+  s: isSignerRole(account.role),
+  w: isWritableRole(account.role),
+});
 
 /**
  * Build a Titan `transactionTemplate` from the surrounding (non-swap) footprint.
- * ALT order is preserved — pass them in the order the final message will use.
+ * ALT order is preserved — insert the tables in the order the final message will use.
  */
 export function buildTitanTemplate(footprint: {
-  instructions: TransactionInstruction[];
-  luts: AddressLookupTableAccount[];
-  extraAccountMetas?: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[];
+  instructions: Instruction[];
+  luts: AddressesByLookupTableAddress;
+  extraAccountMetas?: AccountMeta[];
 }): TitanTransactionTemplate {
   return {
-    i: footprint.instructions.map(instructionToTitanWire),
-    a: footprint.luts.map(lutToTitanWire),
-    m: (footprint.extraAccountMetas ?? []).map((m) => ({
-      p: m.pubkey.toBytes(),
-      s: m.isSigner,
-      w: m.isWritable,
+    i: footprint.instructions.map((ix) => ({
+      p: addressBytes(ix.programAddress),
+      a: (ix.accounts ?? []).map(accountMetaToTitanWire),
+      d: Uint8Array.from(ix.data ?? []),
     })),
+    a: Object.entries(footprint.luts).map(([lookupTable, addresses]) => ({
+      p: addressBytes(lookupTable as Address),
+      a: addresses.map(addressBytes),
+    })),
+    m: (footprint.extraAccountMetas ?? []).map(accountMetaToTitanWire),
   };
 }
 
 /** msgpack-encode then base64 a template for the gateway query string. */
 export function encodeTitanTemplate(template: TitanTransactionTemplate): string {
-  return Buffer.from(msgpackEncoder.encode(template)).toString("base64");
+  return getBase64Decoder().decode(msgpackEncoder.encode(template));
 }
 
 // --- Gateway quote/swap (V3) ---
@@ -263,17 +263,16 @@ export function selectGatewayRoute(
   );
 }
 
-/** Deserialize a Titan wire instruction (raw bytes) into a web3.js instruction. */
-export function deserializeTitanWireInstruction(ix: TitanWireInstruction): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: new PublicKey(ix.p),
-    keys: ix.a
+/** Deserialize a Titan wire instruction (raw bytes), dropping the `jitodontfront` marker account. */
+export function deserializeTitanWireInstruction(ix: TitanWireInstruction): Instruction {
+  return {
+    programAddress: getAddressDecoder().decode(ix.p),
+    accounts: ix.a
       .map((account) => ({
-        pubkey: new PublicKey(account.p),
-        isSigner: account.s,
-        isWritable: account.w,
+        address: getAddressDecoder().decode(account.p),
+        role: titanAccountRole(account.s, account.w),
       }))
-      .filter((key) => !isJitoDontFront(key.pubkey)),
-    data: Buffer.from(ix.d),
-  });
+      .filter((account) => !isJitoDontFront(account.address)),
+    data: Uint8Array.from(ix.d),
+  };
 }

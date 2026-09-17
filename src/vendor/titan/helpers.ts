@@ -3,11 +3,18 @@
 // base64-serialized responses.
 
 import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+  AccountRole,
+  fetchAddressesForLookupTables,
+  getAddressDecoder,
+  getBase64Encoder,
+  upgradeRoleToSigner,
+  upgradeRoleToWritable,
+  type Address,
+  type AddressesByLookupTableAddress,
+  type GetMultipleAccountsApi,
+  type Instruction,
+  type Rpc,
+} from "@solana/kit";
 
 // --- Serialized (base64) types from the HTTP proxy ---
 
@@ -51,30 +58,35 @@ export interface TitanProxyExactOutResponse {
  * marker, so we drop it to keep the swap landable inside a Jito bundle (our
  * flashloan swaps are bundled).
  */
-export const isJitoDontFront = (pubkey: PublicKey) =>
-  pubkey.toBase58().startsWith("jitodontfront");
+export const isJitoDontFront = (address: Address) => address.startsWith("jitodontfront");
 
-export function deserializeSerializedInstruction(
-  ix: SerializedInstruction,
-): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: new PublicKey(Buffer.from(ix.p, "base64")),
-    keys: ix.a
+/** Kit account role for Titan's `s` (signer) / `w` (writable) flags. */
+export function titanAccountRole(isSigner: boolean, isWritable: boolean): AccountRole {
+  const role = isWritable ? upgradeRoleToWritable(AccountRole.READONLY) : AccountRole.READONLY;
+  return isSigner ? upgradeRoleToSigner(role) : role;
+}
+
+/** Deserializes a base64 HTTP-proxy instruction, dropping the `jitodontfront` marker account. */
+export function deserializeSerializedInstruction(ix: SerializedInstruction): Instruction {
+  const fromBase64 = (value: string) =>
+    getAddressDecoder().decode(getBase64Encoder().encode(value));
+  return {
+    programAddress: fromBase64(ix.p),
+    accounts: ix.a
       .map((account) => ({
-        pubkey: new PublicKey(Buffer.from(account.p, "base64")),
-        isSigner: account.s,
-        isWritable: account.w,
+        address: fromBase64(account.p),
+        role: titanAccountRole(account.s, account.w),
       }))
-      .filter((key) => !isJitoDontFront(key.pubkey)),
-    data: Buffer.from(ix.d, "base64"),
-  });
+      .filter((account) => !isJitoDontFront(account.address)),
+    data: getBase64Encoder().encode(ix.d),
+  };
 }
 
 // --- Route selection ---
 
 export function selectBestRoute<T extends { inAmount: number; outAmount: number }>(
   quotes: { [id: string]: T },
-  swapMode: "ExactIn" | "ExactOut",
+  swapMode: "ExactIn" | "ExactOut"
 ): T | null {
   const routes = Object.values(quotes);
   if (routes.length === 0) return null;
@@ -108,7 +120,7 @@ export function buildSwapQuoteResult(
     contextSlot?: number;
     timeTaken?: number;
   },
-  swapMode: "ExactIn" | "ExactOut",
+  swapMode: "ExactIn" | "ExactOut"
 ): TitanSwapQuoteResult {
   const slippageBps = route.slippageBps;
   // The WebSocket/protobuf path decodes int64 amounts as BigInt; token amounts fit safely in a
@@ -141,21 +153,10 @@ export function buildSwapQuoteResult(
 
 // --- LUT resolution ---
 
-export async function resolveLookupTables(
-  connection: Connection,
-  lutPubkeys: PublicKey[],
-): Promise<AddressLookupTableAccount[]> {
-  if (lutPubkeys.length === 0) return [];
-
-  const lutAccountsRaw = await connection.getMultipleAccountsInfo(lutPubkeys);
-
-  return lutAccountsRaw
-    .map((accountInfo, index) => {
-      if (!accountInfo) return null;
-      return new AddressLookupTableAccount({
-        key: lutPubkeys[index],
-        state: AddressLookupTableAccount.deserialize(accountInfo.data),
-      });
-    })
-    .filter((account): account is AddressLookupTableAccount => account !== null);
+/** Fetches the addresses of the given lookup tables; missing tables are omitted. */
+export function resolveLookupTables(
+  rpc: Rpc<GetMultipleAccountsApi>,
+  lookupTables: Address[]
+): Promise<AddressesByLookupTableAddress> {
+  return fetchAddressesForLookupTables(lookupTables, rpc);
 }

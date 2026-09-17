@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`titan wire format > deserializes a proxy (base64) instruction without the jitodontfront marker 1`] = `
+{
+  "data": "0201020304",
+  "keys": [
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      true,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      false,
+    ],
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`titan wire format > deserializes a wire instruction without the jitodontfront marker 1`] = `
+{
+  "data": "0201020304",
+  "keys": [
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      true,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      false,
+    ],
+  ],
+  "programId": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+}
+`;
+
+exports[`titan wire format > encodes a transaction template 1`] = `"g6FpkYOhcMQgAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGhYZWDoXDEIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICoXPDoXfDg6FwxCADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA6FzwqF3w4OhcMQgBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAShc8Ohd8KDoXDEIAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFoXPCoXfCg6FwxCAK8cNDIYjKOmNR9DKdDaF8fLS6TJJH0CpC3D8yvSAAAKFzwqF3wqFkxAUCAQIDBKFhkoKhcMQgCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgqhYZLEIAsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLxCAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIKhcMQgFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBShYZLEIBUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVxCAWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFqFtkYOhcMQgHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh6hc8Khd8M="`;
