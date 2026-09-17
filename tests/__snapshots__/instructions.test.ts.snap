@@ -1,0 +1,2721 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`marginfi instruction wire format > makeAccountTransferToNewAccountIx 1`] = `
+{
+  "data": "1c4f81e7a9454541",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "548jb4wcUtpbNS1TAva8TXJmeXd5QpCCXUzNVogwpzMR",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "5842jNQd5C7pWXFxcDu3kQ5XtgqH5st25tf2ZBjYaKg8",
+      false,
+      false,
+    ],
+    [
+      "5ByKsfsdfVR3ecWU3XDy3GrJ8r3UkwZqeJKgcZn9Kezq",
+      false,
+      true,
+    ],
+    [
+      "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeBeginFlashLoanIx 1`] = `
+{
+  "data": "0e8321dc51bab46b0500000000000000",
+  "keys": [
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeBorrowIx 1`] = `
+{
+  "data": "047e74353005d41fffffffffffffffff",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeCloseAccountIx 1`] = `
+{
+  "data": "badd5d223261c2f1",
+  "keys": [
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDepositIx depositUpToLimit none 1`] = `
+{
+  "data": "ab5eeb675240d48cd20400000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDepositIx depositUpToLimit true 1`] = `
+{
+  "data": "ab5eeb675240d48cd2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDriftDepositIx no oracle 1`] = `
+{
+  "data": "fc3ffac96237820cd204000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+      false,
+      false,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "3mg7sM6RFEBHiiFotFNfvteH1WdFcc9cujKuPaqZdfDz",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDriftDepositIx oracle 1`] = `
+{
+  "data": "fc3ffac96237820cd204000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "3qbR1eZRqXUWroWKKYhbDmR3FfqTHfqSU8zZSxtANzYh",
+      false,
+      false,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+      false,
+      false,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "3mg7sM6RFEBHiiFotFNfvteH1WdFcc9cujKuPaqZdfDz",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDriftWithdrawIx no rewards, withdrawAll false 1`] = `
+{
+  "data": "563bba7bb7b5ea89d2040000000000000100",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+      false,
+      false,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "3mg7sM6RFEBHiiFotFNfvteH1WdFcc9cujKuPaqZdfDz",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "3uWi9x2SRpmjztkpkr2WWeBoVq3exjXG2YfDWLvm8KsQ",
+      false,
+      false,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDriftWithdrawIx rewards, withdrawAll true 1`] = `
+{
+  "data": "563bba7bb7b5ea89d2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "3qbR1eZRqXUWroWKKYhbDmR3FfqTHfqSU8zZSxtANzYh",
+      false,
+      false,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+      false,
+      false,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "3mg7sM6RFEBHiiFotFNfvteH1WdFcc9cujKuPaqZdfDz",
+      false,
+      true,
+    ],
+    [
+      "3yS1JFVT284y8z1LC9MRoWxZjzFrdoD5axKsZiyMsfC7",
+      false,
+      false,
+    ],
+    [
+      "43MJSYxTcRNCH5FqdSgM6PjKz9U4Jrtu9MzXd71xczWp",
+      false,
+      false,
+    ],
+    [
+      "47GbarRUCifRRAWM4k1GPGW6EJgFyvaihmfBgV4ZNKqX",
+      false,
+      false,
+    ],
+    [
+      "4BBtj9tUo1xeZFkrW3LBg9GrUTtTezGYGBKqjs7A7fAE",
+      false,
+      false,
+    ],
+    [
+      "4F7BsTMVPKFshM1MwLf6y23cid6fL3xMpazVoF9krzUw",
+      false,
+      false,
+    ],
+    [
+      "4K2V1kpVycZ6qSFsNdz2FtpNxnJs17eBNzf9rdCMcKoe",
+      false,
+      false,
+    ],
+    [
+      "3uWi9x2SRpmjztkpkr2WWeBoVq3exjXG2YfDWLvm8KsQ",
+      false,
+      false,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeEndFlashLoanIx 1`] = `
+{
+  "data": "697cc96a9902089c",
+  "keys": [
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeGroupInitIx 1`] = `
+{
+  "data": "ff43431a5e1f2214",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      true,
+    ],
+    [
+      "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeInitMarginfiAccountIx 1`] = `
+{
+  "data": "2b4e3dff9434f99a",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeInitMarginfiAccountPdaIx thirdPartyId none 1`] = `
+{
+  "data": "57b15b50da77f51f030000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeInitMarginfiAccountPdaIx thirdPartyId some 1`] = `
+{
+  "data": "57b15b50da77f51f0300010700",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeJuplendDepositIx 1`] = `
+{
+  "data": "720bda51b7a58fffd204000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "2tjH1S3HZMKLuY1DDN8j9WcMqStdrnDxeRfNdeFmvL2o",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+      false,
+      false,
+    ],
+    [
+      "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+      false,
+      true,
+    ],
+    [
+      "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+      false,
+      true,
+    ],
+    [
+      "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+      false,
+      false,
+    ],
+    [
+      "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+      false,
+      true,
+    ],
+    [
+      "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+      false,
+      true,
+    ],
+    [
+      "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+      false,
+      false,
+    ],
+    [
+      "2poys8aGy427mSkhn4oordqbbHgSBiY961ziaGDBAzi6",
+      false,
+      false,
+    ],
+    [
+      "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeJuplendWithdrawIx withdrawAll none 1`] = `
+{
+  "data": "f5a4fdca354dfbddd20400000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "2tjH1S3HZMKLuY1DDN8j9WcMqStdrnDxeRfNdeFmvL2o",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+      false,
+      false,
+    ],
+    [
+      "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+      false,
+      true,
+    ],
+    [
+      "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+      false,
+      true,
+    ],
+    [
+      "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+      false,
+      false,
+    ],
+    [
+      "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+      false,
+      true,
+    ],
+    [
+      "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+      false,
+      true,
+    ],
+    [
+      "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+      false,
+      true,
+    ],
+    [
+      "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+      false,
+      false,
+    ],
+    [
+      "2poys8aGy427mSkhn4oordqbbHgSBiY961ziaGDBAzi6",
+      false,
+      false,
+    ],
+    [
+      "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeJuplendWithdrawIx withdrawAll true 1`] = `
+{
+  "data": "f5a4fdca354dfbddd2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "2tjH1S3HZMKLuY1DDN8j9WcMqStdrnDxeRfNdeFmvL2o",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      false,
+      true,
+    ],
+    [
+      "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+      false,
+      false,
+    ],
+    [
+      "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+      false,
+      true,
+    ],
+    [
+      "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+      false,
+      true,
+    ],
+    [
+      "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+      false,
+      false,
+    ],
+    [
+      "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+      false,
+      true,
+    ],
+    [
+      "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+      false,
+      true,
+    ],
+    [
+      "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+      false,
+      true,
+    ],
+    [
+      "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+      false,
+      false,
+    ],
+    [
+      "2poys8aGy427mSkhn4oordqbbHgSBiY961ziaGDBAzi6",
+      false,
+      false,
+    ],
+    [
+      "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoDepositIx farms, refresh none 1`] = `
+{
+  "data": "ed08bcbb73633155d20400000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+      false,
+      true,
+    ],
+    [
+      "3S5e9qmNHjhA2G1Ghkk5UWnTniaFFHiX7gzd6gcZtzcT",
+      false,
+      true,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoDepositIx no farms, refresh true 1`] = `
+{
+  "data": "ed08bcbb73633155d2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=false refresh=false 1`] = `
+{
+  "data": "c765292dd562e0c8d20400000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      true,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+      false,
+      true,
+    ],
+    [
+      "3S5e9qmNHjhA2G1Ghkk5UWnTniaFFHiX7gzd6gcZtzcT",
+      false,
+      true,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=false refresh=true 1`] = `
+{
+  "data": "c765292dd562e0c8d2040000000000000102",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      true,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+      false,
+      true,
+    ],
+    [
+      "3S5e9qmNHjhA2G1Ghkk5UWnTniaFFHiX7gzd6gcZtzcT",
+      false,
+      true,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=true refresh=false 1`] = `
+{
+  "data": "c765292dd562e0c8d2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      true,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=true refresh=true 1`] = `
+{
+  "data": "c765292dd562e0c8d2040000000000000103",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      false,
+      true,
+    ],
+    [
+      "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+      false,
+      false,
+    ],
+    [
+      "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+      false,
+      false,
+    ],
+    [
+      "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      true,
+    ],
+    [
+      "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+      false,
+      true,
+    ],
+    [
+      "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+      false,
+      true,
+    ],
+    [
+      "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+      false,
+      true,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+      false,
+      false,
+    ],
+    [
+      "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+      false,
+      false,
+    ],
+    [
+      "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeLendingAccountLiquidateIx 1`] = `
+{
+  "data": "d6a997d5fba756dbd2040000000000000406",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "4NwnA4HWZurKyXWNowJwYmb9CwX4gBKzwQKov1ExMf8M",
+      false,
+      true,
+    ],
+    [
+      "4Ss5JMkXAD9Z7cktFEdrqeMuT6jGMF1pVozTyPHZ6zT4",
+      false,
+      true,
+    ],
+    [
+      "4WnNSfDXkWSnFi1PgXxn8X8fhFwU2Jhe4Df82mL9rKmm",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "4ahfaxgYLok1PoFu7qHhRPuRwR9fhNPTcdKn69Nkbf6U",
+      false,
+      true,
+    ],
+    [
+      "7PbQqL2jTLiBh6vpvJWa7njj3SJTVtqAoiuY7M1Ve8cS",
+      false,
+      false,
+    ],
+    [
+      "5MB1myvSSeAYA6js9cHBkCLH9p2ESJWeKFcsNG4vpmwh",
+      false,
+      true,
+    ],
+    [
+      "BKLYSAPgL8S6uaoT7puS8JUyDQp9RLtaSEXj9m27ZwW5",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleIx 1`] = `
+{
+  "data": "d152ffab7c154751034646464646464646464646464646464646464646464646464646464646464646",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleScopeIx 1`] = `
+{
+  "data": "86e47f03758455924747474747474747474747474747474747474747474747474747474747474747ff01",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "5oEzAP4izB65uRm2yDAEf9oALGwHpWkDfyKb8zBY3euC",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeLendingPoolSetOraclePriceIx 1`] = `
+{
+  "data": "eaf4254165ffd9a0090909090909090909090909090909090b",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePoolAddBankIx 1`] = `
+{
+  "data": "d744484ed0da67b60101010101010101010101010101010102020202020202020202020202020202030303030303030303030303030303030404040404040404040404040404040440420f000000000005050505050505050505050505050505060606060606060606060606060606060707070707070707070707070707070708080808080808080808080808080808090909090909090909090909090909090a00000014000000000000000000000001000000020000000200000004000000030000000600000004000000080000000120a1070000000000000100000000000040548900000000003c0064000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+      false,
+      false,
+    ],
+    [
+      "5ByKsfsdfVR3ecWU3XDy3GrJ8r3UkwZqeJKgcZn9Kezq",
+      false,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      true,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "ATiyWijqxJTKw8ZymcfmtCSY6FyGkkJpfTfW98RYeNZx",
+      false,
+      true,
+    ],
+    [
+      "E5V4L5JK8iH4NagjPuGXDiSShLLcfnc9wwvdoroFKrN4",
+      false,
+      false,
+    ],
+    [
+      "DwiGXtmH3ZSMRM9n1aBBNnV8j4jRJdxdznn22y72tddo",
+      false,
+      true,
+    ],
+    [
+      "AH2MGem27kJ24M5LLu86YxL8keFvNGDVLg6VpPqKMjzn",
+      false,
+      false,
+    ],
+    [
+      "AzXBW9Ge18LYnKCahamHvBpc4iXjBHyCrBdKLJ46mhYm",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePoolAddPermissionlessStakedBankIx seed 9 1`] = `
+{
+  "data": "7fbb7922bba7ee660900000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      true,
+    ],
+    [
+      "6QWeT6FpJrm8AF1btu6WH2k2Xhq6t5vbheKVfQavmeoZ",
+      false,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "6URwbPipuA4MJLG7LCRRZuWnms3JZ9cRG3z9indXWz8G",
+      false,
+      false,
+    ],
+    [
+      "6YMEjhBqVTMaSRWcmVkLrnHZ22FWEDJEpTeonAg8GKSy",
+      false,
+      false,
+    ],
+    [
+      "6cGXszer5keoaWm8Co5G9f4KGBThuGz4NsKTqYij1emg",
+      false,
+      false,
+    ],
+    [
+      "6gBq2J7rg3x2ic1de6QBSXq5WLfuaLfswGz7tvmKkz6P",
+      false,
+      false,
+    ],
+    [
+      "6idQqyajFnKqWmVa7saeUyxkf9Y73dT8ACpTxakAZ8Bt",
+      false,
+      true,
+    ],
+    [
+      "3ahu6pWDnWz3nCsJbtp9MEnjNmRc9cwdS6u9GCNZB3GK",
+      false,
+      false,
+    ],
+    [
+      "Akj4kKWWu7yCmFffSYmUkWGvtz7XthEyDq4sv6JP83qG",
+      false,
+      true,
+    ],
+    [
+      "6eYP5twtNnQZPD2vKiSocH3SsYqY7GVasFZzokK3vUrF",
+      false,
+      false,
+    ],
+    [
+      "2vvvprzzuL58daQQa1gv6wpbwxBYa9MMRSdic7YpAqfr",
+      false,
+      true,
+    ],
+    [
+      "4VU1pKheJW3FKDWgLmouPxhA769U9gDZYWmQSxHjVPJz",
+      false,
+      false,
+    ],
+    [
+      "ELYJWJykM2W53gQbWvkf6Gso2FrnCmLA8wYAJH8AhoQN",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePoolAddPermissionlessStakedBankIx seed default 1`] = `
+{
+  "data": "7fbb7922bba7ee660000000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      true,
+    ],
+    [
+      "6QWeT6FpJrm8AF1btu6WH2k2Xhq6t5vbheKVfQavmeoZ",
+      false,
+      false,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "6URwbPipuA4MJLG7LCRRZuWnms3JZ9cRG3z9indXWz8G",
+      false,
+      false,
+    ],
+    [
+      "6YMEjhBqVTMaSRWcmVkLrnHZ22FWEDJEpTeonAg8GKSy",
+      false,
+      false,
+    ],
+    [
+      "6cGXszer5keoaWm8Co5G9f4KGBThuGz4NsKTqYij1emg",
+      false,
+      false,
+    ],
+    [
+      "6gBq2J7rg3x2ic1de6QBSXq5WLfuaLfswGz7tvmKkz6P",
+      false,
+      false,
+    ],
+    [
+      "B3QZGFkiUEtbaq78SsCoaMceNorqT28hbbqDqDj2dhhh",
+      false,
+      true,
+    ],
+    [
+      "3R6HFNfXptWdzQmZ76PzNPP18aay26KRooTAov2F5P9E",
+      false,
+      false,
+    ],
+    [
+      "Gcfto4xw9xpW5W8q3ijwMW5JRf7dZqU6G2vg2y6a5A8M",
+      false,
+      true,
+    ],
+    [
+      "G9c5F6Ts7YX6zgQEJzao4S8X7M8D6f3fAk7ekwf5coPt",
+      false,
+      false,
+    ],
+    [
+      "FXPBv7ASP3zCpPLjJVbDbAgBsyAyinnanxs8e2Y3wuH6",
+      false,
+      true,
+    ],
+    [
+      "3Ea6nvVjXyibic19CJ37omDDshgWuRHtZEg3unx85Ptf",
+      false,
+      false,
+    ],
+    [
+      "73EESEJK7R7GrzvoNpCMhmyToZr4UyWPYsC83nWJUdrN",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePoolConfigureBankIx 1`] = `
+{
+  "data": "79ad9c285d9438ed0101010101010101010101010101010101000102020202020202020202020202020202000140420f00000000000001010101030303030303030303030303030303030104040404040404040404040404040404010505050505050505050505050505050501060606060606060606060606060606060107070707070707070707070707070707010a0000000114000000010000000000000000010000000200000002000000040000000300000006000000040000000800000001010102000164000000013c00010101000000000000000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePulseHealthIx 1`] = `
+{
+  "data": "ba347561224a27fd",
+  "keys": [
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeRepayIx repayAll true 1`] = `
+{
+  "data": "4fd1acb1de33ad97d2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeWithdrawIx withdrawAll true 1`] = `
+{
+  "data": "24484a13d2d2c0c0d2040000000000000101",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      true,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;

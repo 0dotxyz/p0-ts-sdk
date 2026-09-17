@@ -18,6 +18,7 @@ export default defineConfig({
   external: [
     "@coral-xyz/anchor",
     "@coral-xyz/borsh",
+    "@solana/kit",
     "@solana/web3.js",
     "@switchboard-xyz/on-demand",
     "@switchboard-xyz/common",

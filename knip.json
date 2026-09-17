@@ -1,9 +1,21 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["examples/*.ts"],
-  "ignoreDependencies": ["buffer", "@vitest/coverage-v8"],
+  "entry": [
+    "examples/*.ts",
+    "codama.mjs"
+  ],
+  "ignoreDependencies": [
+    "buffer",
+    "@vitest/coverage-v8",
+    "@codama/nodes-from-anchor",
+    "@codama/renderers-js",
+    "@codama/visitors"
+  ],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "duplicates": "warn"
-  }
+  },
+  "ignore": [
+    "src/generated/**"
+  ]
 }

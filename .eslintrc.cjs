@@ -50,5 +50,5 @@ module.exports = {
     'import/named': 'off',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
   },
-  ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.ts', '*.config.js'],
+  ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.ts', '*.config.js', 'src/generated'],
 };
