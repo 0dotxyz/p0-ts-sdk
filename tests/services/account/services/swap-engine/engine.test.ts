@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
+
+import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 import { SwapProvider } from "~/services/account/types";
 import type {
@@ -20,7 +22,12 @@ const FIT_THRESHOLD = 100;
 vi.mock("~/services/account/utils/flashloan-size.utils", () => ({
   compileFlashloanPrecheck: ({ allIxs }: { allIxs: { data: Uint8Array }[] }) => {
     const bytes = allIxs.reduce((n, ix) => n + ix.data.length, 0);
-    return { fullTxSize: bytes, overshoot: bytes - FIT_THRESHOLD, writableAccounts: 5, totalAccounts: 10 };
+    return {
+      fullTxSize: bytes,
+      overshoot: bytes - FIT_THRESHOLD,
+      writableAccounts: 5,
+      totalAccounts: 10,
+    };
   },
 }));
 
@@ -61,6 +68,36 @@ function makeRoute(
     label,
   };
 }
+
+// The ixs Titan's raw routes (and Jupiter with wrapAndUnwrapSol=true) put around a SOL swap:
+// fund the taker's wSOL ATA from lamports, sync it, swap, close it back to lamports.
+const TAKER = PublicKey.unique();
+const TAKER_WSOL_ATA = getAssociatedTokenAddressSync(NATIVE_MINT, TAKER, true);
+const SWAP_PROGRAM = PublicKey.unique();
+const wrapTransferIx = SystemProgram.transfer({
+  fromPubkey: TAKER,
+  toPubkey: TAKER_WSOL_ATA,
+  lamports: 5,
+});
+const syncNativeIx = new TransactionInstruction({
+  programId: TOKEN_PROGRAM_ID,
+  keys: [{ pubkey: TAKER_WSOL_ATA, isSigner: false, isWritable: true }],
+  data: Buffer.from([17]),
+});
+const closeWsolIx = new TransactionInstruction({
+  programId: TOKEN_PROGRAM_ID,
+  keys: [
+    { pubkey: TAKER_WSOL_ATA, isSigner: false, isWritable: true },
+    { pubkey: TAKER, isSigner: false, isWritable: true },
+    { pubkey: TAKER, isSigner: true, isWritable: false },
+  ],
+  data: Buffer.from([9]),
+});
+const swapIx = new TransactionInstruction({
+  programId: SWAP_PROGRAM,
+  keys: [{ pubkey: TAKER_WSOL_ATA, isSigner: false, isWritable: true }],
+  data: Buffer.from([1, 2]),
+});
 
 function makeRequest(): SwapEngineRequest {
   return {
@@ -158,5 +195,49 @@ describe("runSwapEngine selection", () => {
     store.routes.set(SwapProvider.JUPITER, []);
 
     await expect(runSwapEngine(makeRequest())).rejects.toThrow();
+  });
+
+  it("drops provider SOL wrap/unwrap ixs around the swap so our flows own wSOL handling", async () => {
+    const route = makeRoute(SwapProvider.TITAN, 1000, 10, "titan-raw");
+    route.swapInstructions = [wrapTransferIx, syncNativeIx, swapIx, closeWsolIx];
+    route.setupInstructions = [wrapTransferIx, syncNativeIx];
+    store.routes.set(SwapProvider.TITAN, [route]);
+    store.routes.set(SwapProvider.JUPITER, []);
+
+    const result = await runSwapEngine({ ...makeRequest(), taker: TAKER });
+
+    expect(result.swapInstructions).toEqual([swapIx]);
+    expect(result.setupInstructions).toEqual([]);
+  });
+
+  it("keeps system/token ixs that are not the taker's wSOL wrap or unwrap", async () => {
+    const otherAta = PublicKey.unique();
+    const transferElsewhere = SystemProgram.transfer({
+      fromPubkey: TAKER,
+      toPubkey: otherAta,
+      lamports: 5,
+    });
+    const syncOther = new TransactionInstruction({
+      programId: TOKEN_PROGRAM_ID,
+      keys: [{ pubkey: otherAta, isSigner: false, isWritable: true }],
+      data: Buffer.from([17]),
+    });
+    const closeOther = new TransactionInstruction({
+      programId: TOKEN_PROGRAM_ID,
+      keys: [
+        { pubkey: otherAta, isSigner: false, isWritable: true },
+        { pubkey: TAKER, isSigner: false, isWritable: true },
+        { pubkey: TAKER, isSigner: true, isWritable: false },
+      ],
+      data: Buffer.from([9]),
+    });
+    const route = makeRoute(SwapProvider.JUPITER, 1000, 10, "jup");
+    route.swapInstructions = [transferElsewhere, syncOther, swapIx, closeOther];
+    store.routes.set(SwapProvider.JUPITER, [route]);
+    store.routes.set(SwapProvider.TITAN, []);
+
+    const result = await runSwapEngine({ ...makeRequest(), taker: TAKER });
+
+    expect(result.swapInstructions).toEqual([transferElsewhere, syncOther, swapIx, closeOther]);
   });
 });
