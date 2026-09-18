@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.3
+
+### Patch Changes
+
+- 28ed9f5: Oracle multipliers split into two steps: `fetchMultiplierAccountStates` / `fetchMultiplierAccountStatesFromAPI` read and decode the multiplier accounts (Marinade state, SPL stake pool, Exponent vault; JSON-safe `MultiplierAccountState`), and the sync `computeOracleMultipliers` maps them onto banks via `OracleMultiplierBankInput` (from `getOracleMultiplierBankInput`). `fetchOracleMultipliersFromChain` / `fetchOracleMultipliersFromAPI` now take inputs instead of `BankType[]`; the api mode sends only `multiplierAccounts` and expects `{ data: MultiplierAccountStates }`. `fetchOracleMultipliers(banks, opts)` is unchanged.
+- 28ed9f5: Deprecate `stakedCollatData` on the api-mode Pyth and Switchboard oracle options (now optional; unused, will be removed in a future release).
+- 53f96b9: Pass `group` to the non-sync end-flash-loan instruction so loops on a not-yet-created (projected) account build. Previously Anchor resolved `group` by fetching the marginfi account, which fails with "Reached maximum depth for account resolution" before the account exists. `instructions.makeEndFlashLoanIx` now accepts an optional `group`.
+
 ## 2.8.3-alpha.0
 
 ### Patch Changes
