@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.8.4
+
+### Patch Changes
+
+- **Breaking:** remove Switchboard oracle support. No production bank uses a Switchboard setup at the time of this change (0 / 204 mainnet; staging still has 14 / 28), so this drops the `@switchboard-xyz/on-demand` and `@switchboard-xyz/common` dependencies, the vendored on-demand IDL, and everything built on them:
+  - **Price reading for SwitchboardPull banks:** removes `fetchSwbOracleData`, the `swbOpts` option on `fetchOracleData` and `Project0Client.initialize`, and the `switchboardData` field on `OraclePrice`.
+  - **Feed cranking:** removes `makeSmartCrankSwbFeedIx`, `makeCrankSwbFeedIx`, `makeUpdateSwbFeedIx`, the smart-crank / crankability planner, the `crossbarUrl` option on every action, and the CRANK transaction that action builders used to prepend for Switchboard feeds.
+  - **Errors:** removes `SWITCHBOARD_FEED_UPDATE_FAILED` and the `SWB_PRICE_CONF_INTERVALS` constant.
+
+  The `OracleSetup` enum keeps its Switchboard variants (they are on-chain values); a bank configured with one now falls through to the zero-price fallback like any other unpriced oracle. `TransactionType.CRANK` stays — integration-refresh transactions still use it.
+
 ## 2.8.3
 
 ### Patch Changes
