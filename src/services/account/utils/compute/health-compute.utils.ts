@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import {
@@ -221,7 +221,7 @@ export interface ComputeHealthComponentsFromBalancesParams {
     }
   >;
   /** Optional banks to exclude from health calculation */
-  excludedBanks?: PublicKey[];
+  excludedBanks?: Address[];
 }
 
 /**
@@ -263,15 +263,14 @@ export function computeHealthComponentsFromBalances(
     excludedBanks,
   } = params;
   const filteredBalances = activeBalances.filter(
-    (accountBalance) => !(excludedBanks ?? []).find((b) => b.equals(accountBalance.bankPk))
+    (accountBalance) => !(excludedBanks ?? []).find((b) => b === accountBalance.bankPk)
   );
 
   let totalAssets = new BigNumber(0);
   let totalLiabilities = new BigNumber(0);
 
   for (const accountBalance of filteredBalances) {
-    // Cache toBase58 conversion - used 3 times
-    const bankKey = accountBalance.bankPk.toBase58();
+    const bankKey = accountBalance.bankPk;
 
     const bank = banksMap.get(bankKey);
     if (!bank) {
@@ -440,7 +439,7 @@ export interface ComputeLiabilityHealthComponentParams {
   /** Map of bank addresses to oracle price data */
   oraclePricesByBank: Map<string, OraclePrice>;
   /** Specific bank addresses to include as liabilities */
-  liabilityBanks: PublicKey[];
+  liabilityBanks: Address[];
   /** Margin requirement type (Equity, Initial, or Maintenance) */
   marginRequirement: MarginRequirementType;
 }
@@ -476,12 +475,10 @@ export function computeLiabilityHealthComponent(
 ): BigNumber {
   const { balances, banksMap, oraclePricesByBank, liabilityBanks, marginRequirement } = params;
 
-  const liabilitySet = new Set(liabilityBanks.map((b) => b.toBase58()));
+  const liabilitySet = new Set(liabilityBanks);
 
   // Filter to only include liability balances
-  const activeLiabilityBalances = balances.filter(
-    (b) => b.active && liabilitySet.has(b.bankPk.toBase58())
-  );
+  const activeLiabilityBalances = balances.filter((b) => b.active && liabilitySet.has(b.bankPk));
 
   const { liabilities } = computeHealthComponentsFromBalances({
     activeBalances: activeLiabilityBalances,
@@ -504,7 +501,7 @@ export interface ComputeAssetHealthComponentParams {
   /** Map of bank addresses to oracle price data */
   oraclePricesByBank: Map<string, OraclePrice>;
   /** Specific bank addresses to include as assets */
-  assetBanks: PublicKey[];
+  assetBanks: Address[];
   /** Margin requirement type (Equity, Initial, or Maintenance) */
   marginRequirement: MarginRequirementType;
   /** Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift) */
@@ -555,10 +552,10 @@ export function computeAssetHealthComponent(params: ComputeAssetHealthComponentP
     activeEmodeWeightsByBank,
   } = params;
 
-  const assetSet = new Set(assetBanks.map((b) => b.toBase58()));
+  const assetSet = new Set(assetBanks);
 
   // Filter to only include asset balances
-  const activeAssetBalances = balances.filter((b) => b.active && assetSet.has(b.bankPk.toBase58()));
+  const activeAssetBalances = balances.filter((b) => b.active && assetSet.has(b.bankPk));
 
   const { assets } = computeHealthComponentsFromBalances({
     activeBalances: activeAssetBalances,

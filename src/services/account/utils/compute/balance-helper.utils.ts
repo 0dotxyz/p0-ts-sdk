@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { BalanceType } from "../../types";
@@ -24,7 +24,7 @@ import { BalanceType } from "../../types";
  * // emptyBalance.assetShares.eq(0) === true
  * ```
  */
-export function createEmptyBalance(bankPk: PublicKey): BalanceType {
+export function createEmptyBalance(bankPk: Address): BalanceType {
   const balance: BalanceType = {
     active: false,
     bankPk,
@@ -79,9 +79,9 @@ export function getActiveBalances(balances: BalanceType[]): BalanceType[] {
  * }
  * ```
  */
-export function getBalance(bankAddress: PublicKey, balances: BalanceType[]): BalanceType {
+export function getBalance(bankAddress: Address, balances: BalanceType[]): BalanceType {
   return (
-    balances.filter((b) => b.active).find((b) => b.bankPk.equals(bankAddress)) ??
+    balances.filter((b) => b.active).find((b) => b.bankPk === bankAddress) ??
     createEmptyBalance(bankAddress)
   );
 }

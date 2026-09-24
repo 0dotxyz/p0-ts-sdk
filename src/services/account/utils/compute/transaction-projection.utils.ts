@@ -1,19 +1,16 @@
-import { BorshInstructionCoder } from "@coral-xyz/anchor";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { unwrapOption, type Address, type Instruction, type Option } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { BalanceType, MarginfiAccountType } from "../../types";
 
+import { DEFAULT_ADDRESS } from "~/constants";
+import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
+import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 import {
-  BankType,
   getAssetShares,
   getLiabilityShares,
-  AssetTag,
-  OracleSetup,
-} from "~/services/bank";
-import { MarginfiProgram } from "~/types";
+} from "~/services/bank/utils/compute/share-conversions.utils";
 import { composeRemainingAccounts } from "~/utils";
-import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
 
 /**
  * Transaction Projection & Health Check Utilities
@@ -53,22 +50,22 @@ export function computeHealthCheckAccounts({
 }: {
   account: MarginfiAccountType;
   banksMap: Map<string, BankType>;
-  mandatoryBanks?: PublicKey[];
-  excludedBanks?: PublicKey[];
+  mandatoryBanks?: Address[];
+  excludedBanks?: Address[];
 }): BankType[] {
   const balances = account.balances;
   const activeBalances = balances.filter((b) => b.active);
 
-  const mandatoryBanksSet = new Set(mandatoryBanks.map((b) => b.toBase58()));
-  const excludedBanksSet = new Set(excludedBanks.map((b) => b.toBase58()));
-  const activeBanks = new Set(activeBalances.map((b) => b.bankPk.toBase58()));
+  const mandatoryBanksSet = new Set(mandatoryBanks);
+  const excludedBanksSet = new Set(excludedBanks);
+  const activeBanks = new Set(activeBalances.map((b) => b.bankPk));
   const banksToAdd = new Set([...mandatoryBanksSet].filter((x) => !activeBanks.has(x)));
 
   let slotsToKeep = banksToAdd.size;
   const projectedActiveBanks = balances
     .filter((balance) => {
       if (balance.active) {
-        return !excludedBanksSet.has(balance.bankPk.toBase58());
+        return !excludedBanksSet.has(balance.bankPk);
       } else if (slotsToKeep > 0) {
         slotsToKeep--;
         return true;
@@ -78,8 +75,8 @@ export function computeHealthCheckAccounts({
     })
     .map((balance) => {
       if (balance.active) {
-        const bank = banksMap.get(balance.bankPk.toBase58());
-        if (!bank) throw Error(`Bank ${balance.bankPk.toBase58()} not found`);
+        const bank = banksMap.get(balance.bankPk);
+        if (!bank) throw Error(`Bank ${balance.bankPk} not found`);
         return bank;
       }
       const newBankAddress = [...banksToAdd.values()][0];
@@ -93,9 +90,9 @@ export function computeHealthCheckAccounts({
 }
 
 /**
- * Converts bank objects to health check account metas (public keys).
+ * Converts bank objects to health check account metas (addresses).
  *
- * This function generates the list of account public keys needed for health check
+ * This function generates the list of account addresses needed for health check
  * instructions. For each bank, it includes:
  * - The bank address
  * - The oracle address (if not default)
@@ -109,7 +106,7 @@ export function computeHealthCheckAccounts({
  * @param enableSorting - Whether to sort/optimize account order (default: true)
  * @param trailingBanks - Banks whose accounts are appended unsorted after the health pack
  *   (e.g., the withdrawn bank on withdraw-all, for the 1.9 rate-limiter price fetch)
- * @returns Flattened array of public keys for health check accounts
+ * @returns Flattened array of addresses for health check accounts
  *
  * @example
  * ```typescript
@@ -127,10 +124,10 @@ export function computeHealthAccountMetas({
   banksToInclude: BankType[];
   enableSorting?: boolean;
   trailingBanks?: BankType[];
-}): PublicKey[] {
+}): Address[] {
   const wrapperFn = enableSorting
     ? composeRemainingAccounts
-    : (banksAndOracles: PublicKey[][]) => banksAndOracles.flat();
+    : (banksAndOracles: Address[][]) => banksAndOracles.flat();
 
   const accounts = wrapperFn(banksToInclude.map(computeBankRiskAccountKeys));
 
@@ -151,9 +148,9 @@ export function computeHealthAccountMetas({
  * Builds the ordered account keys the program expects for a single bank in a risk/health
  * remaining-accounts slice: bank, oracle, then per-asset-tag extras.
  */
-function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
+function computeBankRiskAccountKeys(bank: BankType): Address[] {
   let keys = [];
-  if (bank.oracleKey.equals(PublicKey.default)) {
+  if (bank.oracleKey === DEFAULT_ADDRESS) {
     keys = [bank.address];
   } else {
     keys = [bank.address, bank.oracleKey];
@@ -190,21 +187,11 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
   if (bank.config.assetTag === AssetTag.STAKED) {
     keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
     // 0.1.9 SVSP transition: the 1.9 program requires the pool's on-ramp as a 4th staked
-    // risk account. The canonical source is oracle_keys[3], written by the permissionless
-    // backfill (and by add_pool_permissionless for new banks) — nothing writes it on 1.8,
-    // so a non-default key implies 1.9 is live. If the on-ramp pricing flag (bank flags
-    // bit 10) is set before the key is backfilled, the program derives the on-ramp from
-    // the validator vote account, so we do the same as a fallback.
+    // risk account, read from oracle_keys[3] (written by the permissionless backfill and by
+    // add_pool_permissionless for new banks).
     const onrampKey = bank.config.oracleKeys[3];
-    if (onrampKey && !onrampKey.equals(PublicKey.default)) {
+    if (onrampKey !== DEFAULT_ADDRESS) {
       keys.push(onrampKey);
-    } else if (
-      bank.stakedOracleUsesOnramp &&
-      bank.stakedIntegrationAccounts &&
-      !bank.stakedIntegrationAccounts.validatorVoteAccount.equals(PublicKey.default)
-    ) {
-      const pool = findPoolAddress(bank.stakedIntegrationAccounts.validatorVoteAccount);
-      keys.push(findPoolOnRampAddress(pool));
     }
   }
 
@@ -230,15 +217,15 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
  *
  * @param account - The marginfi account whose balances are projected
  * @param instructions - Instructions to simulate
- * @param program - Marginfi program for instruction decoding
- * @returns Array of bank public keys that will be active after instruction execution
+ * @param programAddress - Marginfi program address; other programs' instructions are ignored
+ * @returns Array of bank addresses that will be active after instruction execution
  *
  * @example
  * ```typescript
  * const projectedBanks = computeProjectedActiveBanksNoCpi({
  *   account,
  *   instructions: [depositIx, borrowIx],
- *   program: marginfiProgram,
+ *   programAddress,
  * });
  * // Use projectedBanks for health check account selection
  * ```
@@ -246,12 +233,12 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
 export function computeProjectedActiveBanksNoCpi({
   account,
   instructions,
-  program,
+  programAddress,
 }: {
   account: MarginfiAccountType;
-  instructions: TransactionInstruction[];
-  program: MarginfiProgram;
-}): PublicKey[] {
+  instructions: Instruction[];
+  programAddress: Address;
+}): Address[] {
   const projectedBalances = [
     ...account.balances.map((b) => ({ active: b.active, bankPk: b.bankPk })),
   ];
@@ -259,29 +246,24 @@ export function computeProjectedActiveBanksNoCpi({
   for (let index = 0; index < instructions.length; index++) {
     const ix = instructions[index];
 
-    if (!ix?.programId.equals(program.programId)) continue;
+    if (ix.programAddress !== programAddress) continue;
 
-    const borshCoder = new BorshInstructionCoder(program.idl);
-    const decoded = borshCoder.decode(ix.data, "base58");
-    if (!decoded) continue;
+    const parsed = parseMarginfiIx(ix);
+    if (!parsed) continue;
 
-    // All handled instructions share the account layout (group, marginfiAccount,
-    // authority, bank, ...). Skip instructions operating on a different marginfi
-    // account — e.g. transfer flows build ixs for two accounts in one set.
-    const ixMarginfiAccount = ix.keys[1]?.pubkey;
-    if (!ixMarginfiAccount?.equals(account.address)) continue;
+    switch (parsed.instructionType) {
+      case MarginfiInstruction.LendingAccountBorrow:
+      case MarginfiInstruction.KaminoDeposit:
+      case MarginfiInstruction.DriftDeposit:
+      case MarginfiInstruction.SolendDeposit:
+      case MarginfiInstruction.LendingAccountDeposit:
+      case MarginfiInstruction.JuplendDeposit: {
+        // Skip instructions operating on a different marginfi account — e.g. transfer flows
+        // build ixs for two accounts in one set.
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
 
-    const ixArgs = decoded.data as any;
-
-    switch (decoded.name) {
-      case "lendingAccountBorrow":
-      case "kaminoDeposit":
-      case "driftDeposit":
-      case "solendDeposit":
-      case "lendingAccountDeposit":
-      case "juplendDeposit": {
-        const targetBank = new PublicKey(ix?.keys[3].pubkey);
-        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+        const targetBank = parsed.accounts.bank.address;
+        const targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
         if (!targetBalance) {
           const firstInactiveBalanceIndex = projectedBalances.findIndex((b) => !b.active);
           if (firstInactiveBalanceIndex === -1 || !projectedBalances[firstInactiveBalanceIndex]) {
@@ -293,28 +275,27 @@ export function computeProjectedActiveBanksNoCpi({
         }
         break;
       }
-      case "lendingAccountRepay":
-      case "kaminoWithdraw":
-      case "driftWithdraw":
-      case "solendWithdraw":
-      case "lendingAccountWithdraw":
-      case "juplendWithdraw": {
-        const targetBank = new PublicKey(ix.keys[3].pubkey);
-        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+      case MarginfiInstruction.LendingAccountRepay:
+      case MarginfiInstruction.KaminoWithdraw:
+      case MarginfiInstruction.DriftWithdraw:
+      case MarginfiInstruction.SolendWithdraw:
+      case MarginfiInstruction.LendingAccountWithdraw:
+      case MarginfiInstruction.JuplendWithdraw: {
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
+
+        const targetBank = parsed.accounts.bank.address;
+        const targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
         if (!targetBalance) {
           throw Error(
-            `Balance for bank ${targetBank.toBase58()} should be projected active at this point (ix ${index}: ${
-              decoded.name
+            `Balance for bank ${targetBank} should be projected active at this point (ix ${index}: ${
+              MarginfiInstruction[parsed.instructionType]
             }))`
           );
         }
 
-        // kaminoWithdraw packs withdraw-all as bit 0 of its `flags` arg since 0.1.9
-        const isKaminoWithdrawAll =
-          decoded.name === "kaminoWithdraw" && ((ixArgs.flags ?? 0) & 1) > 0;
-        if (ixArgs.repayAll || ixArgs.withdrawAll || isKaminoWithdrawAll) {
+        if (closesPosition(parsed.data)) {
           targetBalance.active = false;
-          targetBalance.bankPk = PublicKey.default;
+          targetBalance.bankPk = DEFAULT_ADDRESS;
         }
         break;
       }
@@ -325,6 +306,15 @@ export function computeProjectedActiveBanksNoCpi({
   }
 
   return projectedBalances.filter((b) => b.active).map((b) => b.bankPk);
+}
+
+// kaminoWithdraw packs withdraw-all as bit 0 of its `flags` arg since 0.1.9
+function closesPosition(
+  data: { repayAll: Option<boolean> } | { withdrawAll: Option<boolean> } | { flags: Option<number> }
+): boolean {
+  if ("repayAll" in data) return unwrapOption(data.repayAll) === true;
+  if ("withdrawAll" in data) return unwrapOption(data.withdrawAll) === true;
+  return ((unwrapOption(data.flags) ?? 0) & 1) > 0;
 }
 
 /**
@@ -343,7 +333,7 @@ export function computeProjectedActiveBanksNoCpi({
  *
  * @param account - The marginfi account whose balances are projected
  * @param instructions - Instructions to simulate
- * @param program - Marginfi program for instruction decoding
+ * @param programAddress - Marginfi program address; other programs' instructions are ignored
  * @param banksMap - Map of bank addresses to bank data (needed for share value conversion)
  * @param assetShareValueMultiplierByBank - Multipliers for integrated protocols (Kamino, Drift)
  * @returns Object containing projected balances and lists of impacted banks
@@ -356,7 +346,7 @@ export function computeProjectedActiveBanksNoCpi({
  * const result = computeProjectedActiveBalancesNoCpi({
  *   account,
  *   instructions: [depositIx, borrowIx],
- *   program: marginfiProgram,
+ *   programAddress,
  *   banksMap,
  *   assetShareValueMultiplierByBank,
  * });
@@ -367,13 +357,13 @@ export function computeProjectedActiveBanksNoCpi({
 export function computeProjectedActiveBalancesNoCpi({
   account,
   instructions,
-  program,
+  programAddress,
   banksMap,
   assetShareValueMultiplierByBank,
 }: {
   account: MarginfiAccountType;
-  instructions: TransactionInstruction[];
-  program: MarginfiProgram;
+  instructions: Instruction[];
+  programAddress: Address;
   banksMap: Map<string, BankType>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
 }): {
@@ -405,32 +395,26 @@ export function computeProjectedActiveBalancesNoCpi({
     const ix = instructions[index];
 
     // Skip non-marginfi instructions
-    if (!ix?.programId.equals(program.programId)) continue;
+    if (ix.programAddress !== programAddress) continue;
 
-    const borshCoder = new BorshInstructionCoder(program.idl);
-    const decoded = borshCoder.decode(ix.data, "base58");
-    if (!decoded) continue;
+    const parsed = parseMarginfiIx(ix);
+    if (!parsed) continue;
 
-    // All handled instructions share the account layout (group, marginfiAccount,
-    // authority, bank, ...). Skip instructions operating on a different marginfi
-    // account — e.g. transfer flows build ixs for two accounts in one set.
-    const ixMarginfiAccount = ix.keys[1]?.pubkey;
-    if (!ixMarginfiAccount?.equals(account.address)) continue;
-
-    const ixArgs = decoded.data as any;
-
-    switch (decoded.name) {
+    switch (parsed.instructionType) {
       // Instructions that open or add to a position
-      case "lendingAccountDeposit":
-      case "driftDeposit":
-      case "solendDeposit":
-      case "kaminoDeposit":
-      case "juplendDeposit": {
-        // Bank is at index 3 for these instructions (group, account, authority, bank, ...)
-        const targetBank = new PublicKey(ix.keys[3].pubkey);
-        impactedAssetsBanks.add(targetBank.toBase58());
+      case MarginfiInstruction.LendingAccountDeposit:
+      case MarginfiInstruction.DriftDeposit:
+      case MarginfiInstruction.SolendDeposit:
+      case MarginfiInstruction.KaminoDeposit:
+      case MarginfiInstruction.JuplendDeposit: {
+        // Skip instructions operating on a different marginfi account — e.g. transfer flows
+        // build ixs for two accounts in one set.
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
 
-        let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+        const targetBank = parsed.accounts.bank.address;
+        impactedAssetsBanks.add(targetBank);
+
+        let targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
 
         if (!targetBalance) {
           // Need to activate a new balance slot
@@ -448,14 +432,14 @@ export function computeProjectedActiveBalancesNoCpi({
         }
 
         // Convert token amount to shares and add to asset shares
-        const depositTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
-        const bank = banksMap.get(targetBank.toBase58());
+        const depositTokenAmount = new BigNumber(parsed.data.amount.toString());
+        const bank = banksMap.get(targetBank);
         if (!bank) {
-          throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
+          throw Error(`Bank ${targetBank} not found in bankMap`);
         }
 
         const assetShareValueMultiplier =
-          assetShareValueMultiplierByBank.get(targetBank.toBase58()) ?? BigNumber(1);
+          assetShareValueMultiplierByBank.get(targetBank) ?? BigNumber(1);
 
         // For integrated protocols: convert underlying token amount to cToken amount
         // For regular banks: multiplier is 1, so this is a no-op
@@ -467,11 +451,13 @@ export function computeProjectedActiveBalancesNoCpi({
         break;
       }
 
-      case "lendingAccountBorrow": {
-        const targetBank = new PublicKey(ix.keys[3].pubkey);
-        impactedLiabilityBanks.add(targetBank.toBase58());
+      case MarginfiInstruction.LendingAccountBorrow: {
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
 
-        let targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+        const targetBank = parsed.accounts.bank.address;
+        impactedLiabilityBanks.add(targetBank);
+
+        let targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
 
         if (!targetBalance) {
           // Need to activate a new balance slot
@@ -489,10 +475,10 @@ export function computeProjectedActiveBalancesNoCpi({
         }
 
         // Convert token amount to shares and add to liability shares
-        const borrowTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
-        const bank = banksMap.get(targetBank.toBase58());
+        const borrowTokenAmount = new BigNumber(parsed.data.amount.toString());
+        const bank = banksMap.get(targetBank);
         if (!bank) {
-          throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
+          throw Error(`Bank ${targetBank} not found in bankMap`);
         }
         const borrowShares = getLiabilityShares(bank, borrowTokenAmount);
         targetBalance.liabilityShares = targetBalance.liabilityShares.plus(borrowShares);
@@ -500,35 +486,37 @@ export function computeProjectedActiveBalancesNoCpi({
       }
 
       // Instructions that reduce or close positions
-      case "lendingAccountRepay": {
-        const targetBank = new PublicKey(ix.keys[3].pubkey);
-        impactedLiabilityBanks.add(targetBank.toBase58());
+      case MarginfiInstruction.LendingAccountRepay: {
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
 
-        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+        const targetBank = parsed.accounts.bank.address;
+        impactedLiabilityBanks.add(targetBank);
+
+        const targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
 
         if (!targetBalance) {
           throw Error(
-            `Balance for bank ${targetBank.toBase58()} should be projected active at this point (ix ${index}: ${
-              decoded.name
+            `Balance for bank ${targetBank} should be projected active at this point (ix ${index}: ${
+              MarginfiInstruction[parsed.instructionType]
             }))`
           );
         }
 
         // Check if this is a full repay
-        if (ixArgs.repayAll) {
+        if (closesPosition(parsed.data)) {
           targetBalance.liabilityShares = new BigNumber(0);
 
           // If no assets and no liabilities, close the balance
           if (targetBalance.assetShares.eq(0)) {
             targetBalance.active = false;
-            targetBalance.bankPk = PublicKey.default;
+            targetBalance.bankPk = DEFAULT_ADDRESS;
           }
         } else {
           // Convert token amount to shares and subtract from liability shares
-          const repayTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
-          const bank = banksMap.get(targetBank.toBase58());
+          const repayTokenAmount = new BigNumber(parsed.data.amount.toString());
+          const bank = banksMap.get(targetBank);
           if (!bank) {
-            throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
+            throw Error(`Bank ${targetBank} not found in bankMap`);
           }
           const repayShares = getLiabilityShares(bank, repayTokenAmount);
           targetBalance.liabilityShares = BigNumber.max(
@@ -539,60 +527,57 @@ export function computeProjectedActiveBalancesNoCpi({
           // If fully repaid and no assets, close the balance
           if (targetBalance.liabilityShares.eq(0) && targetBalance.assetShares.eq(0)) {
             targetBalance.active = false;
-            targetBalance.bankPk = PublicKey.default;
+            targetBalance.bankPk = DEFAULT_ADDRESS;
           }
         }
         break;
       }
 
-      case "lendingAccountWithdraw":
-      case "driftWithdraw":
-      case "solendWithdraw":
-      case "kaminoWithdraw":
-      case "juplendWithdraw": {
-        const targetBank = new PublicKey(ix.keys[3].pubkey);
-        impactedAssetsBanks.add(targetBank.toBase58());
-        withdrawnBanks.add(targetBank.toBase58());
+      case MarginfiInstruction.LendingAccountWithdraw:
+      case MarginfiInstruction.DriftWithdraw:
+      case MarginfiInstruction.SolendWithdraw:
+      case MarginfiInstruction.KaminoWithdraw:
+      case MarginfiInstruction.JuplendWithdraw: {
+        if (parsed.accounts.marginfiAccount.address !== account.address) continue;
 
-        const targetBalance = projectedBalances.find((b) => b.bankPk.equals(targetBank));
+        const targetBank = parsed.accounts.bank.address;
+        impactedAssetsBanks.add(targetBank);
+        withdrawnBanks.add(targetBank);
+
+        const targetBalance = projectedBalances.find((b) => b.bankPk === targetBank);
 
         if (!targetBalance) {
           throw Error(
-            `Balance for bank ${targetBank.toBase58()} should be projected active at this point (ix ${index}: ${
-              decoded.name
+            `Balance for bank ${targetBank} should be projected active at this point (ix ${index}: ${
+              MarginfiInstruction[parsed.instructionType]
             }))`
           );
         }
 
         // Check if this is a full withdraw
-        // (kaminoWithdraw packs withdraw-all as bit 0 of its `flags` arg since 0.1.9)
-        const isWithdrawAll =
-          decoded.name === "kaminoWithdraw"
-            ? ((ixArgs.flags ?? 0) & 1) > 0
-            : Boolean(ixArgs.withdrawAll);
-        if (isWithdrawAll) {
+        if (closesPosition(parsed.data)) {
           targetBalance.assetShares = new BigNumber(0);
 
           // If no assets and no liabilities, close the balance
           if (targetBalance.liabilityShares.eq(0)) {
             targetBalance.active = false;
-            targetBalance.bankPk = PublicKey.default;
+            targetBalance.bankPk = DEFAULT_ADDRESS;
           }
         } else {
-          const withdrawTokenAmount = new BigNumber(ixArgs.amount?.toString() || "0");
-          const bank = banksMap.get(targetBank.toBase58());
+          const withdrawTokenAmount = new BigNumber(parsed.data.amount.toString());
+          const bank = banksMap.get(targetBank);
           if (!bank) {
-            throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
+            throw Error(`Bank ${targetBank} not found in bankMap`);
           }
           // Per-venue amount semantics:
           // - kaminoWithdraw: amount is already in cToken units → no multiplier
           // - lendingAccountWithdraw / driftWithdraw / solendWithdraw / juplendWithdraw:
           //   amount is in underlying units → divide by multiplier to get cToken units
           //   (multiplier is 1 for regular banks, ≠ 1 for drift / juplend integrations)
-          const isKaminoWithdraw = decoded.name === "kaminoWithdraw";
+          const isKaminoWithdraw = parsed.instructionType === MarginfiInstruction.KaminoWithdraw;
           const assetShareValueMultiplier = isKaminoWithdraw
             ? new BigNumber(1)
-            : (assetShareValueMultiplierByBank.get(targetBank.toBase58()) ?? new BigNumber(1));
+            : (assetShareValueMultiplierByBank.get(targetBank) ?? new BigNumber(1));
           const cTokenAmount = withdrawTokenAmount.div(assetShareValueMultiplier);
           const withdrawShares = getAssetShares(bank, cTokenAmount);
           targetBalance.assetShares = BigNumber.max(
@@ -603,7 +588,7 @@ export function computeProjectedActiveBalancesNoCpi({
           // If fully withdrawn and no liabilities, close the balance
           if (targetBalance.assetShares.eq(0) && targetBalance.liabilityShares.eq(0)) {
             targetBalance.active = false;
-            targetBalance.bankPk = PublicKey.default;
+            targetBalance.bankPk = DEFAULT_ADDRESS;
           }
         }
         break;

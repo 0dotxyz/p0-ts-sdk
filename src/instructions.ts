@@ -1,4 +1,10 @@
-import { AccountRole, type AccountMeta, type Address, type Instruction } from "@solana/kit";
+import {
+  AccountRole,
+  isInstructionWithData,
+  type AccountMeta,
+  type Address,
+  type Instruction,
+} from "@solana/kit";
 
 import {
   getDriftDepositInstructionAsync,
@@ -26,6 +32,7 @@ import {
   getMarginfiAccountInitializePdaInstruction,
   getMarginfiGroupInitializeInstructionAsync,
   getTransferToNewAccountInstructionAsync,
+  parseMarginfiInstruction,
   type BankConfigCompactArgs,
   type DriftDepositAsyncInput,
   type DriftWithdrawAsyncInput,
@@ -51,8 +58,11 @@ import {
   type MarginfiAccountInitializeInput,
   type MarginfiAccountInitializePdaInput,
   type MarginfiGroupInitializeAsyncInput,
+  type ParsedMarginfiInstruction,
   type TransferToNewAccountAsyncInput,
 } from "./generated/marginfi";
+
+export { MarginfiInstruction } from "./generated/marginfi";
 
 function withRemainingAccounts(ix: Instruction, remainingAccounts: AccountMeta[]): Instruction {
   return { ...ix, accounts: [...(ix.accounts ?? []), ...remainingAccounts] };
@@ -395,6 +405,21 @@ async function makePulseHealthIx(
     getLendingAccountPulseHealthInstruction(input, { programAddress }),
     remainingAccounts
   );
+}
+
+/**
+ * Decodes a marginfi instruction into its type (`MarginfiInstruction`), named accounts and args.
+ * Doesn't check `programAddress`, so staging deployments decode too.
+ * @returns undefined when `ix` isn't a marginfi instruction this IDL knows (unknown discriminator,
+ * missing data or too few accounts)
+ */
+export function parseMarginfiIx(ix: Instruction): ParsedMarginfiInstruction<string> | undefined {
+  if (!isInstructionWithData(ix)) return undefined;
+  try {
+    return parseMarginfiInstruction(ix);
+  } catch {
+    return undefined;
+  }
 }
 
 const instructions = {

@@ -1,19 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { PublicKey } from "@solana/web3.js";
+import { getAddressDecoder, type Address } from "@solana/kit";
 
 import { computeHealthAccountMetas } from "~/services/account/utils/compute/transaction-projection.utils";
-import { AssetTag, BankType, OracleSetup } from "~/services/bank";
+import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 
-const KEYS = Array.from({ length: 5 }, () => PublicKey.unique());
+let nextKey = 1;
+const uniqueAddress = () => getAddressDecoder().decode(new Uint8Array(32).fill(nextKey++));
+
+const KEYS = Array.from({ length: 5 }, uniqueAddress);
 
 function bank(opts: {
   oracleSetup: OracleSetup;
   assetTag: AssetTag;
-  oracleKeys?: PublicKey[];
+  oracleKeys?: Address[];
 }): BankType {
   const oracleKeys = opts.oracleKeys ?? KEYS;
   return {
-    address: PublicKey.unique(),
+    address: uniqueAddress(),
     oracleKey: oracleKeys[0],
     config: {
       oracleSetup: opts.oracleSetup,
@@ -24,7 +27,7 @@ function bank(opts: {
 }
 
 /** Risk account keys for a single bank, via the public health-metas entry point (unsorted). */
-function riskAccountKeys(b: BankType): PublicKey[] {
+function riskAccountKeys(b: BankType): Address[] {
   return computeHealthAccountMetas({ banksToInclude: [b], enableSorting: false });
 }
 

@@ -1,29 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { getAddressDecoder, type Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
-import BN from "bn.js";
 
+import { HealthCacheStatus, MarginfiAccountType } from "~/services/account/types";
 import {
   computeMaxBorrowForBank,
   computeMaxDepositForBank,
   computeMaxWithdrawForBank,
-  HealthCacheStatus,
-  MarginfiAccountType,
-} from "~/services/account";
+} from "~/services/account/utils/max-amounts.utils";
 import {
   AssetTag,
   BankType,
-  BankVenueStates,
-  computeBankDepositCapRemaining,
-  computeRemainingCapacity,
-  computeVenueAvailableLiquidity,
   EmodeImpactStatus,
   OperationalState,
   RiskTier,
-  U64_MAX,
+} from "~/services/bank/types";
+import { computeBankDepositCapRemaining } from "~/services/bank/utils/bank-metrics.utils";
+import { computeRemainingCapacity, U64_MAX } from "~/services/bank/utils/interest-rate.utils";
+import {
+  BankVenueStates,
+  computeVenueAvailableLiquidity,
   VENUE_AVAILABLE_LIQUIDITY_BUFFER,
-} from "~/services/bank";
-import { OraclePrice } from "~/services/price";
+} from "~/services/bank/utils/venue-liquidity.utils";
+import { OraclePrice } from "~/services/price/types";
+
+const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 
 // ----------------------------------------------------------------------------
 // Fixtures
@@ -33,7 +34,7 @@ const DECIMALS = 6;
 const ui = (n: number) => new BigNumber(n).times(10 ** DECIMALS);
 
 function bank(opts: {
-  address?: PublicKey;
+  address?: Address;
   totalDeposits: number; // UI
   totalBorrows: number; // UI
   depositLimit: number; // UI
@@ -49,8 +50,8 @@ function bank(opts: {
 }): BankType {
   const rate = (n: number) => new BigNumber(n);
   return {
-    address: opts.address ?? Keypair.generate().publicKey,
-    mint: Keypair.generate().publicKey,
+    address: opts.address ?? uniqueAddress(),
+    mint: uniqueAddress(),
     mintDecimals: DECIMALS,
     assetShareValue: new BigNumber(1),
     liabilityShareValue: new BigNumber(1),
@@ -117,12 +118,12 @@ function oraclePrice(price: number): OraclePrice {
 function account(opts: {
   freeCollateralUsd: number;
   liabilitiesUsd?: number;
-  balances?: Array<{ bankPk: PublicKey; assetShares: BigNumber; liabilityShares?: BigNumber }>;
+  balances?: Array<{ bankPk: Address; assetShares: BigNumber; liabilityShares?: BigNumber }>;
 }): MarginfiAccountType {
   const liabilities = new BigNumber(opts.liabilitiesUsd ?? 0);
   const assets = new BigNumber(opts.freeCollateralUsd).plus(liabilities);
   return {
-    address: Keypair.generate().publicKey,
+    address: uniqueAddress(),
     balances: (opts.balances ?? []).map((b) => ({
       active: true,
       bankPk: b.bankPk,
@@ -146,8 +147,8 @@ function account(opts: {
 
 function ctx(b: BankType) {
   return {
-    banksMap: new Map([[b.address.toBase58(), b]]),
-    oraclePricesByBank: new Map([[b.address.toBase58(), oraclePrice(1)]]),
+    banksMap: new Map([[b.address, b]]),
+    oraclePricesByBank: new Map([[b.address, oraclePrice(1)]]),
     bankAddress: b.address,
   };
 }
@@ -246,7 +247,7 @@ describe("computeMaxBorrowForBank bank-level clamps", () => {
       },
     };
     const c = ctx(b);
-    c.oraclePricesByBank.set(b.address.toBase58(), oraclePrice(2)); // $2 → 250 USD left = 125 tokens
+    c.oraclePricesByBank.set(b.address, oraclePrice(2)); // $2 → 250 USD left = 125 tokens
     const max = computeMaxBorrowForBank({
       account: acc,
       ...c,
@@ -329,7 +330,7 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     const max = computeMaxWithdrawForBank({
       account: acc,
       ...ctx(b),
-      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), multiplier]]),
+      assetShareValueMultiplierByBank: new Map([[b.address, multiplier]]),
     });
     // 70 cTokens remaining * 1.5 underlying-per-cToken
     expect(max.toNumber()).toBeCloseTo(105, 6);
@@ -354,7 +355,7 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     const max = computeMaxWithdrawForBank({
       account: acc,
       ...ctx(b),
-      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), multiplier]]),
+      assetShareValueMultiplierByBank: new Map([[b.address, multiplier]]),
     });
     expect(max.toNumber()).toBeCloseTo(84, 6);
   });
@@ -378,7 +379,7 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     const max = computeMaxWithdrawForBank({
       account: acc,
       ...ctx(b),
-      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), new BigNumber(1.5)]]),
+      assetShareValueMultiplierByBank: new Map([[b.address, new BigNumber(1.5)]]),
     });
     expect(max.toNumber()).toBeCloseTo(70, 6);
   });
@@ -401,7 +402,10 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
 describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
   const kaminoStates = (availableUi: number) =>
     ({
-      reserveState: { liquidity: { availableAmount: new BN(ui(availableUi).toFixed(0)) } },
+      reserveState: {
+        liquidity: { totalAvailableAmount: BigInt(ui(availableUi).toFixed(0)) },
+        withdrawQueue: { queuedCollateralAmount: 0n },
+      },
     }) as unknown as BankVenueStates["kaminoStates"];
 
   it("clamps to the Kamino reserve's idle liquidity (with buffer)", () => {
@@ -496,10 +500,10 @@ describe("computeVenueAvailableLiquidity", () => {
     // deposits 500, borrows 200 -> idle 300 (before buffer)
     const spotMarketState = {
       decimals: DECIMALS,
-      depositBalance: new BN(500).mul(new BN(10).pow(new BN(9))),
-      borrowBalance: new BN(200).mul(new BN(10).pow(new BN(9))),
-      cumulativeDepositInterest: new BN(10).pow(new BN(10)),
-      cumulativeBorrowInterest: new BN(10).pow(new BN(10)),
+      depositBalance: 500n * 10n ** 9n,
+      borrowBalance: 200n * 10n ** 9n,
+      cumulativeDepositInterest: 10n ** 10n,
+      cumulativeBorrowInterest: 10n ** 10n,
     } as unknown as NonNullable<BankVenueStates["driftStates"]>["spotMarketState"];
     const liq = computeVenueAvailableLiquidity(b, { driftStates: { spotMarketState } });
     expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
@@ -513,12 +517,12 @@ describe("computeVenueAvailableLiquidity", () => {
       borrowLimit: 1e9,
       assetTag: AssetTag.JUPLEND,
     });
-    const px = new BN("1000000000000"); // 1.0 at 1e12 precision
+    const px = 1_000_000_000_000n; // 1.0 at 1e12 precision
     const jupTokenReserveState = {
-      totalSupplyWithInterest: new BN(ui(400).toFixed(0)),
-      totalBorrowWithInterest: new BN(ui(150).toFixed(0)),
-      totalSupplyInterestFree: new BN(ui(50).toFixed(0)),
-      totalBorrowInterestFree: new BN(0),
+      totalSupplyWithInterest: BigInt(ui(400).toFixed(0)),
+      totalBorrowWithInterest: BigInt(ui(150).toFixed(0)),
+      totalSupplyInterestFree: BigInt(ui(50).toFixed(0)),
+      totalBorrowInterestFree: 0n,
       supplyExchangePrice: px,
       borrowExchangePrice: px,
     } as unknown as NonNullable<BankVenueStates["jupLendStates"]>["jupTokenReserveState"];
@@ -578,14 +582,14 @@ describe("computeMaxDepositForBank", () => {
     const max = computeMaxDepositForBank({
       banksMap: ctx(b).banksMap,
       bankAddress: b.address,
-      assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), new BigNumber(1.5)]]),
+      assetShareValueMultiplierByBank: new Map([[b.address, new BigNumber(1.5)]]),
     });
     expect(max.toNumber()).toBeCloseTo(600, 3);
   });
 
   it("throws for unknown bank", () => {
     expect(() =>
-      computeMaxDepositForBank({ banksMap: new Map(), bankAddress: Keypair.generate().publicKey })
+      computeMaxDepositForBank({ banksMap: new Map(), bankAddress: uniqueAddress() })
     ).toThrow(/not found/);
   });
 });

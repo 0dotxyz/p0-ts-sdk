@@ -99,7 +99,7 @@ export function computeNetApy(params: ComputeNetApyParams): number {
   const totalUsdValue = assets.minus(liabilities);
   const apr = activeBalances
     .reduce((weightedApr, balance) => {
-      const bankKey = balance.bankPk.toBase58();
+      const bankKey = balance.bankPk;
       const bank = banksMap.get(bankKey);
       if (!bank) {
         console.warn(
