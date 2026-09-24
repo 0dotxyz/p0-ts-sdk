@@ -21,7 +21,7 @@ function marinadeStateData(
     emergencyCoolingDown: bigint;
   }> = {},
   size = MAINNET_STATE_SIZE
-): Buffer {
+): Uint8Array {
   const fields = {
     delayedUnstakeCoolingDown: 0n,
     totalActiveBalance: 1_403_721_040n,
@@ -32,16 +32,17 @@ function marinadeStateData(
     emergencyCoolingDown: 0n,
     ...overrides,
   };
-  const data = Buffer.alloc(size);
-  MARINADE_STATE_DISCRIMINATOR.copy(data, 0);
+  const data = new Uint8Array(size);
+  data.set(MARINADE_STATE_DISCRIMINATOR, 0);
   if (size >= MARINADE_STATE_MIN_SIZE) {
-    data.writeBigUInt64LE(fields.delayedUnstakeCoolingDown, 226);
-    data.writeBigUInt64LE(fields.totalActiveBalance, 376);
-    data.writeBigUInt64LE(fields.availableReserveBalance, 496);
-    data.writeBigUInt64LE(fields.msolSupply, 504);
-    data.writeBigUInt64LE(fields.cachedMsolPrice, 512);
-    data.writeBigUInt64LE(fields.circulatingTicketBalance, 528);
-    data.writeBigUInt64LE(fields.emergencyCoolingDown, 568);
+    const view = new DataView(data.buffer);
+    view.setBigUint64(226, fields.delayedUnstakeCoolingDown, true);
+    view.setBigUint64(376, fields.totalActiveBalance, true);
+    view.setBigUint64(496, fields.availableReserveBalance, true);
+    view.setBigUint64(504, fields.msolSupply, true);
+    view.setBigUint64(512, fields.cachedMsolPrice, true);
+    view.setBigUint64(528, fields.circulatingTicketBalance, true);
+    view.setBigUint64(568, fields.emergencyCoolingDown, true);
   }
   return data;
 }

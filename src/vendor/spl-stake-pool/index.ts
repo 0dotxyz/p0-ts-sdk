@@ -1,13 +1,13 @@
-import { PublicKey } from "@solana/web3.js";
+import { address, type ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
-export const SPL_STAKE_POOL_PROGRAM_ID = new PublicKey(
+export const SPL_STAKE_POOL_PROGRAM_ADDRESS = address(
   "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"
 );
-export const SANCTUM_SPL_STAKE_POOL_PROGRAM_ID = new PublicKey(
+export const SANCTUM_SPL_STAKE_POOL_PROGRAM_ADDRESS = address(
   "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY"
 );
-export const SANCTUM_SPL_MULTI_STAKE_POOL_PROGRAM_ID = new PublicKey(
+export const SANCTUM_SPL_MULTI_STAKE_POOL_PROGRAM_ADDRESS = address(
   "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn"
 );
 
@@ -27,7 +27,12 @@ export interface StakePool {
   exchangeRate: BigNumber;
 }
 
-export function decodeStakePool(data: Buffer): StakePool {
+/**
+ * Decodes the balances and LST/SOL rate of an SPL (or Sanctum) stake pool account.
+ * @throws if the account is undersized, is not a StakePool, has no token supply, or yields a rate
+ * outside (0, 3)
+ */
+export function decodeStakePool(data: ReadonlyUint8Array): StakePool {
   if (data.length < LAST_UPDATE_EPOCH_OFFSET + 8) {
     throw new Error(`Invalid StakePool account size: ${data.length}`);
   }
@@ -35,27 +40,21 @@ export function decodeStakePool(data: Buffer): StakePool {
     throw new Error(`Invalid StakePool account type: ${data[0]}`);
   }
 
-  const totalLamports = data.readBigUInt64LE(TOTAL_LAMPORTS_OFFSET);
-  const poolTokenSupply = data.readBigUInt64LE(POOL_TOKEN_SUPPLY_OFFSET);
-  const lastUpdateEpoch = Number(data.readBigUInt64LE(LAST_UPDATE_EPOCH_OFFSET));
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const totalLamports = view.getBigUint64(TOTAL_LAMPORTS_OFFSET, true);
+  const poolTokenSupply = view.getBigUint64(POOL_TOKEN_SUPPLY_OFFSET, true);
+  const lastUpdateEpoch = Number(view.getBigUint64(LAST_UPDATE_EPOCH_OFFSET, true));
 
   if (poolTokenSupply === 0n) {
     throw new Error("StakePool has zero token supply");
   }
 
-  const exchangeRate = new BigNumber(totalLamports.toString()).div(
-    new BigNumber(poolTokenSupply.toString())
-  );
+  const exchangeRate = new BigNumber(totalLamports.toString()).div(poolTokenSupply.toString());
 
   // Same sanity bounds as the program's MAX_LST_SOL_RATE
   if (!exchangeRate.gt(0) || exchangeRate.gte(MAX_LST_SOL_RATE)) {
     throw new Error(`StakePool LST/SOL rate out of bounds: ${exchangeRate.toString()}`);
   }
 
-  return {
-    totalLamports,
-    poolTokenSupply,
-    lastUpdateEpoch,
-    exchangeRate,
-  };
+  return { totalLamports, poolTokenSupply, lastUpdateEpoch, exchangeRate };
 }

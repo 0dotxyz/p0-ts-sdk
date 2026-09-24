@@ -7,12 +7,13 @@ function stakePoolData(
   poolTokenSupply: bigint,
   lastUpdateEpoch: bigint,
   accountType = 1
-): Buffer {
-  const data = Buffer.alloc(300);
+): Uint8Array {
+  const data = new Uint8Array(300);
   data[0] = accountType;
-  data.writeBigUInt64LE(totalLamports, 258);
-  data.writeBigUInt64LE(poolTokenSupply, 266);
-  data.writeBigUInt64LE(lastUpdateEpoch, 274);
+  const view = new DataView(data.buffer);
+  view.setBigUint64(258, totalLamports, true);
+  view.setBigUint64(266, poolTokenSupply, true);
+  view.setBigUint64(274, lastUpdateEpoch, true);
   return data;
 }
 
@@ -28,7 +29,7 @@ describe("decodeStakePool", () => {
   it("rejects zero supply, wrong account type, and short buffers", () => {
     expect(() => decodeStakePool(stakePoolData(1_000n, 0n, 700n))).toThrow();
     expect(() => decodeStakePool(stakePoolData(1_000n, 1_000n, 700n, 2))).toThrow();
-    expect(() => decodeStakePool(Buffer.alloc(100))).toThrow();
+    expect(() => decodeStakePool(new Uint8Array(100))).toThrow();
   });
 
   it("rejects out-of-bounds rates", () => {
