@@ -1,27 +1,39 @@
+import { address, getAddressDecoder, getBase64Encoder, type Address } from "@solana/kit";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { PublicKey } from "@solana/web3.js";
 
-import { fetchScopeOracleData } from "~/services/price";
-import { BankType, OracleSetup } from "~/services/bank";
+import banks from "../bank/fixtures/mainnet-banks.json";
 
-const ORACLE_PRICES_KEY = new PublicKey("AMjqm5S4QaAHWLv52jJiRpFNW1qo23F6ZM5ChCF5tYgc");
+import { decodeBank } from "~/accounts";
+import { BankType, OracleSetup } from "~/services/bank/types";
+import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { fetchScopeOracleData } from "~/services/price/services/scope-oracle.service";
+
+const ORACLE_PRICES_KEY = address("AMjqm5S4QaAHWLv52jJiRpFNW1qo23F6ZM5ChCF5tYgc");
+const baseBank = parseBankRaw(
+  address(banks[0].address),
+  decodeBank(getBase64Encoder().encode(banks[0].data))
+);
+
+let nextKey = 1;
+const uniqueAddress = () => getAddressDecoder().decode(new Uint8Array(32).fill(nextKey++));
 
 function scopeBank(opts: {
-  address: PublicKey;
+  address: Address;
   entryIndex?: number;
   oracleMaxAge: number;
   oracleSetup?: OracleSetup;
 }): BankType {
   return {
+    ...baseBank,
     address: opts.address,
-    mint: PublicKey.unique(),
     config: {
+      ...baseBank.config,
       oracleSetup: opts.oracleSetup ?? OracleSetup.Scope,
       oracleKeys: [ORACLE_PRICES_KEY],
       scopeEntryIndex: opts.entryIndex,
       oracleMaxAge: opts.oracleMaxAge,
     },
-  } as unknown as BankType;
+  };
 }
 
 function priceDto(price: string, timestamp: string) {
@@ -41,10 +53,10 @@ afterEach(() => {
 
 describe("fetchScopeOracleData", () => {
   it("maps each scope bank to its own entry and skips non-scope banks", async () => {
-    const bankA = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 3600 });
-    const bankB = scopeBank({ address: PublicKey.unique(), entryIndex: 21, oracleMaxAge: 3600 });
+    const bankA = scopeBank({ address: uniqueAddress(), entryIndex: 13, oracleMaxAge: 3600 });
+    const bankB = scopeBank({ address: uniqueAddress(), entryIndex: 21, oracleMaxAge: 3600 });
     const pythBank = scopeBank({
-      address: PublicKey.unique(),
+      address: uniqueAddress(),
       entryIndex: 0,
       oracleMaxAge: 3600,
       oracleSetup: OracleSetup.PythPushOracle,
@@ -52,8 +64,8 @@ describe("fetchScopeOracleData", () => {
 
     const now = Math.floor(Date.now() / 1000);
     const fetchMock = stubFetch({
-      [`${ORACLE_PRICES_KEY.toBase58()}:13`]: priceDto("103.44", `${now}`),
-      [`${ORACLE_PRICES_KEY.toBase58()}:21`]: priceDto("1.29", `${now}`),
+      [`${ORACLE_PRICES_KEY}:13`]: priceDto("103.44", `${now}`),
+      [`${ORACLE_PRICES_KEY}:21`]: priceDto("1.29", `${now}`),
     });
 
     const { bankOraclePriceMap } = await fetchScopeOracleData([bankA, bankB, pythBank], {
@@ -63,25 +75,21 @@ describe("fetchScopeOracleData", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(bankOraclePriceMap.size).toBe(2);
-    expect(bankOraclePriceMap.get(bankA.address.toBase58())!.priceRealtime.price.toNumber()).toBe(
-      103.44
-    );
-    expect(bankOraclePriceMap.get(bankB.address.toBase58())!.priceRealtime.price.toNumber()).toBe(
-      1.29
-    );
-    expect(bankOraclePriceMap.has(pythBank.address.toBase58())).toBe(false);
+    expect(bankOraclePriceMap.get(bankA.address)!.priceRealtime.price.toNumber()).toBe(103.44);
+    expect(bankOraclePriceMap.get(bankB.address)!.priceRealtime.price.toNumber()).toBe(1.29);
+    expect(bankOraclePriceMap.has(pythBank.address)).toBe(false);
   });
 
   it("zeroes prices older than the bank's oracleMaxAge, with no 0 -> default fallback", async () => {
     const now = Math.floor(Date.now() / 1000);
-    const freshBank = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 300 });
-    const staleBank = scopeBank({ address: PublicKey.unique(), entryIndex: 14, oracleMaxAge: 60 });
-    const zeroAgeBank = scopeBank({ address: PublicKey.unique(), entryIndex: 15, oracleMaxAge: 0 });
+    const freshBank = scopeBank({ address: uniqueAddress(), entryIndex: 13, oracleMaxAge: 300 });
+    const staleBank = scopeBank({ address: uniqueAddress(), entryIndex: 14, oracleMaxAge: 60 });
+    const zeroAgeBank = scopeBank({ address: uniqueAddress(), entryIndex: 15, oracleMaxAge: 0 });
 
     stubFetch({
-      [`${ORACLE_PRICES_KEY.toBase58()}:13`]: priceDto("100", `${now - 200}`),
-      [`${ORACLE_PRICES_KEY.toBase58()}:14`]: priceDto("100", `${now - 200}`),
-      [`${ORACLE_PRICES_KEY.toBase58()}:15`]: priceDto("100", `${now - 5}`),
+      [`${ORACLE_PRICES_KEY}:13`]: priceDto("100", `${now - 200}`),
+      [`${ORACLE_PRICES_KEY}:14`]: priceDto("100", `${now - 200}`),
+      [`${ORACLE_PRICES_KEY}:15`]: priceDto("100", `${now - 5}`),
     });
 
     const { bankOraclePriceMap } = await fetchScopeOracleData([freshBank, staleBank, zeroAgeBank], {
@@ -89,37 +97,29 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(
-      bankOraclePriceMap.get(freshBank.address.toBase58())!.priceRealtime.price.toNumber()
-    ).toBe(100);
-    expect(bankOraclePriceMap.get(staleBank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
-      true
-    );
-    expect(
-      bankOraclePriceMap.get(zeroAgeBank.address.toBase58())!.priceRealtime.price.isZero()
-    ).toBe(true);
+    expect(bankOraclePriceMap.get(freshBank.address)!.priceRealtime.price.toNumber()).toBe(100);
+    expect(bankOraclePriceMap.get(staleBank.address)!.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(zeroAgeBank.address)!.priceRealtime.price.isZero()).toBe(true);
   });
 
   it("zeroes future-dated entries, which the program rejects", async () => {
     const now = Math.floor(Date.now() / 1000);
-    const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 3600 });
-    stubFetch({ [`${ORACLE_PRICES_KEY.toBase58()}:13`]: priceDto("100", `${now + 120}`) });
+    const bank = scopeBank({ address: uniqueAddress(), entryIndex: 13, oracleMaxAge: 3600 });
+    stubFetch({ [`${ORACLE_PRICES_KEY}:13`]: priceDto("100", `${now + 120}`) });
 
     const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
       mode: "api",
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
-      true
-    );
+    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
   });
 
   it("prices a bank without scopeEntryIndex at zero instead of reading entry 0", async () => {
-    const bank = scopeBank({ address: PublicKey.unique(), oracleMaxAge: 3600 });
+    const bank = scopeBank({ address: uniqueAddress(), oracleMaxAge: 3600 });
     const now = Math.floor(Date.now() / 1000);
     const fetchMock = stubFetch({
-      [`${ORACLE_PRICES_KEY.toBase58()}:0`]: priceDto("100", `${now}`),
+      [`${ORACLE_PRICES_KEY}:0`]: priceDto("100", `${now}`),
     });
 
     const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
@@ -127,20 +127,18 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
-      true
-    );
+    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns no prices (upstream zero-fallback) when scopeOpts is omitted", async () => {
-    const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 13, oracleMaxAge: 3600 });
+    const bank = scopeBank({ address: uniqueAddress(), entryIndex: 13, oracleMaxAge: 3600 });
     const { bankOraclePriceMap } = await fetchScopeOracleData([bank]);
     expect(bankOraclePriceMap.size).toBe(0);
   });
 
   it("zeroes banks whose entry is missing from the response", async () => {
-    const bank = scopeBank({ address: PublicKey.unique(), entryIndex: 42, oracleMaxAge: 3600 });
+    const bank = scopeBank({ address: uniqueAddress(), entryIndex: 42, oracleMaxAge: 3600 });
     stubFetch({});
 
     const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
@@ -148,8 +146,6 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address.toBase58())!.priceRealtime.price.isZero()).toBe(
-      true
-    );
+    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
   });
 });

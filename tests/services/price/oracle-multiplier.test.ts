@@ -1,28 +1,17 @@
 import { describe, it, expect } from "vitest";
 import BigNumber from "bignumber.js";
-import { PublicKey } from "@solana/web3.js";
 
-import { computePtMultiplier } from "~/services/price";
-import { ExponentVault } from "~/vendor/exponent";
+import { computePtMultiplier } from "~/services/price/utils/multiplier-data.utils";
+
+type PtVault = Parameters<typeof computePtMultiplier>[0];
 
 /** Fully-backed vault: `sy_for_pt x rate = pt_supply`, so the redemption cap is exactly 1.0. */
-function vault(overrides: Partial<ExponentVault> = {}): ExponentVault {
+function vault(overrides: Partial<PtVault> = {}): PtVault {
   return {
-    authority: PublicKey.default,
-    syProgram: PublicKey.default,
-    mintSy: PublicKey.default,
-    mintYt: PublicKey.default,
-    mintPt: PublicKey.default,
-    escrowSy: PublicKey.default,
-    yieldPosition: PublicKey.default,
-    addressLookupTable: PublicKey.default,
-    cpiAccounts: { getSyState: [], depositSy: [], withdrawSy: [] },
     syForPt: 500_000_000_000n,
     ptSupply: 1_000_000_000_000n,
     lastSeenSyExchangeRate: new BigNumber(2),
     allTimeHighSyExchangeRate: new BigNumber(2),
-    finalSyExchangeRate: new BigNumber(0),
-    status: 0,
     startTs: 1_000,
     duration: 1_000,
     ...overrides,

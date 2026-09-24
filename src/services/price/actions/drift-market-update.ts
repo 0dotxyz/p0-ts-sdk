@@ -1,10 +1,9 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import type { Address, Instruction } from "@solana/kit";
 
 import { MarginfiAccountType } from "~/services/account";
-import { BankType } from "~/services/bank";
-import type { InstructionsWrapper } from "~/services/transaction/types";
+import { AssetTag, BankType, requireBank } from "~/services/bank";
 import type { BankIntegrationMetadataMap } from "~/types";
-import { makeUpdateSpotMarketIx } from "~/vendor/drift";
+import { makeUpdateSpotMarketCumulativeInterestIx } from "~/vendor/drift";
 
 /**
  * Creates instructions to update Drift protocol spot market data.
@@ -15,52 +14,34 @@ import { makeUpdateSpotMarketIx } from "~/vendor/drift";
  * executing transactions.
  *
  * @param marginfiAccount - The marginfi account containing active bank balances
- * @param bankMap - Map of bank addresses (base58) to bank instances
- * @param banksToExclude - Public keys of banks to exclude from the update
+ * @param bankMap - Map of bank addresses to bank instances
+ * @param banksToExclude - Addresses of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (Drift spot market states)
- * @returns InstructionsWrapper containing Drift spot market update instructions
+ * @returns Drift spot market update instructions
+ * @throws if an active bank is missing from `bankMap`
  */
-export function makeUpdateDriftMarketIxs(
+export async function makeUpdateDriftMarketIxs(
   marginfiAccount: MarginfiAccountType,
   bankMap: Map<string, BankType>,
-  banksToExclude: PublicKey[],
+  banksToExclude: Address[],
   bankMetadataMap: BankIntegrationMetadataMap
-): InstructionsWrapper {
-  const ixs: TransactionInstruction[] = [];
-
+): Promise<Instruction[]> {
   const activeBanksPk = marginfiAccount.balances
     .filter((balance) => balance.active)
     .map((balance) => balance.bankPk);
 
-  const banksToExcludeSet = new Set(banksToExclude.map((pk) => pk.toBase58()));
+  const banksToExcludeSet = new Set(banksToExclude);
 
   const allActiveBanks = activeBanksPk
-    .filter((pk) => !banksToExcludeSet.has(pk.toBase58()))
-    .map((pk) => bankMap.get(pk.toBase58())!);
+    .filter((pk) => !banksToExcludeSet.has(pk))
+    .map((pk) => requireBank(bankMap, pk));
 
   // filter drift banks
-  const driftBanks = allActiveBanks.filter((bank) => bank.config.assetTag === 4);
+  const driftBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
 
-  if (driftBanks.length > 0) {
-    const refreshReserveData = driftBanks
-      .map((driftBank) => {
-        const bankMetadata = bankMetadataMap?.[driftBank.address.toBase58()];
-        if (!bankMetadata?.driftStates) return;
-        const driftSpotMarket = bankMetadata.driftStates.spotMarketState;
-        return driftSpotMarket;
-      })
-      .filter((bank): bank is NonNullable<typeof bank> => !!bank);
+  const spotMarkets = driftBanks
+    .map((driftBank) => bankMetadataMap?.[driftBank.address]?.driftStates?.spotMarketState)
+    .filter((market): market is NonNullable<typeof market> => !!market);
 
-    //refresh obligations
-    const updateDriftMarketIxs = refreshReserveData.map((market) =>
-      makeUpdateSpotMarketIx({ spotMarket: market })
-    );
-
-    ixs.push(...updateDriftMarketIxs);
-  }
-
-  return {
-    instructions: ixs,
-    keys: [],
-  };
+  return Promise.all(spotMarkets.map(makeUpdateSpotMarketCumulativeInterestIx));
 }

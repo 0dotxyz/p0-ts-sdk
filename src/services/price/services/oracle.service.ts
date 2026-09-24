@@ -1,4 +1,3 @@
-import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice } from "../types";
@@ -83,9 +82,7 @@ function classifyBanksForOracleStrategy(banks: BankType[]): {
   const fixedAssetBanks: BankType[] = [];
 
   banks.forEach((bank) => {
-    const hasZeroOracle = bank.config.oracleKeys.some((key) =>
-      key.equals(new PublicKey(ZERO_ORACLE_KEY))
-    );
+    const hasZeroOracle = bank.config.oracleKeys.some((key) => key === ZERO_ORACLE_KEY);
 
     if (hasZeroOracle) {
       zeroOracleBanks.push(bank);
@@ -123,7 +120,7 @@ function handleFixedOracleBanks(
     // Without a valid rate the bank is unpriceable (zero), like any other failed oracle -
     // falling back to the start price would understate a borrowed PT near maturity.
     const isPtFixed = bank.config.oracleSetup === OracleSetup.PTFixed;
-    const multiplier = multiplierByBank[bank.address.toBase58()];
+    const multiplier = multiplierByBank[bank.address];
     const fixedPrice = isPtFixed
       ? Number.isFinite(multiplier)
         ? BigNumber(multiplier)
@@ -146,7 +143,7 @@ function handleFixedOracleBanks(
       timestamp: BigNumber(Date.now()),
     };
 
-    oracleMap.set(bank.address.toBase58(), fixedOraclePrice);
+    oracleMap.set(bank.address, fixedOraclePrice);
   });
 
   return oracleMap;
@@ -177,7 +174,7 @@ function handleZeroOracleBanks(banks: BankType[]): Map<string, OraclePrice> {
       timestamp: BigNumber(Date.now()),
     };
 
-    oracleMap.set(bank.address.toBase58(), zeroOraclePrice);
+    oracleMap.set(bank.address, zeroOraclePrice);
   });
 
   return oracleMap;
@@ -196,7 +193,7 @@ function handleIsolatedAssetBanks(
   const oracleMap = new Map<string, OraclePrice>();
 
   banks.forEach((bank) => {
-    const price = staticPrices?.[bank.address.toBase58()] ?? 0;
+    const price = staticPrices?.[bank.address] ?? 0;
 
     const oraclePrice: OraclePrice = {
       priceRealtime: {
@@ -214,7 +211,7 @@ function handleIsolatedAssetBanks(
       timestamp: BigNumber(Date.now()),
     };
 
-    oracleMap.set(bank.address.toBase58(), oraclePrice);
+    oracleMap.set(bank.address, oraclePrice);
   });
 
   return oracleMap;
@@ -257,7 +254,7 @@ async function handleAssetBanks(
 
   // Check for any missing oracle prices and set to zero as fallback
   banks.forEach((bank) => {
-    const bankAddress = bank.address.toBase58();
+    const bankAddress = bank.address;
     const oraclePrice = bankOraclePriceMap.get(bankAddress);
     if (!oraclePrice) {
       bankOraclePriceMap.set(bankAddress, {
@@ -306,10 +303,10 @@ function mergeOracleResults(
 
   // Build mint-based oracle map
   allBanks.forEach((bank) => {
-    const bankAddress = bank.address.toBase58();
+    const bankAddress = bank.address;
     const oraclePrice = bankOraclePriceMap.get(bankAddress);
     if (oraclePrice) {
-      const mintAddress = bank.mint.toBase58();
+      const mintAddress = bank.mint;
       mintOraclePriceMap.set(mintAddress, oraclePrice);
     }
   });

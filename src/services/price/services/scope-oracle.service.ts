@@ -1,4 +1,9 @@
-import { Connection } from "@solana/web3.js";
+import {
+  address,
+  type GetMultipleAccountsApi,
+  type ReadonlyUint8Array,
+  type Rpc,
+} from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
@@ -10,7 +15,7 @@ import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
 type FetchScopeOracleOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  rpc: Rpc<GetMultipleAccountsApi>;
 };
 
 type FetchScopeOracleApiOpts = {
@@ -28,7 +33,7 @@ export type ScopeOracleServiceOpts = FetchScopeOracleOnChainOpts | FetchScopeOra
  * so requests are keyed as "<oracleKey>:<entryIndex>".
  */
 const scopeRequestKey = (bank: BankType): string | undefined => {
-  const oracleKey = bank.config.oracleKeys[0]?.toBase58();
+  const oracleKey = bank.config.oracleKeys[0];
   const entryIndex = bank.config.scopeEntryIndex;
   // A Scope price is only identified together with its entry index; without it the bank is
   // unpriceable rather than silently read from entry 0.
@@ -38,7 +43,7 @@ const scopeRequestKey = (bank: BankType): string | undefined => {
 /**
  * Fetches Scope oracle data for all Scope-priced banks
  * @param banks - Array of bank objects
- * @param opts - Configuration including API endpoint usage and connection
+ * @param opts - Configuration including API endpoint usage and rpc
  * @returns Promise resolving to map of bank addresses to their oracle prices
  */
 export const fetchScopeOracleData = async (
@@ -80,7 +85,7 @@ export const fetchScopeOracleData = async (
       { queryKey: opts.scopeOnchainData.queryKey }
     );
   } else {
-    oraclePrices = await fetchScopeOraclePricesFromChain(uniqueRequestKeys, opts.connection);
+    oraclePrices = await fetchScopeOraclePricesFromChain(uniqueRequestKeys, opts.rpc);
   }
 
   const bankOraclePriceMap = new Map<string, OraclePrice>();
@@ -110,7 +115,7 @@ export const fetchScopeOracleData = async (
       };
     }
 
-    bankOraclePriceMap.set(bank.address.toBase58(), oraclePrice);
+    bankOraclePriceMap.set(bank.address, oraclePrice);
   });
 
   return {
@@ -161,22 +166,23 @@ export const fetchScopeOraclePricesFromAPI = async (
 };
 
 /**
- * Fetches Scope oracle data directly from the blockchain via RPC connection
+ * Fetches Scope oracle data directly from the blockchain via RPC
  * @param requestKeys - Array of "<oracleKey>:<entryIndex>" request keys
- * @param connection - Solana RPC connection instance
+ * @param rpc - Solana RPC client
+ * @throws if a request key's oracle key is not a valid address
  * @returns Promise resolving to oracle price data indexed by request key
  */
 export const fetchScopeOraclePricesFromChain = async (
   requestKeys: string[],
-  connection: Connection
+  rpc: Rpc<GetMultipleAccountsApi>
 ): Promise<Record<string, OraclePrice>> => {
   const uniqueOracleKeys = Array.from(new Set(requestKeys.map((key) => key.split(":")[0])));
   const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
-    connection,
-    uniqueOracleKeys
+    rpc,
+    uniqueOracleKeys.map((key) => address(key))
   );
 
-  const accountDataByKey: Record<string, Buffer | undefined> = {};
+  const accountDataByKey: Record<string, ReadonlyUint8Array | undefined> = {};
   uniqueOracleKeys.forEach((oracleKey, index) => {
     accountDataByKey[oracleKey] = oracleAis[index]?.data;
   });

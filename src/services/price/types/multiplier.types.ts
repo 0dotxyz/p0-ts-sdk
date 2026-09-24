@@ -1,3 +1,4 @@
+import type { Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { OracleSetup } from "~/services/bank";
@@ -7,9 +8,9 @@ import { OracleSetup } from "~/services/bank";
  * `getOracleMultiplierBankInput`.
  */
 export type OracleMultiplierBankInput = {
-  bankAddress: string;
+  bankAddress: Address;
   oracleSetup: OracleSetup;
-  multiplierAccountKey: string;
+  multiplierAccountKey: Address;
   /** PT start price; only read for PTPyth / PTFixed. */
   fixedPrice?: BigNumber;
 };

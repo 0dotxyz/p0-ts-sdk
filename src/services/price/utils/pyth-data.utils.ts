@@ -1,10 +1,11 @@
+import type { Address, ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, PriceWithConfidence } from "../types";
 
 import { PYTH_PRICE_CONF_INTERVALS, MAX_CONFIDENCE_INTERVAL_RATIO } from "~/constants";
 import { BankType, OracleSetup } from "~/services/bank";
-import { parsePriceInfo } from "~/vendor/pyth_push_oracle";
+import { decodePythPriceUpdate } from "~/vendor/pyth";
 
 /**
  * Categorizes banks by their oracle setup type into legacy, push, and staked collateral banks
@@ -94,9 +95,9 @@ export const convertVoteAccCoeffsToBankCoeffs = (
   const priceCoeffByBank: Record<string, number> = {};
 
   pythStakedCollateralBanks.forEach((bank) => {
-    const voteAccount = validatorVoteAccountByBank[bank.address.toBase58()];
+    const voteAccount = validatorVoteAccountByBank[bank.address];
     if (voteAccount && voteAccCoeffs[voteAccount] !== undefined) {
-      priceCoeffByBank[bank.address.toBase58()] = voteAccCoeffs[voteAccount];
+      priceCoeffByBank[bank.address] = voteAccCoeffs[voteAccount];
     }
   });
 
@@ -106,10 +107,10 @@ export const convertVoteAccCoeffsToBankCoeffs = (
 /**
  * Extracts oracle keys from Pyth banks for price data fetching
  * @param pythBanks - Array of Pyth bank objects
- * @returns Array of oracle key strings in base58 format
+ * @returns Array of oracle keys
  */
-export const extractPythOracleKeys = (pythBanks: BankType[]): string[] => {
-  const keys = pythBanks.map((bank) => bank.config.oracleKeys[0].toBase58());
+export const extractPythOracleKeys = (pythBanks: BankType[]): Address[] => {
+  const keys = pythBanks.map((bank) => bank.config.oracleKeys[0]);
 
   return [...keys];
 };
@@ -132,22 +133,22 @@ export const mapPythBanksToOraclePrices = (
 
   // Map banks
   pythPushBanks.forEach((bank) => {
-    const oracleKey = bank.config.oracleKeys[0].toBase58();
+    const oracleKey = bank.config.oracleKeys[0];
     const oraclePrice = oraclePrices[oracleKey];
     if (oraclePrice) {
-      bankOraclePriceMap.set(bank.address.toBase58(), oraclePrice);
+      bankOraclePriceMap.set(bank.address, oraclePrice);
     }
   });
 
   // Map multiplied banks with price coefficient adjustment
   multipliedBanks.forEach((bank) => {
-    const priceCoeff = priceCoeffByBank[bank.address.toBase58()];
-    const oracleKey = bank.config.oracleKeys[0]?.toBase58();
+    const priceCoeff = priceCoeffByBank[bank.address];
+    const oracleKey = bank.config.oracleKeys[0];
 
     if (oracleKey && priceCoeff !== undefined && Number.isFinite(priceCoeff)) {
       const oraclePrice = oraclePrices[oracleKey];
       if (oraclePrice) {
-        bankOraclePriceMap.set(bank.address.toBase58(), {
+        bankOraclePriceMap.set(bank.address, {
           timestamp: oraclePrice.timestamp,
           priceRealtime: adjustPriceComponent(oraclePrice.priceRealtime, priceCoeff),
           priceWeighted: adjustPriceComponent(oraclePrice.priceWeighted, priceCoeff),
@@ -173,11 +174,12 @@ export const adjustPriceComponent = (priceComponent: PriceWithConfidence, priceC
 });
 
 /**
- * Parses raw Pyth price data from RPC into standardized OraclePriceDto format
- * @param rawData - Raw buffer data from Pyth price account
+ * Parses a Pyth `PriceUpdateV2` account into standardized OraclePrice format
+ * @param rawData - Raw data of the Pyth price account
  * @returns Parsed oracle price data with realtime and weighted price information
+ * @throws if the account is not a `PriceUpdateV2`
  */
-export function parseRpcPythPriceData(rawData: Buffer): OraclePrice {
+export function parseRpcPythPriceData(rawData: ReadonlyUint8Array): OraclePrice {
   function capConfidenceInterval(
     price: BigNumber,
     confidence: BigNumber,
@@ -188,8 +190,7 @@ export function parseRpcPythPriceData(rawData: Buffer): OraclePrice {
     return BigNumber.min(confidence, maxConfidenceInterval);
   }
 
-  const bytesWithoutDiscriminator = rawData.slice(8);
-  const data = parsePriceInfo(bytesWithoutDiscriminator);
+  const data = decodePythPriceUpdate(rawData);
 
   const exponent = new BigNumber(10 ** data.priceMessage.exponent);
 

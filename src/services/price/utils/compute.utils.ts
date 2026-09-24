@@ -1,3 +1,4 @@
+import type { ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, PriceWithConfidence, PriceBias } from "../types";
@@ -40,7 +41,7 @@ export function capConfidenceInterval(
   return BigNumber.min(confidence, maxConfidenceInterval);
 }
 
-function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): OraclePrice {
+function parseOraclePriceData(oracleSetup: OracleSetup, rawData: ReadonlyUint8Array): OraclePrice {
   const oracleSourceKey = getOracleSourceFromOracleSetup(oracleSetup).key;
   switch (oracleSourceKey) {
     case "pyth": {

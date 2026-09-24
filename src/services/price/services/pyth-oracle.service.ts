@@ -1,4 +1,4 @@
-import { Connection } from "@solana/web3.js";
+import type { Address, GetMultipleAccountsApi, Rpc } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
@@ -18,7 +18,7 @@ type ValidatorVoteAccountByBank = {
 
 type FetchPythOracleOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  rpc: Rpc<GetMultipleAccountsApi>;
   validatorVoteAccountByBank?: ValidatorVoteAccountByBank;
 };
 
@@ -41,7 +41,7 @@ export type PythOracleServiceOpts = FetchPythOracleOnChainOpts | FetchPythOracle
 /**
  * Fetches comprehensive Pyth oracle data including push oracles and staked collateral data
  * @param banks - Array of bank objects
- * @param opts - Optional configuration including API endpoint usage and connection
+ * @param opts - Optional configuration including API endpoint usage and rpc
  * @returns Promise resolving to map of bank addresses to their oracle prices
  */
 export const fetchPythOracleData = async (
@@ -103,7 +103,7 @@ export const fetchPythOracleData = async (
       { queryKey: opts.pythOnchainData.queryKey }
     );
   } else {
-    oraclePrices = await fetchPythOraclePricesFromChain(uniquePythOracleKeys, opts.connection);
+    oraclePrices = await fetchPythOraclePricesFromChain(uniquePythOracleKeys, opts.rpc);
   }
 
   // Step 6: Map banks to oracle prices
@@ -116,8 +116,8 @@ export const fetchPythOracleData = async (
 
   // A multiplied bank without a valid exchange rate must not keep the raw base-feed price
   pythMultipliedBanks.forEach((bank) => {
-    if (!Number.isFinite(priceCoeffByBank[bank.address.toBase58()])) {
-      bankOraclePriceMap.delete(bank.address.toBase58());
+    if (!Number.isFinite(priceCoeffByBank[bank.address])) {
+      bankOraclePriceMap.delete(bank.address);
     }
   });
 
@@ -128,12 +128,12 @@ export const fetchPythOracleData = async (
 
 /**
  * Fetches Pyth oracle price data via internal API endpoint
- * @param pythOracleKeys - Array of Pyth oracle key strings
+ * @param pythOracleKeys - Pyth oracle addresses
  * @param apiEndpoint - Fetches pyth oracle data with a GET request using the pyth keys as params
  * @returns Promise resolving to oracle prices indexed by oracle key
  */
 export const fetchPythOraclePricesFromAPI = async (
-  pythOracleKeys: string[],
+  pythOracleKeys: Address[],
   apiEndpoint: string,
   opts?: { queryKey?: string }
 ): Promise<Record<string, OraclePrice>> => {
@@ -169,18 +169,18 @@ export const fetchPythOraclePricesFromAPI = async (
 };
 
 /**
- * Fetches Pyth oracle data directly from the blockchain via RPC connection
- * @param requestedPythOracleKeys - Array of Pyth oracle key strings to fetch
- * @param connection - Solana RPC connection instance
+ * Fetches Pyth oracle data directly from the blockchain via RPC
+ * @param requestedPythOracleKeys - Pyth oracle addresses to fetch
+ * @param rpc - Solana RPC client
  * @returns Promise resolving to oracle price data indexed by oracle key
  */
 export const fetchPythOraclePricesFromChain = async (
-  requestedPythOracleKeys: string[],
-  connection: Connection
+  requestedPythOracleKeys: Address[],
+  rpc: Rpc<GetMultipleAccountsApi>
 ): Promise<Record<string, OraclePrice>> => {
   const updatedOraclePriceByKey: Record<string, OraclePrice> = {};
   const oracleAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
-    connection,
+    rpc,
     requestedPythOracleKeys
   );
 

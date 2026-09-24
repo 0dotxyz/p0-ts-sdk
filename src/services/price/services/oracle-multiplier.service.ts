@@ -1,4 +1,4 @@
-import { Connection } from "@solana/web3.js";
+import type { Address, GetEpochInfoApi, GetMultipleAccountsApi, Rpc } from "@solana/kit";
 
 import {
   MultiplierAccountState,
@@ -16,7 +16,7 @@ import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/mis
 
 type FetchOracleMultiplierOnChainOpts = {
   mode: "on-chain";
-  connection: Connection;
+  rpc: Rpc<GetMultipleAccountsApi & GetEpochInfoApi>;
 };
 
 type FetchOracleMultiplierApiOpts = {
@@ -35,7 +35,7 @@ export type OracleMultiplierServiceOpts =
  * Fetches the exchange-rate multipliers for banks priced as `base feed x on-chain rate`
  * (Marinade mSOL rate, SPL stake-pool LST rate, Exponent PT linear rate)
  * @param banks - Array of bank objects
- * @param opts - Configuration including API endpoint usage and connection
+ * @param opts - Configuration including API endpoint usage and rpc
  * @returns Promise resolving to multipliers indexed by bank address
  */
 export const fetchOracleMultipliers = async (
@@ -63,7 +63,7 @@ export const fetchOracleMultipliers = async (
     });
   }
 
-  return fetchOracleMultipliersFromChain(inputs, opts.connection);
+  return fetchOracleMultipliersFromChain(inputs, opts.rpc);
 };
 
 /**
@@ -87,11 +87,11 @@ export const fetchOracleMultipliersFromAPI = async (
  */
 export const fetchOracleMultipliersFromChain = async (
   inputs: OracleMultiplierBankInput[],
-  connection: Connection
+  rpc: Rpc<GetMultipleAccountsApi & GetEpochInfoApi>
 ): Promise<Record<string, number>> => {
   const accountStates = await fetchMultiplierAccountStates(
     inputs.map((input) => input.multiplierAccountKey),
-    connection
+    rpc
   );
   return computeOracleMultipliers(inputs, accountStates);
 };
@@ -122,15 +122,15 @@ export const fetchMultiplierAccountStatesFromAPI = async (
 
 /**
  * Reads and decodes multiplier accounts from the chain.
- * @param accountKeys - Multiplier account addresses (base58)
- * @param connection - Solana RPC connection instance
+ * @param accountKeys - Multiplier account addresses
+ * @param rpc - Solana RPC client
  */
 export const fetchMultiplierAccountStates = async (
-  accountKeys: string[],
-  connection: Connection
+  accountKeys: Address[],
+  rpc: Rpc<GetMultipleAccountsApi & GetEpochInfoApi>
 ): Promise<MultiplierAccountStates> => {
   const uniqueKeys = Array.from(new Set(accountKeys));
-  const accountAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, uniqueKeys);
+  const accountAis = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(rpc, uniqueKeys);
 
   const states: Record<string, MultiplierAccountState> = {};
   uniqueKeys.forEach((accountKey, index) => {
@@ -148,7 +148,7 @@ export const fetchMultiplierAccountStates = async (
   });
 
   const hasStakePool = Object.values(states).some((state) => state.kind === "stakePool");
-  const currentEpoch = hasStakePool ? (await connection.getEpochInfo()).epoch : 0;
+  const currentEpoch = hasStakePool ? Number((await rpc.getEpochInfo().send()).epoch) : 0;
 
   return { states, currentEpoch };
 };

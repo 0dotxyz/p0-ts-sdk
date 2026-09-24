@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address, ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import {
@@ -8,7 +8,7 @@ import {
 } from "../types";
 
 import { BankType, OracleSetup } from "~/services/bank";
-import { decodeExponentVault, ExponentVault } from "~/vendor/exponent";
+import { decodeExponentVault, exponentNumberToBigNumber } from "~/vendor/exponent";
 import { decodeMarinadeState } from "~/vendor/marinade";
 import { decodeStakePool } from "~/vendor/spl-stake-pool";
 
@@ -18,15 +18,14 @@ const MAX_SY_EXCHANGE_RATE = new BigNumber("18446744073709551615").div(1e12);
 // Same staleness slack as the program: one epoch of crank lag is tolerated
 const MAX_STAKE_POOL_EPOCH_LAG = 1;
 
-type PtVaultFields = Pick<
-  ExponentVault,
-  | "startTs"
-  | "duration"
-  | "syForPt"
-  | "ptSupply"
-  | "lastSeenSyExchangeRate"
-  | "allTimeHighSyExchangeRate"
->;
+type PtVaultFields = {
+  startTs: number;
+  duration: number;
+  syForPt: bigint;
+  ptSupply: bigint;
+  lastSeenSyExchangeRate: BigNumber;
+  allTimeHighSyExchangeRate: BigNumber;
+};
 
 // ─── Bank → input ────────────────────────────────────────────
 
@@ -34,7 +33,7 @@ type PtVaultFields = Pick<
  * The account holding the exchange rate for a multiplier-priced bank. Venue variants carry their
  * reserve/lending account in oracleKeys[1], pushing the pricing account to oracleKeys[2].
  */
-function multiplierAccountKey(bank: BankType): PublicKey | undefined {
+function multiplierAccountKey(bank: BankType): Address | undefined {
   switch (bank.config.oracleSetup) {
     case OracleSetup.PythMSOL:
     case OracleSetup.PythLST:
@@ -66,9 +65,9 @@ export function getOracleMultiplierBankInput(
     bank.config.oracleSetup === OracleSetup.PTFixed;
 
   return {
-    bankAddress: bank.address.toBase58(),
+    bankAddress: bank.address,
     oracleSetup: bank.config.oracleSetup,
-    multiplierAccountKey: accountKey.toBase58(),
+    multiplierAccountKey: accountKey,
     fixedPrice: isPt ? bank.config.fixedPrice : undefined,
   };
 }
@@ -80,7 +79,9 @@ export function getOracleMultiplierBankInput(
  * discriminator), then Marinade state (discriminator), then SPL stake pool (account-type byte).
  * Returns undefined when none match.
  */
-export function decodeMultiplierAccount(data: Buffer): MultiplierAccountState | undefined {
+export function decodeMultiplierAccount(
+  data: ReadonlyUint8Array
+): MultiplierAccountState | undefined {
   try {
     const vault = decodeExponentVault(data);
     return {
@@ -89,8 +90,10 @@ export function decodeMultiplierAccount(data: Buffer): MultiplierAccountState | 
       duration: vault.duration,
       syForPt: vault.syForPt.toString(),
       ptSupply: vault.ptSupply.toString(),
-      lastSeenSyExchangeRate: vault.lastSeenSyExchangeRate.toString(),
-      allTimeHighSyExchangeRate: vault.allTimeHighSyExchangeRate.toString(),
+      lastSeenSyExchangeRate: exponentNumberToBigNumber(vault.lastSeenSyExchangeRate).toString(),
+      allTimeHighSyExchangeRate: exponentNumberToBigNumber(
+        vault.allTimeHighSyExchangeRate
+      ).toString(),
     };
   } catch {
     // not an Exponent vault
