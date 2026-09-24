@@ -14,6 +14,7 @@ import {
   BankConfigDto,
   InterestRateConfigDto,
   InterestRateConfig,
+  InterestRateConfigOpt,
   BankRateLimiterType,
   RateLimitWindowType,
   BankRateLimiterDto,
@@ -21,6 +22,7 @@ import {
 } from "../types";
 
 import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
+import type { InterestRateConfigCompactArgs } from "~/generated/marginfi";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
 function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
@@ -37,29 +39,9 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
     riskTier: bankConfigOpt.riskTier && serializeRiskTier(bankConfigOpt.riskTier),
     totalAssetValueInitLimit: toBigInt(bankConfigOpt.totalAssetValueInitLimit),
     assetTag: bankConfigOpt.assetTag,
-    interestRateConfig: bankConfigOpt.interestRateConfig && {
-      insuranceFeeFixedApr: bigNumberToWrappedI80F48(
-        bankConfigOpt.interestRateConfig.insuranceFeeFixedApr
-      ),
-      insuranceIrFee: bigNumberToWrappedI80F48(bankConfigOpt.interestRateConfig.insuranceIrFee),
-      protocolFixedFeeApr: bigNumberToWrappedI80F48(
-        bankConfigOpt.interestRateConfig.protocolFixedFeeApr
-      ),
-      protocolIrFee: bigNumberToWrappedI80F48(bankConfigOpt.interestRateConfig.protocolIrFee),
-      protocolOriginationFee: bigNumberToWrappedI80F48(
-        bankConfigOpt.interestRateConfig.protocolOriginationFee
-      ),
-      zeroUtilRate: bankConfigOpt.interestRateConfig.zeroUtilRate,
-      hundredUtilRate: bankConfigOpt.interestRateConfig.hundredUtilRate,
-      // The on-chain curve is a fixed [RatePoint; 5]; unused slots are zero
-      points: [
-        ...bankConfigOpt.interestRateConfig.points,
-        ...Array.from({ length: 5 - bankConfigOpt.interestRateConfig.points.length }, () => ({
-          util: 0,
-          rate: 0,
-        })),
-      ],
-    },
+    interestRateConfig:
+      bankConfigOpt.interestRateConfig &&
+      serializeInterestRateConfig(bankConfigOpt.interestRateConfig),
     operationalState:
       bankConfigOpt.operationalState && serializeOperationalState(bankConfigOpt.operationalState),
     oracleMaxAge: bankConfigOpt.oracleMaxAge,
@@ -77,6 +59,25 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
     cbWindowSeconds: null,
     cbWindowMaxUpBps: null,
     cbWindowMaxDownBps: null,
+  };
+}
+
+function serializeInterestRateConfig(
+  interestRateConfig: InterestRateConfigOpt
+): InterestRateConfigCompactArgs {
+  return {
+    insuranceFeeFixedApr: bigNumberToWrappedI80F48(interestRateConfig.insuranceFeeFixedApr),
+    insuranceIrFee: bigNumberToWrappedI80F48(interestRateConfig.insuranceIrFee),
+    protocolFixedFeeApr: bigNumberToWrappedI80F48(interestRateConfig.protocolFixedFeeApr),
+    protocolIrFee: bigNumberToWrappedI80F48(interestRateConfig.protocolIrFee),
+    protocolOriginationFee: bigNumberToWrappedI80F48(interestRateConfig.protocolOriginationFee),
+    zeroUtilRate: interestRateConfig.zeroUtilRate,
+    hundredUtilRate: interestRateConfig.hundredUtilRate,
+    // The on-chain curve is a fixed [RatePoint; 5]; unused slots are zero
+    points: [
+      ...interestRateConfig.points,
+      ...Array.from({ length: 5 - interestRateConfig.points.length }, () => ({ util: 0, rate: 0 })),
+    ],
   };
 }
 
@@ -287,6 +288,7 @@ function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): Intere
 export {
   serializeOracleSetup,
   serializeBankConfigOpt,
+  serializeInterestRateConfig,
   serializeRiskTier,
   serializeOperationalState,
   toBankDto,

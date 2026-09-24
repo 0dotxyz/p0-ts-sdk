@@ -1,10 +1,10 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
-import { BankRateLimiterType, BankRateLimiterDto } from "~/services/bank";
+import { BankConfigOpt, BankRateLimiterDto, BankRateLimiterType } from "~/services/bank/types";
 
 export type MarginfiGroupType = {
-  admin: PublicKey;
-  address: PublicKey;
+  admin: Address;
+  address: Address;
   /**
    * Group-level net-outflow rate limiter (windows denominated in USD, unlike bank
    * rate limiters which use native tokens). When any window is enabled, every
@@ -29,3 +29,21 @@ export function isGroupRateLimiterEnabled(rateLimiter?: BankRateLimiterType): bo
   if (!rateLimiter) return false;
   return rateLimiter.hourly.maxOutflow.gt(0) || rateLimiter.daily.maxOutflow.gt(0);
 }
+
+/** The `BankConfigOpt` fields `lending_pool_add_bank` requires, all set. */
+export type AddBankConfig = {
+  [K in
+    | "assetWeightInit"
+    | "assetWeightMaint"
+    | "liabilityWeightInit"
+    | "liabilityWeightMaint"
+    | "depositLimit"
+    | "borrowLimit"
+    | "operationalState"
+    | "interestRateConfig"
+    | "riskTier"
+    | "assetTag"
+    | "totalAssetValueInitLimit"
+    | "oracleMaxConfidence"
+    | "oracleMaxAge"]: NonNullable<BankConfigOpt[K]>;
+};

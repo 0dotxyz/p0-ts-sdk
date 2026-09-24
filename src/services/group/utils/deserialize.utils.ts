@@ -1,13 +1,13 @@
-import { PublicKey } from "@solana/web3.js";
+import { address } from "@solana/kit";
 
 import { MarginfiGroupTypeDto, MarginfiGroupType } from "../types";
 
-import { dtoToBankRateLimiter } from "~/services/bank";
+import { dtoToBankRateLimiter } from "~/services/bank/utils/deserialize.utils";
 
 export function dtoToGroup(groupDto: MarginfiGroupTypeDto): MarginfiGroupType {
   return {
-    admin: new PublicKey(groupDto.admin),
-    address: new PublicKey(groupDto.address),
+    admin: address(groupDto.admin),
+    address: address(groupDto.address),
     rateLimiter: groupDto.rateLimiter ? dtoToBankRateLimiter(groupDto.rateLimiter) : undefined,
   };
 }
