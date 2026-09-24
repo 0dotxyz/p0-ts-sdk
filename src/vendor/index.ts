@@ -7,7 +7,6 @@ export * from "./scope";
 export * from "./marinade";
 export * from "./spl-stake-pool";
 export * from "./klend";
-export * from "./spl";
 export * from "./drift";
 export * from "./jup-lend";
 export * from "./titan";
