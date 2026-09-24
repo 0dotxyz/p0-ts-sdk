@@ -1,0 +1,148 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`I80F48 conversion > encodes -1 1`] = `
+[
+  127,
+  255,
+  255,
+  255,
+  255,
+  255,
+  254,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+]
+`;
+
+exports[`I80F48 conversion > encodes -98765.4321 1`] = `
+[
+  125,
+  101,
+  247,
+  228,
+  97,
+  145,
+  50,
+  126,
+  254,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+  255,
+]
+`;
+
+exports[`I80F48 conversion > encodes 0 1`] = `
+[
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+]
+`;
+
+exports[`I80F48 conversion > encodes 0.5 1`] = `
+[
+  0,
+  0,
+  0,
+  0,
+  0,
+  128,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+]
+`;
+
+exports[`I80F48 conversion > encodes 1 1`] = `
+[
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+]
+`;
+
+exports[`I80F48 conversion > encodes 123.456 1`] = `
+[
+  219,
+  249,
+  126,
+  106,
+  188,
+  116,
+  123,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+]
+`;
+
+exports[`marginfi PDAs > derives the recorded addresses 1`] = `
+{
+  "feeState": [
+    "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+    252,
+  ],
+  "liquidityVault": [
+    "ATiyWijqxJTKw8ZymcfmtCSY6FyGkkJpfTfW98RYeNZx",
+    254,
+  ],
+  "liquidityVaultAuthority": [
+    "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+    255,
+  ],
+  "marginfiAccount": [
+    "4f7gsDgiChWLNMMp4C4MMENk7g85KEYeMsw2phoDud9Q",
+    255,
+  ],
+}
+`;

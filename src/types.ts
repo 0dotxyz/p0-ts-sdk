@@ -1,8 +1,5 @@
-import { Program as AnchorProgram, AnchorProvider, Idl } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
-import { MarginfiIdlType } from "./idl";
 import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
 import {
@@ -32,25 +29,10 @@ import {
 
 // Define MintData here to break circular dependencies
 export type MintData = {
-  mint: PublicKey;
-  tokenProgram: PublicKey;
+  mint: Address;
+  tokenProgram: Address;
   // deprecated
-  emissionTokenProgram?: PublicKey | null;
-};
-
-export type Program<T extends Idl> = Omit<AnchorProgram<T>, "provider"> & {
-  provider: AnchorProvider;
-};
-
-export type MarginfiProgram = Program<MarginfiIdlType>;
-
-export type Wallet = {
-  publicKey: PublicKey;
-  signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T>;
-  signAllTransactions<T extends Transaction | VersionedTransaction>(
-    transactions: T[]
-  ): Promise<T[]>;
-  signMessage?: (message: Uint8Array) => Promise<Uint8Array>;
+  emissionTokenProgram?: Address | null;
 };
 
 export interface BankMetadata {
@@ -67,13 +49,13 @@ export type Environment = "production" | "staging" | "staging-mainnet-clone" | "
 
 export interface Project0Config {
   environment: Environment;
-  programId: PublicKey;
-  groupPk: PublicKey;
+  programId: Address;
+  groupPk: Address;
 }
 
 export interface BankAddress {
   label: string;
-  address: PublicKey;
+  address: Address;
 }
 
 // --- On-chain account structs
@@ -107,7 +89,7 @@ export type BankIntegrationMetadata = {
     jupTokenReserveState: JupTokenReserve;
     jupRewardsRateModel: JupLendingRewardsRateModel | null;
     jupRateModel: JupRateModel | null;
-    fTokenTotalSupply: BN;
+    fTokenTotalSupply: bigint;
   };
 };
 
@@ -143,7 +125,8 @@ export type OraclePriceMap = Map<string, OraclePrice>;
 export type MintDataMap = Map<string, MintData>;
 
 export interface WrappedI80F48 {
-  value: number[];
+  /** 16 little-endian bytes of an I80F48 fixed-point number */
+  value: ReadonlyUint8Array;
 }
 
 export type Amount = BigNumber | number | string;

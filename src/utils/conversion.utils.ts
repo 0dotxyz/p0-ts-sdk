@@ -1,7 +1,5 @@
-import { Address } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { getAddressEncoder, type Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
-import BN from "bn.js";
 import { Decimal } from "decimal.js";
 
 import { Amount, WrappedI80F48 } from "../types";
@@ -16,8 +14,7 @@ export function wrappedI80F48toBigNumber(wrapped: WrappedI80F48): BigNumber {
     throw new Error(`Expected a ${I80F48_TOTAL_BYTES}-byte buffer`);
   }
 
-  let bytesBE = bytesLE.slice();
-  bytesBE.reverse();
+  let bytesBE = Array.from(bytesLE).reverse();
 
   let signChar = "";
   const msb = bytesBE[0];
@@ -37,7 +34,12 @@ export function bigNumberToWrappedI80F48(value: Amount): WrappedI80F48 {
   const isNegative = decimalValue.isNegative();
 
   decimalValue = decimalValue.times(I80F48_DIVISOR);
-  let wrappedValue = new BN(decimalValue.round().toFixed()).toArray();
+  // Minimal big-endian bytes of the magnitude, like `BN.toArray()`.
+  const magnitudeHex = BigInt(decimalValue.round().abs().toFixed()).toString(16);
+  const hex = magnitudeHex.length % 2 ? `0${magnitudeHex}` : magnitudeHex;
+  let wrappedValue = Array.from({ length: hex.length / 2 }, (_, i) =>
+    parseInt(hex.slice(2 * i, 2 * i + 2), 16)
+  );
 
   if (wrappedValue.length < I80F48_TOTAL_BYTES) {
     const padding = Array(I80F48_TOTAL_BYTES - wrappedValue.length).fill(0);
@@ -51,7 +53,7 @@ export function bigNumberToWrappedI80F48(value: Amount): WrappedI80F48 {
 
   wrappedValue.reverse();
 
-  return { value: wrappedValue };
+  return { value: Uint8Array.from(wrappedValue) };
 }
 
 /**
@@ -70,9 +72,9 @@ export function toNumber(amount: Amount): number {
 }
 
 /**
- * Converts a ui representation of a token amount into its native value as `BN`, given the specified mint decimal amount (default to 6 for USDC).
+ * Converts an amount (UI number/string/BigNumber or native bigint) to a BigNumber.
  */
-export function toBigNumber(amount: Amount | BN): BigNumber {
+export function toBigNumber(amount: Amount | bigint): BigNumber {
   let amt: BigNumber;
   if (amount instanceof BigNumber) {
     amt = amount;
@@ -83,11 +85,11 @@ export function toBigNumber(amount: Amount | BN): BigNumber {
 }
 
 /**
- * Converts a UI representation of a token amount into its native value as `BN`, given the specified mint decimal amount (default to 6 for USDC).
+ * Converts a UI token amount to native units, rounding down.
  */
-export function uiToNative(amount: Amount, decimals: number): BN {
+export function uiToNative(amount: Amount, decimals: number): bigint {
   const amt = toBigNumber(amount);
-  return new BN(amt.times(10 ** decimals).toFixed(0, BigNumber.ROUND_FLOOR));
+  return BigInt(amt.times(10 ** decimals).toFixed(0, BigNumber.ROUND_FLOOR));
 }
 
 export function uiToNativeBigNumber(amount: Amount, decimals: number): BigNumber {
@@ -98,15 +100,14 @@ export function uiToNativeBigNumber(amount: Amount, decimals: number): BigNumber
 /**
  * Converts a native representation of a token amount into its UI value as `number`, given the specified mint decimal amount.
  */
-export function nativeToUi(amount: Amount | BN, decimals: number): number {
+export function nativeToUi(amount: Amount | bigint, decimals: number): number {
   const amt = toBigNumber(amount);
   return amt.div(10 ** decimals).toNumber();
 }
 
 // shorten the checksummed version of the input address to have 4 characters at start and end
-export function shortenAddress(pubkey: Address, chars = 4): string {
-  const pubkeyStr = pubkey.toString();
-  return `${pubkeyStr.slice(0, chars)}...${pubkeyStr.slice(-chars)}`;
+export function shortenAddress(address: string, chars = 4): string {
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
 }
 
 /**
@@ -131,10 +132,11 @@ export function bpsToPercentile(bps: number): number {
  * @returns Flattened array of public keys with inactive accounts at the end, ready for transaction
  *          composition
  */
-export const composeRemainingAccounts = (banksAndOracles: PublicKey[][]): PublicKey[] => {
+export const composeRemainingAccounts = (banksAndOracles: Address[][]): Address[] => {
+  const addressEncoder = getAddressEncoder();
   banksAndOracles.sort((a, b) => {
-    const A = a[0].toBytes();
-    const B = b[0].toBytes();
+    const A = addressEncoder.encode(a[0]);
+    const B = addressEncoder.encode(b[0]);
     // find the first differing byte
     for (let i = 0; i < 32; i++) {
       if (A[i] !== B[i]) {

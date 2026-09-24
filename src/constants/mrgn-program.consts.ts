@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { address } from "@solana/kit";
 
 export const DISABLED_FLAG: number = 1 << 0;
 export const FLASHLOAN_ENABLED_FLAG: number = 1 << 2;
@@ -11,10 +11,6 @@ export const STAKED_ORACLE_DISABLED_FLAG: number = 1 << 9;
 export const STAKED_ORACLE_USES_ONRAMP_FLAG: number = 1 << 10;
 
 // Program keys
-export const MARGINFI_PROGRAM = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-export const MARGINFI_PROGRAM_STAGING = new PublicKey(
-  "stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct"
-);
-export const MARGINFI_PROGRAM_STAGING_ALT = new PublicKey(
-  "5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY"
-);
+export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+export const MARGINFI_PROGRAM_STAGING = address("stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct");
+export const MARGINFI_PROGRAM_STAGING_ALT = address("5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY");

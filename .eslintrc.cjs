@@ -58,7 +58,7 @@ module.exports = {
             group: ['~/generated/*', '**/generated/*'],
             allowTypeImports: true,
             message:
-              'Use the wrapper in src/instructions.ts or src/vendor/<program> instead of the generated client.',
+              'Use the wrapper in src/instructions.ts, src/accounts.ts or src/vendor/<program> instead of the generated client.',
           },
         ],
       },
@@ -66,7 +66,7 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['src/instructions.ts', 'src/vendor/**/*.ts'],
+      files: ['src/instructions.ts', 'src/accounts.ts', 'src/vendor/**/*.ts'],
       rules: { '@typescript-eslint/no-restricted-imports': 'off' },
     },
   ],
