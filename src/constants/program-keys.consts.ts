@@ -4,6 +4,9 @@ export const JUPITER_V6_PROGRAM: Address = address("JUP6LkbZbjS1jKKwapdHNy74zcZ3
 export const SINGLE_POOL_PROGRAM_ID: Address = address(
   "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
 );
+export const TOKEN_2022_PROGRAM_ID: Address = address(
+  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+);
 export const STAKE_PROGRAM_ID: Address = address("Stake11111111111111111111111111111111111111");
 export const MPL_METADATA_PROGRAM_ID: Address = address(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"

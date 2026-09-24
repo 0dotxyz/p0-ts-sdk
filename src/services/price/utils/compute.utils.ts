@@ -4,10 +4,8 @@ import { OraclePrice, PriceWithConfidence, PriceBias } from "../types";
 
 import { getOracleSourceFromOracleSetup } from "./detection.utils";
 import { parseRpcPythPriceData } from "./pyth-data.utils";
-import { parseSwbOraclePriceData } from "./swb-data.utils";
 
 import { OracleSetup } from "~/services/bank/types";
-import { decodeSwitchboardPullFeedData } from "~/vendor/switchboard_pull";
 
 export function getPriceWithConfidence(
   oraclePrice: OraclePrice,
@@ -66,23 +64,6 @@ function parseOraclePriceData(oracleSetup: OracleSetup, rawData: Buffer): Oracle
         },
         timestamp: new BigNumber(0),
       };
-    }
-    case "switchboard": {
-      const pullFeedDAta = decodeSwitchboardPullFeedData(rawData);
-
-      return parseSwbOraclePriceData(
-        pullFeedDAta.result.value,
-        pullFeedDAta.result.std_dev,
-        pullFeedDAta.last_update_timestamp.toString(),
-        {
-          queue: pullFeedDAta.queue.toBase58(),
-          feedHash: Buffer.from(pullFeedDAta.feed_hash).toString("hex"),
-          maxVariance: pullFeedDAta.max_variance.toString(),
-          minResponses: pullFeedDAta.min_responses,
-          rawPrice: pullFeedDAta.result.value.toString(),
-          stdev: pullFeedDAta.result.std_dev.toString(),
-        }
-      );
     }
     default:
       console.error("Invalid oracle setup", oracleSetup);

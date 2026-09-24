@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 export enum RiskTier {
@@ -136,7 +136,7 @@ export interface BankConfigType {
   operationalState: OperationalState;
 
   oracleSetup: OracleSetup;
-  oracleKeys: PublicKey[];
+  oracleKeys: Address[];
   oracleMaxAge: number;
   oracleMaxConfidence: number;
   fixedPrice: BigNumber;
@@ -144,25 +144,25 @@ export interface BankConfigType {
 }
 
 export interface BankType {
-  address: PublicKey;
+  address: Address;
   tokenSymbol?: string;
-  group: PublicKey;
-  mint: PublicKey;
+  group: Address;
+  mint: Address;
   mintDecimals: number;
 
   assetShareValue: BigNumber;
   liabilityShareValue: BigNumber;
 
-  liquidityVault: PublicKey;
+  liquidityVault: Address;
   liquidityVaultBump: number;
   liquidityVaultAuthorityBump: number;
 
-  insuranceVault: PublicKey;
+  insuranceVault: Address;
   insuranceVaultBump: number;
   insuranceVaultAuthorityBump: number;
   collectedInsuranceFeesOutstanding: BigNumber;
 
-  feeVault: PublicKey;
+  feeVault: Address;
   feeVaultBump: number;
   feeVaultAuthorityBump: number;
   collectedGroupFeesOutstanding: BigNumber;
@@ -177,7 +177,7 @@ export interface BankType {
   emissionsActiveBorrowing: boolean;
   emissionsActiveLending: boolean;
   emissionsRate: number;
-  emissionsMint: PublicKey;
+  emissionsMint: Address;
   emissionsRemaining: BigNumber;
   collectedProgramFeesOutstanding: BigNumber;
 
@@ -189,34 +189,34 @@ export interface BankType {
    */
   stakedOracleUsesOnramp?: boolean;
 
-  oracleKey: PublicKey;
+  oracleKey: Address;
   emode: EmodeSettingsType;
   rateLimiter?: BankRateLimiterType;
-  feesDestinationAccount?: PublicKey;
+  feesDestinationAccount?: Address;
   lendingPositionCount?: BigNumber;
   borrowingPositionCount?: BigNumber;
 
   kaminoIntegrationAccounts?: {
-    kaminoReserve: PublicKey;
-    kaminoObligation: PublicKey;
+    kaminoReserve: Address;
+    kaminoObligation: Address;
   };
   driftIntegrationAccounts?: {
-    driftSpotMarket: PublicKey;
-    driftUser: PublicKey;
-    driftUserStats: PublicKey;
+    driftSpotMarket: Address;
+    driftUser: Address;
+    driftUserStats: Address;
   };
   solendIntegrationAccounts?: {
-    solendReserve: PublicKey;
-    solendObligation: PublicKey;
+    solendReserve: Address;
+    solendObligation: Address;
   };
   jupLendIntegrationAccounts?: {
-    jupLendingState: PublicKey;
-    jupFTokenVault: PublicKey;
-    jupFTokenAta: PublicKey;
+    jupLendingState: Address;
+    jupFTokenVault: Address;
+    jupFTokenAta: Address;
   };
   stakedIntegrationAccounts?: {
     /** Default pubkey on banks created before the 0.1.9 backfill */
-    validatorVoteAccount: PublicKey;
+    validatorVoteAccount: Address;
   };
 }
 
@@ -304,22 +304,22 @@ export interface EmodeSettingsType {
 
 export interface OracleConfigOpt {
   setup: OracleSetup;
-  keys: PublicKey[];
+  keys: Address[];
 }
 
 export type EmodePair = {
-  collateralBanks: PublicKey[];
+  collateralBanks: Address[];
   collateralBankTag: EmodeTag;
-  liabilityBank: PublicKey;
+  liabilityBank: Address;
   liabilityBankTag: EmodeTag;
   assetWeightMaint: BigNumber;
   assetWeightInit: BigNumber;
 };
 
 export type ActiveEmodePair = {
-  collateralBanks: PublicKey[];
+  collateralBanks: Address[];
   collateralBankTags: EmodeTag[];
-  liabilityBanks: PublicKey[];
+  liabilityBanks: Address[];
   liabilityBankTags: EmodeTag[];
   assetWeightMaint: BigNumber;
   assetWeightInit: BigNumber;
@@ -347,11 +347,3 @@ export interface ActionEmodeImpact {
   withdrawAllImpact?: EmodeImpact;
 }
 
-/**
- * Marginfi bank vault type
- */
-export enum BankVaultType {
-  LiquidityVault,
-  InsuranceVault,
-  FeeVault,
-}

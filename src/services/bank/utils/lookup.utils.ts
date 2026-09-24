@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
 import { BankType } from "../types";
 
@@ -10,24 +10,24 @@ import { BankType } from "../types";
 
 export function requireBank(
   bankMap: Map<string, BankType>,
-  address: PublicKey,
+  address: Address,
   makeError: (message: string) => Error = (message) => new Error(message)
 ): BankType {
-  const bank = bankMap.get(address.toBase58());
+  const bank = bankMap.get(address);
   if (!bank) {
-    throw makeError(`bank ${address.toBase58()} not found`);
+    throw makeError(`bank ${address} not found`);
   }
   return bank;
 }
 
 export function requireTokenProgram(
-  tokenProgramsByBank: Map<string, PublicKey>,
-  address: PublicKey,
+  tokenProgramsByBank: Map<string, Address>,
+  address: Address,
   makeError: (message: string) => Error = (message) => new Error(message)
-): PublicKey {
-  const tokenProgram = tokenProgramsByBank.get(address.toBase58());
+): Address {
+  const tokenProgram = tokenProgramsByBank.get(address);
   if (!tokenProgram) {
-    throw makeError(`token program for bank ${address.toBase58()} not provided`);
+    throw makeError(`token program for bank ${address} not provided`);
   }
   return tokenProgram;
 }

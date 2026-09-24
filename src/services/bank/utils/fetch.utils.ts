@@ -1,51 +1,76 @@
-import { Address } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import {
+  fetchEncodedAccount,
+  getBase58Decoder,
+  parseBase64RpcAccount,
+  type Address,
+  type Base58EncodedBytes,
+  type GetAccountInfoApi,
+  type GetMultipleAccountsApi,
+  type GetProgramAccountsApi,
+  type GetProgramAccountsMemcmpFilter,
+  type Rpc,
+} from "@solana/kit";
 
 import { BankRaw } from "../types";
 
-import { MarginfiProgram } from "~/types";
+import { BANK_DISCRIMINATOR, decodeBank } from "~/accounts";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
 export const fetchBank = async (
-  program: MarginfiProgram,
+  rpc: Rpc<GetAccountInfoApi>,
   bankAddress: Address
-): Promise<{ address: PublicKey; data: BankRaw }> => {
-  const address = new PublicKey(bankAddress);
-  const data = await program.account.bank.fetch(address);
+): Promise<{ address: Address; data: BankRaw }> => {
+  const account = await fetchEncodedAccount(rpc, bankAddress);
 
-  if (!data) {
-    throw new Error(`Bank ${address.toBase58()} not found`);
+  if (!account.exists) {
+    throw new Error(`Bank ${bankAddress} not found`);
   }
 
-  return { address, data };
+  return { address: bankAddress, data: decodeBank(account.data) };
 };
 
 export const fetchMultipleBanks = async (
-  program: MarginfiProgram,
-  opts?: { bankAddresses?: Address[]; groupAddress?: PublicKey }
-): Promise<{ address: PublicKey; data: BankRaw }[]> => {
-  let bankDatas: { address: PublicKey; data: BankRaw }[] = [];
+  rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
+  programAddress: Address,
+  opts?: { bankAddresses?: Address[]; groupAddress?: Address }
+): Promise<{ address: Address; data: BankRaw }[]> => {
+  const bankDatas: { address: Address; data: BankRaw }[] = [];
 
   if (opts?.bankAddresses && opts.bankAddresses.length > 0) {
     const addresses = opts.bankAddresses;
-    const data = await program.account.bank.fetchMultiple(addresses);
+    const accounts = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(rpc, addresses);
 
-    data.forEach((d, idx) => {
-      if (d && addresses[idx]) {
-        bankDatas.push({ address: new PublicKey(addresses[idx]), data: d });
+    accounts.forEach((account, idx) => {
+      if (account) {
+        bankDatas.push({ address: account.address, data: decodeBank(account.data) });
       } else {
         console.error(`Bank ${addresses[idx]} not found`);
       }
     });
   } else {
-    const bankOpts = opts?.groupAddress
-      ? [
-          {
-            memcmp: { offset: 8 + 32 + 1, bytes: opts.groupAddress.toBase58() },
-          },
-        ]
-      : [];
-    const data = await program.account.bank.all(bankOpts);
-    bankDatas = data.map((d) => ({ address: d.publicKey, data: d.account }));
+    const filters: GetProgramAccountsMemcmpFilter[] = [
+      {
+        memcmp: {
+          offset: 0n,
+          bytes: getBase58Decoder().decode(BANK_DISCRIMINATOR) as Base58EncodedBytes,
+          encoding: "base58",
+        },
+      },
+    ];
+    if (opts?.groupAddress) {
+      filters.push({
+        memcmp: { offset: 8n + 32n + 1n, bytes: opts.groupAddress, encoding: "base58" },
+      });
+    }
+    const accounts = await rpc
+      .getProgramAccounts(programAddress, { encoding: "base64", filters })
+      .send();
+    for (const { pubkey, account } of accounts) {
+      bankDatas.push({
+        address: pubkey,
+        data: decodeBank(parseBase64RpcAccount(pubkey, account).data),
+      });
+    }
   }
 
   return bankDatas;

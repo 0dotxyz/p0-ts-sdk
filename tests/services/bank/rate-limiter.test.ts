@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import BigNumber from "bignumber.js";
 
+import { RateLimitWindowType } from "~/services/bank/types";
 import {
   computeRateLimitWindowRemainingCapacity,
   computeRateLimiterRemainingCapacity,
-  RateLimitWindowType,
-} from "~/services/bank";
+} from "~/services/bank/utils/rate-limiter.utils";
 
 const window = (o: Partial<RateLimitWindowType>): RateLimitWindowType => ({
   maxOutflow: new BigNumber(1000),

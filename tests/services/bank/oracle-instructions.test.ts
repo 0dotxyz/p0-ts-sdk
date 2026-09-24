@@ -1,193 +1,119 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+  AccountRole,
+  createNoopSigner,
+  getAddressDecoder,
+  type Address,
+  type Instruction,
+} from "@solana/kit";
 import BigNumber from "bignumber.js";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import instructions from "~/instructions";
 import {
   addOracleToBanksIx,
   configureScopeOracleIx,
-  OracleSetup,
+  freezeBankConfigIx,
   setOraclePriceIx,
-} from "~/services/bank";
-import syncInstructions from "~/sync-instructions";
-import type { MarginfiProgram } from "~/types";
+} from "~/services/bank/bank.service";
+import { OracleSetup } from "~/services/bank/types";
 
-const publicKey = (fill: number) => new PublicKey(new Uint8Array(32).fill(fill));
+const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
-describe("Scope oracle configuration instruction", () => {
-  it("encodes the 0.1.11 wire format", () => {
-    const programId = publicKey(1);
-    const group = publicKey(2);
-    const admin = publicKey(3);
-    const bank = publicKey(4);
-    const oracle = publicKey(5);
+const programAddress = key(1);
+const groupAddress = key(2);
+const admin = createNoopSigner(key(3));
+const bankAddress = key(4);
+const accounts = { programAddress, bankAddress, groupAddress, admin };
 
-    const ix = syncInstructions.makeLendingPoolConfigureBankOracleScopeIx(
-      programId,
-      { group, admin, bank },
-      { oracle, entryIndex: 511 }
-    );
+const remaining = (ix: Instruction) => ix.accounts?.slice(3).map((meta) => meta.address);
+const readonly = (address: Address) => ({ address, role: AccountRole.READONLY });
 
-    expect(ix.programId.equals(programId)).toBe(true);
-    expect(ix.keys).toEqual([
-      { pubkey: group, isSigner: false, isWritable: false },
-      { pubkey: admin, isSigner: true, isWritable: false },
-      { pubkey: bank, isSigner: false, isWritable: true },
-      { pubkey: oracle, isSigner: false, isWritable: false },
+describe("bank oracle admin instructions", () => {
+  it("encodes the 0.1.11 Scope wire format", async () => {
+    const oracle = key(5);
+
+    const ix = await configureScopeOracleIx({ ...accounts, oracle, entryIndex: 511 });
+
+    expect(ix.programAddress).toBe(programAddress);
+    expect(ix.accounts).toEqual([
+      readonly(groupAddress),
+      { address: admin.address, role: AccountRole.READONLY_SIGNER, signer: admin },
+      { address: bankAddress, role: AccountRole.WRITABLE },
+      readonly(oracle),
     ]);
-    expect(ix.data.subarray(0, 8)).toEqual(Buffer.from([134, 228, 127, 3, 117, 132, 85, 146]));
-    expect(ix.data.subarray(8, 40)).toEqual(oracle.toBuffer());
-    expect(ix.data.readUInt16LE(40)).toBe(511);
-  });
-
-  it("exposes the typed Anchor builder through the bank service", async () => {
-    const bank = publicKey(4);
-    const group = publicKey(2);
-    const admin = publicKey(3);
-    const oracle = publicKey(5);
-    const expectedIx = new TransactionInstruction({
-      programId: publicKey(1),
-      keys: [],
-      data: Buffer.alloc(0),
-    });
-    const instruction = vi.fn().mockResolvedValue(expectedIx);
-    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
-    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
-    const accounts = vi.fn().mockReturnValue({ accountsPartial });
-    const lendingPoolConfigureBankOracleScope = vi.fn().mockReturnValue({ accounts });
-    const program = {
-      methods: { lendingPoolConfigureBankOracleScope },
-    } as unknown as MarginfiProgram;
-
-    const wrapper = await configureScopeOracleIx({
-      program,
-      bankAddress: bank,
-      oracle,
-      entryIndex: 37,
-      groupAddress: group,
-      adminAddress: admin,
-    });
-
-    expect(lendingPoolConfigureBankOracleScope).toHaveBeenCalledWith(oracle, 37);
-    expect(accounts).toHaveBeenCalledWith({ bank });
-    expect(accountsPartial).toHaveBeenCalledWith({ group, admin });
-    expect(remainingAccounts).toHaveBeenCalledWith([
-      { pubkey: oracle, isSigner: false, isWritable: false },
-    ]);
-    expect(wrapper).toEqual({ instructions: [expectedIx], keys: [] });
-  });
-
-  it("keeps the low-level async builder available", () => {
-    expect(instructions.makeLendingPoolConfigureBankOracleScopeIx).toBeTypeOf("function");
+    const data = Uint8Array.from(ix.data ?? []);
+    expect([...data.subarray(0, 8)]).toEqual([134, 228, 127, 3, 117, 132, 85, 146]);
+    expect(getAddressDecoder().decode(data.subarray(8, 40))).toBe(oracle);
+    expect(new DataView(data.buffer).getUint16(40, true)).toBe(511);
   });
 
   it("forwards every validation account required by multiplier setups", async () => {
-    const bank = publicKey(4);
-    const feedId = publicKey(5);
-    const marinadeState = publicKey(7);
-    const expectedIx = new TransactionInstruction({
-      programId: publicKey(1),
-      keys: [],
-      data: Buffer.alloc(0),
-    });
-    const instruction = vi.fn().mockResolvedValue(expectedIx);
-    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
-    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
-    const accounts = vi.fn().mockReturnValue({ accountsPartial });
-    const lendingPoolConfigureBankOracle = vi.fn().mockReturnValue({ accounts });
-    const program = {
-      methods: { lendingPoolConfigureBankOracle },
-    } as unknown as MarginfiProgram;
+    const feedId = key(5);
+    const marinadeState = key(7);
 
-    await addOracleToBanksIx({
-      program,
-      bankAddress: bank,
+    const ix = await addOracleToBanksIx({
+      ...accounts,
       feedId,
       setup: OracleSetup.PythMSOL,
       oracleAccounts: [feedId, marinadeState],
     });
 
-    expect(lendingPoolConfigureBankOracle).toHaveBeenCalledWith(19, feedId);
-    expect(remainingAccounts).toHaveBeenCalledWith([
-      { pubkey: feedId, isSigner: false, isWritable: false },
-      { pubkey: marinadeState, isSigner: false, isWritable: false },
-    ]);
+    expect(ix.data?.[8]).toBe(19);
+    expect(ix.accounts?.slice(3)).toEqual([readonly(feedId), readonly(marinadeState)]);
   });
 
   it("rejects multiplier setups whose first oracle account is not the primary feed", async () => {
-    const program = { methods: {} } as unknown as MarginfiProgram;
-
     await expect(
       addOracleToBanksIx({
-        program,
-        bankAddress: publicKey(4),
-        feedId: publicKey(5),
+        ...accounts,
+        feedId: key(5),
         setup: OracleSetup.PythMSOL,
-        oracleAccounts: [publicKey(6), publicKey(7)],
+        oracleAccounts: [key(6), key(7)],
       })
     ).rejects.toThrow("oracleAccounts[0]");
   });
 
   it("routes every fixed setup away from configure-bank-oracle", async () => {
-    const program = { methods: {} } as unknown as MarginfiProgram;
-
     for (const setup of [
       OracleSetup.Fixed,
       OracleSetup.FixedKamino,
       OracleSetup.FixedDrift,
       OracleSetup.FixedJuplend,
     ]) {
-      await expect(
-        addOracleToBanksIx({
-          program,
-          bankAddress: publicKey(4),
-          feedId: publicKey(5),
-          setup,
-        })
-      ).rejects.toThrow("setOraclePriceIx");
+      await expect(addOracleToBanksIx({ ...accounts, feedId: key(5), setup })).rejects.toThrow(
+        "setOraclePriceIx"
+      );
     }
   });
 
   it("routes PT setup through the 0.1.11 set-oracle-price instruction", async () => {
-    const bank = publicKey(4);
-    const pyth = publicKey(6);
-    const vault = publicKey(7);
-    const expectedIx = new TransactionInstruction({
-      programId: publicKey(1),
-      keys: [],
-      data: Buffer.alloc(0),
-    });
-    const instruction = vi.fn().mockResolvedValue(expectedIx);
-    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
-    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
-    const accounts = vi.fn().mockReturnValue({ accountsPartial });
-    const lendingPoolSetOraclePrice = vi.fn().mockReturnValue({ accounts });
-    const program = {
-      methods: { lendingPoolSetOraclePrice },
-    } as unknown as MarginfiProgram;
+    const pyth = key(6);
+    const vault = key(7);
 
-    await setOraclePriceIx({
-      program,
-      bankAddress: bank,
+    const ix = await setOraclePriceIx({
+      ...accounts,
       price: new BigNumber(0.8),
       setup: OracleSetup.PTPyth,
       oracleAccounts: [pyth, vault],
     });
 
-    expect(lendingPoolSetOraclePrice).toHaveBeenCalledWith(expect.anything(), 25);
-    expect(remainingAccounts).toHaveBeenCalledWith([
-      { pubkey: pyth, isSigner: false, isWritable: false },
-      { pubkey: vault, isSigner: false, isWritable: false },
-    ]);
+    expect(ix.data?.[8 + 16]).toBe(25);
+    expect(remaining(ix)).toEqual([pyth, vault]);
 
     await expect(
       setOraclePriceIx({
-        program,
-        bankAddress: bank,
+        ...accounts,
         price: new BigNumber(0.8),
         setup: OracleSetup.PTFixed,
         oracleAccounts: [],
       })
     ).rejects.toThrow("PTFixed requires 1 ordered oracle accounts");
+  });
+
+  it("freezes settings without touching any other config field", async () => {
+    const ix = await freezeBankConfigIx(accounts);
+
+    // 8-byte discriminator, then every Option<T> is None (0) except freezeSettings = Some(true)
+    const options = [...(ix.data ?? [])].slice(8);
+    expect(options).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, ...Array(11).fill(0)]);
   });
 });

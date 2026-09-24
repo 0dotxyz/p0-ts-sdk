@@ -9,166 +9,36 @@
  * them to their proper location first, then implement new functionality.
  */
 
-import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
-
 import {
-  driftRewardsRawToDto,
-  driftSpotMarketRawToDto,
-  driftUserRawToDto,
-  driftUserStatsRawToDto,
-  dtoToDriftRewardsRaw,
-  dtoToDriftSpotMarketRaw,
-  dtoToDriftUserRaw,
-  dtoToDriftUserStatsRaw,
-  dtoToKaminoFarmState,
-  dtoToJupLendingRewardsRateModelRaw,
-  dtoToJupLendingStateRaw,
-  dtoToJupRateModelRaw,
-  dtoToJupTokenReserveRaw,
-  dtoToKaminoObligation,
-  dtoToKaminoReserve,
-  kaminoFarmStateToDto,
-  jupLendingRewardsRateModelRawToDto,
-  jupLendingStateRawToDto,
-  jupRateModelRawToDto,
-  jupTokenReserveRawToDto,
-  kaminoObligationToDto,
-  kaminoReserveToDto,
-} from "../vendor";
+  parseBase64RpcAccount,
+  type Address,
+  type EncodedAccount,
+  type GetMultipleAccountsApi,
+  type Rpc,
+  type Slot,
+} from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
-import {
-  BankIntegrationMetadata,
-  BankIntegrationMetadataDto,
-  BankIntegrationMetadataMap,
-  BankIntegrationMetadataMapDto,
-} from "~/types";
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
+import { TOKEN_2022_PROGRAM_ID } from "~/constants";
 
-export function bankMetadataMapToDto(
-  bankMetadataMap: BankIntegrationMetadataMap
-): BankIntegrationMetadataMapDto {
-  return Object.fromEntries(
-    Object.entries(bankMetadataMap).map(([bankPk, bankMetadata]) => [
-      bankPk,
-      bankMetadataToDto(bankMetadata),
-    ])
-  );
-}
-
-export function dtoToBankMetadataMap(
-  bankMetadataDto: BankIntegrationMetadataMapDto
-): BankIntegrationMetadataMap {
-  return Object.fromEntries(
-    Object.entries(bankMetadataDto).map(([bankPk, bankMetadataDto]) => [
-      bankPk,
-      dtoToBankMetadata(bankMetadataDto),
-    ])
-  );
-}
-
-export function dtoToBankMetadata(
-  bankMetadataDto: BankIntegrationMetadataDto
-): BankIntegrationMetadata {
-  return {
-    kaminoStates: bankMetadataDto.kaminoStates
-      ? {
-          reserveState: dtoToKaminoReserve(bankMetadataDto.kaminoStates.reserveState),
-          obligationState: dtoToKaminoObligation(bankMetadataDto.kaminoStates.obligationState),
-          farmState: bankMetadataDto.kaminoStates.farmState
-            ? dtoToKaminoFarmState(bankMetadataDto.kaminoStates.farmState)
-            : undefined,
-        }
-      : undefined,
-    driftStates: bankMetadataDto.driftStates
-      ? {
-          spotMarketState: dtoToDriftSpotMarketRaw(bankMetadataDto.driftStates.spotMarketState),
-          userState: dtoToDriftUserRaw(bankMetadataDto.driftStates.userState),
-          userRewards: bankMetadataDto.driftStates.userRewards.map(dtoToDriftRewardsRaw),
-          userStatsState: bankMetadataDto.driftStates.userStatsState
-            ? dtoToDriftUserStatsRaw(bankMetadataDto.driftStates.userStatsState)
-            : undefined,
-        }
-      : undefined,
-    jupLendStates: bankMetadataDto.jupLendStates
-      ? {
-          jupLendingState: dtoToJupLendingStateRaw(bankMetadataDto.jupLendStates.jupLendingState),
-          jupTokenReserveState: dtoToJupTokenReserveRaw(
-            bankMetadataDto.jupLendStates.jupTokenReserveState
-          ),
-          jupRewardsRateModel: bankMetadataDto.jupLendStates.jupRewardsRateModel
-            ? dtoToJupLendingRewardsRateModelRaw(bankMetadataDto.jupLendStates.jupRewardsRateModel)
-            : null,
-          jupRateModel: bankMetadataDto.jupLendStates.jupRateModel
-            ? dtoToJupRateModelRaw(bankMetadataDto.jupLendStates.jupRateModel)
-            : null,
-          fTokenTotalSupply: new BN(bankMetadataDto.jupLendStates.fTokenTotalSupply),
-        }
-      : undefined,
-  };
-}
-
-export function bankMetadataToDto(
-  bankMetadata: BankIntegrationMetadata
-): BankIntegrationMetadataDto {
-  return {
-    kaminoStates: bankMetadata.kaminoStates
-      ? {
-          reserveState: kaminoReserveToDto(bankMetadata.kaminoStates.reserveState),
-          obligationState: kaminoObligationToDto(bankMetadata.kaminoStates.obligationState),
-          farmState: bankMetadata.kaminoStates.farmState
-            ? kaminoFarmStateToDto(bankMetadata.kaminoStates.farmState)
-            : undefined,
-        }
-      : undefined,
-    driftStates: bankMetadata.driftStates
-      ? {
-          spotMarketState: driftSpotMarketRawToDto(bankMetadata.driftStates.spotMarketState),
-          userState: driftUserRawToDto(bankMetadata.driftStates.userState),
-          userRewards: bankMetadata.driftStates.userRewards.map(driftRewardsRawToDto),
-          userStatsState: bankMetadata.driftStates.userStatsState
-            ? driftUserStatsRawToDto(bankMetadata.driftStates.userStatsState)
-            : undefined,
-        }
-      : undefined,
-    jupLendStates: bankMetadata.jupLendStates
-      ? {
-          jupLendingState: jupLendingStateRawToDto(bankMetadata.jupLendStates.jupLendingState),
-          jupTokenReserveState: jupTokenReserveRawToDto(
-            bankMetadata.jupLendStates.jupTokenReserveState
-          ),
-          jupRewardsRateModel: bankMetadata.jupLendStates.jupRewardsRateModel
-            ? jupLendingRewardsRateModelRawToDto(bankMetadata.jupLendStates.jupRewardsRateModel)
-            : null,
-          jupRateModel: bankMetadata.jupLendStates.jupRateModel
-            ? jupRateModelRawToDto(bankMetadata.jupLendStates.jupRateModel)
-            : null,
-          fTokenTotalSupply: bankMetadata.jupLendStates.fTokenTotalSupply.toString(),
-        }
-      : undefined,
-  };
-}
-
-export async function fetchProgramForMints(connection: Connection, mintAddress: PublicKey[]) {
-  const chunkSize = 100;
+export async function fetchProgramForMints(
+  rpc: Rpc<GetMultipleAccountsApi>,
+  mintAddresses: Address[]
+) {
   const mintData: {
-    mint: PublicKey;
-    program: PublicKey;
+    mint: Address;
+    program: Address;
   }[] = [];
 
-  for (let i = 0; i < mintAddress.length; i += chunkSize) {
-    const chunk = mintAddress.slice(i, i + chunkSize);
-    const infos = await connection.getMultipleAccountsInfo(chunk);
-
-    infos.forEach((info, idx) => {
-      const mint = chunk[idx];
-      if (info && mint) {
-        const program = info.owner;
-        if (program.equals(TOKEN_PROGRAM_ID) || program.equals(TOKEN_2022_PROGRAM_ID)) {
-          mintData.push({ mint, program });
-        }
-      }
-    });
+  const accounts = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(rpc, mintAddresses);
+  for (const account of accounts) {
+    if (
+      account &&
+      (account.programAddress === TOKEN_PROGRAM_ADDRESS ||
+        account.programAddress === TOKEN_2022_PROGRAM_ID)
+    ) {
+      mintData.push({ mint: account.address, program: account.programAddress });
+    }
   }
 
   return mintData;
@@ -176,201 +46,97 @@ export async function fetchProgramForMints(connection: Connection, mintAddress: 
 
 /* BATCH ACCOUNT FECTHING LOGIC */
 
-interface Result {
-  jsonrpc: string;
-  result: {
-    context: { slot: number };
-    value: Array<AccountInfo<string[]> | null>;
-  };
+const MAX_RETRIES = 3;
+
+async function fetchAccountsInBatches(
+  rpc: Rpc<GetMultipleAccountsApi>,
+  addresses: Address[],
+  batchChunkSize: number,
+  maxAccountsChunkSize: number
+): Promise<{ slot: Slot; accounts: (EncodedAccount | null)[] }> {
+  let slot = 0n;
+  const accounts: (EncodedAccount | null)[] = [];
+
+  for (const batch of chunkArray(addresses, batchChunkSize)) {
+    const chunks = chunkArray(batch, maxAccountsChunkSize);
+
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const responses = await Promise.all(
+          chunks.map((chunk) =>
+            rpc.getMultipleAccounts(chunk, { commitment: "confirmed", encoding: "base64" }).send()
+          )
+        );
+        responses.forEach((response, chunkIndex) => {
+          slot = response.context.slot > slot ? response.context.slot : slot;
+          response.value.forEach((rpcAccount, index) => {
+            const account = parseBase64RpcAccount(chunks[chunkIndex][index], rpcAccount);
+            accounts.push(account.exists ? account : null);
+          });
+        });
+        break;
+      } catch {
+        if (attempt === MAX_RETRIES) {
+          throw new Error(`Failed to fetch account infos after ${MAX_RETRIES} retries`);
+        }
+      }
+    }
+  }
+
+  return { slot, accounts };
 }
 
 export async function chunkedGetRawMultipleAccountInfos(
-  connection: Connection,
-  pks: string[],
+  rpc: Rpc<GetMultipleAccountsApi>,
+  addresses: Address[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100
-): Promise<[number, Map<string, AccountInfo<Buffer>>]> {
-  const accountInfoMap = new Map<string, AccountInfo<Buffer>>();
-  let contextSlot = 0;
+): Promise<[Slot, Map<Address, EncodedAccount>]> {
+  const { slot, accounts } = await fetchAccountsInBatches(
+    rpc,
+    addresses,
+    batchChunkSize,
+    maxAccountsChunkSize
+  );
+  const accountInfoMap = new Map<Address, EncodedAccount>();
 
-  const batches = chunkArray(pks, batchChunkSize);
-
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-
-    const batchRequest = chunkArray(batch, maxAccountsChunkSize).map((pubkeys) => ({
-      methodName: "getMultipleAccounts",
-      args: connection._buildArgs([pubkeys], "confirmed", "base64"),
-    }));
-
-    let accountInfos: Array<AccountInfo<string[]> | null> = [];
-    let retries = 0;
-    const maxRetries = 3;
-
-    while (retries < maxRetries && accountInfos.length === 0) {
-      try {
-        accountInfos = await connection
-          // @ts-expect-error -- _rpcBatchRequest is private on Connection
-          ._rpcBatchRequest(batchRequest)
-          .then((batchResults: Result[]) => {
-            contextSlot = Math.max(...batchResults.map((res) => res.result.context.slot));
-
-            const accounts = batchResults.reduce(
-              (acc, res) => {
-                acc.push(...res.result.value);
-                return acc;
-              },
-              [] as Result["result"]["value"]
-            );
-
-            return accounts;
-          });
-      } catch (error) {
-        retries++;
-      }
+  for (const account of accounts) {
+    if (account) {
+      accountInfoMap.set(account.address, account);
     }
-
-    if (accountInfos.length === 0) {
-      throw new Error(`Failed to fetch account infos after ${maxRetries} retries`);
-    }
-
-    accountInfos.forEach((item, index) => {
-      const publicKey = batch[index];
-      if (item) {
-        accountInfoMap.set(publicKey, {
-          ...item,
-          owner: new PublicKey(item.owner),
-          data: Buffer.from(item.data[0], "base64"),
-        });
-      }
-    });
   }
 
-  return [contextSlot, accountInfoMap];
+  return [slot, accountInfoMap];
 }
 
 export async function chunkedGetRawMultipleAccountInfoOrderedWithNulls(
-  connection: Connection,
-  pks: string[],
+  rpc: Rpc<GetMultipleAccountsApi>,
+  addresses: Address[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100
-): Promise<Array<AccountInfo<Buffer> | null>> {
-  const allAccountInfos: Array<AccountInfo<Buffer> | null> = [];
-
-  const batches = chunkArray(pks, batchChunkSize);
-
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-
-    const batchRequest = chunkArray(batch, maxAccountsChunkSize).map((pubkeys) => ({
-      methodName: "getMultipleAccounts",
-      args: connection._buildArgs([pubkeys], "confirmed", "base64"),
-    }));
-
-    let accountInfos: Array<AccountInfo<string[]> | null> = [];
-    let retries = 0;
-    const maxRetries = 3;
-
-    while (retries < maxRetries && accountInfos.length === 0) {
-      try {
-        accountInfos = await connection
-          // @ts-expect-error -- _rpcBatchRequest is private on Connection
-          ._rpcBatchRequest(batchRequest)
-          .then((batchResults: Result[]) => {
-            const accounts = batchResults.reduce(
-              (acc, res) => {
-                acc.push(...res.result.value);
-                return acc;
-              },
-              [] as Result["result"]["value"]
-            );
-
-            return accounts;
-          });
-      } catch (error) {
-        retries++;
-      }
-    }
-
-    if (accountInfos.length === 0) {
-      throw new Error(`Failed to fetch account infos after ${maxRetries} retries`);
-    }
-
-    accountInfos.forEach((item) => {
-      if (item) {
-        allAccountInfos.push({
-          ...item,
-          owner: new PublicKey(item.owner),
-          data: Buffer.from(item.data[0], "base64"),
-        });
-      } else {
-        allAccountInfos.push(null);
-      }
-    });
-  }
-
-  return allAccountInfos;
+): Promise<(EncodedAccount | null)[]> {
+  const { accounts } = await fetchAccountsInBatches(
+    rpc,
+    addresses,
+    batchChunkSize,
+    maxAccountsChunkSize
+  );
+  return accounts;
 }
 
 export async function chunkedGetRawMultipleAccountInfoOrdered(
-  connection: Connection,
-  pks: string[],
+  rpc: Rpc<GetMultipleAccountsApi>,
+  addresses: Address[],
   batchChunkSize: number = 1000,
   maxAccountsChunkSize: number = 100
-): Promise<Array<AccountInfo<Buffer>>> {
-  const allAccountInfos: Array<AccountInfo<Buffer>> = [];
-
-  const batches = chunkArray(pks, batchChunkSize);
-
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-
-    const batchRequest = chunkArray(batch, maxAccountsChunkSize).map((pubkeys) => ({
-      methodName: "getMultipleAccounts",
-      args: connection._buildArgs([pubkeys], "confirmed", "base64"),
-    }));
-
-    let accountInfos: Array<AccountInfo<string[]> | null> = [];
-    let retries = 0;
-    const maxRetries = 3;
-
-    while (retries < maxRetries && accountInfos.length === 0) {
-      try {
-        accountInfos = await connection
-          // @ts-expect-error -- _rpcBatchRequest is private on Connection
-          ._rpcBatchRequest(batchRequest)
-          .then((batchResults: Result[]) => {
-            const accounts = batchResults.reduce(
-              (acc, res) => {
-                acc.push(...res.result.value);
-                return acc;
-              },
-              [] as Result["result"]["value"]
-            );
-
-            return accounts;
-          });
-      } catch (error) {
-        retries++;
-      }
-    }
-
-    if (accountInfos.length === 0) {
-      throw new Error(`Failed to fetch account infos after ${maxRetries} retries`);
-    }
-
-    accountInfos.forEach((item) => {
-      if (item) {
-        allAccountInfos.push({
-          ...item,
-          owner: new PublicKey(item.owner),
-          data: Buffer.from(item.data[0], "base64"),
-        });
-      }
-    });
-  }
-
-  return allAccountInfos;
+): Promise<EncodedAccount[]> {
+  const { accounts } = await fetchAccountsInBatches(
+    rpc,
+    addresses,
+    batchChunkSize,
+    maxAccountsChunkSize
+  );
+  return accounts.filter((account) => account !== null);
 }
 
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {

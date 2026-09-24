@@ -19,8 +19,6 @@ export default defineConfig({
     "@coral-xyz/anchor",
     "@solana/kit",
     "@solana/web3.js",
-    "@switchboard-xyz/on-demand",
-    "@switchboard-xyz/common",
     "bignumber.js",
     "bs58",
     "bn.js",

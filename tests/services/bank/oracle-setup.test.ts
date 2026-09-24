@@ -1,13 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { BorshCoder } from "@coral-xyz/anchor";
 
-import { MARGINFI_IDL } from "~/idl";
-import { OracleSetup } from "~/services/bank";
+import { BANK_DISCRIMINATOR, decodeBank, OracleSetupRaw } from "~/accounts";
+import { OracleSetup } from "~/services/bank/types";
 import { parseOracleSetup, parseBankConfigRaw } from "~/services/bank/utils/deserialize.utils";
-import {
-  serializeOracleSetup,
-  serializeOracleSetupToIndex,
-} from "~/services/bank/utils/serialize.utils";
+import { serializeOracleSetup } from "~/services/bank/utils/serialize.utils";
 
 /** Every real (non-reserved) variant with its confirmed on-chain discriminant. */
 const SETUP_INDICES: [OracleSetup, number][] = [
@@ -40,108 +36,50 @@ const SETUP_INDICES: [OracleSetup, number][] = [
   [OracleSetup.PTFixed, 26],
 ];
 
-const typesCoder = new BorshCoder(MARGINFI_IDL as any).types;
-
 describe("OracleSetup (de)serialization", () => {
-  it("uses the 0.1.11 IDL", () => {
-    expect(MARGINFI_IDL.metadata.version).toBe("0.1.11");
-
-    const instructionNames = MARGINFI_IDL.instructions.map((instruction) => instruction.name);
-    expect(instructionNames).toContain("lending_pool_configure_bank_oracle_scope");
-    expect(instructionNames).toContain("lending_pool_set_oracle_price");
-    expect(instructionNames).not.toContain("lending_pool_set_fixed_oracle_price");
-  });
-
-  it("round-trips every real variant through raw and index", () => {
+  it("maps every real variant to its on-chain discriminant and back", () => {
     for (const [setup, index] of SETUP_INDICES) {
-      expect(parseOracleSetup(serializeOracleSetup(setup))).toBe(setup);
-      expect(serializeOracleSetupToIndex(setup)).toBe(index);
+      expect(serializeOracleSetup(setup)).toBe(index);
+      expect(parseOracleSetup(index)).toBe(setup);
     }
   });
 
-  it("round-trips every real variant through the IDL borsh coder", () => {
-    for (const [setup, index] of SETUP_INDICES) {
-      const decoded = typesCoder.decode("OracleSetup", Buffer.from([index]));
-      expect(parseOracleSetup(decoded)).toBe(setup);
-    }
-  });
-
-  it("parses the fixed venue variants (regression: dead PascalCase cases)", () => {
-    expect(parseOracleSetup({ fixedKamino: {} })).toBe(OracleSetup.FixedKamino);
-    expect(parseOracleSetup({ fixedDrift: {} })).toBe(OracleSetup.FixedDrift);
-    expect(parseOracleSetup({ fixedJuplend: {} })).toBe(OracleSetup.FixedJuplend);
-  });
-
-  it("decodes future discriminants via the reserved padding instead of throwing", () => {
-    for (const index of [27, 40, 63]) {
-      const decoded = typesCoder.decode("OracleSetup", Buffer.from([index]));
-      expect(parseOracleSetup(decoded)).toBe(OracleSetup.Unknown);
+  it("parses future (reserved) discriminants as Unknown instead of throwing", () => {
+    for (const index of [OracleSetupRaw.Reserved27, OracleSetupRaw.Reserved40, 63]) {
+      expect(parseOracleSetup(index)).toBe(OracleSetup.Unknown);
     }
   });
 
   it("refuses to serialize Unknown", () => {
     expect(() => serializeOracleSetup(OracleSetup.Unknown)).toThrow();
-    expect(() => serializeOracleSetupToIndex(OracleSetup.Unknown)).toThrow();
   });
 });
 
 describe("scopeEntryIndex plumbing", () => {
-  const baseConfigRaw = () => {
-    // Minimal BankConfigRaw: only the fields parseBankConfigRaw touches.
-    const i80 = { value: new Array(16).fill(0) };
-    const bnLike = { toString: () => "0" } as any;
-    return {
-      assetWeightInit: i80,
-      assetWeightMaint: i80,
-      liabilityWeightInit: i80,
-      liabilityWeightMaint: i80,
-      depositLimit: bnLike,
-      borrowLimit: bnLike,
-      riskTier: { collateral: {} },
-      operationalState: { operational: {} },
-      totalAssetValueInitLimit: bnLike,
-      assetTag: 0,
-      configFlags: 0,
-      oracleSetup: { scope: {} },
-      oracleKeys: [],
-      oracleMaxAge: 60,
-      oracleMaxConfidence: 0,
-      fixedPrice: i80,
-      interestRateConfig: {
-        placeholder0: i80,
-        placeholder1: i80,
-        placeholder2: i80,
-        insuranceFeeFixedApr: i80,
-        insuranceIrFee: i80,
-        protocolFixedFeeApr: i80,
-        protocolIrFee: i80,
-        protocolOriginationFee: i80,
-        zeroUtilRate: 0,
-        hundredUtilRate: 0,
-        points: [],
-        curveType: 0,
-      },
-    } as any;
+  // A zeroed Bank account (discriminator + zero bytes) decodes to a config with every field at 0.
+  const zeroConfig = () => {
+    const data = new Uint8Array(4096);
+    data.set(BANK_DISCRIMINATOR);
+    return decodeBank(data).config;
   };
 
   it("passes scopeEntryIndex through parseBankConfigRaw", () => {
-    const parsed = parseBankConfigRaw({ ...baseConfigRaw(), scopeEntryIndex: 42 });
+    const parsed = parseBankConfigRaw({
+      ...zeroConfig(),
+      oracleSetup: OracleSetupRaw.Scope,
+      scopeEntryIndex: 42,
+    });
     expect(parsed.oracleSetup).toBe(OracleSetup.Scope);
     expect(parsed.scopeEntryIndex).toBe(42);
   });
 
-  it("leaves scopeEntryIndex undefined when the payload lacks it (fails closed downstream)", () => {
-    const parsed = parseBankConfigRaw(baseConfigRaw());
-    expect(parsed.scopeEntryIndex).toBeUndefined();
-  });
-
   it("keeps oracleMaxAge 0 for Scope banks (no 0 -> default fallback on-chain)", () => {
-    const scopeConfig = { ...baseConfigRaw(), oracleMaxAge: 0 };
+    const scopeConfig = { ...zeroConfig(), oracleSetup: OracleSetupRaw.Scope, oracleMaxAge: 0 };
     expect(parseBankConfigRaw(scopeConfig).oracleMaxAge).toBe(0);
 
     const pythConfig = {
-      ...baseConfigRaw(),
-      oracleSetup: { pythPushOracle: {} },
+      ...zeroConfig(),
+      oracleSetup: OracleSetupRaw.PythPushOracle,
       oracleMaxAge: 0,
     };
     expect(parseBankConfigRaw(pythConfig).oracleMaxAge).toBeGreaterThan(0);

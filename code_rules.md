@@ -37,7 +37,7 @@ Conventions for this codebase. Decisive by design — PRs that violate a rule ge
 
 ### The rule: use generated code only through its wrapper module
 
-Codama clients in `src/generated/` expose hundreds of functions per program. The SDK uses only what a wrapper module re-exposes: `src/instructions.ts` for marginfi instructions, `src/accounts.ts` for marginfi account decoders, `src/vendor/<program>/` for everything else (instruction builders, account decoders, PDA finders, program addresses, enums). Wrap every generated function the SDK uses, even when the wrapper only forwards: one import site per program, SDK names instead of IDL names, and decoders that check the discriminator. This is an explicit exception to "no wrapper with a single call site" in section 1. Type-only imports from `~/generated` are fine anywhere.
+Codama clients in `src/generated/` expose hundreds of functions per program. The SDK uses only what a wrapper module re-exposes: `src/instructions.ts` for marginfi instructions, `src/accounts.ts` for marginfi account decoders, enums and discriminators, `src/vendor/<program>/` for everything else (instruction builders, account decoders, PDA finders, program addresses, enums). Wrap every generated function the SDK uses, even when the wrapper only forwards: one import site per program, SDK names instead of IDL names, and decoders that check the discriminator. This is an explicit exception to "no wrapper with a single call site" in section 1. Type-only imports from `~/generated` are fine anywhere.
 
 Enforced by `@typescript-eslint/no-restricted-imports` in `.eslintrc.cjs` (wrapper files exempt).
 

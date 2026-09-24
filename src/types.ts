@@ -4,27 +4,16 @@ import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
 import {
   DriftRewards,
-  DriftRewardsJSON,
   DriftSpotMarket,
-  DriftSpotMarketJSON,
   DriftUser,
-  DriftUserJSON,
   DriftUserStats,
-  DriftUserStatsJSON,
   KaminoFarmState,
-  KaminoFarmStateJSON,
   KaminoObligation,
-  KaminoObligationJSON,
   KaminoReserve,
-  KaminoReserveJSON,
   JupLendingRewardsRateModel,
-  JupLendingRewardsRateModelJSON,
   JupLendingState,
-  JupLendingStateJSON,
   JupRateModel,
-  JupRateModelJSON,
   JupTokenReserve,
-  JupTokenReserveJSON,
 } from "./vendor";
 
 // Define MintData here to break circular dependencies
@@ -93,32 +82,8 @@ export type BankIntegrationMetadata = {
   };
 };
 
-export type BankIntegrationMetadataDto = {
-  kaminoStates?: {
-    reserveState: KaminoReserveJSON;
-    obligationState: KaminoObligationJSON;
-    farmState?: KaminoFarmStateJSON;
-  };
-  driftStates?: {
-    spotMarketState: DriftSpotMarketJSON;
-    userState: DriftUserJSON;
-    userRewards: DriftRewardsJSON[];
-    userStatsState?: DriftUserStatsJSON;
-  };
-  jupLendStates?: {
-    jupLendingState: JupLendingStateJSON;
-    jupTokenReserveState: JupTokenReserveJSON;
-    jupRewardsRateModel: JupLendingRewardsRateModelJSON | null;
-    jupRateModel: JupRateModelJSON | null;
-    fTokenTotalSupply: string;
-  };
-};
-
 export type BankIntegrationMetadataMap = {
   [address: string]: BankIntegrationMetadata;
-};
-export type BankIntegrationMetadataMapDto = {
-  [address: string]: BankIntegrationMetadataDto;
 };
 export type BankMap = Map<string, Bank>;
 export type OraclePriceMap = Map<string, OraclePrice>;

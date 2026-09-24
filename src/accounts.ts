@@ -16,6 +16,13 @@ import {
 } from "./generated/marginfi";
 import { decodeAccountData } from "./vendor/account-data";
 
+export {
+  BANK_DISCRIMINATOR,
+  BankOperationalState as OperationalStateRaw,
+  OracleSetup as OracleSetupRaw,
+  RiskTier as RiskTierRaw,
+} from "./generated/marginfi";
+
 /**
  * Decodes a marginfi `Bank` account.
  * @throws if the discriminator doesn't match

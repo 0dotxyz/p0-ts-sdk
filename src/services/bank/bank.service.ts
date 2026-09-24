@@ -1,84 +1,79 @@
-import { PublicKey } from "@solana/web3.js";
+import { AccountRole, type Address, type Instruction, type TransactionSigner } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
-import { InstructionsWrapper } from "../transaction";
-
-import { BankConfigOpt, BankConfigOptRaw, OracleSetup } from "./types";
-import { serializeBankConfigOpt, serializeOracleSetupToIndex } from "./utils";
+import { OracleSetup } from "./types";
+import { serializeOracleSetup } from "./utils/serialize.utils";
 
 import instructions from "~/instructions";
-import { MarginfiProgram } from "~/types";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-export async function freezeBankConfigIx(
-  program: MarginfiProgram,
-  bankAddress: PublicKey,
-  bankConfigOpt: BankConfigOpt
-): Promise<InstructionsWrapper> {
-  // todo: make bankConfigOpt optional and create function to get bankConfigOptRaw from bank
-  const bankConfigRaw: BankConfigOptRaw = serializeBankConfigOpt(bankConfigOpt);
+type BankAdminIxArgs = {
+  programAddress: Address;
+  bankAddress: Address;
+  groupAddress: Address;
+  admin: TransactionSigner;
+};
 
-  const ix = await instructions.makePoolConfigureBankIx(
-    program,
-    {
-      bank: bankAddress,
+export async function freezeBankConfigIx({
+  programAddress,
+  bankAddress,
+  groupAddress,
+  admin,
+}: BankAdminIxArgs): Promise<Instruction> {
+  return instructions.makePoolConfigureBankIx(programAddress, {
+    group: groupAddress,
+    admin,
+    bank: bankAddress,
+    bankConfigOpt: {
+      assetWeightInit: null,
+      assetWeightMaint: null,
+      liabilityWeightInit: null,
+      liabilityWeightMaint: null,
+      depositLimit: null,
+      borrowLimit: null,
+      operationalState: null,
+      interestRateConfig: null,
+      riskTier: null,
+      assetTag: null,
+      totalAssetValueInitLimit: null,
+      oracleMaxConfidence: null,
+      oracleMaxAge: null,
+      permissionlessBadDebtSettlement: null,
+      freezeSettings: true,
+      tokenlessRepaymentsAllowed: null,
+      liquidationLiquidatorFee: null,
+      liquidationInsuranceFee: null,
+      circuitBreakerEnabled: null,
+      cbDeviationBpsTiers: null,
+      cbTierDurationsSeconds: null,
+      cbEscalationWindowMult: null,
+      cbEmaAlphaBps: null,
+      cbWindowSeconds: null,
+      cbWindowMaxUpBps: null,
+      cbWindowMaxDownBps: null,
     },
-    {
-      bankConfigOpt: {
-        ...bankConfigRaw,
-        assetWeightInit: null,
-        assetWeightMaint: null,
-
-        liabilityWeightInit: null,
-        liabilityWeightMaint: null,
-
-        depositLimit: null,
-        borrowLimit: null,
-        riskTier: null,
-        assetTag: null,
-        totalAssetValueInitLimit: null,
-
-        interestRateConfig: null,
-        operationalState: null,
-
-        oracleMaxAge: null,
-        permissionlessBadDebtSettlement: null,
-        freezeSettings: true,
-        oracleMaxConfidence: null,
-        tokenlessRepaymentsAllowed: null,
-      },
-    }
-  );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
+  });
 }
 
-type AddOracleToBanksIxArgs = {
-  program: MarginfiProgram;
-  bankAddress: PublicKey;
-  feedId: PublicKey;
+type AddOracleToBanksIxArgs = BankAdminIxArgs & {
+  feedId: Address;
   /** @deprecated Use oracleAccounts when the setup needs on-chain validation accounts. */
-  oracleKey?: PublicKey;
+  oracleKey?: Address;
   /** Ordered exactly as the program's oracle accounts for the selected setup. */
-  oracleAccounts?: PublicKey[];
+  oracleAccounts?: Address[];
   setup: OracleSetup;
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
 };
 
 export async function addOracleToBanksIx({
-  program,
+  programAddress,
   bankAddress,
+  groupAddress,
+  admin,
   feedId,
   oracleKey,
   oracleAccounts,
   setup,
-  groupAddress,
-  adminAddress,
-}: AddOracleToBanksIxArgs): Promise<InstructionsWrapper> {
+}: AddOracleToBanksIxArgs): Promise<Instruction> {
   if (
     setup === OracleSetup.Scope ||
     setup === OracleSetup.PTPyth ||
@@ -112,115 +107,77 @@ export async function addOracleToBanksIx({
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
   }
   // The program reads the primary feed from remaining[0] and requires it to match `oracle`
-  if (expectedAccountCount !== undefined && !resolvedOracleAccounts[0].equals(feedId)) {
-    throw new Error(
-      `${setup} requires oracleAccounts[0] to be the primary feed ${feedId.toBase58()}`
-    );
+  if (expectedAccountCount !== undefined && resolvedOracleAccounts[0] !== feedId) {
+    throw new Error(`${setup} requires oracleAccounts[0] to be the primary feed ${feedId}`);
   }
 
-  const ix = await instructions.makeLendingPoolConfigureBankOracleIx(
-    program,
+  return instructions.makeLendingPoolConfigureBankOracleIx(
+    programAddress,
     {
-      bank: bankAddress,
       group: groupAddress,
-      admin: adminAddress,
+      admin,
+      bank: bankAddress,
+      setup: serializeOracleSetup(setup),
+      oracle: feedId,
     },
-    {
-      setup: serializeOracleSetupToIndex(setup),
-      feedId,
-    },
-    resolvedOracleAccounts.map((pubkey) => ({
-      isSigner: false,
-      isWritable: false,
-      pubkey,
-    }))
+    resolvedOracleAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
   );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
 }
 
-type SetOraclePriceIxArgs = {
-  program: MarginfiProgram;
-  bankAddress: PublicKey;
+type SetOraclePriceIxArgs = BankAdminIxArgs & {
   price: BigNumber;
   setup: OracleSetup.Fixed | OracleSetup.PTPyth | OracleSetup.PTFixed;
   /** Fixed venue account, [Pyth, Exponent vault], or [Exponent vault], depending on setup. */
-  oracleAccounts?: PublicKey[];
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  oracleAccounts?: Address[];
 };
 
 /** Configure a flat fixed price or an Exponent PT price using the 0.1.11 instruction. */
 export async function setOraclePriceIx({
-  program,
+  programAddress,
   bankAddress,
+  groupAddress,
+  admin,
   price,
   setup,
   oracleAccounts = [],
-  groupAddress,
-  adminAddress,
-}: SetOraclePriceIxArgs): Promise<InstructionsWrapper> {
+}: SetOraclePriceIxArgs): Promise<Instruction> {
   const expectedAccountCount =
     setup === OracleSetup.PTPyth ? 2 : setup === OracleSetup.PTFixed ? 1 : undefined;
   if (expectedAccountCount !== undefined && oracleAccounts.length !== expectedAccountCount) {
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
   }
 
-  const ix = await instructions.makeLendingPoolSetOraclePriceIx(
-    program,
+  return instructions.makeLendingPoolSetOraclePriceIx(
+    programAddress,
     {
-      bank: bankAddress,
       group: groupAddress,
-      admin: adminAddress,
-    },
-    {
+      admin,
+      bank: bankAddress,
       price: bigNumberToWrappedI80F48(price),
-      setup: serializeOracleSetupToIndex(setup),
+      setup: serializeOracleSetup(setup),
     },
-    oracleAccounts.map((pubkey) => ({ isSigner: false, isWritable: false, pubkey }))
+    oracleAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
   );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
 }
 
-type ConfigureScopeOracleIxArgs = {
-  program: MarginfiProgram;
-  bankAddress: PublicKey;
-  oracle: PublicKey;
+type ConfigureScopeOracleIxArgs = BankAdminIxArgs & {
+  oracle: Address;
   entryIndex: number;
-  groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
 };
 
 export async function configureScopeOracleIx({
-  program,
+  programAddress,
   bankAddress,
+  groupAddress,
+  admin,
   oracle,
   entryIndex,
-  groupAddress,
-  adminAddress,
-}: ConfigureScopeOracleIxArgs): Promise<InstructionsWrapper> {
-  const ix = await instructions.makeLendingPoolConfigureBankOracleScopeIx(
-    program,
-    {
-      bank: bankAddress,
-      group: groupAddress,
-      admin: adminAddress,
-    },
-    {
-      oracle,
-      entryIndex,
-    }
-  );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
+}: ConfigureScopeOracleIxArgs): Promise<Instruction> {
+  return instructions.makeLendingPoolConfigureBankOracleScopeIx(programAddress, {
+    group: groupAddress,
+    admin,
+    bank: bankAddress,
+    oracle,
+    entryIndex,
+  });
 }
