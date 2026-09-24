@@ -1,12 +1,18 @@
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
-import BN from "bn.js";
+import type {
+  Address,
+  AddressesByLookupTableAddress,
+  GetAccountInfoApi,
+  GetMultipleAccountsApi,
+  Instruction,
+  Rpc,
+} from "@solana/kit";
 
-import { SwapApiConfig, SwapProvider, SwapProviderEntry, SwapQuoteResult } from "~/services/account/types";
+import {
+  SwapApiConfig,
+  SwapProvider,
+  SwapProviderEntry,
+  SwapQuoteResult,
+} from "~/services/account/types";
 
 /**
  * The footprint of everything in the flashloan transaction *except* the swap.
@@ -16,11 +22,11 @@ import { SwapApiConfig, SwapProvider, SwapProviderEntry, SwapQuoteResult } from 
  * is optional context for Titan template accuracy only.
  */
 export interface TxFootprint {
-  instructions: TransactionInstruction[];
-  luts: AddressLookupTableAccount[];
+  instructions: Instruction[];
+  luts: AddressesByLookupTableAddress;
   /** Begin/end-flashloan ixs, for Titan template sizing only (optional). */
-  wrapperInstructions?: TransactionInstruction[];
-  payer: PublicKey;
+  wrapperInstructions?: Instruction[];
+  payer: Address;
   /** Available swap byte budget (net of the flashloan wrapper). */
   sizeConstraint: number;
   /** Available swap account-slot budget (net of the flashloan wrapper). */
@@ -41,9 +47,9 @@ export interface SwapEngineRequest {
   platformFeeBps?: number;
   directRoutesOnly?: boolean;
 
-  taker: PublicKey;
-  destinationTokenAccount: PublicKey;
-  connection: Connection;
+  taker: Address;
+  destinationTokenAccount: Address;
+  rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi>;
 
   /** Required for the build path; ignored by the ExactOut estimate path. */
   footprint?: TxFootprint;
@@ -57,13 +63,13 @@ export interface SwapEngineRequest {
 /** A single route returned by a provider adapter, before the engine fit check. */
 export interface ProviderSwapRoute {
   provider: SwapProvider;
-  swapInstructions: TransactionInstruction[];
-  setupInstructions: TransactionInstruction[];
-  luts: AddressLookupTableAccount[];
+  swapInstructions: Instruction[];
+  setupInstructions: Instruction[];
+  luts: AddressesByLookupTableAddress;
   /** Expected output (ExactIn) in native units. */
-  outAmountNative: BN;
+  outAmountNative: bigint;
   /** Minimum guaranteed output after slippage, in native units. */
-  otherAmountThresholdNative: BN;
+  otherAmountThresholdNative: bigint;
   quoteResult: SwapQuoteResult;
   /** Optional label for diagnostics (e.g. Jupiter maxAccounts rung). */
   label?: string;
@@ -78,11 +84,11 @@ export interface SwapCandidate extends ProviderSwapRoute {
 
 /** Engine output — the exact shape the flashloan finalize step consumes. */
 export interface SwapEngineResult {
-  swapInstructions: TransactionInstruction[];
-  setupInstructions: TransactionInstruction[];
-  swapLuts: AddressLookupTableAccount[];
+  swapInstructions: Instruction[];
+  setupInstructions: Instruction[];
+  swapLuts: AddressesByLookupTableAddress;
   quoteResponse: SwapQuoteResult;
-  outputAmountNative: BN;
+  outputAmountNative: bigint;
   /** Winning provider, for diagnostics. */
   provider: SwapProvider;
 }
@@ -106,8 +112,5 @@ export interface SwapAdapter {
   name: SwapProvider;
   supportsBuild: boolean;
   /** Fetch one or more candidate routes (Jupiter returns several rungs). */
-  buildCandidates(
-    req: SwapEngineRequest,
-    apiConfig?: SwapApiConfig
-  ): Promise<ProviderSwapRoute[]>;
+  buildCandidates(req: SwapEngineRequest, apiConfig?: SwapApiConfig): Promise<ProviderSwapRoute[]>;
 }

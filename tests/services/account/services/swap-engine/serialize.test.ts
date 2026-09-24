@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  AddressLookupTableAccount,
-  Connection,
-  Keypair,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
-import BN from "bn.js";
+import { AccountRole, getAddressDecoder, type Instruction } from "@solana/kit";
 
 import { SwapProvider } from "~/services/account/types";
 import {
@@ -20,39 +13,30 @@ import type {
   SwapEngineResult,
 } from "~/services/account/services/swap-engine/types";
 
-const ix = () =>
-  new TransactionInstruction({
-    programId: Keypair.generate().publicKey,
-    keys: [
-      { pubkey: Keypair.generate().publicKey, isSigner: false, isWritable: true },
-      { pubkey: Keypair.generate().publicKey, isSigner: true, isWritable: false },
-    ],
-    data: Buffer.from([1, 2, 3, 4, 5]),
-  });
+const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 
-const lut = () =>
-  new AddressLookupTableAccount({
-    key: Keypair.generate().publicKey,
-    state: {
-      deactivationSlot: BigInt("18446744073709551615"),
-      lastExtendedSlot: 0,
-      lastExtendedSlotStartIndex: 0,
-      addresses: [Keypair.generate().publicKey, Keypair.generate().publicKey],
-    },
-  });
+const ix = (): Instruction => ({
+  programAddress: uniqueAddress(),
+  accounts: [
+    { address: uniqueAddress(), role: AccountRole.WRITABLE },
+    { address: uniqueAddress(), role: AccountRole.READONLY_SIGNER },
+  ],
+  data: new Uint8Array([1, 2, 3, 4, 5]),
+});
 
-const dummyConnection = {} as unknown as Connection;
+const dummyRpc = {} as SwapEngineRequest["rpc"];
 
 describe("swap engine request serialization", () => {
-  const taker = Keypair.generate().publicKey;
-  const dest = Keypair.generate().publicKey;
-  const payer = Keypair.generate().publicKey;
+  const taker = uniqueAddress();
+  const dest = uniqueAddress();
+  const payer = uniqueAddress();
   const footprintIx = ix();
-  const footprintLut = lut();
+  const lutAddress = uniqueAddress();
+  const lutEntries = [uniqueAddress(), uniqueAddress()];
 
   const req: SwapEngineRequest = {
-    inputMint: Keypair.generate().publicKey.toBase58(),
-    outputMint: Keypair.generate().publicKey.toBase58(),
+    inputMint: uniqueAddress(),
+    outputMint: uniqueAddress(),
     amountNative: 123456,
     inputDecimals: 6,
     outputDecimals: 9,
@@ -62,10 +46,10 @@ describe("swap engine request serialization", () => {
     directRoutesOnly: false,
     taker,
     destinationTokenAccount: dest,
-    connection: dummyConnection,
+    rpc: dummyRpc,
     footprint: {
       instructions: [footprintIx],
-      luts: [footprintLut],
+      luts: { [lutAddress]: lutEntries },
       payer,
       sizeConstraint: 800,
       maxSwapTotalAccounts: 30,
@@ -73,49 +57,38 @@ describe("swap engine request serialization", () => {
     providers: [{ provider: SwapProvider.TITAN, apiConfig: { basePath: "x", apiKey: "secret" } }],
   };
 
-  it("drops connection and per-provider apiConfig (keeps provider names)", () => {
+  it("drops the rpc and per-provider apiConfig (keeps provider names)", () => {
     const s = serializeSwapEngineRequest(req);
-    expect(s).not.toHaveProperty("connection");
+    expect(s).not.toHaveProperty("rpc");
     expect(s.providers).toEqual([SwapProvider.TITAN]);
     expect(JSON.stringify(s)).not.toContain("secret");
   });
 
-  it("round-trips the footprint ixs/luts and re-attaches server-side connection + apiConfig", () => {
+  it("round-trips the footprint ixs/luts and re-attaches server-side rpc + apiConfig", () => {
     const s = serializeSwapEngineRequest(req);
-    const back = deserializeSwapEngineRequest(s, {
-      connection: dummyConnection,
+    const back = deserializeSwapEngineRequest(JSON.parse(JSON.stringify(s)), {
+      rpc: dummyRpc,
       providerApiConfigs: { [SwapProvider.TITAN]: { basePath: "gateway", apiKey: "server-key" } },
     });
 
     expect(back.amountNative).toBe(req.amountNative);
-    expect(back.taker.equals(taker)).toBe(true);
-    expect(back.destinationTokenAccount.equals(dest)).toBe(true);
-    expect(back.footprint?.payer.equals(payer)).toBe(true);
+    expect(back.taker).toBe(taker);
+    expect(back.destinationTokenAccount).toBe(dest);
+    expect(back.footprint?.payer).toBe(payer);
     expect(back.footprint?.sizeConstraint).toBe(800);
-
-    // instruction preserved
-    const rIx = back.footprint!.instructions[0];
-    expect(rIx.programId.equals(footprintIx.programId)).toBe(true);
-    expect(Buffer.from(rIx.data).equals(footprintIx.data)).toBe(true);
-    expect(rIx.keys[0].pubkey.equals(footprintIx.keys[0].pubkey)).toBe(true);
-    expect(rIx.keys[1].isSigner).toBe(true);
-
-    // lut preserved
-    const rLut = back.footprint!.luts[0];
-    expect(rLut.key.equals(footprintLut.key)).toBe(true);
-    expect(rLut.state.addresses[0].equals(footprintLut.state.addresses[0])).toBe(true);
-
-    // server supplies connection + apiConfig
+    expect(back.footprint?.instructions).toEqual([footprintIx]);
+    expect(back.footprint?.luts).toEqual({ [lutAddress]: lutEntries });
+    expect(back.rpc).toBe(dummyRpc);
     expect(back.providers[0].apiConfig?.apiKey).toBe("server-key");
   });
 });
 
 describe("swap engine result serialization", () => {
-  it("round-trips instructions, luts, quote and the BN output amount", () => {
+  it("round-trips instructions, luts, quote and the bigint output amount", () => {
     const result: SwapEngineResult = {
       swapInstructions: [ix()],
       setupInstructions: [ix()],
-      swapLuts: [lut()],
+      swapLuts: { [uniqueAddress()]: [uniqueAddress(), uniqueAddress()] },
       quoteResponse: {
         inAmount: "1000",
         outAmount: "2000",
@@ -123,16 +96,14 @@ describe("swap engine result serialization", () => {
         slippageBps: 50,
         provider: SwapProvider.JUPITER,
       },
-      outputAmountNative: new BN("1990"),
+      outputAmountNative: 1990n,
       provider: SwapProvider.JUPITER,
     };
 
-    const back = deserializeSwapEngineResult(serializeSwapEngineResult(result));
+    const back = deserializeSwapEngineResult(
+      JSON.parse(JSON.stringify(serializeSwapEngineResult(result)))
+    );
 
-    expect(back.provider).toBe(SwapProvider.JUPITER);
-    expect(back.outputAmountNative.eq(new BN("1990"))).toBe(true);
-    expect(back.quoteResponse.outAmount).toBe("2000");
-    expect(back.swapInstructions[0].programId).toBeInstanceOf(PublicKey);
-    expect(back.swapLuts[0].state.addresses.length).toBe(2);
+    expect(back).toEqual(result);
   });
 });

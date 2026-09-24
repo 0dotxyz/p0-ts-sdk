@@ -4,7 +4,8 @@
 
 import {
   AccountRole,
-  fetchAddressesForLookupTables,
+  assertAccountDecoded,
+  fetchJsonParsedAccounts,
   getAddressDecoder,
   getBase64Encoder,
   upgradeRoleToSigner,
@@ -154,9 +155,17 @@ export function buildSwapQuoteResult(
 // --- LUT resolution ---
 
 /** Fetches the addresses of the given lookup tables; missing tables are omitted. */
-export function resolveLookupTables(
+export async function resolveLookupTables(
   rpc: Rpc<GetMultipleAccountsApi>,
   lookupTables: Address[]
 ): Promise<AddressesByLookupTableAddress> {
-  return fetchAddressesForLookupTables(lookupTables, rpc);
+  if (lookupTables.length === 0) return {};
+  const accounts = await fetchJsonParsedAccounts<{ addresses: Address[] }[]>(rpc, lookupTables);
+  const addressesByLookupTable: AddressesByLookupTableAddress = {};
+  for (const account of accounts) {
+    if (!account.exists) continue;
+    assertAccountDecoded(account);
+    addressesByLookupTable[account.address] = account.data.addresses;
+  }
+  return addressesByLookupTable;
 }

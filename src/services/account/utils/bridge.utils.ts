@@ -1,8 +1,12 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
 import { MarginfiAccountType } from "../types";
 
-import { BankType, isStandardBorrowable, isStandardDepositable } from "~/services/bank";
+import { BankType } from "~/services/bank/types";
+import {
+  isStandardBorrowable,
+  isStandardDepositable,
+} from "~/services/bank/utils/bank-metrics.utils";
 
 /**
  * Bridge-token candidate filtering for bridged (double-hop) swaps.
@@ -32,10 +36,10 @@ export type BridgeTokenSide = "deposit" | "borrow";
  */
 export function accountConflictsWithBridgeBank(
   marginfiAccount: MarginfiAccountType,
-  bridgeBankPk: PublicKey,
+  bridgeBankPk: Address,
   bridgeTokenSide: BridgeTokenSide
 ): boolean {
-  const balance = marginfiAccount.balances.find((b) => b.active && b.bankPk.equals(bridgeBankPk));
+  const balance = marginfiAccount.balances.find((b) => b.active && b.bankPk === bridgeBankPk);
   if (!balance) return false;
   return bridgeTokenSide === "deposit" ? balance.liabilityShares.gt(0) : balance.assetShares.gt(0);
 }
@@ -43,7 +47,7 @@ export function accountConflictsWithBridgeBank(
 export interface ResolveBridgeCandidateBanksParams {
   /** Candidate bridge-token mints, highest priority first (product policy — see
    *  `bridge-routing.utils.ts` for the default ordering and the per-call override). */
-  prioritizedBridgeCandidateMints: PublicKey[];
+  prioritizedBridgeCandidateMints: Address[];
   /** Banks to resolve the candidate mints against — typically all banks in the marginfi group. */
   groupBanks: BankType[];
   /** The account the bridged legs run against (for the conflict check). */
@@ -77,14 +81,13 @@ export function resolveBridgeCandidateBanks(params: ResolveBridgeCandidateBanksP
 
   const usableBridgeBanks: BankType[] = [];
   const conflictingBridgeBanks: BankType[] = [];
-  const seenMints = new Set<string>();
+  const seenMints = new Set<Address>();
 
   for (const mint of prioritizedBridgeCandidateMints) {
-    const mintKey = mint.toBase58();
-    if (seenMints.has(mintKey)) continue;
-    seenMints.add(mintKey);
+    if (seenMints.has(mint)) continue;
+    seenMints.add(mint);
 
-    const bank = groupBanks.find((b) => b.mint.equals(mint) && passesSideFilter(b));
+    const bank = groupBanks.find((b) => b.mint === mint && passesSideFilter(b));
     if (!bank) continue; // no standard bank for this mint on the required side
 
     if (accountConflictsWithBridgeBank(marginfiAccount, bank.address, bridgeTokenSide)) {

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { getAddressDecoder, type Address } from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import BigNumber from "bignumber.js";
 
 import { TransactionBuildingErrorCode } from "~/errors";
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
-import { AssetTag, OperationalState, BankType } from "~/services/bank";
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
+import { AssetTag, OperationalState, BankType } from "~/services/bank/types";
 import {
   DEFAULT_BRIDGE_MINTS,
   resolveTokenProgramForMint,
@@ -14,16 +14,34 @@ import {
 } from "~/services/account/utils/bridge-routing.utils";
 import type { BridgedTxResult, MarginfiAccountType } from "~/services/account";
 
+const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
+
+/** A Kit rpc stub whose `getAccountInfo` returns `owner` (or nothing when undefined). */
+function rpcWithOwner(owner?: Address) {
+  const getAccountInfo = vi.fn(() => ({
+    send: async () => ({
+      value: owner && {
+        data: ["", "base64"],
+        executable: false,
+        lamports: 0n,
+        owner,
+        space: 0n,
+      },
+    }),
+  }));
+  return { rpc: { getAccountInfo } as never, getAccountInfo };
+}
+
 // ----------------------------------------------------------------------------
 // Fixtures (minimal casts — these helpers only read a few fields)
 // ----------------------------------------------------------------------------
 
-function bank(mint: PublicKey): BankType {
+function bank(mint: Address): BankType {
   return {
-    address: Keypair.generate().publicKey,
+    address: uniqueAddress(),
     mint,
     mintDecimals: 6,
-    tokenSymbol: mint.toBase58().slice(0, 4),
+    tokenSymbol: mint.slice(0, 4),
     config: {
       assetTag: AssetTag.DEFAULT,
       operationalState: OperationalState.Operational,
@@ -33,7 +51,7 @@ function bank(mint: PublicKey): BankType {
 }
 
 function accountWith(
-  balances: Array<{ bankPk: PublicKey; assetShares: number; liabilityShares: number }>
+  balances: Array<{ bankPk: Address; assetShares: number; liabilityShares: number }>
 ): MarginfiAccountType {
   return {
     balances: balances.map((b) => ({
@@ -45,14 +63,14 @@ function accountWith(
   } as unknown as MarginfiAccountType;
 }
 
-const sourceBank = bank(Keypair.generate().publicKey);
-const destinationBank = bank(Keypair.generate().publicKey);
+const sourceBank = bank(uniqueAddress());
+const destinationBank = bank(uniqueAddress());
 const usdcBank = bank(USDC_MINT);
 const wsolBank = bank(WSOL_MINT);
 const usdtBank = bank(USDT_MINT);
 
 const bankMap = new Map(
-  [sourceBank, destinationBank, usdcBank, wsolBank, usdtBank].map((b) => [b.address.toBase58(), b])
+  [sourceBank, destinationBank, usdcBank, wsolBank, usdtBank].map((b) => [b.address, b])
 );
 
 // ----------------------------------------------------------------------------
@@ -68,9 +86,7 @@ describe("selectSwapBridges", () => {
       marginfiAccount: accountWith([]),
       bridgeTokenSide: "borrow",
     });
-    expect(usableBridgeBanks.map((b) => b.mint.toBase58())).toEqual(
-      DEFAULT_BRIDGE_MINTS.map((m) => m.toBase58())
-    );
+    expect(usableBridgeBanks.map((b) => b.mint)).toEqual(DEFAULT_BRIDGE_MINTS);
     expect(conflictingBridgeBanks).toHaveLength(0);
   });
 
@@ -82,7 +98,7 @@ describe("selectSwapBridges", () => {
       marginfiAccount: accountWith([]),
       bridgeTokenSide: "borrow",
     });
-    expect(usableBridgeBanks.map((b) => b.mint.toBase58())).toEqual([USDT_MINT.toBase58()]);
+    expect(usableBridgeBanks.map((b) => b.mint)).toEqual([USDT_MINT]);
   });
 
   it("respects a caller-supplied ordering (product policy)", () => {
@@ -94,10 +110,7 @@ describe("selectSwapBridges", () => {
       bridgeTokenSide: "borrow",
       bridgeCandidateMints: [WSOL_MINT, USDC_MINT],
     });
-    expect(usableBridgeBanks.map((b) => b.mint.toBase58())).toEqual([
-      WSOL_MINT.toBase58(),
-      USDC_MINT.toBase58(),
-    ]);
+    expect(usableBridgeBanks.map((b) => b.mint)).toEqual([WSOL_MINT, USDC_MINT]);
   });
 });
 
@@ -125,7 +138,7 @@ describe("tryBridgeCandidates", () => {
       bridgeTokenSide: "borrow",
       buildBundleThroughBridge,
     });
-    expect(result?.bridgeMint?.equals(WSOL_MINT)).toBe(true);
+    expect(result?.bridgeMint).toBe(WSOL_MINT);
     expect(buildBundleThroughBridge).toHaveBeenCalledTimes(2); // usdt never tried
   });
 
@@ -140,7 +153,7 @@ describe("tryBridgeCandidates", () => {
       bridgeTokenSide: "borrow",
       buildBundleThroughBridge,
     });
-    expect(result?.bridgeMint?.equals(WSOL_MINT)).toBe(true);
+    expect(result?.bridgeMint).toBe(WSOL_MINT);
   });
 
   it("propagates abort errors immediately", async () => {
@@ -208,31 +221,27 @@ describe("tryBridgeCandidates", () => {
 // ----------------------------------------------------------------------------
 
 describe("resolveTokenProgramForMint", () => {
-  const mint = Keypair.generate().publicKey;
+  const mint = uniqueAddress();
 
-  it("uses the caller-supplied map without touching the connection", async () => {
-    const known = Keypair.generate().publicKey;
-    const connection = { getAccountInfo: vi.fn() } as unknown as Connection;
-    const cache = new Map([[mint.toBase58(), known]]);
-    expect((await resolveTokenProgramForMint(mint, connection, cache)).equals(known)).toBe(true);
-    expect(connection.getAccountInfo).not.toHaveBeenCalled();
+  it("uses the caller-supplied map without touching the rpc", async () => {
+    const known = uniqueAddress();
+    const { rpc, getAccountInfo } = rpcWithOwner(uniqueAddress());
+    const cache = new Map([[mint, known]]);
+    expect(await resolveTokenProgramForMint(mint, rpc, cache)).toBe(known);
+    expect(getAccountInfo).not.toHaveBeenCalled();
   });
 
   it("falls back to the mint account's owner and caches it", async () => {
-    const owner = Keypair.generate().publicKey;
-    const getAccountInfo = vi.fn().mockResolvedValue({ owner });
-    const connection = { getAccountInfo } as unknown as Connection;
-    const cache = new Map<string, PublicKey>();
-    expect((await resolveTokenProgramForMint(mint, connection, cache)).equals(owner)).toBe(true);
-    expect((await resolveTokenProgramForMint(mint, connection, cache)).equals(owner)).toBe(true);
+    const owner = uniqueAddress();
+    const { rpc, getAccountInfo } = rpcWithOwner(owner);
+    const cache = new Map<string, Address>();
+    expect(await resolveTokenProgramForMint(mint, rpc, cache)).toBe(owner);
+    expect(await resolveTokenProgramForMint(mint, rpc, cache)).toBe(owner);
     expect(getAccountInfo).toHaveBeenCalledTimes(1); // second call served from the cache
   });
 
   it("defaults to the classic token program when the mint account is missing", async () => {
-    const connection = {
-      getAccountInfo: vi.fn().mockResolvedValue(null),
-    } as unknown as Connection;
-    const program = await resolveTokenProgramForMint(mint, connection, new Map());
-    expect(program.equals(TOKEN_PROGRAM_ID)).toBe(true);
+    const { rpc } = rpcWithOwner();
+    expect(await resolveTokenProgramForMint(mint, rpc, new Map())).toBe(TOKEN_PROGRAM_ADDRESS);
   });
 });

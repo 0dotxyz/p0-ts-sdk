@@ -1,4 +1,5 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { fetchEncodedAccount, type Address, type GetAccountInfoApi, type Rpc } from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
 import { MakeSwapDebtTxParams, MarginfiAccountType, SwapQuoteResult } from "../types";
 
@@ -6,9 +7,8 @@ import { BridgeTokenSide, resolveBridgeCandidateBanks } from "./bridge.utils";
 
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
-import { BankType } from "~/services/bank";
+import { BankType } from "~/services/bank/types";
 import { SolanaTransaction } from "~/services/transaction";
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 /**
  * Shared support for the bridged (double-hop) one-call builders.
@@ -31,7 +31,7 @@ import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
  */
 
 /** Default bridge-token candidates, most-liquid first. */
-export const DEFAULT_BRIDGE_MINTS: PublicKey[] = [USDC_MINT, WSOL_MINT, USDT_MINT];
+export const DEFAULT_BRIDGE_MINTS: Address[] = [USDC_MINT, WSOL_MINT, USDT_MINT];
 
 /** Per-call knobs for the bridged fallback of the `makeBridged*Tx` builders. */
 export interface BridgeOpts {
@@ -39,9 +39,9 @@ export interface BridgeOpts {
    * Candidate bridge-token mints, highest priority first. Defaults to
    * {@link DEFAULT_BRIDGE_MINTS} (USDC, wSOL, USDT). Source/destination mints are always skipped.
    */
-  bridgeCandidateMints?: PublicKey[];
-  /** Known token programs by mint (base58) — skips the per-mint RPC owner lookup. */
-  tokenProgramByMint?: Map<string, PublicKey>;
+  bridgeCandidateMints?: Address[];
+  /** Known token programs by mint — skips the per-mint RPC owner lookup. */
+  tokenProgramByMint?: Map<string, Address>;
   /** Override the bundle-size ceiling (see `composeBridgedSwap`). */
   maxBundleTxs?: number;
   abortSignal?: AbortSignal;
@@ -54,7 +54,7 @@ export interface BridgedTxResult {
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
   /** The bridge token's mint — set only when the bridged double-hop path was used. */
-  bridgeMint?: PublicKey;
+  bridgeMint?: Address;
   /** true → send as ONE atomic Jito bundle (bridged legs are one operation / integration
    *  refreshes go stale within a slot); false → sequential sends are safe (cranked oracles
    *  allow ≥ ~1 min staleness). */
@@ -63,15 +63,15 @@ export interface BridgedTxResult {
 
 /** A mint's token program: the cache (seedable by the caller), else the mint account's owner. */
 export async function resolveTokenProgramForMint(
-  mint: PublicKey,
-  connection: Connection,
-  tokenProgramCacheByMint: Map<string, PublicKey>
-): Promise<PublicKey> {
-  const mintKey = mint.toBase58();
-  const cached = tokenProgramCacheByMint.get(mintKey);
+  mint: Address,
+  rpc: Rpc<GetAccountInfoApi>,
+  tokenProgramCacheByMint: Map<string, Address>
+): Promise<Address> {
+  const cached = tokenProgramCacheByMint.get(mint);
   if (cached) return cached;
-  const owner = (await connection.getAccountInfo(mint))?.owner ?? TOKEN_PROGRAM_ID;
-  tokenProgramCacheByMint.set(mintKey, owner);
+  const account = await fetchEncodedAccount(rpc, mint);
+  const owner = account.exists ? account.programAddress : TOKEN_PROGRAM_ADDRESS;
+  tokenProgramCacheByMint.set(mint, owner);
   return owner;
 }
 
@@ -81,15 +81,15 @@ export async function resolveTokenProgramForMint(
  * candidates (a token can't bridge itself).
  */
 export function selectSwapBridges(args: {
-  sourceMint: PublicKey;
-  destinationMint: PublicKey;
+  sourceMint: Address;
+  destinationMint: Address;
   bankMap: Map<string, BankType>;
   marginfiAccount: MarginfiAccountType;
   bridgeTokenSide: BridgeTokenSide;
-  bridgeCandidateMints?: PublicKey[];
+  bridgeCandidateMints?: Address[];
 }): { usableBridgeBanks: BankType[]; conflictingBridgeBanks: BankType[] } {
   const prioritizedCandidateMints = (args.bridgeCandidateMints ?? DEFAULT_BRIDGE_MINTS).filter(
-    (mint) => !mint.equals(args.sourceMint) && !mint.equals(args.destinationMint)
+    (mint) => mint !== args.sourceMint && mint !== args.destinationMint
   );
   return resolveBridgeCandidateBanks({
     prioritizedBridgeCandidateMints: prioritizedCandidateMints,
@@ -130,7 +130,7 @@ export async function tryBridgeCandidates(args: {
       if (isAbortError(e)) throw e;
       // this bridge candidate failed to build a leg — try the next one
       console.warn(
-        `[bridge-routing] candidate ${bridgeBank.tokenSymbol ?? bridgeBank.mint.toBase58()} failed:`,
+        `[bridge-routing] candidate ${bridgeBank.tokenSymbol ?? bridgeBank.mint} failed:`,
         e instanceof Error ? e.message : e
       );
     }
@@ -138,8 +138,8 @@ export async function tryBridgeCandidates(args: {
   if (args.usableBridgeBanks.length === 0 && args.conflictingBridgeBanks.length > 0) {
     throw TransactionBuildingError.bridgeConflict(
       args.conflictingBridgeBanks.map((bank) => ({
-        bankAddress: bank.address.toBase58(),
-        mint: bank.mint.toBase58(),
+        bankAddress: bank.address,
+        mint: bank.mint,
         symbol: bank.tokenSymbol,
       })),
       args.bridgeTokenSide

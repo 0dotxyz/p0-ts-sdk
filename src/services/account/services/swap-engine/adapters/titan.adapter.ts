@@ -1,5 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
@@ -73,8 +72,8 @@ async function buildCandidates(
   try {
     const { stream, streamId: id } = await client.newSwapQuoteStream({
       swap: {
-        inputMint: new PublicKey(req.inputMint).toBytes(),
-        outputMint: new PublicKey(req.outputMint).toBytes(),
+        inputMint: addressBytes(req.inputMint),
+        outputMint: addressBytes(req.outputMint),
         amount: req.amountNative,
         swapMode: SwapMode.ExactIn,
         slippageBps: req.slippageBps,
@@ -87,8 +86,8 @@ async function buildCandidates(
         transactionTemplate: template,
       },
       transaction: {
-        userPublicKey: req.taker.toBytes(),
-        outputAccount: req.destinationTokenAccount.toBytes(),
+        userPublicKey: addressBytes(req.taker),
+        outputAccount: addressBytes(req.destinationTokenAccount),
         // Keep a wSOL output wrapped in the destination ATA (the analog of
         // Jupiter's `wrapAndUnwrapSol: false`). Our flashloan flows consume the
         // output with a subsequent marginfi ix built with `wrapAndUnwrapSol:
@@ -97,7 +96,7 @@ async function buildCandidates(
         outputWsol: true,
         titanSwapVersion: SwapVersion.V3,
         ...(fee !== undefined && feeAccount
-          ? { feeBps: fee, feeAccount: new PublicKey(feeAccount).toBytes() }
+          ? { feeBps: fee, feeAccount: addressBytes(feeAccount) }
           : {}),
       },
       update: { num_quotes: 3 },
@@ -127,8 +126,10 @@ async function buildCandidates(
     }
 
     const swapInstructions = route.instructions.map(deserializeTitanWireInstruction);
-    const lutPubkeys = route.addressLookupTables.map((bytes) => new PublicKey(bytes));
-    const luts = await resolveLookupTables(req.connection, lutPubkeys);
+    const lutAddresses = route.addressLookupTables.map((bytes) =>
+      getAddressDecoder().decode(bytes)
+    );
+    const luts = await resolveLookupTables(req.rpc, lutAddresses);
 
     const quote = buildSwapQuoteResult(route, "ExactIn");
 
@@ -138,8 +139,8 @@ async function buildCandidates(
         swapInstructions,
         setupInstructions: [],
         luts,
-        outAmountNative: new BN(quote.outAmount),
-        otherAmountThresholdNative: new BN(quote.otherAmountThreshold),
+        outAmountNative: BigInt(quote.outAmount),
+        otherAmountThresholdNative: BigInt(quote.otherAmountThreshold),
         quoteResult: { ...quote, provider: SwapProvider.TITAN },
         label: "titan:v3",
       },
@@ -156,14 +157,16 @@ async function buildCandidates(
 async function resolveFee(req: SwapEngineRequest): Promise<{ fee?: number; feeAccount?: string }> {
   if (!req.platformFeeBps) return {};
   // ExactIn: fee taken on the output mint.
-  const feeMint = new PublicKey(req.outputMint);
-  const { feeAccount, hasFeeAccount } = await checkTitanFeeAccount(req.connection, feeMint);
+  const feeMint = address(req.outputMint);
+  const { feeAccount, hasFeeAccount } = await checkTitanFeeAccount(req.rpc, feeMint);
   if (!hasFeeAccount) {
     console.warn("[titan] fee account ATA missing, disabling platform fee");
     return {};
   }
-  return { fee: req.platformFeeBps, feeAccount: feeAccount.toBase58() };
+  return { fee: req.platformFeeBps, feeAccount };
 }
+
+const addressBytes = (value: string) => Uint8Array.from(getAddressEncoder().encode(address(value)));
 
 /** Append the JWT as an `auth` query param (works with the bare `connect(url)`). */
 function authedWsUrl(wsUrl: string, apiKey?: string): string {

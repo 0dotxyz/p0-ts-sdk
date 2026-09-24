@@ -81,7 +81,7 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
   // A route must both fit the budget AND actually yield output — providers can
   // occasionally return a degenerate route (instructions present, outAmount 0);
   // selecting one would patch the deposit to ~0 and produce a broken tx.
-  const fitting = candidates.filter((c) => c.fits && c.outAmountNative.gtn(0));
+  const fitting = candidates.filter((c) => c.fits && c.outAmountNative > 0n);
 
   if (fitting.length === 0) {
     // Report the closest-to-fitting candidate for diagnostics.
@@ -94,9 +94,7 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
   }
 
   // Highest expected output wins (ExactIn, same output token across providers).
-  const winner = fitting.reduce((best, c) =>
-    c.outAmountNative.gt(best.outAmountNative) ? c : best
-  );
+  const winner = fitting.reduce((best, c) => (c.outAmountNative > best.outAmountNative ? c : best));
 
   console.log("[swap-engine] selected", {
     provider: winner.provider,
@@ -130,7 +128,7 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
   const { footprint } = req;
   if (!footprint) throw new Error("runSwapEngine requires a footprint");
   const allIxs = [...footprint.instructions, ...route.swapInstructions];
-  const luts = [...footprint.luts, ...route.luts];
+  const luts = { ...footprint.luts, ...route.luts };
 
   const precheck = compileFlashloanPrecheck({
     allIxs,
@@ -138,7 +136,7 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
     luts,
     sizeConstraint: footprint.sizeConstraint,
     swapIxCount: route.swapInstructions.length,
-    swapLutCount: route.luts.length,
+    swapLutCount: Object.keys(route.luts).length,
   });
 
   const fits = precheck.overshoot <= 0 && precheck.totalAccounts <= MAX_ACCOUNT_LOCKS;

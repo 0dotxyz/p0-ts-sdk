@@ -1,3 +1,4 @@
+import type { AddressesByLookupTableAddress, Instruction } from "@solana/kit";
 import {
   AddressLookupTableAccount,
   Connection,
@@ -67,8 +68,8 @@ export interface SwapOpts {
    * a pinned route belongs to the direct pair and cannot be spliced into SDK-composed legs.
    */
   swapIxs?: {
-    instructions: TransactionInstruction[];
-    lookupTables: AddressLookupTableAccount[];
+    instructions: Instruction[];
+    lookupTables: AddressesByLookupTableAddress;
     /** The pinned route's quote; `otherAmountThreshold` must be the route's min-out (native). */
     quoteResponse: SwapQuoteResult;
   };
@@ -89,12 +90,6 @@ export interface SwapQuoteResult {
   provider?: SwapProvider;
 }
 
-export interface SwapIxsResult {
-  swapInstructions: TransactionInstruction[];
-  setupInstructions: TransactionInstruction[];
-  addressLookupTableAddresses: AddressLookupTableAccount[];
-  quoteResponse: SwapQuoteResult;
-}
 
 export interface MakeDepositIxOpts {
   wrapAndUnwrapSol?: boolean;

@@ -12,14 +12,16 @@
  */
 
 import {
-  AddressLookupTableAccount,
-  ComputeBudgetProgram,
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
-import BN from "bn.js";
+  AccountRole,
+  blockhash,
+  compileTransactionMessage,
+  createNoopSigner,
+  getTransactionMessageSize,
+  type Address,
+  type AddressesByLookupTableAddress,
+  type Instruction,
+} from "@solana/kit";
+import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 
 import { makeBorrowIx } from "../actions/borrow";
 import {
@@ -41,9 +43,13 @@ import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "./c
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
+import instructions from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank";
-import { InstructionsWrapper } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
+import {
+  getTotalAccountKeys,
+  InstructionsWrapper,
+  makeTransactionMessage,
+} from "~/services/transaction";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
 
 // V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
@@ -57,151 +63,16 @@ const SWAP_MERGE_OVERHEAD = 150;
 // compiles without FL IXs, so we add this constant to get an accurate estimate.
 const FL_IX_OVERHEAD = 52;
 
-// Stand-in raw size for a tx too large for `serialize()` to even encode (it throws a RangeError).
-// Any value comfortably over MAX_TX_SIZE works — it only needs to make `overshoot` positive so the
-// route is scored as "doesn't fit" instead of crashing.
+// Stand-in raw size for a tx too large to even encode. Any value comfortably over MAX_TX_SIZE
+// works — it only needs to make `overshoot` positive so the route is scored as "doesn't fit"
+// instead of crashing.
 const OVERSIZED_TX_SENTINEL = MAX_TX_SIZE * 4;
 
-// ============================================================================
-// V0 TX size estimator (simulates V0 message compilation key resolution)
-// ============================================================================
-
-function compactU16Size(n: number): number {
-  return n < 0x80 ? 1 : n < 0x4000 ? 2 : 3;
-}
-
-/**
- * Estimate the serialized size of a V0 transaction from its instructions and LUTs.
- * Simulates the key resolution logic of TransactionMessage.compileToV0Message
- * without actually compiling or serializing the message.
- */
-export function computeV0TxSize(
-  ixs: TransactionInstruction[],
-  payerKey: PublicKey,
-  luts: AddressLookupTableAccount[]
-): { size: number; accountCount: number; writableAccountCount: number } {
-  // --- Collect all unique keys with merged properties ---
-  const keyMap = new Map<string, { isSigner: boolean; isWritable: boolean }>();
-
-  const payerStr = payerKey.toBase58();
-  keyMap.set(payerStr, { isSigner: true, isWritable: true });
-
-  const programIds = new Set<string>();
-
-  for (const ix of ixs) {
-    const progStr = ix.programId.toBase58();
-    programIds.add(progStr);
-    if (!keyMap.has(progStr)) {
-      keyMap.set(progStr, { isSigner: false, isWritable: false });
-    }
-    for (const meta of ix.keys) {
-      const keyStr = meta.pubkey.toBase58();
-      const existing = keyMap.get(keyStr);
-      if (existing) {
-        existing.isSigner = existing.isSigner || meta.isSigner;
-        existing.isWritable = existing.isWritable || meta.isWritable;
-      } else {
-        keyMap.set(keyStr, { isSigner: meta.isSigner, isWritable: meta.isWritable });
-      }
-    }
-  }
-
-  // --- Build LUT lookup: pubkey base58 → { lutIndex, addressIndex } ---
-  const lutLookup = new Map<string, { lutIdx: number; addrIdx: number }>();
-  for (let li = 0; li < luts.length; li++) {
-    const addresses = luts[li].state.addresses;
-    for (let ai = 0; ai < addresses.length; ai++) {
-      const addrStr = addresses[ai].toBase58();
-      if (!lutLookup.has(addrStr)) {
-        lutLookup.set(addrStr, { lutIdx: li, addrIdx: ai });
-      }
-    }
-  }
-
-  // --- Partition keys into static vs LUT ---
-  let numStaticKeys = 0;
-  let numWritableStaticKeys = 0;
-  // Per-LUT: track writable and readonly index sets
-  const lutWritableIdxs: Set<number>[] = luts.map(() => new Set());
-  const lutReadonlyIdxs: Set<number>[] = luts.map(() => new Set());
-
-  for (const [keyStr, props] of keyMap) {
-    // Signers and invoked program IDs must be static
-    if (props.isSigner || programIds.has(keyStr)) {
-      numStaticKeys++;
-      if (props.isWritable) numWritableStaticKeys++;
-      continue;
-    }
-
-    const lutEntry = lutLookup.get(keyStr);
-    if (lutEntry) {
-      if (props.isWritable) {
-        lutWritableIdxs[lutEntry.lutIdx].add(lutEntry.addrIdx);
-      } else {
-        lutReadonlyIdxs[lutEntry.lutIdx].add(lutEntry.addrIdx);
-      }
-    } else {
-      numStaticKeys++;
-      if (props.isWritable) numWritableStaticKeys++;
-    }
-  }
-
-  // --- Fixed overhead: 1 (sigCount) + 64 (sig) + 1 (V0 prefix) + 3 (header) + 32 (blockhash) ---
-  const fixedOverhead = 101;
-
-  // --- Static keys section ---
-  const staticKeysSection = compactU16Size(numStaticKeys) + numStaticKeys * 32;
-
-  // --- IX section ---
-  let ixSection = compactU16Size(ixs.length);
-  for (const ix of ixs) {
-    const numAccounts = ix.keys.length;
-    ixSection +=
-      1 + // programId index
-      compactU16Size(numAccounts) +
-      numAccounts + // account key indexes
-      compactU16Size(ix.data.length) +
-      ix.data.length;
-  }
-
-  // --- LUT section ---
-  // Only include LUTs that actually have referenced keys
-  let numUsedLuts = 0;
-  let lutSection = 0;
-  for (let li = 0; li < luts.length; li++) {
-    const wCount = lutWritableIdxs[li].size;
-    const rCount = lutReadonlyIdxs[li].size;
-    if (wCount === 0 && rCount === 0) continue;
-    numUsedLuts++;
-    lutSection +=
-      32 + // LUT address
-      compactU16Size(wCount) +
-      wCount + // writable indexes
-      compactU16Size(rCount) +
-      rCount; // readonly indexes
-  }
-  lutSection += compactU16Size(numUsedLuts);
-
-  // Total unique account keys (static + LUT-resolved)
-  let totalLutKeys = 0;
-  for (let li = 0; li < luts.length; li++) {
-    totalLutKeys += lutWritableIdxs[li].size + lutReadonlyIdxs[li].size;
-  }
-  const accountCount = numStaticKeys + totalLutKeys;
-
-  // Writable accounts: writable static keys + LUT writable indexes
-  let totalLutWritableKeys = 0;
-  for (let li = 0; li < luts.length; li++) {
-    totalLutWritableKeys += lutWritableIdxs[li].size;
-  }
-  const writableAccountCount = numWritableStaticKeys + totalLutWritableKeys;
-
-  // Empirical +1: component-based calculation consistently underestimates by 1 byte
-  // vs actual VersionedTransaction.serialize(). Verified across all measurement variants.
-  const size = fixedOverhead + staticKeysSection + ixSection + lutSection + 1;
-
-  return { size, accountCount, writableAccountCount };
-}
+// Size-only compilation needs a lifetime; any 32-byte blockhash gives the exact size.
+const SIZING_BLOCKHASH = {
+  blockhash: blockhash("11111111111111111111111111111111"),
+  lastValidBlockHeight: 0n,
+};
 
 // ============================================================================
 // Flashloan swap budget estimator
@@ -222,70 +93,61 @@ export interface FlashloanSwapConstraints {
  * @param ixs - The non-swap IXs (CU requests + primary + secondary).
  *              Must NOT include BeginFL/EndFL — those are synthesized internally.
  */
-export function computeFlashLoanNonSwapBudget({
-  program,
+export async function computeFlashLoanNonSwapBudget({
+  programAddress,
   marginfiAccount,
   ixs,
   bankMap,
   addressLookupTableAccounts,
 }: {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  ixs: TransactionInstruction[];
+  ixs: Instruction[];
   bankMap: Map<string, BankType>;
-  addressLookupTableAccounts: AddressLookupTableAccount[];
-}): FlashloanSwapConstraints {
+  addressLookupTableAccounts: AddressesByLookupTableAddress;
+}): Promise<FlashloanSwapConstraints> {
   // 1. Project which banks will be active after the primary IXs execute
   const projectedActiveBanksKeys = computeProjectedActiveBanksNoCpi({
     account: marginfiAccount,
     instructions: ixs,
-    program,
+    programAddress,
   });
   const projectedActiveBanks = projectedActiveBanksKeys.map((key) => {
-    const b = bankMap.get(key.toBase58());
-    if (!b) throw new Error(`Bank ${key.toBase58()} not found in computeFlashLoanNonSwapBudget`);
+    const b = bankMap.get(key);
+    if (!b) throw new Error(`Bank ${key} not found in computeFlashLoanNonSwapBudget`);
     return b;
   });
 
-  // 2. Build BeginFL and EndFL IXs synchronously
+  // 2. Build BeginFL and EndFL IXs
+  const authority = createNoopSigner(marginfiAccount.authority);
   const endIndex = ixs.length + 1; // BeginFL is at index 0, EndFL at endIndex
-  const beginFlIx = syncInstructions.makeBeginFlashLoanIx(
-    program.programId,
-    { marginfiAccount: marginfiAccount.address, authority: marginfiAccount.authority },
-    { endIndex: new BN(endIndex) }
-  );
+  const beginFlIx = await instructions.makeBeginFlashLoanIx(programAddress, {
+    marginfiAccount: marginfiAccount.address,
+    authority,
+    endIndex: BigInt(endIndex),
+  });
 
   const endFlRemainingAccounts = computeHealthAccountMetas({
     banksToInclude: projectedActiveBanks,
   });
-  const endFlIx = syncInstructions.makeEndFlashLoanIx(
-    program.programId,
-    {
-      marginfiAccount: marginfiAccount.address,
-      group: marginfiAccount.group,
-      authority: marginfiAccount.authority,
-    },
-    endFlRemainingAccounts.map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }))
+  const endFlIx = await instructions.makeEndFlashLoanIx(
+    programAddress,
+    { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group, authority },
+    endFlRemainingAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
   );
 
   // 3. Assemble all non-swap IXs in flashloan order
   const allNonSwapIxs = [beginFlIx, ...ixs, endFlIx];
 
-  // 4. Compile a real V0 message and serialize for exact non-swap size
-  const nonSwapMsg = new TransactionMessage({
-    payerKey: marginfiAccount.authority,
-    recentBlockhash: PublicKey.default.toBase58(),
+  // 4. Compile a real V0 message for the exact non-swap size
+  const nonSwapMsg = makeTransactionMessage({
     instructions: allNonSwapIxs,
-  }).compileToV0Message(addressLookupTableAccounts);
-  const nonSwapSize = new VersionedTransaction(nonSwapMsg).serialize().length;
-
-  const { staticAccountKeys, addressTableLookups } = nonSwapMsg;
-  const nonSwapTotal =
-    staticAccountKeys.length +
-    addressTableLookups.reduce(
-      (s, l) => s + l.writableIndexes.length + l.readonlyIndexes.length,
-      0
-    );
+    feePayer: authority,
+    latestBlockhash: SIZING_BLOCKHASH,
+    luts: addressLookupTableAccounts,
+  });
+  const nonSwapSize = getTransactionMessageSize(nonSwapMsg);
+  const nonSwapTotal = getTotalAccountKeys(nonSwapMsg);
 
   const sizeConstraint = MAX_TX_SIZE - nonSwapSize - SWAP_MERGE_OVERHEAD;
   const maxSwapTotalAccounts = MAX_ACCOUNT_LOCKS - nonSwapTotal;
@@ -331,56 +193,52 @@ export function compileFlashloanPrecheck({
   swapIxCount,
   swapLutCount,
 }: {
-  allIxs: TransactionInstruction[];
-  payer: PublicKey;
-  luts: AddressLookupTableAccount[];
+  allIxs: Instruction[];
+  payer: Address;
+  luts: AddressesByLookupTableAddress;
   sizeConstraint: number;
   swapIxCount: number;
   swapLutCount: number;
 }): FlashloanPrecheckResult {
-  const msg = new TransactionMessage({
-    payerKey: payer,
-    recentBlockhash: PublicKey.default.toBase58(),
+  const msg = makeTransactionMessage({
     instructions: allIxs,
-  }).compileToV0Message(luts);
+    feePayer: createNoopSigner(payer),
+    latestBlockhash: SIZING_BLOCKHASH,
+    luts,
+  });
 
-  // `serialize()` (via @solana/buffer-layout) throws `RangeError: encoding overruns Uint8Array`
-  // when the compiled message is too large to even fit its wire buffer. That just means the tx is
-  // grossly oversized, so treat it as a large positive overshoot (route "doesn't fit") rather than
-  // letting the RangeError escape — callers (e.g. the swap engine's annotateFit) score on
-  // `overshoot`, and an uncaught throw would short-circuit clean size classification.
+  // A message too large to even encode (e.g. more than 256 accounts) throws; that just means the
+  // tx is grossly oversized, so treat it as a large positive overshoot (route "doesn't fit") rather
+  // than letting it escape — callers (e.g. the swap engine's annotateFit) score on `overshoot`.
   let rawSize: number;
+  let compiled: ReturnType<typeof compileTransactionMessage>;
   try {
-    rawSize = new VersionedTransaction(msg).serialize().length;
-  } catch (e) {
-    if (!(e instanceof RangeError)) throw e;
-    rawSize = OVERSIZED_TX_SENTINEL;
+    compiled = compileTransactionMessage(msg);
+    rawSize = getTransactionMessageSize(msg);
+  } catch {
+    return {
+      fullTxSize: OVERSIZED_TX_SENTINEL + FL_IX_OVERHEAD,
+      overshoot: OVERSIZED_TX_SENTINEL + FL_IX_OVERHEAD - MAX_TX_SIZE,
+      writableAccounts: 0,
+      totalAccounts: 0,
+    };
   }
   const fullTxSize = rawSize + FL_IX_OVERHEAD;
   const overshoot = fullTxSize - MAX_TX_SIZE;
 
-  const { header, staticAccountKeys, addressTableLookups } = msg;
+  const { header, staticAccounts } = compiled;
+  const addressTableLookups =
+    "addressTableLookups" in compiled ? (compiled.addressTableLookups ?? []) : [];
   const writableStatic =
-    staticAccountKeys.length -
-    header.numReadonlySignedAccounts -
-    header.numReadonlyUnsignedAccounts;
+    staticAccounts.length - header.numReadonlySignerAccounts - header.numReadonlyNonSignerAccounts;
   const writableLut = addressTableLookups.reduce((s, l) => s + l.writableIndexes.length, 0);
   const writableAccounts = writableStatic + writableLut;
   const totalAccounts =
-    staticAccountKeys.length +
+    staticAccounts.length +
     addressTableLookups.reduce(
       (s, l) => s + l.writableIndexes.length + l.readonlyIndexes.length,
       0
     );
-
-  // Check account limits before returning
-  // if (totalAccounts > MAX_ACCOUNT_LOCKS) {
-  //   throw TransactionBuildingError.swapSizeExceededLoop(
-  //     fullTxSize,
-  //     writableAccounts,
-  //     undefined // provider unknown at this layer
-  //   );
-  // }
 
   console.log("[flashloan-precheck]", {
     fullTxSize,
@@ -388,7 +246,7 @@ export function compileFlashloanPrecheck({
     sizeConstraint,
     writableAccounts,
     totalAccounts,
-    staticKeys: staticAccountKeys.length,
+    staticKeys: staticAccounts.length,
     numLuts: addressTableLookups.length,
     swapIxCount,
     swapLutCount,

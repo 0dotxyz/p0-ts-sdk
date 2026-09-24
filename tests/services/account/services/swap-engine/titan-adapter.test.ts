@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
 
 import { SwapProvider } from "~/services/account/types";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine/types";
@@ -62,7 +62,9 @@ function route(outAmount: number) {
 // Titan V3 router returns over the WebSocket.
 const GUARD = "jitodontfronttitanspzero1111111111111111111";
 // An arbitrary non-marker account that must survive the filter (control).
-const NORMAL_ACCOUNT = PublicKey.unique().toBase58();
+const NORMAL_ACCOUNT = getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
+const bytes = (value: string) => Uint8Array.from(getAddressEncoder().encode(address(value)));
+const DEFAULT = getAddressDecoder().decode(new Uint8Array(32));
 function routeWithGuard(outAmount: number) {
   return {
     inAmount: 1_000,
@@ -71,10 +73,10 @@ function routeWithGuard(outAmount: number) {
     steps: [],
     instructions: [
       {
-        p: new PublicKey("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT").toBytes(),
+        p: bytes("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT"),
         a: [
-          { p: new PublicKey(NORMAL_ACCOUNT).toBytes(), s: false, w: true },
-          { p: new PublicKey(GUARD).toBytes(), s: false, w: false },
+          { p: bytes(NORMAL_ACCOUNT), s: false, w: true },
+          { p: bytes(GUARD), s: false, w: false },
         ],
         d: new Uint8Array([1, 2, 3]),
       },
@@ -85,18 +87,18 @@ function routeWithGuard(outAmount: number) {
 
 function makeRequest(): SwapEngineRequest {
   return {
-    inputMint: PublicKey.default.toBase58(),
-    outputMint: PublicKey.default.toBase58(),
+    inputMint: DEFAULT,
+    outputMint: DEFAULT,
     amountNative: 1_000,
     inputDecimals: 6,
     outputDecimals: 6,
-    taker: PublicKey.default,
-    destinationTokenAccount: PublicKey.default,
-    connection: {} as unknown as Connection,
+    taker: DEFAULT,
+    destinationTokenAccount: DEFAULT,
+    rpc: {} as SwapEngineRequest["rpc"],
     footprint: {
       instructions: [],
-      luts: [],
-      payer: PublicKey.default,
+      luts: {},
+      payer: DEFAULT,
       sizeConstraint: 800,
       maxSwapTotalAccounts: 40,
     },
@@ -176,7 +178,7 @@ describe("titan WS adapter", () => {
     const [candidate] = await titanAdapter.buildCandidates(makeRequest(), apiConfig);
 
     const keys = candidate.swapInstructions.flatMap((ix) =>
-      ix.keys.map((k) => k.pubkey.toBase58())
+      (ix.accounts ?? []).map((account) => account.address)
     );
     expect(keys).not.toContain(GUARD);
     // Non-marker accounts are preserved.

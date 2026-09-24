@@ -1,4 +1,4 @@
-import { getAddressEncoder, type Address } from "@solana/kit";
+import { AccountRole, getAddressEncoder, upgradeRoleToSigner, type Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 import { Decimal } from "decimal.js";
 
@@ -150,3 +150,11 @@ export const composeRemainingAccounts = (banksAndOracles: Address[][]): Address[
   // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
   return banksAndOracles.flat();
 };
+
+/**
+ * Kit account role for web3-style `isSigner` / `isWritable` flags (e.g. from a swap API response).
+ */
+export function toAccountRole(isSigner: boolean, isWritable: boolean): AccountRole {
+  const role = isWritable ? AccountRole.WRITABLE : AccountRole.READONLY;
+  return isSigner ? upgradeRoleToSigner(role) : role;
+}

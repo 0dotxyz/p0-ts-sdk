@@ -1,12 +1,19 @@
-import { AddressLookupTableAccount, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import BN from "bn.js";
+import {
+  address,
+  fetchAddressesForLookupTables,
+  type AddressesByLookupTableAddress,
+} from "@solana/kit";
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_SWAP, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { SwapApiConfig, SwapProvider, SwapQuoteResult } from "~/services/account/types";
-import { checkJupiterFeeAccount, toJupiterConfig } from "~/services/account/utils/jupiter.utils";
-import { createJupiterClient, type BuildResponse, type Instruction } from "~/vendor/jupiter";
+import {
+  checkJupiterFeeAccount,
+  deserializeJupiterInstruction,
+  toJupiterConfig,
+} from "~/services/account/utils/jupiter.utils";
+import { createJupiterClient, type BuildResponse } from "~/vendor/jupiter";
 
 // Even when an account count fits MAX_ACCOUNT_LOCKS, Jupiter routes that use all
 // remaining slots tend to produce swap IXs large enough to blow the byte limit.
@@ -20,34 +27,15 @@ const JUPITER_MIN_MAX_ACCOUNTS = 16;
 // explicitly until Jupiter adds it to the flag's list.
 const BUNDLE_INCOMPATIBLE_DEXES = ["GoonFi V2"];
 
-function deserializeJupiterInstruction(ix: Instruction): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: new PublicKey(ix.programId),
-    keys: ix.accounts.map((a) => ({
-      pubkey: new PublicKey(a.pubkey),
-      isSigner: a.isSigner,
-      isWritable: a.isWritable,
-    })),
-    data: Buffer.from(ix.data, "base64"),
-  });
-}
-
-/** Build ALT accounts from the Router's inline `addressesByLookupTableAddress`. */
+/** Lookup tables from the Router's inline `addressesByLookupTableAddress`. */
 function lutsFromAddressMap(
   map: Record<string, string[]> | null | undefined
-): AddressLookupTableAccount[] {
-  if (!map) return [];
-  return Object.entries(map).map(
-    ([key, addresses]) =>
-      new AddressLookupTableAccount({
-        key: new PublicKey(key),
-        state: {
-          deactivationSlot: BigInt("18446744073709551615"), // u64 max = active
-          lastExtendedSlot: 0,
-          lastExtendedSlotStartIndex: 0,
-          addresses: addresses.map((a) => new PublicKey(a)),
-        },
-      })
+): AddressesByLookupTableAddress {
+  return Object.fromEntries(
+    Object.entries(map ?? {}).map(([key, addresses]) => [
+      address(key),
+      addresses.map((a) => address(a)),
+    ])
   );
 }
 
@@ -79,13 +67,12 @@ async function buildCandidates(
 
   // ExactIn: fee taken on the output mint.
   const { feeAccount, hasFeeAccount } = await checkJupiterFeeAccount(
-    req.connection,
-    new PublicKey(req.outputMint)
+    req.rpc,
+    address(req.outputMint)
   );
   const useFee = hasFeeAccount && !!req.platformFeeBps;
 
-  const project0Lut = (await req.connection.getAddressLookupTable(ADDRESS_LOOKUP_TABLE_FOR_SWAP))
-    ?.value;
+  const project0Lut = await fetchAddressesForLookupTables([ADDRESS_LOOKUP_TABLE_FOR_SWAP], req.rpc);
 
   const ladder =
     req.jupiterMaxAccountsLadder ??
@@ -97,7 +84,7 @@ async function buildCandidates(
         inputMint: req.inputMint,
         outputMint: req.outputMint,
         amount: req.amountNative,
-        taker: req.taker.toBase58(),
+        taker: req.taker,
         slippageBps: req.slippageBps,
         mode: "fast",
         maxAccounts,
@@ -107,21 +94,20 @@ async function buildCandidates(
         // which Jito rejects ("bundles cannot lock any vote accounts").
         forJitoBundle: true,
         excludeDexes: BUNDLE_INCOMPATIBLE_DEXES,
-        destinationTokenAccount: req.destinationTokenAccount.toBase58(),
+        destinationTokenAccount: req.destinationTokenAccount,
         platformFeeBps: useFee ? req.platformFeeBps : undefined,
         feeAccount: useFee ? feeAccount : undefined,
       });
 
-      const luts = lutsFromAddressMap(build.addressesByLookupTableAddress);
-      if (project0Lut) luts.push(project0Lut);
+      const luts = { ...lutsFromAddressMap(build.addressesByLookupTableAddress), ...project0Lut };
 
       return {
         provider: SwapProvider.JUPITER,
         swapInstructions: [deserializeJupiterInstruction(build.swapInstruction)],
         setupInstructions: (build.setupInstructions ?? []).map(deserializeJupiterInstruction),
         luts,
-        outAmountNative: new BN(build.outAmount),
-        otherAmountThresholdNative: new BN(build.otherAmountThreshold),
+        outAmountNative: BigInt(build.outAmount),
+        otherAmountThresholdNative: BigInt(build.otherAmountThreshold),
         quoteResult: mapBuildToQuoteResult(build),
         label: `jupiter:maxAccounts=${maxAccounts}`,
       };

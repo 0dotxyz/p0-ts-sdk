@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Connection, PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import { getAddressDecoder } from "@solana/kit";
 
 import { SwapProvider } from "~/services/account/types";
 import type {
@@ -37,6 +36,8 @@ vi.mock("~/services/account/services/swap-engine/adapters/registry", () => ({
   },
 }));
 
+const DEFAULT = getAddressDecoder().decode(new Uint8Array(32));
+
 // Imported after the mocks are declared.
 import { runSwapEngine } from "~/services/account/services/swap-engine/swap-engine.service";
 
@@ -49,13 +50,11 @@ function makeRoute(
   const threshold = Math.floor(outAmount * 0.99);
   return {
     provider,
-    swapInstructions: [
-      { programId: PublicKey.default, keys: [], data: Buffer.alloc(sizeBytes) } as any,
-    ],
+    swapInstructions: [{ programAddress: DEFAULT, accounts: [], data: new Uint8Array(sizeBytes) }],
     setupInstructions: [],
-    luts: [],
-    outAmountNative: new BN(outAmount),
-    otherAmountThresholdNative: new BN(threshold),
+    luts: {},
+    outAmountNative: BigInt(outAmount),
+    otherAmountThresholdNative: BigInt(threshold),
     quoteResult: {
       inAmount: "0",
       outAmount: String(outAmount),
@@ -69,18 +68,18 @@ function makeRoute(
 
 function makeRequest(): SwapEngineRequest {
   return {
-    inputMint: PublicKey.default.toBase58(),
-    outputMint: PublicKey.default.toBase58(),
+    inputMint: DEFAULT,
+    outputMint: DEFAULT,
     amountNative: 1000,
     inputDecimals: 6,
     outputDecimals: 6,
-    taker: PublicKey.default,
-    destinationTokenAccount: PublicKey.default,
-    connection: {} as unknown as Connection,
+    taker: DEFAULT,
+    destinationTokenAccount: DEFAULT,
+    rpc: {} as SwapEngineRequest["rpc"],
     footprint: {
       instructions: [],
-      luts: [],
-      payer: PublicKey.default,
+      luts: {},
+      payer: DEFAULT,
       sizeConstraint: 1000,
       maxSwapTotalAccounts: 50,
     },
@@ -103,7 +102,7 @@ describe("runSwapEngine selection", () => {
 
     expect(result.provider).toBe(SwapProvider.JUPITER);
     // returns the minimum guaranteed output (otherAmountThreshold), not outAmount
-    expect(result.outputAmountNative.eq(new BN(Math.floor(1200 * 0.99)))).toBe(true);
+    expect(result.outputAmountNative).toBe(BigInt(Math.floor(1200 * 0.99)));
   });
 
   it("ignores a higher-output route that does not fit, choosing the best that does", async () => {
@@ -125,7 +124,7 @@ describe("runSwapEngine selection", () => {
     store.routes.set(SwapProvider.TITAN, []);
 
     const result = await runSwapEngine(makeRequest());
-    expect(result.outputAmountNative.eq(new BN(Math.floor(1300 * 0.99)))).toBe(true);
+    expect(result.outputAmountNative).toBe(BigInt(Math.floor(1300 * 0.99)));
   });
 
   it("throws when no route fits", async () => {

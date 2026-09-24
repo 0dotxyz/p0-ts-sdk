@@ -1,18 +1,21 @@
 import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
-import BN from "bn.js";
+  address,
+  getBase64Decoder,
+  getBase64Encoder,
+  isSignerRole,
+  isWritableRole,
+  type AddressesByLookupTableAddress,
+  type Instruction,
+} from "@solana/kit";
 
 import { SwapEngineRequest, SwapEngineResult, TxFootprint } from "../types";
 
 import { SwapApiConfig, SwapProvider } from "~/services/account/types";
+import { toAccountRole } from "~/utils";
 
 /**
  * Wire serialization for the swap engine, so the provider fan-out can run behind
- * an HTTP endpoint (Design B). The request intentionally omits `connection` and
+ * an HTTP endpoint (Design B). The request intentionally omits `rpc` and
  * per-provider `apiConfig` — the server supplies RPC + API keys from its env.
  */
 
@@ -65,47 +68,37 @@ export interface SerializedSwapEngineResult {
 
 // --- instruction / lut ---
 
-export function serializeInstruction(ix: TransactionInstruction): SerializedInstruction {
+export function serializeInstruction(ix: Instruction): SerializedInstruction {
   return {
-    programId: ix.programId.toBase58(),
-    keys: ix.keys.map((k) => ({
-      pubkey: k.pubkey.toBase58(),
-      isSigner: k.isSigner,
-      isWritable: k.isWritable,
+    programId: ix.programAddress,
+    keys: (ix.accounts ?? []).map((account) => ({
+      pubkey: account.address,
+      isSigner: isSignerRole(account.role),
+      isWritable: isWritableRole(account.role),
     })),
-    data: Buffer.from(ix.data).toString("base64"),
+    data: getBase64Decoder().decode(ix.data ?? new Uint8Array()),
   };
 }
 
-export function deserializeInstruction(s: SerializedInstruction): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: new PublicKey(s.programId),
-    keys: s.keys.map((k) => ({
-      pubkey: new PublicKey(k.pubkey),
-      isSigner: k.isSigner,
-      isWritable: k.isWritable,
-    })),
-    data: Buffer.from(s.data, "base64"),
-  });
-}
-
-export function serializeLut(lut: AddressLookupTableAccount): SerializedLut {
+export function deserializeInstruction(s: SerializedInstruction): Instruction {
   return {
-    key: lut.key.toBase58(),
-    addresses: lut.state.addresses.map((a) => a.toBase58()),
+    programAddress: address(s.programId),
+    accounts: s.keys.map((k) => ({
+      address: address(k.pubkey),
+      role: toAccountRole(k.isSigner, k.isWritable),
+    })),
+    data: getBase64Encoder().encode(s.data),
   };
 }
 
-export function deserializeLut(s: SerializedLut): AddressLookupTableAccount {
-  return new AddressLookupTableAccount({
-    key: new PublicKey(s.key),
-    state: {
-      deactivationSlot: BigInt("18446744073709551615"), // u64 max = active
-      lastExtendedSlot: 0,
-      lastExtendedSlotStartIndex: 0,
-      addresses: s.addresses.map((a) => new PublicKey(a)),
-    },
-  });
+function serializeLuts(luts: AddressesByLookupTableAddress): SerializedLut[] {
+  return Object.entries(luts).map(([key, addresses]) => ({ key, addresses }));
+}
+
+function deserializeLuts(s: SerializedLut[]): AddressesByLookupTableAddress {
+  return Object.fromEntries(
+    s.map((lut) => [address(lut.key), lut.addresses.map((a) => address(a))])
+  );
 }
 
 // --- request ---
@@ -121,8 +114,8 @@ export function serializeSwapEngineRequest(req: SwapEngineRequest): SerializedSw
     slippageMode: req.slippageMode,
     platformFeeBps: req.platformFeeBps,
     directRoutesOnly: req.directRoutesOnly,
-    taker: req.taker.toBase58(),
-    destinationTokenAccount: req.destinationTokenAccount.toBase58(),
+    taker: req.taker,
+    destinationTokenAccount: req.destinationTokenAccount,
     footprint: req.footprint ? serializeFootprint(req.footprint) : undefined,
     providers: req.providers.map((p) => p.provider),
     jupiterMaxAccountsLadder: req.jupiterMaxAccountsLadder,
@@ -132,23 +125,24 @@ export function serializeSwapEngineRequest(req: SwapEngineRequest): SerializedSw
 function serializeFootprint(f: TxFootprint): SerializedTxFootprint {
   return {
     instructions: f.instructions.map(serializeInstruction),
-    luts: f.luts.map(serializeLut),
+    luts: serializeLuts(f.luts),
     wrapperInstructions: f.wrapperInstructions?.map(serializeInstruction),
-    payer: f.payer.toBase58(),
+    payer: f.payer,
     sizeConstraint: f.sizeConstraint,
     maxSwapTotalAccounts: f.maxSwapTotalAccounts,
   };
 }
 
 /**
- * Rebuild a `SwapEngineRequest` server-side. The caller supplies the RPC
- * `connection` and the per-provider `apiConfig` (gateway URLs + API keys) so
- * those never travel over the wire.
+ * Rebuild a `SwapEngineRequest` server-side. The caller supplies the `rpc` client
+ * and the per-provider `apiConfig` (gateway URLs + API keys) so those never
+ * travel over the wire.
+ * @throws if an address string is invalid
  */
 export function deserializeSwapEngineRequest(
   s: SerializedSwapEngineRequest,
   ctx: {
-    connection: Connection;
+    rpc: SwapEngineRequest["rpc"];
     providerApiConfigs?: Partial<Record<SwapProvider, SwapApiConfig>>;
   }
 ): SwapEngineRequest {
@@ -162,9 +156,9 @@ export function deserializeSwapEngineRequest(
     slippageMode: s.slippageMode,
     platformFeeBps: s.platformFeeBps,
     directRoutesOnly: s.directRoutesOnly,
-    taker: new PublicKey(s.taker),
-    destinationTokenAccount: new PublicKey(s.destinationTokenAccount),
-    connection: ctx.connection,
+    taker: address(s.taker),
+    destinationTokenAccount: address(s.destinationTokenAccount),
+    rpc: ctx.rpc,
     footprint: s.footprint ? deserializeFootprint(s.footprint) : undefined,
     providers: s.providers.map((provider) => ({
       provider,
@@ -177,9 +171,9 @@ export function deserializeSwapEngineRequest(
 function deserializeFootprint(s: SerializedTxFootprint): TxFootprint {
   return {
     instructions: s.instructions.map(deserializeInstruction),
-    luts: s.luts.map(deserializeLut),
+    luts: deserializeLuts(s.luts),
     wrapperInstructions: s.wrapperInstructions?.map(deserializeInstruction),
-    payer: new PublicKey(s.payer),
+    payer: address(s.payer),
     sizeConstraint: s.sizeConstraint,
     maxSwapTotalAccounts: s.maxSwapTotalAccounts,
   };
@@ -191,20 +185,21 @@ export function serializeSwapEngineResult(res: SwapEngineResult): SerializedSwap
   return {
     swapInstructions: res.swapInstructions.map(serializeInstruction),
     setupInstructions: res.setupInstructions.map(serializeInstruction),
-    swapLuts: res.swapLuts.map(serializeLut),
+    swapLuts: serializeLuts(res.swapLuts),
     quoteResponse: res.quoteResponse,
     outputAmountNative: res.outputAmountNative.toString(),
     provider: res.provider,
   };
 }
 
+/** @throws if an address string is invalid */
 export function deserializeSwapEngineResult(s: SerializedSwapEngineResult): SwapEngineResult {
   return {
     swapInstructions: s.swapInstructions.map(deserializeInstruction),
     setupInstructions: s.setupInstructions.map(deserializeInstruction),
-    swapLuts: s.swapLuts.map(deserializeLut),
+    swapLuts: deserializeLuts(s.swapLuts),
     quoteResponse: s.quoteResponse,
-    outputAmountNative: new BN(s.outputAmountNative),
+    outputAmountNative: BigInt(s.outputAmountNative),
     provider: s.provider,
   };
 }
