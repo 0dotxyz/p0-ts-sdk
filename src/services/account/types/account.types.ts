@@ -1,9 +1,9 @@
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 export interface BalanceType {
   active: boolean;
-  bankPk: PublicKey;
+  bankPk: Address;
   assetShares: BigNumber;
   liabilityShares: BigNumber;
   emissionsOutstanding: BigNumber;
@@ -53,12 +53,12 @@ export interface HealthCacheType {
 }
 
 export interface MarginfiAccountType {
-  address: PublicKey;
-  group: PublicKey;
-  authority: PublicKey;
+  address: Address;
+  group: Address;
+  authority: Address;
   balances: BalanceType[];
   accountFlags: AccountFlags[];
-  emissionsDestinationAccount: PublicKey;
+  emissionsDestinationAccount: Address;
   healthCache: HealthCacheType;
 }
 

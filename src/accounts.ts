@@ -18,6 +18,7 @@ import { decodeAccountData } from "./vendor/account-data";
 
 export {
   BANK_DISCRIMINATOR,
+  MARGINFI_ACCOUNT_DISCRIMINATOR,
   BankOperationalState as OperationalStateRaw,
   OracleSetup as OracleSetupRaw,
   RiskTier as RiskTierRaw,

@@ -20,7 +20,6 @@ export default defineConfig({
     "@solana/kit",
     "@solana/web3.js",
     "bignumber.js",
-    "bs58",
     "bn.js",
     "decimal.js",
     "superstruct",
