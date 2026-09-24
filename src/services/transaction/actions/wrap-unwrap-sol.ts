@@ -1,43 +1,53 @@
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import type { Instruction, TransactionSigner } from "@solana/kit";
+import { getTransferSolInstruction } from "@solana-program/system";
+import {
+  findAssociatedTokenPda,
+  getCloseAccountInstruction,
+  getCreateAssociatedTokenIdempotentInstruction,
+  getSyncNativeInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import BigNumber from "bignumber.js";
 
+import { WSOL_MINT } from "~/constants";
 import { uiToNative } from "~/utils";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  createCloseAccountInstruction,
-  createSyncNativeInstruction,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-} from "~/vendor/spl";
 
-export function makeUnwrapSolIx(walletAddress: PublicKey): TransactionInstruction {
-  const address = getAssociatedTokenAddressSync(NATIVE_MINT, walletAddress, true); // We allow off curve addresses here to support Fuse.
-  return createCloseAccountInstruction(address, walletAddress, walletAddress);
+export async function makeUnwrapSolIx(wallet: TransactionSigner): Promise<Instruction> {
+  const [address] = await findAssociatedTokenPda({
+    mint: WSOL_MINT,
+    owner: wallet.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  return getCloseAccountInstruction({
+    account: address,
+    destination: wallet.address,
+    owner: wallet,
+  });
 }
 
-export function makeWrapSolIxs(
-  walletAddress: PublicKey,
+export async function makeWrapSolIxs(
+  wallet: TransactionSigner,
   amount: BigNumber
-): TransactionInstruction[] {
-  const address = getAssociatedTokenAddressSync(NATIVE_MINT, walletAddress, true);
-  const ixs = [
-    createAssociatedTokenAccountIdempotentInstruction(
-      walletAddress,
-      address,
-      walletAddress,
-      NATIVE_MINT
-    ),
+): Promise<Instruction[]> {
+  const [address] = await findAssociatedTokenPda({
+    mint: WSOL_MINT,
+    owner: wallet.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const ixs: Instruction[] = [
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: wallet,
+      ata: address,
+      owner: wallet.address,
+      mint: WSOL_MINT,
+    }),
   ];
 
   if (amount.gt(0)) {
-    const nativeAmount = uiToNative(amount, 9).toNumber() + 10000;
+    const nativeAmount = uiToNative(amount, 9) + 10_000n;
     ixs.push(
-      SystemProgram.transfer({
-        fromPubkey: walletAddress,
-        toPubkey: address,
-        lamports: nativeAmount,
-      }),
-      createSyncNativeInstruction(address)
+      getTransferSolInstruction({ source: wallet, destination: address, amount: nativeAmount }),
+      getSyncNativeInstruction({ account: address })
     );
   }
 

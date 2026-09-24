@@ -1,17 +1,8 @@
-import {
-  VersionedTransaction,
-  Transaction,
-  Signer,
-  AddressLookupTableAccount,
-  PublicKey,
-  TransactionInstruction,
-  Keypair,
-} from "@solana/web3.js";
-
-export interface InstructionsWrapper {
-  instructions: TransactionInstruction[];
-  keys: Keypair[];
-}
+import type {
+  TransactionMessage,
+  TransactionMessageWithBlockhashLifetime,
+  TransactionMessageWithFeePayer,
+} from "@solana/kit";
 
 export enum TransactionType {
   // BASE LENDING ACTIONS
@@ -200,27 +191,15 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
   },
 };
 
-export const TransactionArenaKeyMap: Partial<Record<TransactionType, PublicKey>> = {
-  [TransactionType.DEPOSIT]: new PublicKey("ArenaDeposit1111111111111111111111111111111"),
-  [TransactionType.WITHDRAW]: new PublicKey("ArenaWithdraw111111111111111111111111111111"),
-  [TransactionType.BORROW]: new PublicKey("ArenaBorrow11111111111111111111111111111111"),
-  [TransactionType.REPAY]: new PublicKey("ArenaRepay111111111111111111111111111111111"),
-  [TransactionType.REPAY_COLLAT]: new PublicKey("ArenaRepayCo11at111111111111111111111111111"),
-  [TransactionType.LONG]: new PublicKey("ArenaLong1111111111111111111111111111111111"),
-  [TransactionType.SHORT]: new PublicKey("ArenaShort111111111111111111111111111111111"),
-  [TransactionType.CLOSE_POSITION]: new PublicKey("ArenaC1ose111111111111111111111111111111111"),
-  // Add more mappings if needed
-};
-
-export type ExtendedTransactionProperties = {
+/**
+ * A transaction built by the SDK: a v0 message with fee payer, blockhash lifetime and lookup
+ * tables applied, and every signer embedded in its account metas. Sign it with
+ * `signTransactionMessageWithSigners`, or compile it for a wallet with `compileTransaction`.
+ */
+export type SolanaTransaction = {
+  message: TransactionMessage &
+    TransactionMessageWithFeePayer &
+    TransactionMessageWithBlockhashLifetime;
   type: TransactionType;
-  signers?: Array<Signer>;
-  addressLookupTables?: AddressLookupTableAccount[];
   unitsConsumed?: number;
 };
-
-export type ExtendedTransaction = Transaction & ExtendedTransactionProperties;
-
-export type ExtendedV0Transaction = VersionedTransaction & ExtendedTransactionProperties;
-
-export type SolanaTransaction = ExtendedTransaction | ExtendedV0Transaction;

@@ -1,10 +1,6 @@
-import {
-  PublicKey,
-  TransactionInstruction,
-  SystemProgram,
-  LAMPORTS_PER_SOL,
-  ComputeBudgetProgram,
-} from "@solana/web3.js";
+import { address, type Instruction, type TransactionSigner } from "@solana/kit";
+import { getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
+import { getTransferSolInstruction } from "@solana-program/system";
 
 /**
  * Creates a compute budget instruction to set the priority fee for a transaction.
@@ -13,74 +9,22 @@ import {
  * @param priorityFeeMicro - Priority fee in micro-lamports per compute unit. If not provided, defaults to 1.
  * @returns A compute budget instruction with the specified priority fee
  */
-export function makePriorityFeeMicroIx(priorityFeeMicro?: number): TransactionInstruction {
-  return ComputeBudgetProgram.setComputeUnitPrice({
+export function makePriorityFeeMicroIx(priorityFeeMicro?: number): Instruction {
+  return getSetComputeUnitPriceInstruction({
     microLamports: Math.floor(priorityFeeMicro ?? 1),
   });
 }
 
-/*
-  deprecated use makePriorityFeeMicroIx instead
-*/
-export function makePriorityFeeIx(
-  priorityFeeUi?: number,
-  computeUnitsLimit?: number
-): TransactionInstruction[] {
-  const priorityFeeIx: TransactionInstruction[] = [];
-  const limit = computeUnitsLimit ?? 1_400_000;
-
-  let microLamports: number = 1;
-
-  if (priorityFeeUi) {
-    // if priority fee is above 0.2 SOL discard it for safety reasons
-    const isAbsurdPriorityFee = priorityFeeUi > 0.1;
-
-    if (!isAbsurdPriorityFee) {
-      const priorityFeeMicroLamports = priorityFeeUi * LAMPORTS_PER_SOL * 1_000_000;
-      microLamports = Math.round(priorityFeeMicroLamports / limit);
-    }
-  }
-
-  priorityFeeIx.push(
-    ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports,
-    })
-  );
-
-  return priorityFeeIx;
-}
-
-/**
- * @deprecated This method is deprecated.
- * Creates transaction priority instructions for different broadcast types.
- */
-export function makeTxPriorityIx(
-  feePayer: PublicKey,
-  feeUi: number = 0,
-  broadcastType: "BUNDLE" | "RPC" | "DYNAMIC"
-) {
-  let bundleTipIx: TransactionInstruction | undefined = undefined;
-  let priorityFeeIx: TransactionInstruction = makePriorityFeeMicroIx();
-
-  if (broadcastType === "BUNDLE") {
-    bundleTipIx = makeBundleTipIx(feePayer, Math.trunc(feeUi * LAMPORTS_PER_SOL));
-  } else {
-    priorityFeeIx = makePriorityFeeMicroIx(feeUi);
-  }
-
-  return {
-    bundleTipIx,
-    priorityFeeIx,
-  };
-}
-
 /**
  * Creates a bundle tip instruction for Jito bundles.
+ *
+ * @param feePayer - Signer paying the tip
+ * @param bundleTip - Tip in lamports
  */
 export function makeBundleTipIx(
-  feePayer: PublicKey,
+  feePayer: TransactionSigner,
   bundleTip: number = 100_000
-): TransactionInstruction {
+): Instruction {
   const tipAccounts = [
     "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
     "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
@@ -94,11 +38,9 @@ export function makeBundleTipIx(
 
   const tipAccount = tipAccounts[Math.floor(Math.random() * tipAccounts.length)];
 
-  const bundleTipInstruction = SystemProgram.transfer({
-    fromPubkey: feePayer,
-    toPubkey: new PublicKey(tipAccount),
-    lamports: bundleTip,
+  return getTransferSolInstruction({
+    source: feePayer,
+    destination: address(tipAccount),
+    amount: bundleTip,
   });
-
-  return bundleTipInstruction;
 }
