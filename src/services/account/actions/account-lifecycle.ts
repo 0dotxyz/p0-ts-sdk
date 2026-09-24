@@ -1,3 +1,4 @@
+import { AccountRole, type Address, type Instruction } from "@solana/kit";
 import {
   AddressLookupTableAccount,
   Keypair,
@@ -395,12 +396,12 @@ export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIx
 }
 
 export async function makePulseHealthIx(
-  program: MarginfiProgram,
+  programAddress: Address,
   marginfiAccount: MarginfiAccountType,
   banks: Map<string, BankType>,
-  mandatoryBanks: PublicKey[],
-  excludedBanks: PublicKey[]
-) {
+  mandatoryBanks: Address[],
+  excludedBanks: Address[]
+): Promise<Instruction[]> {
   const healthAccounts = computeHealthCheckAccounts({
     account: marginfiAccount,
     banksMap: banks,
@@ -409,23 +410,13 @@ export async function makePulseHealthIx(
   });
   const accountMetas = computeHealthAccountMetas({ banksToInclude: healthAccounts });
 
-  // const sortIx = await instructions.makeLendingAccountSortBalancesIx(program, {
-  //   marginfiAccount: marginfiAccountPk,
-  // });
-
   const ix = await instructions.makePulseHealthIx(
-    program,
-    {
-      marginfiAccount: marginfiAccount.address,
-    },
-    accountMetas.map((account) => ({
-      pubkey: account,
-      isSigner: false,
-      isWritable: false,
-    }))
+    programAddress,
+    { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group },
+    accountMetas.map((address) => ({ address, role: AccountRole.READONLY }))
   );
 
-  return { instructions: [ix], keys: [] };
+  return [ix];
 }
 
 export function generateDummyAccount(

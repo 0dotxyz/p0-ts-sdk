@@ -1,15 +1,17 @@
 import {
-  AddressLookupTableAccount,
-  ComputeBudgetProgram,
-  PublicKey,
-  SystemProgram,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  address,
+  compileTransaction,
+  createNoopSigner,
+  getBase64Encoder,
+  type Address,
+  type GetLatestBlockhashApi,
+  type Rpc,
+} from "@solana/kit";
+import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
+import { getTransferSolInstruction } from "@solana-program/system";
 import BigNumber from "bignumber.js";
 
-import { makePulseHealthIx } from "../actions";
+import { makePulseHealthIx } from "../actions/account-lifecycle";
 import {
   HealthCacheSimulationError,
   HealthCacheStatus,
@@ -17,38 +19,31 @@ import {
   MarginfiAccountType,
   MarginRequirementType,
 } from "../types";
-import {
-  decodeAccountRaw,
-  parseMarginfiAccountRaw,
-  computeHealthComponentsFromBalances,
-} from "../utils";
+import { computeHealthComponentsFromBalances } from "../utils/compute/health-compute.utils";
+import { parseMarginfiAccountRaw } from "../utils/deserialize.utils";
 
-import { ZERO_ORACLE_KEY } from "~/constants";
-import { AssetTag, BankType } from "~/services/bank";
-import {
-  getOracleSourceFromOracleSetup,
-  makeCrankSwbFeedIx,
-  makeUpdateSwbFeedIx,
-  makeUpdateJupLendRateIxs,
-  OraclePrice,
-} from "~/services/price";
-import {
-  addTransactionMetadata,
-  simulateBundle,
-  SolanaTransaction,
-  TransactionType,
-} from "~/services/transaction";
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { decodeMarginfiAccount } from "~/accounts";
+import { AssetTag, BankType } from "~/services/bank/types";
+import { makeUpdateJupLendRateIxs, OraclePrice } from "~/services/price";
+import { makeTransactionMessage, simulateBundle } from "~/services/transaction";
+import { BankIntegrationMetadataMap } from "~/types";
 import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
-import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
-import klendInstructions from "~/vendor/klend/instructions";
+import { makeUpdateSpotMarketCumulativeInterestIx } from "~/vendor/drift";
+import { makeRefreshReservesBatchIx } from "~/vendor/klend";
+
+// Funds the authority so the simulated txs can pay fees; signatures aren't verified.
+const MARGINFI_SOL_VAULT = address("DD3AeAssFvjqTvRTrRAtpfjkBF8FpVKnFuwnMLN9haXD");
 
 /**
  * Configuration for simulating account health cache with fallback
  */
 export interface SimulateAccountHealthCacheWithFallbackParams {
-  /** The marginfi program instance */
-  program: MarginfiProgram;
+  /** RPC client, for the blockhash */
+  rpc: Rpc<GetLatestBlockhashApi>;
+  /** RPC endpoint supporting `simulateBundle` */
+  rpcEndpoint: string;
+  /** The marginfi program address */
+  programAddress: Address;
   /** Map of banks by their address */
   banksMap: Map<string, BankType>;
   /** Map of oracle prices by bank address */
@@ -97,7 +92,9 @@ export interface SimulateAccountHealthCacheWithFallbackParams {
  * @example
  * ```typescript
  * const { marginfiAccount, error } = await simulateAccountHealthCacheWithFallback({
- *   program: client.program,
+ *   rpc: client.rpc,
+ *   rpcEndpoint: client.rpcEndpoint,
+ *   programAddress: client.programAddress,
  *   bankMap: client.bankMap,
  *   oraclePrices: client.oraclePriceByBank,
  *   marginfiAccount: account,
@@ -119,7 +116,9 @@ export async function simulateAccountHealthCacheWithFallback(
   error?: HealthCacheSimulationError;
 }> {
   const {
-    program,
+    rpc,
+    rpcEndpoint,
+    programAddress,
     banksMap,
     oraclePricesByBank,
     bankIntegrationMap,
@@ -145,17 +144,22 @@ export async function simulateAccountHealthCacheWithFallback(
 
   try {
     const simulatedAccount = await simulateAccountHealthCache({
-      program,
+      rpc,
+      rpcEndpoint,
+      programAddress,
       banksMap,
       marginfiAccount,
       bankIntegrationMap,
     });
 
-    simulatedAccount.healthCache.assetValueEquity = bigNumberToWrappedI80F48(assetValueEquity);
-    simulatedAccount.healthCache.liabilityValueEquity =
-      bigNumberToWrappedI80F48(liabilityValueEquity);
-
-    marginfiAccount = parseMarginfiAccountRaw(params.marginfiAccount.address, simulatedAccount);
+    marginfiAccount = parseMarginfiAccountRaw(params.marginfiAccount.address, {
+      ...simulatedAccount,
+      healthCache: {
+        ...simulatedAccount.healthCache,
+        assetValueEquity: bigNumberToWrappedI80F48(assetValueEquity),
+        liabilityValueEquity: bigNumberToWrappedI80F48(liabilityValueEquity),
+      },
+    });
   } catch (e) {
     console.log("e", e);
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
@@ -201,45 +205,43 @@ export async function simulateAccountHealthCacheWithFallback(
 }
 
 export async function simulateAccountHealthCache(params: {
-  program: MarginfiProgram;
+  rpc: Rpc<GetLatestBlockhashApi>;
+  rpcEndpoint: string;
+  programAddress: Address;
   banksMap: Map<string, BankType>;
   marginfiAccount: MarginfiAccountType;
   bankIntegrationMap?: BankIntegrationMetadataMap;
 }): Promise<MarginfiAccountRaw> {
-  const { program, banksMap, marginfiAccount, bankIntegrationMap } = params;
+  const { rpc, rpcEndpoint, programAddress, banksMap, marginfiAccount, bankIntegrationMap } =
+    params;
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
-  // this will always return swb oracles regardless of staleness
-  // stale functionality should be re-added once we increase amount of swb oracles
   const activeBanks = activeBalances
-    .map((balance) => banksMap.get(balance.bankPk.toBase58()))
+    .map((balance) => banksMap.get(balance.bankPk))
     .filter((bank): bank is NonNullable<typeof bank> => !!bank);
 
   const kaminoBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.KAMINO);
 
   const driftBanks = activeBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
 
-  const staleSwbOracles = activeBanks
-    .filter((bank) => getOracleSourceFromOracleSetup(bank.config.oracleSetup).key === "switchboard")
-    .filter((bank) => !bank.oracleKey.equals(new PublicKey(ZERO_ORACLE_KEY)));
+  const computeIx = getSetComputeUnitLimitInstruction({ units: 1_400_000 });
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
+  const authority = createNoopSigner(marginfiAccount.authority);
 
-  const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1_400_000,
-  });
-  const blockhash = (await program.provider.connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const fundAccountIx = SystemProgram.transfer({
-    fromPubkey: new PublicKey("DD3AeAssFvjqTvRTrRAtpfjkBF8FpVKnFuwnMLN9haXD"), // marginfi SOL VAULT
-    toPubkey: marginfiAccount.authority,
-    lamports: 100_000_000, // 0.1 SOL
+  const fundAccountIx = getTransferSolInstruction({
+    source: createNoopSigner(MARGINFI_SOL_VAULT),
+    destination: marginfiAccount.authority,
+    amount: 100_000_000, // 0.1 SOL
   });
 
   const updateDriftMarketData = driftBanks
     .map((bank) => {
-      const bankMetadata = bankIntegrationMap?.[bank.address.toBase58()];
+      const bankMetadata = bankIntegrationMap?.[bank.address];
       if (!bankMetadata?.driftStates) {
-        console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
+        console.error(`Bank metadata for drift bank ${bank.address} not found`);
         return;
       }
 
@@ -250,13 +252,13 @@ export async function simulateAccountHealthCache(params: {
 
   const refreshReserveData = kaminoBanks
     .map((bank) => {
-      const bankMetadata = bankIntegrationMap?.[bank.address.toBase58()];
+      const bankMetadata = bankIntegrationMap?.[bank.address];
       if (!bankMetadata?.kaminoStates) {
-        console.error(`Bank metadata for kamino bank ${bank.address.toBase58()} not found`);
+        console.error(`Bank metadata for kamino bank ${bank.address} not found`);
         return;
       }
       if (!bankMetadata?.kaminoStates || !bank.kaminoIntegrationAccounts) {
-        console.error(`Integration data for kamino bank ${bank.address.toBase58()} not found`);
+        console.error(`Integration data for kamino bank ${bank.address} not found`);
         return;
       }
 
@@ -272,26 +274,12 @@ export async function simulateAccountHealthCache(params: {
 
   const refreshReservesIxs = [];
   if (refreshReserveData.length > 0) {
-    const refreshIx = klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
-    refreshReservesIxs.push(refreshIx);
+    refreshReservesIxs.push(makeRefreshReservesBatchIx(refreshReserveData));
   }
 
-  const crankSwbIxs =
-    staleSwbOracles.length > 0
-      ? await makeUpdateSwbFeedIx({
-          swbPullOracles: staleSwbOracles.map((oracle) => ({
-            key: oracle.oracleKey,
-          })),
-          feePayer: marginfiAccount.authority,
-          connection: program.provider.connection,
-        })
-      : { instructions: [], luts: [] };
-
-  const updateDriftMarketIxs = updateDriftMarketData.map((market) => ({
-    ix: makeUpdateSpotMarketIx({
-      spotMarket: market,
-    }),
-  }));
+  const updateDriftMarketIxs = await Promise.all(
+    updateDriftMarketData.map(makeUpdateSpotMarketCumulativeInterestIx)
+  );
 
   const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
     marginfiAccount,
@@ -301,59 +289,36 @@ export async function simulateAccountHealthCache(params: {
   );
 
   const healthPulseIxs = await makePulseHealthIx(
-    program,
+    programAddress,
     marginfiAccount,
     banksMap,
     activeBalances.map((b) => b.bankPk),
     []
   );
 
-  const txs = [];
+  const additionalTx = makeTransactionMessage({
+    instructions: [
+      computeIx,
+      fundAccountIx,
+      ...refreshReservesIxs,
+      ...updateDriftMarketIxs,
+      ...updateJupLendRateIxs,
+    ],
+    feePayer: authority,
+    latestBlockhash,
+  });
 
-  const additionalTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: [
-        computeIx,
-        fundAccountIx,
-        ...refreshReservesIxs,
-        ...updateDriftMarketIxs.map((ix) => ix.ix),
-        ...updateJupLendRateIxs.instructions,
-      ],
-    }).compileToV0Message()
+  const healthTx = makeTransactionMessage({
+    instructions: [computeIx, ...healthPulseIxs],
+    feePayer: authority,
+    latestBlockhash,
+  });
+
+  const simulationResult = await simulateBundle(
+    rpcEndpoint,
+    [compileTransaction(additionalTx), compileTransaction(healthTx)],
+    [marginfiAccount.address]
   );
-
-  txs.push(additionalTx);
-
-  const swbTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: [...crankSwbIxs.instructions],
-    }).compileToV0Message([...crankSwbIxs.luts])
-  );
-
-  txs.push(swbTx);
-
-  const healthTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: [computeIx, ...healthPulseIxs.instructions],
-    }).compileToV0Message([])
-  );
-
-  txs.push(healthTx);
-
-  if (txs.length > 5) {
-    console.error("Too many transactions", txs.length);
-    throw new Error("Too many transactions");
-  }
-
-  const simulationResult = await simulateBundle(program.provider.connection.rpcEndpoint, txs, [
-    marginfiAccount.address,
-  ]);
 
   const postExecutionAccount = simulationResult.find(
     (result) => result.postExecutionAccounts.length > 0
@@ -363,16 +328,11 @@ export async function simulateAccountHealthCache(params: {
     throw new Error("Account not found");
   }
 
-  const marginfiAccountPost = decodeAccountRaw(
-    Buffer.from(postExecutionAccount.postExecutionAccounts[0].data[0], "base64"),
-    program.idl
+  const marginfiAccountPost = decodeMarginfiAccount(
+    getBase64Encoder().encode(postExecutionAccount.postExecutionAccounts[0].data[0])
   );
 
   if (marginfiAccountPost.healthCache.mrgnErr || marginfiAccountPost.healthCache.internalErr) {
-    console.log(
-      "cranked swb oracles",
-      staleSwbOracles.map((oracle) => oracle.oracleKey)
-    );
     console.log(
       "MarginfiAccountPost healthCache internalErr",
       marginfiAccountPost.healthCache.internalErr
@@ -422,209 +382,4 @@ export async function simulateAccountHealthCache(params: {
   }
 
   return marginfiAccountPost;
-}
-
-export async function getHealthSimulationTransactions({
-  projectedActiveBanks,
-  bankMap,
-  bankMetadataMap,
-  marginfiAccount,
-  program,
-  authority,
-  luts,
-  includeCrankTx,
-  blockhash,
-  crossbarUrl,
-}: {
-  projectedActiveBanks: PublicKey[];
-  bankMap: Map<string, BankType>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  marginfiAccount: MarginfiAccountType;
-  program: MarginfiProgram;
-  authority: PublicKey;
-  luts: AddressLookupTableAccount[];
-  includeCrankTx: boolean;
-  blockhash: string;
-  crossbarUrl?: string;
-}) {
-  const additionalTxs: SolanaTransaction[] = [];
-
-  const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1_400_000,
-  });
-
-  let updateFeedIx: {
-    instructions: TransactionInstruction[];
-    luts: AddressLookupTableAccount[];
-  } | null = null;
-
-  if (includeCrankTx) {
-    updateFeedIx = await makeCrankSwbFeedIx(
-      marginfiAccount,
-      bankMap,
-      projectedActiveBanks,
-      program.provider,
-      crossbarUrl
-    );
-  }
-
-  const activeBanks: PublicKey[] = marginfiAccount.balances
-    .filter((b) => b.active)
-    .map((b) => b.bankPk);
-
-  // Convert to string sets for easier comparison
-  const activeBankStrings = new Set(activeBanks.map((pk) => pk.toString()));
-  const projectedActiveBankStrings = new Set(projectedActiveBanks.map((pk) => pk.toString()));
-
-  // if active bank is not in projectedActiveBanks, it should be excluded
-  const excludedBanks: PublicKey[] = activeBanks.filter(
-    (pk) => !projectedActiveBankStrings.has(pk.toString())
-  );
-
-  // if projectedActiveBanks is not in activeBanks, it should be added
-  const mandatoryBanks: PublicKey[] = projectedActiveBanks.filter(
-    (pk) => !activeBankStrings.has(pk.toString())
-  );
-
-  // todo only refresh reserves if not present
-  const refreshReserveData: { reserve: PublicKey; lendingMarket: PublicKey }[] = [];
-  const updateDriftMarketData: DriftSpotMarket[] = [];
-
-  projectedActiveBanks.forEach((bankPk) => {
-    const bankMetadata = bankMetadataMap?.[bankPk.toBase58()];
-    const bank = bankMap.get(bankPk.toBase58());
-
-    if (!bank) {
-      console.error(`Bank ${bankPk.toBase58()} not found in bankMap`);
-      return;
-    }
-
-    if (!bankMetadata) {
-      console.error(`Bank metadata not found for bank ${bankPk.toBase58()}`);
-      return;
-    }
-
-    switch (bank.config.assetTag) {
-      case AssetTag.KAMINO: {
-        if (!bankMetadata.kaminoStates || !bank.kaminoIntegrationAccounts) {
-          console.error(
-            `Bank ${bankPk.toBase58()} is missing kamino states or integration accounts`
-          );
-          return;
-        }
-        const kaminoReserve = bank.kaminoIntegrationAccounts.kaminoReserve;
-        const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
-
-        refreshReserveData.push({
-          reserve: kaminoReserve,
-          lendingMarket,
-        });
-        break;
-      }
-      case AssetTag.DRIFT: {
-        if (!bankMetadata?.driftStates) {
-          console.error(`Bank metadata for drift bank ${bank.address.toBase58()} not found`);
-          return;
-        }
-        const driftMarket = bankMetadata.driftStates.spotMarketState;
-        updateDriftMarketData.push(driftMarket);
-
-        break;
-      }
-
-      case AssetTag.SOLEND:
-        break;
-
-      case AssetTag.JUPLEND:
-        // JupLend rate updates handled by makeUpdateJupLendRateIxs below
-        break;
-
-      default:
-        break;
-    }
-  });
-
-  const refreshReservesIx: TransactionInstruction[] = [];
-  if (refreshReserveData.length > 0) {
-    const refreshIx = klendInstructions.makeRefreshReservesBatchIx(refreshReserveData);
-    refreshReservesIx.push(refreshIx);
-  }
-
-  const updateDriftMarketIxs = updateDriftMarketData.map((market) => ({
-    ix: makeUpdateSpotMarketIx({
-      spotMarket: market,
-    }),
-  }));
-
-  const updateJupLendRateIxs = makeUpdateJupLendRateIxs(
-    marginfiAccount,
-    bankMap,
-    [],
-    bankMetadataMap
-  );
-
-  const healthPulseIx = await makePulseHealthIx(
-    program,
-    marginfiAccount,
-    bankMap,
-    mandatoryBanks,
-    excludedBanks
-  );
-
-  const refreshReservesTx = new VersionedTransaction(
-    new TransactionMessage({
-      instructions: [
-        computeIx,
-        ...refreshReservesIx,
-        ...updateDriftMarketIxs.map((ix) => ix.ix),
-        ...updateJupLendRateIxs.instructions,
-      ],
-      payerKey: authority,
-      recentBlockhash: blockhash,
-    }).compileToV0Message([...luts])
-  );
-
-  additionalTxs.push(
-    addTransactionMetadata(refreshReservesTx, {
-      type: TransactionType.CRANK,
-      signers: [],
-      addressLookupTables: luts,
-    })
-  );
-
-  const healthCrankTx = new VersionedTransaction(
-    new TransactionMessage({
-      instructions: [computeIx, ...healthPulseIx.instructions],
-      payerKey: authority,
-      recentBlockhash: blockhash,
-    }).compileToV0Message([...luts])
-  );
-
-  if (updateFeedIx) {
-    const oracleCrankTx = new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [...updateFeedIx.instructions],
-        payerKey: authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message([...updateFeedIx.luts])
-    );
-
-    additionalTxs.push(
-      addTransactionMetadata(oracleCrankTx, {
-        type: TransactionType.CRANK,
-        signers: [],
-        addressLookupTables: updateFeedIx.luts,
-      })
-    );
-  }
-
-  additionalTxs.push(
-    addTransactionMetadata(healthCrankTx, {
-      type: TransactionType.CRANK,
-      signers: [],
-      addressLookupTables: luts,
-    })
-  );
-
-  return additionalTxs;
 }
