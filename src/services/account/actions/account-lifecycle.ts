@@ -1,47 +1,34 @@
-import { AccountRole, type Address, type Instruction } from "@solana/kit";
 import {
-  AddressLookupTableAccount,
-  Keypair,
-  PublicKey,
-  Signer,
-  Transaction,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  AccountRole,
+  assertAccountExists,
+  fetchEncodedAccount,
+  type Address,
+  type Instruction,
+} from "@solana/kit";
+import {
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+} from "@solana-program/token";
 import BigNumber from "bignumber.js";
-import BN from "bn.js";
 
 import {
-  BalanceRaw,
+  HealthCacheStatus,
   MakeAccountTransferToNewAccountTxParams,
   MakeCloseAccountIxParams,
   MakeCloseAccountTxParams,
+  MakeCreateAccountIxParams,
+  MakeCreateAccountTxParams,
   MakeSetupIxParams,
-  MarginfiAccountRaw,
   MarginfiAccountType,
 } from "../types";
-import {
-  computeHealthAccountMetas,
-  computeHealthCheckAccounts,
-  parseMarginfiAccountRaw,
-} from "../utils";
+import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
 
+import { decodeFeeState } from "~/accounts";
+import { DEFAULT_ADDRESS } from "~/constants";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  SolanaTransaction,
-  TransactionType,
-} from "~/services/transaction";
-import { MarginfiProgram } from "~/types";
-import { bigNumberToWrappedI80F48, deriveMarginfiAccount } from "~/utils";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import { deriveFeeState, deriveMarginfiAccount } from "~/utils";
 
 /**
  * Creates an instruction to close a Marginfi account.
@@ -50,22 +37,21 @@ import {
  * The account must have no active balances before it can be closed.
  *
  * @param params - Configuration object
- * @param params.program - The Marginfi program instance
+ * @param params.programAddress - The marginfi program address
  * @param params.marginfiAccount - The Marginfi account to close
- * @param params.authority - The authority/owner of the account
+ * @param params.authority - The account authority; signs and receives the rent
  * @returns Instruction to close the account
  */
 export async function makeCloseMarginfiAccountIx({
-  program,
+  programAddress,
   marginfiAccount,
   authority,
-}: MakeCloseAccountIxParams) {
-  const closeIx = await instructions.makeCloseAccountIx(program, {
+}: MakeCloseAccountIxParams): Promise<Instruction> {
+  return instructions.makeCloseAccountIx(programAddress, {
     marginfiAccount: marginfiAccount.address,
+    authority,
     feePayer: authority,
   });
-
-  return closeIx;
 }
 
 /**
@@ -75,43 +61,29 @@ export async function makeCloseMarginfiAccountIx({
  * The account must have no active balances before it can be closed.
  *
  * @param params - Configuration object
- * @param params.connection - Solana connection instance
- * @param params.program - The Marginfi program instance
+ * @param params.rpc - RPC client, for the blockhash
+ * @param params.programAddress - The marginfi program address
  * @param params.marginfiAccount - The Marginfi account to close
- * @param params.authority - The authority/owner of the account
- * @returns Versioned transaction to close the account
+ * @param params.authority - The account authority; signs, pays and receives the rent
+ * @returns Transaction to close the account
  */
 export async function makeCloseMarginfiAccountTx({
-  connection,
-  program,
-  marginfiAccount,
-  authority,
-}: MakeCloseAccountTxParams) {
-  const closeIx = await instructions.makeCloseAccountIx(program, {
-    marginfiAccount: marginfiAccount.address,
-    feePayer: authority,
-  });
+  rpc,
+  ...closeIxParams
+}: MakeCloseAccountTxParams): Promise<SolanaTransaction> {
+  const closeIx = await makeCloseMarginfiAccountIx(closeIxParams);
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const closeTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [closeIx],
-        payerKey: authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message([])
-    ),
-    {
-      signers: [],
-      addressLookupTables: [],
-      type: TransactionType.CLOSE_ACCOUNT,
-    }
-  );
-
-  return closeTx;
+  return {
+    message: makeTransactionMessage({
+      instructions: [closeIx],
+      feePayer: closeIxParams.authority,
+      latestBlockhash,
+    }),
+    type: TransactionType.CLOSE_ACCOUNT,
+  };
 }
 
 /**
@@ -119,71 +91,52 @@ export async function makeCloseMarginfiAccountTx({
  *
  * Migrates the account's positions into a brand-new account (`newMarginfiAccount`)
  * owned by `newAuthority`; the old account is left disabled. The new-account
- * keypair signs to create itself, the current authority (the program's provider
- * wallet) signs to authorize, and `feePayer` pays. `globalFeeWallet` is resolved
- * from the program's fee state — matching the marginfi implementation.
+ * keypair signs to create itself, the current authority signs to authorize, and
+ * `feePayer` pays. `globalFeeWallet` is read from the program's fee state.
  *
  * @param params - Configuration object
- * @param params.connection - Solana connection instance
- * @param params.program - The Marginfi program instance
+ * @param params.rpc - RPC client, for the fee state and the blockhash
+ * @param params.programAddress - The marginfi program address
  * @param params.marginfiAccount - The account being transferred
- * @param params.newMarginfiAccount - Freshly generated keypair for the destination account
+ * @param params.authority - The account's current authority
+ * @param params.newMarginfiAccount - Signer for the freshly generated destination account
  * @param params.newAuthority - The wallet that will own the new account
- * @param params.feePayer - Optional. Pays rent/fees. A `PublicKey` signs via the
- *   wallet adapter; a `Keypair` is a separate fee payer that signs directly.
- *   Defaults to the account's current authority.
- * @returns Versioned transaction to transfer the account
+ * @param params.feePayer - Optional. Pays rent/fees. Defaults to `authority`.
+ * @returns Transaction to transfer the account
+ * @throws if the program's fee state account doesn't exist
  */
 export async function makeAccountTransferToNewAccountTx({
-  connection,
-  program,
+  rpc,
+  programAddress,
   marginfiAccount,
+  authority,
   newMarginfiAccount,
   newAuthority,
-  feePayer,
-}: MakeAccountTransferToNewAccountTxParams): Promise<ExtendedV0Transaction> {
-  const feePayerKey =
-    feePayer instanceof Keypair ? feePayer.publicKey : (feePayer ?? marginfiAccount.authority);
+  feePayer = authority,
+}: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
+  const [feeStateAddress] = await deriveFeeState(programAddress);
+  const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
+  assertAccountExists(feeStateAccount);
 
-  const [feeStateKey] = PublicKey.findProgramAddressSync(
-    [Buffer.from("feestate", "utf-8")],
-    program.programId
-  );
-  const feeState = await program.account.feeState.fetch(feeStateKey);
-
-  const transferIx = await instructions.makeAccountTransferToNewAccountIx(program, {
+  const transferIx = await instructions.makeAccountTransferToNewAccountIx(programAddress, {
+    group: marginfiAccount.group,
     oldMarginfiAccount: marginfiAccount.address,
-    newMarginfiAccount: newMarginfiAccount.publicKey,
+    newMarginfiAccount,
+    authority,
+    feePayer,
     newAuthority,
-    globalFeeWallet: feeState.globalFeeWallet,
-    feePayer: feePayerKey,
+    globalFeeWallet: decodeFeeState(feeStateAccount.data).globalFeeWallet,
+    feeState: feeStateAddress,
   });
 
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
-  // The new-account keypair always signs; a separate fee-payer Keypair signs too.
-  // A PublicKey fee payer (or the default authority) signs via the wallet adapter.
-  const signers: Signer[] = [newMarginfiAccount];
-  if (feePayer instanceof Keypair) signers.push(feePayer);
-
-  const transferTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [transferIx],
-        payerKey: feePayerKey,
-        recentBlockhash: blockhash,
-      }).compileToV0Message([])
-    ),
-    {
-      signers,
-      addressLookupTables: [],
-      type: TransactionType.TRANSFER_AUTH,
-    }
-  );
-
-  return transferTx;
+  return {
+    message: makeTransactionMessage({ instructions: [transferIx], feePayer, latestBlockhash }),
+    type: TransactionType.TRANSFER_AUTH,
+  };
 }
 
 /**
@@ -192,42 +145,31 @@ export async function makeAccountTransferToNewAccountTx({
  * Generates a transaction to create a new Marginfi account and returns a projected account instance
  * that can be used for operations before the account actually exists on-chain.
  *
- * @param props - Configuration object
- * @param props.program - The Marginfi program instance
- * @param props.authority - The authority public key for the new account
- * @param props.group - The Marginfi group public key
- * @param props.addressLookupTables - Address lookup tables for the transaction
+ * @param params - Configuration object
+ * @param params.rpc - RPC client, for the blockhash
+ * @param params.programAddress - The marginfi program address
+ * @param params.authority - Owner of the new account; signs and pays
+ * @param params.group - The Marginfi group address
+ * @param params.luts - Address lookup tables for the transaction
+ * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
+ * @param params.accountIndex - Index in the account PDA seeds
+ * @param params.thirdPartyId - Optional third-party id in the account PDA seeds
  * @returns Object containing the projected account and creation transaction
  */
-export async function makeCreateAccountTxWithProjection(props: {
-  program: MarginfiProgram;
-  authority: PublicKey;
-  group: PublicKey;
-  addressLookupTables: AddressLookupTableAccount[];
-  accountIndex: number;
-  thirdPartyId?: number;
-}): Promise<{ account: MarginfiAccountType; tx: SolanaTransaction }> {
-  const [marginfiAccountAddress] = deriveMarginfiAccount(
-    props.program.programId,
-    props.group,
-    props.authority,
-    props.accountIndex,
-    props.thirdPartyId
-  );
-
-  const account = generateDummyAccount(props.group, props.authority, marginfiAccountAddress);
-  const tx = await makeCreateMarginfiAccountTx(
-    props.program,
-    props.authority,
-    props.group,
-    props.addressLookupTables,
-    props.accountIndex,
-    props.thirdPartyId
+export async function makeCreateAccountTxWithProjection(
+  params: MakeCreateAccountTxParams
+): Promise<{ account: MarginfiAccountType; tx: SolanaTransaction }> {
+  const [marginfiAccountAddress] = await deriveMarginfiAccount(
+    params.programAddress,
+    params.group,
+    params.authority.address,
+    params.accountIndex,
+    params.thirdPartyId
   );
 
   return {
-    account,
-    tx,
+    account: generateDummyAccount(params.group, params.authority.address, marginfiAccountAddress),
+    tx: await makeCreateMarginfiAccountTx(params),
   };
 }
 
@@ -237,158 +179,110 @@ export async function makeCreateAccountTxWithProjection(props: {
  * Generates an instruction to create a new Marginfi account and returns a projected account instance
  * that can be used for operations before the account actually exists on-chain.
  *
- * @param props - Configuration object
- * @param props.program - The Marginfi program instance
- * @param props.authority - The authority public key for the new account
- * @param props.group - The Marginfi group public key
+ * @param params - Configuration object
+ * @param params.programAddress - The marginfi program address
+ * @param params.authority - Owner of the new account; signs and pays
+ * @param params.group - The Marginfi group address
+ * @param params.accountIndex - Index in the account PDA seeds
+ * @param params.thirdPartyId - Optional third-party id in the account PDA seeds
  * @returns Object containing the projected account and creation instruction
  */
-export async function makeCreateAccountIxWithProjection(props: {
-  program: MarginfiProgram;
-  authority: PublicKey;
-  group: PublicKey;
-  accountIndex: number;
-  thirdPartyId?: number;
-}): Promise<{ account: MarginfiAccountType; ix: TransactionInstruction }> {
-  const [marginfiAccountAddress] = deriveMarginfiAccount(
-    props.program.programId,
-    props.group,
-    props.authority,
-    props.accountIndex,
-    props.thirdPartyId
-  );
-
-  const account = generateDummyAccount(props.group, props.authority, marginfiAccountAddress);
-  const ix = await makeCreateMarginfiAccountIx(
-    props.program,
-    props.authority,
-    props.group,
-    props.accountIndex,
-    props.thirdPartyId
+export async function makeCreateAccountIxWithProjection(
+  params: MakeCreateAccountIxParams
+): Promise<{ account: MarginfiAccountType; ix: Instruction }> {
+  const [marginfiAccountAddress] = await deriveMarginfiAccount(
+    params.programAddress,
+    params.group,
+    params.authority.address,
+    params.accountIndex,
+    params.thirdPartyId
   );
 
   return {
-    account,
-    ix,
+    account: generateDummyAccount(params.group, params.authority.address, marginfiAccountAddress),
+    ix: await makeCreateMarginfiAccountIx(params),
   };
 }
 
-export async function makeCreateMarginfiAccountTx(
-  program: MarginfiProgram,
-  authority: PublicKey,
-  groupAddress: PublicKey,
-  addressLookupTables: AddressLookupTableAccount[],
-  accountIndex: number,
-  thirdPartyId?: number
-): Promise<SolanaTransaction> {
-  const [marginfiAccountAddress] = deriveMarginfiAccount(
-    program.programId,
-    groupAddress,
-    authority,
-    accountIndex,
-    thirdPartyId
-  );
+export async function makeCreateMarginfiAccountTx({
+  rpc,
+  luts,
+  latestBlockhash,
+  ...createIxParams
+}: MakeCreateAccountTxParams): Promise<SolanaTransaction> {
+  const initMarginfiAccountIx = await makeCreateMarginfiAccountIx(createIxParams);
 
-  const initMarginfiAccountIx = await instructions.makeInitMarginfiAccountPdaIx(
-    program,
-    {
-      marginfiGroup: groupAddress,
-      marginfiAccount: marginfiAccountAddress,
-      authority,
-      feePayer: authority,
-    },
-    {
-      accountIndex,
-      thirdPartyId,
-    }
-  );
-
-  const ixs = [initMarginfiAccountIx];
-
-  const signers: Keypair[] = [];
-
-  const tx = new Transaction().add(...ixs);
-  tx.feePayer = authority;
-  const solanaTx = addTransactionMetadata(tx, {
-    signers,
-    addressLookupTables,
+  return {
+    message: makeTransactionMessage({
+      instructions: [initMarginfiAccountIx],
+      feePayer: createIxParams.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.CREATE_ACCOUNT,
-  });
-
-  return solanaTx;
+  };
 }
 
-export async function makeCreateMarginfiAccountIx(
-  program: MarginfiProgram,
-  authority: PublicKey,
-  groupAddress: PublicKey,
-  accountIndex: number,
-  thirdPartyId?: number
-): Promise<TransactionInstruction> {
-  const [marginfiAccountAddress] = deriveMarginfiAccount(
-    program.programId,
-    groupAddress,
-    authority,
+export async function makeCreateMarginfiAccountIx({
+  programAddress,
+  authority,
+  group,
+  accountIndex,
+  thirdPartyId,
+}: MakeCreateAccountIxParams): Promise<Instruction> {
+  const [marginfiAccount] = await deriveMarginfiAccount(
+    programAddress,
+    group,
+    authority.address,
     accountIndex,
     thirdPartyId
   );
 
-  const initMarginfiAccountIx = await instructions.makeInitMarginfiAccountPdaIx(
-    program,
-    {
-      marginfiGroup: groupAddress,
-      marginfiAccount: marginfiAccountAddress,
-      authority,
-      feePayer: authority,
-    },
-    {
-      accountIndex,
-      thirdPartyId,
-    }
-  );
-
-  return initMarginfiAccountIx;
+  return instructions.makeInitMarginfiAccountPdaIx(programAddress, {
+    marginfiGroup: group,
+    marginfiAccount,
+    authority,
+    feePayer: authority,
+    accountIndex,
+    thirdPartyId: thirdPartyId ?? null,
+  });
 }
 
-export async function makeSetupIx({ connection, authority, tokens }: MakeSetupIxParams) {
+export async function makeSetupIx({
+  rpc,
+  authority,
+  tokens,
+}: MakeSetupIxParams): Promise<Instruction[]> {
   try {
     // Filter out duplicate mints
     const uniqueTokens = tokens.filter(
-      (token, index, self) => index === self.findIndex((t) => t.mint.equals(token.mint))
+      (token, index, self) => index === self.findIndex((t) => t.mint === token.mint)
     );
 
-    const userAtas = uniqueTokens.map((token) => {
-      return getAssociatedTokenAddressSync(
-        new PublicKey(token.mint),
-        authority,
-        true,
-        token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-      );
-    });
+    const userAtas = await Promise.all(
+      uniqueTokens.map(
+        async ({ mint, tokenProgram }) =>
+          (await findAssociatedTokenPda({ mint, owner: authority.address, tokenProgram }))[0]
+      )
+    );
+    const { value: userAtaAis } = await rpc
+      .getMultipleAccounts(userAtas, { encoding: "base64" })
+      .send();
 
-    const ixs = [];
-    const userAtaAis = await connection.getMultipleAccountsInfo(userAtas);
-
-    for (const [i, userAta] of userAtaAis.entries()) {
-      // Index against `uniqueTokens` (which `userAtas` was derived from) — not `tokens` — so a
-      // duplicate mint in the input doesn't misalign the ATA address with the mint and produce
-      // an invalid-seeds create.
-      const token = uniqueTokens[i];
-      const userAtaAddress = userAtas[i];
-      if (userAta === null && token && userAtaAddress) {
-        ixs.push(
-          createAssociatedTokenAccountIdempotentInstruction(
-            authority,
-            userAtaAddress,
-            authority,
-            new PublicKey(token.mint),
-            token.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-          )
-        );
-      }
-    }
-
-    return ixs;
+    return uniqueTokens.flatMap(({ mint, tokenProgram }, i) =>
+      userAtaAis[i] === null
+        ? [
+            getCreateAssociatedTokenIdempotentInstruction({
+              payer: authority,
+              ata: userAtas[i],
+              owner: authority.address,
+              mint,
+              tokenProgram,
+            }),
+          ]
+        : []
+    );
   } catch (error) {
     console.error("[makeSetupIx] Failed to create setup instructions:", error);
     return [];
@@ -420,47 +314,36 @@ export async function makePulseHealthIx(
 }
 
 export function generateDummyAccount(
-  group: PublicKey,
-  authority: PublicKey,
-  accountKey: PublicKey
-) {
-  // create a dummy account with 15 empty balances to be used in other transactions
-  const dummyWrappedI80F48 = bigNumberToWrappedI80F48(new BigNumber(0));
-  const dummyBalances: BalanceRaw[] = Array(15).fill({
-    active: false,
-    bankPk: new PublicKey("11111111111111111111111111111111"),
-    assetShares: dummyWrappedI80F48,
-    liabilityShares: dummyWrappedI80F48,
-    emissionsOutstanding: dummyWrappedI80F48,
-    lastUpdate: new BN(0),
-  });
-  const rawAccount: MarginfiAccountRaw = {
-    group: group,
-    authority: authority,
-    lendingAccount: { balances: dummyBalances },
+  group: Address,
+  authority: Address,
+  accountKey: Address
+): MarginfiAccountType {
+  // an empty account with 15 empty balances, to build transactions before it exists on-chain
+  return {
+    address: accountKey,
+    group,
+    authority,
+    balances: Array.from({ length: 15 }, () => ({
+      active: false,
+      bankPk: DEFAULT_ADDRESS,
+      assetShares: new BigNumber(0),
+      liabilityShares: new BigNumber(0),
+      emissionsOutstanding: new BigNumber(0),
+      lastUpdate: 0,
+    })),
+    accountFlags: [],
+    emissionsDestinationAccount: DEFAULT_ADDRESS,
     healthCache: {
-      assetValue: {
-        value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      },
-      liabilityValue: {
-        value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      },
-      timestamp: new BN(0),
-      flags: 0,
+      assetValue: new BigNumber(0),
+      liabilityValue: new BigNumber(0),
+      assetValueMaint: new BigNumber(0),
+      liabilityValueMaint: new BigNumber(0),
+      assetValueEquity: new BigNumber(0),
+      liabilityValueEquity: new BigNumber(0),
+      timestamp: new BigNumber(0),
+      flags: [],
       prices: [],
-      assetValueMaint: bigNumberToWrappedI80F48(new BigNumber(0)),
-      liabilityValueMaint: bigNumberToWrappedI80F48(new BigNumber(0)),
-      assetValueEquity: bigNumberToWrappedI80F48(new BigNumber(0)),
-      liabilityValueEquity: bigNumberToWrappedI80F48(new BigNumber(0)),
-      errIndex: 0,
-      internalErr: 0,
-      internalBankruptcyErr: 0,
-      internalLiqErr: 0,
-      mrgnErr: 0,
+      simulationStatus: HealthCacheStatus.UNSET,
     },
-    emissionsDestinationAccount: new PublicKey("11111111111111111111111111111111"),
-    accountFlags: new BN([0, 0, 0]),
   };
-
-  return parseMarginfiAccountRaw(accountKey, rawAccount);
 }

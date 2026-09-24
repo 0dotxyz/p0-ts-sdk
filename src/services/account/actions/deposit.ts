@@ -1,11 +1,5 @@
-import { AnchorProvider, Program } from "@coral-xyz/anchor";
-import {
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { AccountRole, type Instruction } from "@solana/kit";
+import { findAssociatedTokenPda } from "@solana-program/token";
 import BigNumber from "bignumber.js";
 
 import {
@@ -15,34 +9,21 @@ import {
   MakeDriftDepositTxParams,
   MakeKaminoDepositIxParams,
   MakeKaminoDepositTxParams,
-  MakeJuplendDepositIxParams,
-  MakeJuplendDepositTxParams,
 } from "../types";
 
-import { SYSTEM_PROGRAM_ID } from "~/constants";
+import { DEFAULT_ADDRESS, TOKEN_2022_PROGRAM_ID, WSOL_MINT } from "~/constants";
 import instructions from "~/instructions";
 import {
-  addTransactionMetadata,
-  ExtendedTransaction,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
+  makeTransactionMessage,
   makeWrapSolIxs,
   selectLutsForBanks,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
 import { uiToNative } from "~/utils";
-import { deriveDriftSpotMarketVault, deriveDriftState, DRIFT_PROGRAM_ID } from "~/vendor/drift";
-import { getAllDerivedJupLendAccounts, JUP_LIQUIDITY_PROGRAM_ID } from "~/vendor/jup-lend";
-import {
-  deriveUserState,
-  FARMS_PROGRAM_ID,
-  getAllDerivedKaminoAccounts,
-  KLEND_IDL,
-  KlendIdlType,
-  makeRefreshingIxs,
-} from "~/vendor/klend";
-import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } from "~/vendor/spl";
+import { deriveDriftSpotMarketVault, deriveDriftState } from "~/vendor/drift";
+import { getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
+import { deriveLendingMarketAuthority, deriveUserState, makeRefreshingIxs } from "~/vendor/klend";
 
 /**
  * Creates a Drift deposit instruction for depositing assets into a Drift spot market.
@@ -53,24 +34,24 @@ import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } fro
  * - Creating the deposit instruction to the Drift spot market
  *
  * @param params - The parameters for creating the deposit instruction
- * @param params.program - The Marginfi program instance
+ * @param params.programAddress - The marginfi program address
  * @param params.bank - The bank to deposit into (must have Drift integration configured)
  * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
  * @param params.amount - The amount to deposit in UI units
  * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
+ * @param params.authority - The account authority; signs and owns the source token account
  * @param params.group - The Marginfi group address
  * @param params.driftMarketIndex - The Drift spot market index for the asset
- * @param params.driftOracle - The Drift oracle account for the asset (optional for USDC/market 0)
+ * @param params.driftOracle - The Drift oracle account for the asset
  * @param params.opts - Optional configuration
  * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
  * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
- * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
  *
- * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
+ * @returns Promise resolving to the deposit instructions
+ * @throws Error if the bank has no Drift integration accounts
  */
 export async function makeDriftDepositIx({
-  program,
+  programAddress,
   bank,
   tokenProgram,
   amount,
@@ -79,149 +60,95 @@ export async function makeDriftDepositIx({
   group,
   driftMarketIndex,
   driftOracle,
-  isSync,
-  opts = {
-    // If false, the deposit will not wrap SOL; should not be false in most usecases
-    wrapAndUnwrapSol: true,
-    // wSOL balance can be provided if the user wants to combine native and wrapped SOL
-    wSolBalanceUi: 0,
-  },
-}: MakeDriftDepositIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
-  const depositIxs: TransactionInstruction[] = [];
-
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
-
-  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
-  }
-
-  const driftState = deriveDriftState()[0];
-  const driftSpotMarketVault = deriveDriftSpotMarketVault(driftMarketIndex)[0];
-
+  opts = {},
+}: MakeDriftDepositIxParams): Promise<Instruction[]> {
   if (!bank.driftIntegrationAccounts) {
     throw new Error("Bank has no drift integration accounts");
   }
 
-  const depositIx = isSync
-    ? syncInstructions.makeDriftDepositIx(
-        program.programId,
-        {
-          group: group,
-          marginfiAccount: accountAddress,
-          authority,
-          bank: bank.address,
-          driftOracle,
-          liquidityVault: bank.liquidityVault,
-          signerTokenAccount: userTokenAtaPk,
-          driftState,
-          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
-          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
-          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
-          driftSpotMarketVault,
-          mint: bank.mint,
-          driftProgram: DRIFT_PROGRAM_ID,
-          tokenProgram,
-          systemProgram: SYSTEM_PROGRAM_ID,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) }
-      )
-    : await instructions.makeDriftDepositIx(
-        program,
-        {
-          marginfiAccount: accountAddress,
-          bank: bank.address,
-          signerTokenAccount: userTokenAtaPk,
-          driftState,
-          driftSpotMarketVault,
-          driftOracle,
-          tokenProgram,
+  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
+  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
+  const depositIxs: Instruction[] = [];
 
-          authority: opts.overrideInferAccounts?.authority ?? authority,
-          group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) }
-      );
+  // We allow off curve addresses here to support Fuse.
+  const [signerTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
+  });
 
-  depositIxs.push(depositIx);
+  if (bank.mint === WSOL_MINT && wrapAndUnwrapSol) {
+    depositIxs.push(
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)))
+    );
+  }
 
-  return {
-    instructions: depositIxs,
-    keys: [],
-  };
+  const [[driftState], [driftSpotMarketVault]] = await Promise.all([
+    deriveDriftState(),
+    deriveDriftSpotMarketVault(driftMarketIndex),
+  ]);
+
+  depositIxs.push(
+    await instructions.makeDriftDepositIx(programAddress, {
+      group,
+      marginfiAccount: accountAddress,
+      authority,
+      bank: bank.address,
+      driftOracle,
+      liquidityVault: bank.liquidityVault,
+      signerTokenAccount,
+      driftState,
+      integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
+      integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+      integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+      driftSpotMarketVault,
+      mint: bank.mint,
+      tokenProgram,
+      amount: uiToNative(amount, bank.mintDecimals),
+    })
+  );
+
+  return depositIxs;
 }
 
 /**
  * Creates a complete Drift deposit transaction ready to be signed and sent.
  *
- * This function builds a full versioned transaction that includes:
+ * This function builds a v0 transaction message that includes:
  * - SOL wrapping instructions if depositing native SOL
  * - The actual deposit instruction to the Drift spot market
  *
- * The transaction is constructed with proper metadata, address lookup tables,
- * and is ready to be signed by the authority and submitted to the network.
+ * The authority pays the fees and is the only signer.
  *
  * @param params - The parameters for creating the deposit transaction
+ * @param params.rpc - RPC client, for the blockhash
  * @param params.luts - Address lookup tables for transaction compression
- * @param params.connection - Solana connection for fetching blockhash
+ * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
  * @param params.amount - The amount to deposit in UI units
- * @param params.blockhash - Optional recent blockhash (fetched if not provided)
- * @param params.program - The Marginfi program instance
- * @param params.bank - The bank to deposit into (must have driftUser and driftUserStats configured)
- * @param params.tokenProgram - The token program ID
- * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
- * @param params.group - The Marginfi group address
+ * @param params.bank - The bank to deposit into (must have Drift integration configured)
  * @param params.driftMarketIndex - The Drift spot market index for the asset
  * @param params.driftOracle - The Drift oracle account for the asset
- * @param params.opts - Optional configuration (wrapping, overrides, etc.)
  *
- * @returns Promise resolving to a versioned transaction with metadata
- * @throws Error if the bank doesn't have Drift user or user stats configured
+ * @returns Promise resolving to the deposit transaction
+ * @throws Error if the bank has no Drift integration accounts
  */
 export async function makeDriftDepositTx(
   params: MakeDriftDepositTxParams
-): Promise<ExtendedV0Transaction> {
-  const { luts, connection, amount, ...depositIxParams } = params;
+): Promise<SolanaTransaction> {
+  const { rpc, luts, latestBlockhash, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+  const depositIxs = await makeDriftDepositIx(depositIxParams);
 
-  if (!depositIxParams.bank.driftIntegrationAccounts) {
-    throw new Error("Bank has no drift integration accounts");
-  }
-
-  const depositIxs = await makeDriftDepositIx({
-    amount,
-    ...depositIxParams,
-  });
-
-  const blockhash =
-    params.blockhash ??
-    (await connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
-
-  const depositTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [...depositIxs.instructions],
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: depositIxs.keys,
-      addressLookupTables: selectedLuts,
-      type: TransactionType.DEPOSIT,
-    }
-  );
-
-  const solanaTx = addTransactionMetadata(depositTx, {
+  return {
+    message: makeTransactionMessage({
+      instructions: depositIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts: selectLutsForBanks(luts, [params.bank]),
+    }),
     type: TransactionType.DEPOSIT,
-    signers: depositIxs.keys,
-    addressLookupTables: selectedLuts,
-  });
-  return solanaTx;
+  };
 }
 
 /**
@@ -233,23 +160,23 @@ export async function makeDriftDepositTx(
  * - Creating the deposit instruction with proper farm state integration
  *
  * @param params - The parameters for creating the deposit instruction
- * @param params.program - The Marginfi program instance
+ * @param params.programAddress - The marginfi program address
  * @param params.bank - The bank to deposit into
  * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
  * @param params.amount - The amount to deposit in UI units
  * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
+ * @param params.authority - The account authority; signs and owns the source token account
  * @param params.group - The Marginfi group address
  * @param params.reserve - The Kamino reserve configuration
  * @param params.opts - Optional configuration
  * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
  * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
- * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
  *
- * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
+ * @returns Promise resolving to the deposit instructions
+ * @throws Error if the bank has no Kamino integration accounts
  */
 export async function makeKaminoDepositIx({
-  program,
+  programAddress,
   bank,
   tokenProgram,
   amount,
@@ -257,199 +184,111 @@ export async function makeKaminoDepositIx({
   authority,
   group,
   reserve,
-  isSync,
-  opts = {
-    // If false, the deposit will not wrap SOL; should not be false in most usecases
-    wrapAndUnwrapSol: true,
-    // wSOL balance can be provided if the user wants to combine native and wrapped SOL
-    wSolBalanceUi: 0,
-  },
-}: MakeKaminoDepositIxParams): Promise<InstructionsWrapper> {
+  opts = {},
+}: MakeKaminoDepositIxParams): Promise<Instruction[]> {
   if (!bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
   }
 
   const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
   const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
-  const depositIxs: TransactionInstruction[] = [];
+  const depositIxs: Instruction[] = [];
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
+  // We allow off curve addresses here to support Fuse.
+  const [signerTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
+  });
 
-  const reserveLiquiditySupply = reserve.liquidity.supplyVault;
-  const reserveCollateralMint = reserve.collateral.mintPubkey;
-  const reserveDestinationDepositCollateral = reserve.collateral.supplyVault;
-
-  const { lendingMarketAuthority } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
-
-  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
+  if (bank.mint === WSOL_MINT && wrapAndUnwrapSol) {
+    depositIxs.push(
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)))
+    );
   }
 
-  const reserveFarm = !reserve.farmCollateral.equals(
-    new PublicKey("11111111111111111111111111111111")
-  )
-    ? reserve.farmCollateral
-    : null;
+  const [lendingMarketAuthority] = await deriveLendingMarketAuthority(reserve.lendingMarket);
+  const reserveFarmState =
+    reserve.farmCollateral === DEFAULT_ADDRESS ? undefined : reserve.farmCollateral;
+  const obligationFarmUserState =
+    reserveFarmState &&
+    (await deriveUserState(reserveFarmState, bank.kaminoIntegrationAccounts.kaminoObligation))[0];
 
-  const [userFarmState] = reserveFarm
-    ? deriveUserState(
-        FARMS_PROGRAM_ID,
-        reserveFarm,
-        bank.kaminoIntegrationAccounts.kaminoObligation
-      )
-    : [null];
+  depositIxs.push(
+    await instructions.makeKaminoDepositIx(programAddress, {
+      group,
+      marginfiAccount: accountAddress,
+      authority,
+      bank: bank.address,
+      signerTokenAccount,
+      liquidityVault: bank.liquidityVault,
+      integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
+      integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
+      lendingMarket: reserve.lendingMarket,
+      lendingMarketAuthority,
+      mint: bank.mint,
+      reserveLiquiditySupply: reserve.liquidity.supplyVault,
+      reserveCollateralMint: reserve.collateral.mintPubkey,
+      reserveDestinationDepositCollateral: reserve.collateral.supplyVault,
+      obligationFarmUserState,
+      reserveFarmState,
+      liquidityTokenProgram: tokenProgram,
+      amount: uiToNative(amount, bank.mintDecimals),
+      refreshReserve: null,
+    })
+  );
 
-  const depositIx = isSync
-    ? syncInstructions.makeKaminoDepositIx(
-        program.programId,
-        {
-          marginfiAccount: accountAddress,
-          bank: bank.address,
-          signerTokenAccount: userTokenAtaPk,
-          lendingMarket: reserve.lendingMarket,
-
-          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
-          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
-          mint: bank.mint,
-
-          lendingMarketAuthority,
-          reserveLiquiditySupply,
-          reserveCollateralMint,
-          reserveDestinationDepositCollateral,
-          liquidityTokenProgram: tokenProgram,
-
-          obligationFarmUserState: userFarmState,
-          reserveFarmState: reserveFarm,
-
-          authority: opts.overrideInferAccounts?.authority ?? authority,
-          group: opts.overrideInferAccounts?.group ?? group,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) }
-      )
-    : await instructions.makeKaminoDepositIx(
-        program,
-        {
-          marginfiAccount: accountAddress,
-          bank: bank.address,
-          signerTokenAccount: userTokenAtaPk,
-          lendingMarket: reserve.lendingMarket,
-
-          lendingMarketAuthority,
-          reserveLiquiditySupply,
-          reserveCollateralMint,
-          reserveDestinationDepositCollateral,
-          liquidityTokenProgram: tokenProgram,
-
-          obligationFarmUserState: userFarmState,
-          reserveFarmState: reserveFarm,
-
-          authority: opts.overrideInferAccounts?.authority ?? authority,
-          group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) }
-      );
-
-  depositIxs.push(depositIx);
-
-  return {
-    instructions: depositIxs,
-    keys: [],
-  };
+  return depositIxs;
 }
 
 /**
  * Creates a complete Kamino deposit transaction ready to be signed and sent.
  *
- * This function builds a full versioned transaction that includes:
- * - Kamino reserve refresh instructions (to update oracle prices and interest rates)
+ * This function builds a v0 transaction message that includes:
+ * - Kamino reserve and obligation refresh instructions
  * - SOL wrapping instructions if depositing native SOL
  * - The actual deposit instruction
  *
- * The transaction is constructed with proper metadata, address lookup tables,
- * and is ready to be signed by the authority and submitted to the network.
+ * The authority pays the fees and is the only signer.
  *
  * @param params - The parameters for creating the deposit transaction
+ * @param params.rpc - RPC client, for the blockhash
  * @param params.luts - Address lookup tables for transaction compression
- * @param params.connection - Solana connection for fetching blockhash and reserve data
+ * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
  * @param params.amount - The amount to deposit in UI units
- * @param params.blockhash - Optional recent blockhash (fetched if not provided)
- * @param params.program - The Marginfi program instance
  * @param params.bank - The bank to deposit into (must have kaminoReserve and kaminoObligation)
- * @param params.tokenProgram - The token program ID
- * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
- * @param params.group - The Marginfi group address
  * @param params.reserve - The Kamino reserve configuration
- * @param params.opts - Optional configuration (wrapping, overrides, etc.)
  *
- * @returns Promise resolving to a versioned transaction with metadata
- * @throws Error if the bank doesn't have a Kamino reserve or obligation configured
+ * @returns Promise resolving to the deposit transaction
+ * @throws Error if the bank has no Kamino integration accounts
  */
 export async function makeKaminoDepositTx(
   params: MakeKaminoDepositTxParams
-): Promise<ExtendedV0Transaction> {
-  const { luts, connection, amount, ...depositIxParams } = params;
+): Promise<SolanaTransaction> {
+  const { rpc, luts, latestBlockhash, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
-
-  if (!depositIxParams.bank.kaminoIntegrationAccounts) {
+  if (!params.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
   }
 
-  // TODO: create dummy provider util in common
-  const provider = new AnchorProvider(
-    connection,
-    {
-      publicKey: params.authority,
-      signTransaction: async (tx) => tx,
-      signAllTransactions: async (txs) => txs,
-    },
-    {
-      commitment: "confirmed",
-    }
+  const refreshIxs = makeRefreshingIxs(
+    params.bank.kaminoIntegrationAccounts.kaminoReserve,
+    params.reserve,
+    params.bank.kaminoIntegrationAccounts.kaminoObligation
   );
 
-  const klendProgram = new Program<KlendIdlType>(KLEND_IDL, provider);
+  const depositIxs = await makeKaminoDepositIx(depositIxParams);
 
-  const refreshIxs = await makeRefreshingIxs({
-    klendProgram,
-    reserve: depositIxParams.reserve,
-    reserveKey: depositIxParams.bank.kaminoIntegrationAccounts.kaminoReserve,
-    obligationKey: depositIxParams.bank.kaminoIntegrationAccounts.kaminoObligation,
-    program: klendProgram,
-  });
-
-  const depositIxs = await makeKaminoDepositIx({
-    amount,
-    ...depositIxParams,
-  });
-
-  const blockhash =
-    params.blockhash ??
-    (await connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
-
-  const depositTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [...refreshIxs, ...depositIxs.instructions],
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: depositIxs.keys,
-      addressLookupTables: selectedLuts,
-      type: TransactionType.DEPOSIT,
-    }
-  );
-
-  const solanaTx = addTransactionMetadata(depositTx, {
+  return {
+    message: makeTransactionMessage({
+      instructions: [...refreshIxs, ...depositIxs],
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts: selectLutsForBanks(luts, [params.bank]),
+    }),
     type: TransactionType.DEPOSIT,
-    signers: depositIxs.keys,
-    addressLookupTables: selectedLuts,
-  });
-  return solanaTx;
+  };
 }
 
 /**
@@ -461,128 +300,104 @@ export async function makeKaminoDepositTx(
  * - Creating the deposit instruction to the bank's liquidity vault
  *
  * @param params - The parameters for creating the deposit instruction
- * @param params.program - The Marginfi program instance
+ * @param params.programAddress - The marginfi program address
  * @param params.bank - The bank to deposit into
  * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
  * @param params.amount - The amount to deposit in UI units
  * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
+ * @param params.authority - The account authority; signs and owns the source token account
  * @param params.group - The Marginfi group address
  * @param params.opts - Optional configuration
  * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
  * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
- * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
  *
- * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
+ * @returns Promise resolving to the deposit instructions
  */
 export async function makeDepositIx({
-  program,
+  programAddress,
   bank,
   tokenProgram,
   amount,
   accountAddress,
   authority,
   group,
-  isSync,
-  opts = {
-    // If false, the deposit will not wrap SOL; should not be false in most usecases
-    wrapAndUnwrapSol: true,
-    // wSOL balance can be provided if the user wants to combine native and wrapped SOL
-    wSolBalanceUi: 0,
-  },
-}: MakeDepositIxParams): Promise<InstructionsWrapper> {
+  opts = {},
+}: MakeDepositIxParams): Promise<Instruction[]> {
   const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
   const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
+  const depositIxs: Instruction[] = [];
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
+  // We allow off curve addresses here to support Fuse.
+  const [signerTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
+  });
 
-  const remainingAccounts = tokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-    ? [{ pubkey: bank.mint, isSigner: false, isWritable: false }]
-    : [];
-
-  const depositIxs = [];
-
-  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
+  if (bank.mint === WSOL_MINT && wrapAndUnwrapSol) {
+    depositIxs.push(
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)))
+    );
   }
 
-  const depositIx = isSync
-    ? syncInstructions.makeDepositIx(
-        program.programId,
-        {
-          marginfiAccount: accountAddress,
-          signerTokenAccount: userTokenAtaPk,
-          bank: bank.address,
-          tokenProgram: tokenProgram,
-          authority: opts.overrideInferAccounts?.authority ?? authority,
-          group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) },
-        remainingAccounts
-      )
-    : await instructions.makeDepositIx(
-        program,
-        {
-          marginfiAccount: accountAddress,
-          signerTokenAccount: userTokenAtaPk,
-          bank: bank.address,
-          tokenProgram: tokenProgram,
-          authority: opts.overrideInferAccounts?.authority ?? authority,
-          group: opts.overrideInferAccounts?.group ?? group,
-          liquidityVault: opts.overrideInferAccounts?.liquidityVault,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) },
-        remainingAccounts
-      );
-  depositIxs.push(depositIx);
+  depositIxs.push(
+    await instructions.makeDepositIx(
+      programAddress,
+      {
+        group,
+        marginfiAccount: accountAddress,
+        authority,
+        bank: bank.address,
+        signerTokenAccount,
+        liquidityVault: bank.liquidityVault,
+        tokenProgram,
+        amount: uiToNative(amount, bank.mintDecimals),
+        depositUpToLimit: null,
+      },
+      tokenProgram === TOKEN_2022_PROGRAM_ID
+        ? [{ address: bank.mint, role: AccountRole.READONLY }]
+        : []
+    )
+  );
 
-  return {
-    instructions: depositIxs,
-    keys: [],
-  };
+  return depositIxs;
 }
 
 /**
  * Creates a complete deposit transaction ready to be signed and sent.
  *
- * This function builds a full transaction that includes:
+ * This function builds a v0 transaction message that includes:
  * - SOL wrapping instructions if depositing native SOL
  * - The actual deposit instruction to the Marginfi bank
  * - Proper support for Token-2022 tokens
  *
- * The transaction is constructed as a legacy Transaction with proper metadata
- * and is ready to be signed by the authority and submitted to the network.
+ * The authority pays the fees and is the only signer.
  *
  * @param params - The parameters for creating the deposit transaction
+ * @param params.rpc - RPC client, for the blockhash
  * @param params.luts - Address lookup tables for transaction compression
- * @param params.program - The Marginfi program instance
+ * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
  * @param params.bank - The bank to deposit into
- * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
  * @param params.amount - The amount to deposit in UI units
- * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
- * @param params.group - The Marginfi group address
- * @param params.opts - Optional configuration (wrapping, overrides, etc.)
  *
- * @returns Promise resolving to an ExtendedTransaction with metadata
+ * @returns Promise resolving to the deposit transaction
  */
-export async function makeDepositTx(params: MakeDepositTxParams): Promise<ExtendedTransaction> {
-  const { luts, ...depositIxParams } = params;
+export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
+  const { rpc, luts, latestBlockhash, ...depositIxParams } = params;
 
-  const ixs = await makeDepositIx(depositIxParams);
-  const tx = new Transaction().add(...ixs.instructions);
-  tx.feePayer = params.authority;
+  const depositIxs = await makeDepositIx(depositIxParams);
 
-  // Deposits don't add health remaining-accounts, so only the target bank matters.
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
-
-  const solanaTx = addTransactionMetadata(tx, {
+  return {
+    message: makeTransactionMessage({
+      instructions: depositIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      // Deposits don't add health remaining-accounts, so only the target bank matters.
+      luts: selectLutsForBanks(luts, [params.bank]),
+    }),
     type: TransactionType.DEPOSIT,
-    signers: ixs.keys,
-    addressLookupTables: selectedLuts,
-  });
-  return solanaTx;
+  };
 }
 
 /**
@@ -594,48 +409,50 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Extend
  * - Creating the deposit instruction to the JupLend lending pool
  *
  * @param params - The parameters for creating the deposit instruction
- * @param params.program - The Marginfi program instance
+ * @param params.programAddress - The marginfi program address
  * @param params.bank - The bank to deposit into (must have JupLend integration configured)
  * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
  * @param params.amount - The amount to deposit in UI units
  * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
+ * @param params.authority - The account authority; signs and owns the source token account
  * @param params.group - The Marginfi group address
  * @param params.opts - Optional configuration
  * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
  * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
- * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
  *
- * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
+ * @returns Promise resolving to the deposit instructions
+ * @throws Error if the bank has no JupLend integration accounts
  */
 export async function makeJuplendDepositIx({
-  program,
+  programAddress,
   bank,
   tokenProgram,
   amount,
   accountAddress,
   authority,
   group,
-  opts = {
-    wrapAndUnwrapSol: true,
-    wSolBalanceUi: 0,
-  },
-}: MakeJuplendDepositIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
-  const depositIxs: TransactionInstruction[] = [];
-
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram);
-
-  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    depositIxs.push(...makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)));
-  }
-
+  opts = {},
+}: MakeDepositIxParams): Promise<Instruction[]> {
   if (!bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
   }
 
-  const derivedAccounts = getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
+  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
+  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
+  const depositIxs: Instruction[] = [];
+
+  const [signerTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
+  });
+
+  if (bank.mint === WSOL_MINT && wrapAndUnwrapSol) {
+    depositIxs.push(
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi)))
+    );
+  }
+
   const {
     fTokenMint,
     lendingAdmin,
@@ -645,109 +462,69 @@ export async function makeJuplendDepositIx({
     vault,
     liquidity,
     rewardsRateModel,
-  } = derivedAccounts;
+  } = await getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
 
-  const depositIx = await instructions.makeJuplendDepositIx(
-    program,
-    {
+  depositIxs.push(
+    await instructions.makeJuplendDepositIx(programAddress, {
+      group,
       marginfiAccount: accountAddress,
+      authority,
       bank: bank.address,
-      signerTokenAccount: userTokenAtaPk,
-
+      signerTokenAccount,
+      liquidityVault: bank.liquidityVault,
+      mint: bank.mint,
+      integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
+      fTokenMint,
+      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
       lendingAdmin,
       supplyTokenReservesLiquidity,
       lendingSupplyPositionOnLiquidity,
       rateModel,
       vault,
       liquidity,
-      liquidityProgram: JUP_LIQUIDITY_PROGRAM_ID,
       rewardsRateModel,
       tokenProgram,
-
-      authority: opts.overrideInferAccounts?.authority ?? authority,
-      group: opts.overrideInferAccounts?.group ?? group,
-      liquidityVault: opts.overrideInferAccounts?.liquidityVault ?? bank.liquidityVault,
-      fTokenMint,
-      integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
-      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
-      mint: bank.mint,
-    },
-    { amount: uiToNative(amount, bank.mintDecimals) }
+      amount: uiToNative(amount, bank.mintDecimals),
+    })
   );
 
-  depositIxs.push(depositIx);
-
-  return {
-    instructions: depositIxs,
-    keys: [],
-  };
+  return depositIxs;
 }
 
 /**
  * Creates a complete JupLend deposit transaction ready to be signed and sent.
  *
- * This function builds a full versioned transaction that includes:
+ * This function builds a v0 transaction message that includes:
  * - SOL wrapping instructions if depositing native SOL
  * - The actual deposit instruction to the JupLend lending pool
  *
- * The transaction is constructed with proper metadata, address lookup tables,
- * and is ready to be signed by the authority and submitted to the network.
+ * The authority pays the fees and is the only signer.
  *
  * @param params - The parameters for creating the deposit transaction
+ * @param params.rpc - RPC client, for the blockhash
  * @param params.luts - Address lookup tables for transaction compression
- * @param params.connection - Solana connection for fetching blockhash
+ * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
  * @param params.amount - The amount to deposit in UI units
- * @param params.blockhash - Optional recent blockhash (fetched if not provided)
- * @param params.program - The Marginfi program instance
  * @param params.bank - The bank to deposit into (must have JupLend integration configured)
- * @param params.tokenProgram - The token program ID
- * @param params.accountAddress - The Marginfi account address
- * @param params.authority - The authority/signer public key
- * @param params.group - The Marginfi group address
- * @param params.opts - Optional configuration (wrapping, overrides, etc.)
  *
- * @returns Promise resolving to a versioned transaction with metadata
- * @throws Error if the bank doesn't have JupLend integration accounts configured
+ * @returns Promise resolving to the deposit transaction
+ * @throws Error if the bank has no JupLend integration accounts
  */
 export async function makeJuplendDepositTx(
-  params: MakeJuplendDepositTxParams
-): Promise<ExtendedV0Transaction> {
-  const { luts, connection, amount, ...depositIxParams } = params;
+  params: MakeDepositTxParams
+): Promise<SolanaTransaction> {
+  const { rpc, luts, latestBlockhash, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+  const depositIxs = await makeJuplendDepositIx(depositIxParams);
 
-  if (!depositIxParams.bank.jupLendIntegrationAccounts) {
-    throw new Error("Bank has no JupLend integration accounts");
-  }
-
-  const depositIxs = await makeJuplendDepositIx({
-    amount,
-    ...depositIxParams,
-  });
-
-  const blockhash =
-    params.blockhash ??
-    (await connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
-
-  const depositTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: [...depositIxs.instructions],
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: depositIxs.keys,
-      addressLookupTables: selectedLuts,
-      type: TransactionType.DEPOSIT,
-    }
-  );
-
-  const solanaTx = addTransactionMetadata(depositTx, {
+  return {
+    message: makeTransactionMessage({
+      instructions: depositIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts: selectLutsForBanks(luts, [params.bank]),
+    }),
     type: TransactionType.DEPOSIT,
-    signers: depositIxs.keys,
-    addressLookupTables: selectedLuts,
-  });
-  return solanaTx;
+  };
 }

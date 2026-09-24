@@ -1,10 +1,4 @@
-import {
-  ComputeBudgetProgram,
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { ComputeBudgetProgram, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 import BN from "bn.js";
 
@@ -43,7 +37,7 @@ import { makeSwapDebtTx } from "./swap-debt";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs, makeSmartCrankSwbFeedIx } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -71,15 +65,11 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   mustBeAtomicBundle: boolean;
 }> {
   const {
-    program,
     marginfiAccount,
-    bankMap,
     depositOpts,
     borrowOpts,
     addressLookupTableAccounts,
     connection,
-    oraclePrices,
-    crossbarUrl,
     additionalIxs = [],
   } = params;
 
@@ -112,11 +102,10 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     [borrowOpts.borrowBank.address, depositOpts.depositBank.address]
   );
 
-  const { flashloanTx, setupInstructions, swapQuote, depositIxs, borrowIxs } =
-    await buildLoopFlashloanTx({
-      ...params,
-      blockhash,
-    });
+  const { flashloanTx, setupInstructions, swapQuote } = await buildLoopFlashloanTx({
+    ...params,
+    blockhash,
+  });
 
   // Add ata creations needed for routing
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
@@ -141,17 +130,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   });
 
   setupIxs.push(...jupiterSetupInstructions);
-
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIx({
-    marginfiAccount,
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-    instructions: [...borrowIxs.instructions, ...depositIxs.instructions],
-    program,
-    connection,
-    crossbarUrl,
-  });
 
   const additionalTxs: ExtendedV0Transaction[] = [];
 
@@ -182,22 +160,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
           addressLookupTables: addressLookupTableAccounts,
         })
       )
-    );
-  }
-
-  // if crank is needed, add it
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: marginfiAccount.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 

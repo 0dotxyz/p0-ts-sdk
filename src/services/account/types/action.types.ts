@@ -1,10 +1,18 @@
-import type { AddressesByLookupTableAddress, Instruction } from "@solana/kit";
+import type {
+  Address,
+  AddressesByLookupTableAddress,
+  BlockhashLifetimeConstraint,
+  GetAccountInfoApi,
+  GetLatestBlockhashApi,
+  GetMultipleAccountsApi,
+  Instruction,
+  Rpc,
+  TransactionSigner,
+} from "@solana/kit";
 import {
   AddressLookupTableAccount,
   Connection,
-  Keypair,
   PublicKey,
-  Signer,
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -90,283 +98,157 @@ export interface SwapQuoteResult {
   provider?: SwapProvider;
 }
 
-
 export interface MakeDepositIxOpts {
+  /** Wrap native SOL for a wSOL deposit (default true). */
   wrapAndUnwrapSol?: boolean;
+  /** wSOL already in the ATA; only the rest is wrapped (default 0). */
   wSolBalanceUi?: number;
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-  };
 }
 
 export interface MakeDepositIxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   bank: BankType;
-  tokenProgram: PublicKey;
+  tokenProgram: Address;
   amount: Amount;
-  accountAddress: PublicKey;
-  authority: PublicKey;
-  group: PublicKey;
-  isSync?: boolean;
+  accountAddress: Address;
+  authority: TransactionSigner;
+  group: Address;
   opts?: MakeDepositIxOpts;
 }
 
-export interface MakeJuplendDepositIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  accountAddress: PublicKey;
-  authority: PublicKey;
-  group: PublicKey;
-  isSync?: boolean;
-  opts?: MakeDepositIxOpts;
-}
-
-export interface MakeDriftDepositIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  accountAddress: PublicKey;
-  authority: PublicKey;
-  group: PublicKey;
-  driftOracle: PublicKey;
+export interface MakeDriftDepositIxParams extends MakeDepositIxParams {
+  driftOracle: Address;
   driftMarketIndex: number;
-  isSync?: boolean;
-  opts?: MakeDepositIxOpts;
 }
 
-export interface MakeKaminoDepositIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  accountAddress: PublicKey;
-  authority: PublicKey;
-  group: PublicKey;
+export interface MakeKaminoDepositIxParams extends MakeDepositIxParams {
   reserve: KaminoReserve;
-  isSync?: boolean;
-  opts?: MakeDepositIxOpts;
 }
 
-export interface MakeDepositTxParams extends MakeDepositIxParams {
-  luts: AddressLookupTableAccount[];
-  blockhash?: string;
+/** Transaction options shared by the single-action builders. */
+export interface ActionTxParams {
+  rpc: Rpc<GetLatestBlockhashApi>;
+  luts: AddressesByLookupTableAddress;
+  /** Fetched from `rpc` when omitted. */
+  latestBlockhash?: BlockhashLifetimeConstraint;
 }
 
-export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams {
-  luts: AddressLookupTableAccount[];
-  connection: Connection;
-  blockhash?: string;
-}
+export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {}
 
-export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams {
-  luts: AddressLookupTableAccount[];
-  connection: Connection;
-  blockhash?: string;
-}
+export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams, ActionTxParams {}
 
-export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams {
-  luts: AddressLookupTableAccount[];
-  connection: Connection;
-  blockhash?: string;
-}
+export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams, ActionTxParams {}
 
-export interface MakeRepayIxOpts {
-  wrapAndUnwrapSol?: boolean;
-  wSolBalanceUi?: number;
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-    liquidityVault?: PublicKey;
-  };
-}
-
-export interface MakeRepayIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  accountAddress: PublicKey;
-  authority: PublicKey;
+export interface MakeRepayIxParams extends MakeDepositIxParams {
   repayAll?: boolean;
-  isSync?: boolean;
-  opts?: MakeRepayIxOpts;
 }
 
-export interface MakeRepayTxParams extends MakeRepayIxParams {
-  luts: AddressLookupTableAccount[];
-}
+export interface MakeRepayTxParams extends MakeRepayIxParams, ActionTxParams {}
 
 export interface MakeWithdrawIxOpts {
-  observationBanksOverride?: PublicKey[];
+  /** Health-check remaining accounts to use instead of the computed ones. */
+  observationBanksOverride?: Address[];
+  /** Unwrap a wSOL withdrawal to native SOL (default true). */
   wrapAndUnwrapSol?: boolean;
+  /** Create the destination ATA idempotently (default true). */
   createAtas?: boolean;
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
-}
-
-export interface MakeDriftWithdrawIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  bankMap: Map<string, BankType>;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
-  driftSpotMarket: DriftSpotMarket;
-  userRewards: DriftRewards[];
-  bankMetadataMap: BankIntegrationMetadataMap;
-  isSync?: boolean;
-  withdrawAll?: boolean;
-  opts?: MakeWithdrawIxOpts;
-}
-
-export interface MakeKaminoWithdrawIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  bankMap: Map<string, BankType>;
-  tokenProgram: PublicKey;
-  cTokenAmount: Amount;
-  marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
-  reserve: KaminoReserve;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  isSync?: boolean;
-  withdrawAll?: boolean;
-  opts?: MakeWithdrawIxOpts;
-}
-
-export interface MakeJuplendWithdrawIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  bankMap: Map<string, BankType>;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
-  jupLendingState: JupLendingState;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  isSync?: boolean;
-  withdrawAll?: boolean;
-  opts?: MakeWithdrawIxOpts;
 }
 
 export interface MakeWithdrawIxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   bank: BankType;
   bankMap: Map<string, BankType>;
-  tokenProgram: PublicKey;
+  tokenProgram: Address;
   amount: Amount;
   marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  isSync?: boolean;
+  authority: TransactionSigner;
   withdrawAll?: boolean;
   opts?: MakeWithdrawIxOpts;
 }
 
-export interface MakeWithdrawTxParams extends MakeWithdrawIxParams {
-  connection: Connection;
-  oraclePrices: Map<string, OraclePrice>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
+export interface MakeDriftWithdrawIxParams extends MakeWithdrawIxParams {
+  driftSpotMarket: DriftSpotMarket;
+  userRewards: DriftRewards[];
 }
 
-export interface MakeKaminoWithdrawTxParams extends Omit<
-  MakeKaminoWithdrawIxParams,
-  "cTokenAmount"
-> {
+export interface MakeKaminoWithdrawIxParams extends Omit<MakeWithdrawIxParams, "amount"> {
+  cTokenAmount: Amount;
+  reserve: KaminoReserve;
+}
+
+export interface MakeJuplendWithdrawIxParams extends MakeWithdrawIxParams {
+  jupLendingState: JupLendingState;
+}
+
+/** Withdraw/borrow transactions also refresh the account's integration banks. */
+interface AccountActionTxParams extends ActionTxParams {
+  bankMetadataMap: BankIntegrationMetadataMap;
+}
+
+export interface MakeWithdrawTxParams extends MakeWithdrawIxParams, AccountActionTxParams {}
+
+export interface MakeDriftWithdrawTxParams
+  extends MakeDriftWithdrawIxParams, AccountActionTxParams {}
+
+export interface MakeJuplendWithdrawTxParams
+  extends MakeJuplendWithdrawIxParams, AccountActionTxParams {}
+
+export interface MakeKaminoWithdrawTxParams
+  extends Omit<MakeKaminoWithdrawIxParams, "cTokenAmount">, AccountActionTxParams {
+  /** UI token amount (converted with the bank's multiplier) or a typed cToken amount. */
   amount: Amount | TypedAmount;
-  connection: Connection;
-  oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
 }
 
-export interface MakeBorrowIxOpts {
-  observationBanksOverride?: PublicKey[];
-  wrapAndUnwrapSol?: boolean;
-  createAtas?: boolean;
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
+export interface MakeBorrowIxOpts extends MakeWithdrawIxOpts {
   /**
    * Additional banks to include in the health check calculation.
    * Useful for combined operations where a deposit precedes the borrow
    * and the deposited bank needs to be considered for health calculation.
    */
-  additionalHealthCheckBanks?: PublicKey[];
+  additionalHealthCheckBanks?: Address[];
 }
 
-export interface MakeBorrowIxParams {
-  program: MarginfiProgram;
-  bank: BankType;
-  bankMap: Map<string, BankType>;
-  tokenProgram: PublicKey;
-  amount: Amount;
-  marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
-  isSync?: boolean;
+export interface MakeBorrowIxParams extends Omit<MakeWithdrawIxParams, "withdrawAll" | "opts"> {
   opts?: MakeBorrowIxOpts;
 }
 
-export interface MakeBorrowTxParams extends MakeBorrowIxParams {
-  connection: Connection;
-  oraclePrices: Map<string, OraclePrice>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
+export interface MakeBorrowTxParams extends MakeBorrowIxParams, AccountActionTxParams {}
+
+export interface MakeCreateAccountIxParams {
+  programAddress: Address;
+  /** Owner of the new account; also pays its rent. */
+  authority: TransactionSigner;
+  group: Address;
+  accountIndex: number;
+  thirdPartyId?: number;
 }
 
-export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams {
-  connection: Connection;
-  oraclePrices: Map<string, OraclePrice>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
-}
-
-export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
-  connection: Connection;
-  oraclePrices: Map<string, OraclePrice>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
-}
+export interface MakeCreateAccountTxParams extends MakeCreateAccountIxParams, ActionTxParams {}
 
 export interface MakeCloseAccountIxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  authority: PublicKey;
+  authority: TransactionSigner;
 }
 
 export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
-  connection: Connection;
+  rpc: Rpc<GetLatestBlockhashApi>;
 }
 
 export interface MakeAccountTransferToNewAccountTxParams {
-  connection: Connection;
-  program: MarginfiProgram;
-  /** The account being transferred (its current authority is the signer). */
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
+  programAddress: Address;
+  /** The account being transferred. */
   marginfiAccount: MarginfiAccountType;
+  /** The account's current authority. */
+  authority: TransactionSigner;
   /** Freshly generated keypair for the destination account; must sign. */
-  newMarginfiAccount: Signer;
+  newMarginfiAccount: TransactionSigner;
   /** The wallet that will own the new account. */
-  newAuthority: PublicKey;
-  /** Optional. Pays rent/fees. A `PublicKey` signs via the wallet adapter; a
-   *  `Keypair` is a separate fee payer that signs directly. Defaults to the
-   *  account's current authority. */
-  feePayer?: PublicKey | Keypair;
+  newAuthority: Address;
+  /** Pays rent/fees. Defaults to `authority`. */
+  feePayer?: TransactionSigner;
 }
 
 export interface TransactionBuilderResult {
@@ -380,14 +262,13 @@ export interface FlashloanActionResult extends TransactionBuilderResult {
 }
 
 export interface MakeFlashLoanTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
+  authority: TransactionSigner;
   bankMap: Map<string, BankType>;
-  ixs: TransactionInstruction[];
-  blockhash: string;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  isSync?: boolean;
-  signers?: Signer[];
+  ixs: Instruction[];
+  latestBlockhash: BlockhashLifetimeConstraint;
+  luts?: AddressesByLookupTableAddress;
 }
 
 export type TransferPositionSide = "collateral" | "debt";
@@ -416,7 +297,6 @@ export interface MakeTransferPositionsTxParams {
   maxPositions?: number;
   /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
   groupRateLimiterEnabled?: boolean;
-  crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
@@ -443,10 +323,7 @@ export interface MakeBulkWithdrawTxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   /** Token program per withdrawn bank (base58 bank address → token program id). */
   tokenProgramsByBank: Map<string, PublicKey>;
-  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
-  groupRateLimiterEnabled?: boolean;
   luts: AddressLookupTableAccount[];
-  crossbarUrl?: string;
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
@@ -503,7 +380,6 @@ export interface MakeLoopTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /**
    * Optional override for how the swap engine runs. Defaults to the in-process
    * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
@@ -576,7 +452,6 @@ export interface MakeRepayWithCollatTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -608,7 +483,6 @@ export interface MakeSwapCollateralTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -655,7 +529,6 @@ export interface MakeRollPtTxParams {
     group?: PublicKey;
     authority?: PublicKey;
   };
-  crossbarUrl?: string;
 }
 
 /** One token-account balance snapshot from a {@link makeRollPtTx} quote simulation. */
@@ -746,16 +619,15 @@ export interface MakeSwapDebtTxParams {
     authority?: PublicKey;
   };
   additionalIxs?: TransactionInstruction[];
-  crossbarUrl?: string;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSetupIxParams {
-  connection: Connection;
-  authority: PublicKey;
+  rpc: Rpc<GetMultipleAccountsApi>;
+  authority: TransactionSigner;
   tokens: {
-    mint: PublicKey;
-    tokenProgram: PublicKey;
+    mint: Address;
+    tokenProgram: Address;
   }[];
 }

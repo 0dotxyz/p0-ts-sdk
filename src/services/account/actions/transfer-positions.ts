@@ -27,11 +27,7 @@ import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./w
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
-import {
-  makeSmartCrankSwbFeedIxForAccounts,
-  makeRefreshKaminoBanksIxs,
-  makeUpdateJupLendRateIxs,
-} from "~/services/price";
+import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -617,10 +613,8 @@ export async function makeTransferPositionsTx(
     marginfiAccount: accountA,
     bankMap,
     bankMetadataMap,
-    oraclePrices,
     assetShareValueMultiplierByBank,
     addressLookupTableAccounts,
-    crossbarUrl,
     overrideInferAccounts,
   } = params;
 
@@ -726,36 +720,6 @@ export async function makeTransferPositionsTx(
       ...txs.map((tx) =>
         addTransactionMetadata(tx, { type: TransactionType.CREATE_ATA, addressLookupTables: luts })
       )
-    );
-  }
-
-  // Crank switchboard feeds for the banks priced by the health checks. The borrow
-  // legs run health checks on the DESTINATION account, so both accounts are
-  // cranked: A against its withdraws/repays, B against its projected post-transfer
-  // balances (deposits/borrows) — the projection scopes each account to its own
-  // instructions, and overlapping feeds are cranked once.
-  const { instructions: updateFeedIxs, luts: feedLuts } = await makeSmartCrankSwbFeedIxForAccounts({
-    marginfiAccounts: [accountA, accountB],
-    bankMap,
-    oraclePrices,
-    assetShareValueMultiplierByBank,
-    instructions: innerIxs,
-    program,
-    connection,
-    groupRateLimiterEnabled,
-    crossbarUrl,
-  });
-  if (updateFeedIxs.length > 0) {
-    const message = new TransactionMessage({
-      payerKey: accountA.authority,
-      recentBlockhash: blockhash,
-      instructions: updateFeedIxs,
-    }).compileToV0Message(feedLuts);
-    additionalTxs.push(
-      addTransactionMetadata(new VersionedTransaction(message), {
-        addressLookupTables: feedLuts,
-        type: TransactionType.CRANK,
-      })
     );
   }
 
