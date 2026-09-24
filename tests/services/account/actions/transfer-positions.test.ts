@@ -152,7 +152,12 @@ const kaminoPosition: ClassifiedPosition = {
 
 describe("buildCollateralLegIxs (integration dispatch)", () => {
   it("routes a KAMINO position to the Kamino builders and locks its reserve/obligation accounts", async () => {
-    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(baseCtx(), kaminoPosition, true, []);
+    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(
+      baseCtx(),
+      kaminoPosition,
+      true,
+      []
+    );
 
     expect(withdrawIxs.length).toBeGreaterThan(0);
     expect(depositIxs.length).toBeGreaterThan(0);

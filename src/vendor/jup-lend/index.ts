@@ -1,3 +1,4 @@
+export * from "./accounts";
 export * from "./instructions";
 export * from "./interest-rate";
 export * from "./pda";

@@ -46,7 +46,12 @@ vi.mock("~/vendor/exponent", async (importActual) => ({
 vi.mock("~/services/account/utils", async (importActual) => ({
   ...(await importActual<typeof import("~/services/account/utils")>()),
   computeFlashLoanNonSwapBudget: () => ({ sizeConstraint: 1000, maxSwapTotalAccounts: 64 }),
-  compileFlashloanPrecheck: () => ({ fullTxSize: 0, overshoot: -1, writableAccounts: 0, totalAccounts: 0 }),
+  compileFlashloanPrecheck: () => ({
+    fullTxSize: 0,
+    overshoot: -1,
+    writableAccounts: 0,
+    totalAccounts: 0,
+  }),
 }));
 
 vi.mock("~/services/account/actions/account-lifecycle", () => ({
@@ -56,7 +61,11 @@ vi.mock("~/services/account/actions/account-lifecycle", () => ({
 vi.mock("~/services/account/actions/withdraw", () => ({
   makeWithdrawIx: async () => ({
     instructions: [
-      new TransactionInstruction({ keys: [], programId: PublicKey.default, data: Buffer.from([9]) }),
+      new TransactionInstruction({
+        keys: [],
+        programId: PublicKey.default,
+        data: Buffer.from([9]),
+      }),
     ],
     keys: [],
   }),
@@ -186,12 +195,19 @@ function makeParams(
         value: {
           err: null,
           logs: [],
-          returnData: { programId: EXPONENT_CLMM_PROGRAM_ID.toBase58(), data: [tradeReturnB64(PT_OUT), "base64"] },
+          returnData: {
+            programId: EXPONENT_CLMM_PROGRAM_ID.toBase58(),
+            data: [tradeReturnB64(PT_OUT), "base64"],
+          },
         },
       }),
       // The trade quote runs against the largest SY holder (trader-independent pool quote).
-      getTokenLargestAccounts: async () => ({ value: [{ address: pk(80), amount: SY_EXACT.toString() }] }),
-      getParsedAccountInfo: async () => ({ value: { data: { parsed: { info: { owner: pk(81).toBase58() } } } } }),
+      getTokenLargestAccounts: async () => ({
+        value: [{ address: pk(80), amount: SY_EXACT.toString() }],
+      }),
+      getParsedAccountInfo: async () => ({
+        value: { data: { parsed: { info: { owner: pk(81).toBase58() } } } },
+      }),
     } as any,
     bankMap: new Map(),
     oraclePrices: new Map(),

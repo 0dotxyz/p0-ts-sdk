@@ -1,8 +1,8 @@
 import { AccountRole, address, getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import { KAMINO_LENDING_PROGRAM_ADDRESS } from "~/generated/klend";
 import {
+  KAMINO_LENDING_PROGRAM_ADDRESS,
   KaminoInterestRateBasis,
   KaminoReserve,
   makeRefreshObligationIx,

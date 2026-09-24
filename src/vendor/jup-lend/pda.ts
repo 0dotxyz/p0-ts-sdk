@@ -28,6 +28,11 @@ export function deriveJupLendLendingRewardsRateModel(
   });
 }
 
+/** Liquidity-layer rate model PDA of `mint`. */
+export function deriveJupLendRateModel(mint: Address): Promise<ProgramDerivedAddress> {
+  return findRateModelPda({ mint });
+}
+
 /**
  * All JupLend accounts a deposit/withdraw of `mint` needs, derived locally. `tokenProgram` is the
  * mint's token program (for the liquidity vault ATA).

@@ -17,13 +17,11 @@ export default defineConfig({
   minify: false,
   external: [
     "@coral-xyz/anchor",
-    "@coral-xyz/borsh",
     "@solana/kit",
     "@solana/web3.js",
     "@switchboard-xyz/on-demand",
     "@switchboard-xyz/common",
     "bignumber.js",
-    "borsh",
     "bs58",
     "bn.js",
     "decimal.js",

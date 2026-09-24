@@ -1,7 +1,6 @@
 import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import { SpotBalanceType } from "~/generated/drift";
 import {
   calculateDriftBorrowAPR,
   calculateDriftBorrowAPY,
@@ -9,6 +8,7 @@ import {
   calculateDriftLendingAPY,
   calculateDriftUtilization,
   getDriftTokenAmount,
+  SpotBalanceType,
   type DriftSpotMarket,
 } from "~/vendor/drift";
 

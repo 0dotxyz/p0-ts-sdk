@@ -332,10 +332,7 @@
     {
       "name": "permission_set",
       "discriminator": [211, 122, 185, 120, 129, 182, 55, 103],
-      "accounts": [
-        { "name": "authority", "signer": true },
-        { "name": "granter" }
-      ],
+      "accounts": [{ "name": "authority", "signer": true }, { "name": "granter" }],
       "args": [
         {
           "name": "params",
@@ -405,9 +402,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "wrapped_sol_mint" }
@@ -415,9 +411,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -692,9 +687,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "native_mint" }
@@ -702,9 +696,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -765,9 +758,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "native_mint" }
@@ -775,9 +767,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -851,9 +842,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "switch_mint" }
@@ -861,9 +851,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -877,9 +866,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "switch_mint" }
@@ -887,9 +875,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -1032,9 +1019,8 @@
               {
                 "kind": "const",
                 "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
                 ]
               },
               { "kind": "account", "path": "wrapped_sol_mint" }
@@ -1042,9 +1028,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -1098,8 +1083,8 @@
               {
                 "kind": "const",
                 "value": [
-                  79, 114, 97, 99, 108, 101, 82, 97, 110, 100, 111, 109, 110,
-                  101, 115, 115, 83, 116, 97, 116, 115
+                  79, 114, 97, 99, 108, 101, 82, 97, 110, 100, 111, 109, 110, 101, 115, 115, 83,
+                  116, 97, 116, 115
                 ]
               },
               { "kind": "account", "path": "oracle" }
@@ -1364,9 +1349,7 @@
         "fields": [
           {
             "name": "std_dev",
-            "docs": [
-              "The standard deviation of the submissions needed for quorom size"
-            ],
+            "docs": ["The standard deviation of the submissions needed for quorom size"],
             "type": "f32"
           },
           {
@@ -1403,16 +1386,12 @@
         "fields": [
           {
             "name": "value",
-            "docs": [
-              "The median value of the submissions needed for quorom size"
-            ],
+            "docs": ["The median value of the submissions needed for quorom size"],
             "type": "i128"
           },
           {
             "name": "std_dev",
-            "docs": [
-              "The standard deviation of the submissions needed for quorom size"
-            ],
+            "docs": ["The standard deviation of the submissions needed for quorom size"],
             "type": "i128"
           },
           {
@@ -1427,16 +1406,12 @@
           },
           {
             "name": "min_value",
-            "docs": [
-              "The minimum value of the submissions needed for quorom size"
-            ],
+            "docs": ["The minimum value of the submissions needed for quorom size"],
             "type": "i128"
           },
           {
             "name": "max_value",
-            "docs": [
-              "The maximum value of the submissions needed for quorom size"
-            ],
+            "docs": ["The maximum value of the submissions needed for quorom size"],
             "type": "i128"
           },
           {
@@ -1446,9 +1421,7 @@
           },
           {
             "name": "submission_idx",
-            "docs": [
-              "The index of the submission that was used to calculate this result"
-            ],
+            "docs": ["The index of the submission that was used to calculate this result"],
             "type": "u8"
           },
           { "name": "padding1", "type": { "array": ["u8", 6] } },
@@ -1459,16 +1432,12 @@
           },
           {
             "name": "min_slot",
-            "docs": [
-              "The slot at which the first considered submission was made"
-            ],
+            "docs": ["The slot at which the first considered submission was made"],
             "type": "u64"
           },
           {
             "name": "max_slot",
-            "docs": [
-              "The slot at which the last considered submission was made"
-            ],
+            "docs": ["The slot at which the last considered submission was made"],
             "type": "u64"
           }
         ]
@@ -1566,9 +1535,7 @@
           },
           {
             "name": "queue",
-            "docs": [
-              "Queue used for attestation to verify a MRENCLAVE measurement."
-            ],
+            "docs": ["Queue used for attestation to verify a MRENCLAVE measurement."],
             "type": "pubkey"
           },
           {
@@ -1590,9 +1557,7 @@
           { "name": "permissions", "type": "u64" },
           {
             "name": "is_on_queue",
-            "docs": [
-              "Whether the quote is located on the AttestationQueues buffer."
-            ],
+            "docs": ["Whether the quote is located on the AttestationQueues buffer."],
             "type": "u8"
           },
           { "name": "_padding1", "type": { "array": ["u8", 7] } },
@@ -2093,9 +2058,7 @@
           },
           {
             "name": "last_heartbeat",
-            "docs": [
-              "The unix timestamp when the last quote oracle heartbeated on-chain."
-            ],
+            "docs": ["The unix timestamp when the last quote oracle heartbeated on-chain."],
             "type": "i64"
           },
           { "name": "node_timeout", "type": "i64" },
@@ -2114,16 +2077,12 @@
           },
           {
             "name": "oracle_keys_len",
-            "docs": [
-              "The length of valid quote oracles for the given attestation queue."
-            ],
+            "docs": ["The length of valid quote oracles for the given attestation queue."],
             "type": "u32"
           },
           {
             "name": "reward",
-            "docs": [
-              "The reward paid to quote oracles for attesting on-chain."
-            ],
+            "docs": ["The reward paid to quote oracles for attesting on-chain."],
             "type": "u32"
           },
           {
@@ -2135,9 +2094,7 @@
           },
           {
             "name": "gc_idx",
-            "docs": [
-              "Incrementer used to garbage collect and remove stale quote oracles."
-            ],
+            "docs": ["Incrementer used to garbage collect and remove stale quote oracles."],
             "type": "u32"
           },
           { "name": "require_authority_heartbeat_permission", "type": "u8" },
@@ -2314,16 +2271,12 @@
           },
           {
             "name": "valid_until",
-            "docs": [
-              "The unix timestamp when the quotes verification status expires."
-            ],
+            "docs": ["The unix timestamp when the quotes verification status expires."],
             "type": "i64"
           },
           {
             "name": "quote_registry",
-            "docs": [
-              "The off-chain registry where the verifiers quote can be located."
-            ],
+            "docs": ["The off-chain registry where the verifiers quote can be located."],
             "type": { "array": ["u8", 32] }
           },
           {

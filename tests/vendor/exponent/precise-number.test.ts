@@ -15,9 +15,7 @@ describe("exponentNumberToBigNumber", () => {
   });
 
   it("treats the words as little-endian (word[1] = ×2^64)", () => {
-    expect(exponentNumberToBigNumber([[0n, ONE, 0n, 0n]]).toString()).toBe(
-      "18446744073709551616"
-    );
+    expect(exponentNumberToBigNumber([[0n, ONE, 0n, 0n]]).toString()).toBe("18446744073709551616");
   });
 
   it("keeps sub-unit precision", () => {

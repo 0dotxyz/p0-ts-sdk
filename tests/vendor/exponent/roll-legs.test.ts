@@ -8,8 +8,6 @@ import {
 } from "@solana/kit";
 import { describe, expect, it, vi } from "vitest";
 
-import { SwapDirection } from "~/generated/exponent-clmm";
-
 // Wire format recorded from the web3.js resolvers + builders these replaced; never update with `-u`.
 
 const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
@@ -77,6 +75,7 @@ import {
   makeExponentMergeIx,
   resolveExponentClmmTradePtContext,
   resolveExponentMergeContext,
+  SwapDirection,
 } from "~/vendor/exponent";
 
 const rpc = {} as Parameters<typeof resolveExponentMergeContext>[0]["rpc"];

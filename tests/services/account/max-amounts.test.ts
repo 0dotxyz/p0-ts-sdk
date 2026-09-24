@@ -437,11 +437,17 @@ describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
       balances: [{ bankPk: kaminoBank.address, assetShares: ui(400) }],
     });
     // metadata absent entirely
-    expect(
-      computeMaxWithdrawForBank({ account: acc, ...ctx(kaminoBank) }).toNumber()
-    ).toBeCloseTo(400, 6);
+    expect(computeMaxWithdrawForBank({ account: acc, ...ctx(kaminoBank) }).toNumber()).toBeCloseTo(
+      400,
+      6
+    );
     // metadata present but venue liquidity is not the binding constraint for a DEFAULT bank
-    const defaultBank = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const defaultBank = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+    });
     const acc2 = account({
       freeCollateralUsd: 320,
       balances: [{ bankPk: defaultBank.address, assetShares: ui(400) }],
@@ -530,7 +536,12 @@ describe("computeVenueAvailableLiquidity", () => {
       assetTag: AssetTag.KAMINO,
     });
     expect(computeVenueAvailableLiquidity(b, {})).toBeUndefined();
-    const defaultBank = bank({ totalDeposits: 1, totalBorrows: 0, depositLimit: 1, borrowLimit: 1 });
+    const defaultBank = bank({
+      totalDeposits: 1,
+      totalBorrows: 0,
+      depositLimit: 1,
+      borrowLimit: 1,
+    });
     expect(computeVenueAvailableLiquidity(defaultBank, {})).toBeUndefined();
   });
 });

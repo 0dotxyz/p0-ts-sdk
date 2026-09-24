@@ -33,14 +33,16 @@ Conventions for this codebase. Decisive by design — PRs that violate a rule ge
 
 <!-- Add new convention sections below. Keep each section decisive: a rule, its rationale in one or two lines, and what it concretely bans. -->
 
-## 2. Instruction builders
+## 2. Generated clients
 
-### The rule: build instructions only through a module's `instructions.ts`
+### The rule: use generated code only through its wrapper module
 
-Every instruction the SDK builds goes through `src/instructions.ts` (marginfi) or `src/vendor/<program>/instructions.ts`, even when the builder only forwards to the Codama-generated one. One import site per program means nobody picks a raw generated builder that is missing remaining accounts or SDK defaults. This is an explicit exception to "no wrapper with a single call site" in section 1.
+Codama clients in `src/generated/` expose hundreds of functions per program. The SDK uses only what a wrapper module re-exposes: `src/instructions.ts` for marginfi instructions, `src/vendor/<program>/` for everything else (instruction builders, account decoders, PDA finders, program addresses, enums). Wrap every generated function the SDK uses, even when the wrapper only forwards: one import site per program, SDK names instead of IDL names, and decoders that check the discriminator. This is an explicit exception to "no wrapper with a single call site" in section 1. Type-only imports from `~/generated` are fine anywhere.
+
+Enforced by `@typescript-eslint/no-restricted-imports` in `.eslintrc.cjs` (wrapper files exempt).
 
 ### What this bans
 
-- Importing `get*Instruction` / `get*InstructionAsync` from `~/generated/*` anywhere except a module's `instructions.ts` (tests of that module excepted)
-- Hand-building an instruction for a program that has a generated client
-
+- Runtime imports from `~/generated/*` outside `src/instructions.ts` and `src/vendor/**`
+- Hand-building an instruction or hand-decoding an account for a program that has a generated client
+- Calling a generated decoder without the discriminator check its wrapper adds

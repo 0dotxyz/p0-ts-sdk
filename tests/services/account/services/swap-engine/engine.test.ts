@@ -20,7 +20,12 @@ const FIT_THRESHOLD = 100;
 vi.mock("~/services/account/utils/flashloan-size.utils", () => ({
   compileFlashloanPrecheck: ({ allIxs }: { allIxs: { data: Uint8Array }[] }) => {
     const bytes = allIxs.reduce((n, ix) => n + ix.data.length, 0);
-    return { fullTxSize: bytes, overshoot: bytes - FIT_THRESHOLD, writableAccounts: 5, totalAccounts: 10 };
+    return {
+      fullTxSize: bytes,
+      overshoot: bytes - FIT_THRESHOLD,
+      writableAccounts: 5,
+      totalAccounts: 10,
+    };
   },
 }));
 

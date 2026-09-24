@@ -10,8 +10,8 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import { findCompleteWithdrawalWithdrawEscrowPda } from "~/generated/gamma";
 import {
+  deriveGammaWithdrawEscrow,
   makeGammaCompleteWithdrawalIx,
   makeGammaDepositIx,
   makeGammaWithdrawIx,
@@ -66,10 +66,7 @@ const cases: Record<string, () => Promise<Instruction>> = {
       sharesAmount: 5678n,
     }),
   completeWithdrawal: async () => {
-    const [withdrawEscrow] = await findCompleteWithdrawalWithdrawEscrowPda({
-      user: user.address,
-      lpVault,
-    });
+    const [withdrawEscrow] = await deriveGammaWithdrawEscrow(user.address, lpVault);
     return makeGammaCompleteWithdrawalIx({
       user,
       lpVault,
