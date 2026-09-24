@@ -1,26 +1,25 @@
 import { describe, it, expect } from "vitest";
 
-import {
-  decodeScopePriceAtIndex,
-  SCOPE_MAX_ENTRIES,
-  SCOPE_ORACLE_PRICES_DISCRIMINATOR,
-  SCOPE_ORACLE_PRICES_SIZE,
-} from "~/vendor/scope";
+import { decodeScopePriceAtIndex, SCOPE_MAX_ENTRIES } from "~/vendor/scope";
 
+// sha256("account:OraclePrices")[..8]; 8 + 32 (oracle_mappings) + 512 × 56 (DatedPrice) bytes.
+const SCOPE_ORACLE_PRICES_DISCRIMINATOR = [89, 128, 118, 221, 6, 72, 180, 146];
 const ENTRIES_OFFSET = 40;
 const DATED_PRICE_SIZE = 56;
+const SCOPE_ORACLE_PRICES_SIZE = ENTRIES_OFFSET + SCOPE_MAX_ENTRIES * DATED_PRICE_SIZE;
 
 function scopeAccountData(
   entries: { index: number; value: bigint; exp: bigint; slot: bigint; timestamp: bigint }[]
-): Buffer {
-  const data = Buffer.alloc(SCOPE_ORACLE_PRICES_SIZE);
-  SCOPE_ORACLE_PRICES_DISCRIMINATOR.copy(data, 0);
+): Uint8Array {
+  const data = new Uint8Array(SCOPE_ORACLE_PRICES_SIZE);
+  data.set(SCOPE_ORACLE_PRICES_DISCRIMINATOR, 0);
+  const view = new DataView(data.buffer);
   for (const entry of entries) {
     const offset = ENTRIES_OFFSET + entry.index * DATED_PRICE_SIZE;
-    data.writeBigUInt64LE(entry.value, offset);
-    data.writeBigUInt64LE(entry.exp, offset + 8);
-    data.writeBigUInt64LE(entry.slot, offset + 16);
-    data.writeBigUInt64LE(entry.timestamp, offset + 24);
+    view.setBigUint64(offset, entry.value, true);
+    view.setBigUint64(offset + 8, entry.exp, true);
+    view.setBigUint64(offset + 16, entry.slot, true);
+    view.setBigUint64(offset + 24, entry.timestamp, true);
   }
   return data;
 }
@@ -63,6 +62,6 @@ describe("decodeScopePriceAtIndex", () => {
     expect(() => decodeScopePriceAtIndex(badDisc, 0)).toThrow();
 
     const short = scopeAccountData([]).subarray(0, SCOPE_ORACLE_PRICES_SIZE - 1);
-    expect(() => decodeScopePriceAtIndex(Buffer.from(short), 0)).toThrow();
+    expect(() => decodeScopePriceAtIndex(short, 0)).toThrow();
   });
 });
