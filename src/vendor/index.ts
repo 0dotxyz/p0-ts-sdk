@@ -1,5 +1,4 @@
 export * from "./single-spl-pool";
-export * from "./switchboard_pull";
 export * from "./scope";
 export * from "./marinade";
 export * from "./spl-stake-pool";
