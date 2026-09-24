@@ -10,6 +10,8 @@ export interface KaminoReserve {
   liquidity: KaminoReserveLiquidity;
   collateral: KaminoReserveCollateral;
   config: KaminoReserveConfig;
+  /** cTokens queued for withdrawal; their liquidity is reserved for the ticket holders */
+  withdrawQueue: { queuedCollateralAmount: bigint };
 }
 
 export interface KaminoReserveLiquidity {
@@ -137,6 +139,7 @@ export interface KaminoReserveJSON {
     mintTotalSupply: string;
     supplyVault: string;
   };
+  withdrawQueue: { queuedCollateralAmount: string };
   config: {
     protocolTakeRatePct: number;
     hostFixedInterestRateBps: number;

@@ -48,6 +48,7 @@ const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReser
     mintTotalSupply: 100n,
     supplyVault: pk(6),
   },
+  withdrawQueue: { queuedCollateralAmount: 0n },
   config: {
     protocolTakeRatePct: 0,
     hostFixedInterestRateBps: 0,

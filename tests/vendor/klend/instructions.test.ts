@@ -26,6 +26,7 @@ const reserve: KaminoReserve = {
     pendingReferrerFeesSf: 0n,
   },
   collateral: { mintPubkey: key(5), mintTotalSupply: 0n, supplyVault: key(6) },
+  withdrawQueue: { queuedCollateralAmount: 0n },
   config: {
     protocolTakeRatePct: 0,
     hostFixedInterestRateBps: 0,

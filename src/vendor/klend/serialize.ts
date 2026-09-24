@@ -71,6 +71,9 @@ export function kaminoReserveToDto(reserve: KaminoReserve): KaminoReserveJSON {
       mintTotalSupply: collateral.mintTotalSupply.toString(),
       supplyVault: collateral.supplyVault,
     },
+    withdrawQueue: {
+      queuedCollateralAmount: reserve.withdrawQueue.queuedCollateralAmount.toString(),
+    },
     config: {
       protocolTakeRatePct: config.protocolTakeRatePct,
       hostFixedInterestRateBps: config.hostFixedInterestRateBps,
@@ -119,6 +122,7 @@ export function dtoToKaminoReserve(dto: KaminoReserveJSON): KaminoReserve {
       mintTotalSupply: BigInt(collateral.mintTotalSupply),
       supplyVault: address(collateral.supplyVault),
     },
+    withdrawQueue: { queuedCollateralAmount: BigInt(dto.withdrawQueue.queuedCollateralAmount) },
     config: {
       protocolTakeRatePct: config.protocolTakeRatePct,
       hostFixedInterestRateBps: config.hostFixedInterestRateBps,

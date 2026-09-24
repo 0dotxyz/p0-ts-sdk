@@ -36,7 +36,7 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
     borrowLimit: toBigInt(bankConfigOpt.borrowLimit),
     riskTier: bankConfigOpt.riskTier && serializeRiskTier(bankConfigOpt.riskTier),
     totalAssetValueInitLimit: toBigInt(bankConfigOpt.totalAssetValueInitLimit),
-    assetTag: bankConfigOpt.assetTag !== null ? Number(bankConfigOpt.assetTag) : 0,
+    assetTag: bankConfigOpt.assetTag,
     interestRateConfig: bankConfigOpt.interestRateConfig && {
       insuranceFeeFixedApr: bigNumberToWrappedI80F48(
         bankConfigOpt.interestRateConfig.insuranceFeeFixedApr

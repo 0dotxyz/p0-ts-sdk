@@ -35,6 +35,7 @@ const reserve: KaminoReserve = {
     mintTotalSupply: 55555555n,
     supplyVault: pk(6),
   },
+  withdrawQueue: { queuedCollateralAmount: 1234n },
   config: {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,

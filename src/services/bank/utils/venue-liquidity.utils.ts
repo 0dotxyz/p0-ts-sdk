@@ -5,7 +5,7 @@ import { AssetTag, BankType } from "../types";
 
 import { DriftSpotMarket, getDriftTokenAmount, SpotBalanceType } from "~/vendor/drift";
 import { JUP_EXCHANGE_PRICES_PRECISION, JupTokenReserve } from "~/vendor/jup-lend";
-import { KaminoReserve } from "~/vendor/klend";
+import { getKaminoTotalSupply, KaminoReserve } from "~/vendor/klend";
 
 /**
  * The venue-side account states needed to derive an integrated bank's true liquidity.
@@ -47,11 +47,24 @@ export function computeVenueAvailableLiquidity(
     case AssetTag.KAMINO: {
       const reserveState = venueStates?.kaminoStates?.reserveState;
       if (!reserveState) return undefined;
-      // `reserve.liquidity.totalAvailableAmount` is the actual liquid vault balance and therefore
-      // the real cap on withdrawals.
-      return new BigNumber(
-        nativeToUi(reserveState.liquidity.totalAvailableAmount, decimals)
-      ).times(VENUE_AVAILABLE_LIQUIDITY_BUFFER);
+      // marginfi withdraws through klend's regular redeem, which can only draw on
+      // `freely_available_liquidity_amount`: the vault balance minus the liquidity reserved for
+      // the withdraw queue (queued cTokens at the current exchange rate, floored).
+      const queuedCollateral = new BigNumber(
+        reserveState.withdrawQueue.queuedCollateralAmount.toString()
+      );
+      const queuedLiquidity = queuedCollateral.isZero()
+        ? queuedCollateral
+        : queuedCollateral
+            .times(getKaminoTotalSupply(reserveState).toFixed())
+            .idiv(reserveState.collateral.mintTotalSupply.toString());
+      const freelyAvailable = BigNumber.max(
+        0,
+        new BigNumber(reserveState.liquidity.totalAvailableAmount.toString()).minus(queuedLiquidity)
+      );
+      return new BigNumber(nativeToUi(freelyAvailable, decimals)).times(
+        VENUE_AVAILABLE_LIQUIDITY_BUFFER
+      );
     }
     case AssetTag.DRIFT: {
       const spotMarketState = venueStates?.driftStates?.spotMarketState;
