@@ -281,7 +281,7 @@ export const fetchOrdersForAccount = async (
  */
 export const resolveOrderBanks = (
   marginfiAccount: MarginfiAccountType,
-  order: OrderType
+  order: Pick<OrderType, "address" | "tags">
 ): { collateralBank: PublicKey; debtBank: PublicKey } => {
   const taggedBalances = marginfiAccount.balances.filter(
     (balance) => balance.tag !== 0 && order.tags.includes(balance.tag)
