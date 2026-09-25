@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import type { Address, Instruction } from "@solana/kit";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
 import { computeHealthAccountMetas, computeHealthCheckAccounts, computeQuantityUi } from "../utils";
@@ -12,18 +12,16 @@ import {
   makeDriftWithdrawIx,
 } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { AssetTag, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
   makeUnwrapSolIx,
   selectLutsForBanks,
+  SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { NATIVE_MINT } from "~/vendor/spl";
 
 /** Safety margin (bytes) below the hard cap, reserving room for the send
  *  pipeline's compute-budget / priority-fee instructions. */
@@ -50,18 +48,16 @@ export async function makeBulkWithdrawTx(
   params: MakeBulkWithdrawTxParams
 ): Promise<BulkLendTxsResult> {
   const {
-    program,
-    connection,
+    programAddress,
+    authority,
+    rpc,
     marginfiAccount,
     bankAddresses,
     bankMap,
     bankMetadataMap,
     tokenProgramsByBank,
-    overrideInferAccounts,
     luts,
   } = params;
-
-  const authority = marginfiAccount.authority;
 
   if (bankAddresses.length === 0) throw new Error("no banks to withdraw");
 
@@ -70,7 +66,7 @@ export async function makeBulkWithdrawTx(
   // Every bank the withdraw txs touch: the withdrawn banks + the account's active positions
   const involvedBanks = [
     ...bankAddresses.map((pk) => requireBank(bankMap, pk)),
-    ...activeBalances.flatMap((b) => bankMap.get(b.bankPk.toBase58()) ?? []),
+    ...activeBalances.flatMap((b) => bankMap.get(b.bankPk) ?? []),
   ];
   const selectedLuts = selectLutsForBanks(luts, involvedBanks);
 
@@ -78,16 +74,16 @@ export async function makeBulkWithdrawTx(
   // excludes every bank withdrawn before it (plus itself — full withdrawals
   // close the balance), mirroring what the account looks like on-chain when
   // that instruction executes. Tx boundaries don't change the packs.
-  const withdrawIxs: TransactionInstruction[] = [];
-  const setupTokens: { mint: PublicKey; tokenProgram: PublicKey }[] = [];
-  const withdrawnSoFar: PublicKey[] = [];
+  const withdrawIxs: Instruction[] = [];
+  const setupTokens: { mint: Address; tokenProgram: Address }[] = [];
+  const withdrawnSoFar: Address[] = [];
 
   for (const bankAddress of bankAddresses) {
     const bank = requireBank(bankMap, bankAddress);
     const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress);
-    const balance = activeBalances.find((b) => b.bankPk.equals(bankAddress));
+    const balance = activeBalances.find((b) => b.bankPk === bankAddress);
     if (!balance || !balance.assetShares.gt(0)) {
-      throw new Error(`no active deposit for bank ${bankAddress.toBase58()}`);
+      throw new Error(`no active deposit for bank ${bankAddress}`);
     }
 
     const packBanks = computeHealthCheckAccounts({
@@ -101,150 +97,117 @@ export async function makeBulkWithdrawTx(
     });
 
     const shared = {
-      program,
+      programAddress,
       bank,
       bankMap,
       tokenProgram,
       marginfiAccount,
       authority,
-      bankMetadataMap,
       // every venue's withdraw ix ignores the amount when the withdraw-all flag is
       // set and derives the full position on-chain, so all legs pass amount 0
+      amount: 0,
       withdrawAll: true,
       opts: {
         createAtas: false, // ATAs are created in the prelude txs
         wrapAndUnwrapSol: false, // one unwrap ix is appended after the last withdraw
-        overrideInferAccounts,
         observationBanksOverride,
       },
     };
 
-    let instructions: TransactionInstruction[];
     switch (bank.config.assetTag) {
       case AssetTag.KAMINO: {
-        const reserve = bankMetadataMap[bankAddress.toBase58()]?.kaminoStates?.reserveState;
+        const reserve = bankMetadataMap[bankAddress]?.kaminoStates?.reserveState;
         if (!reserve) {
-          throw new Error(`kamino reserve state missing for bank ${bankAddress.toBase58()}`);
+          throw new Error(`kamino reserve state missing for bank ${bankAddress}`);
         }
-        const withdraw = await makeKaminoWithdrawIx({
-          ...shared,
-          cTokenAmount: 0,
-          reserve,
-        });
-        instructions = withdraw.instructions;
+        withdrawIxs.push(...(await makeKaminoWithdrawIx({ ...shared, cTokenAmount: 0, reserve })));
         break;
       }
       case AssetTag.JUPLEND: {
-        const jupLendingState =
-          bankMetadataMap[bankAddress.toBase58()]?.jupLendStates?.jupLendingState;
+        const jupLendingState = bankMetadataMap[bankAddress]?.jupLendStates?.jupLendingState;
         if (!jupLendingState) {
-          throw new Error(`juplend lending state missing for bank ${bankAddress.toBase58()}`);
+          throw new Error(`juplend lending state missing for bank ${bankAddress}`);
         }
-        const withdraw = await makeJuplendWithdrawIx({
-          ...shared,
-          amount: 0,
-          jupLendingState,
-        });
-        instructions = withdraw.instructions;
+        withdrawIxs.push(...(await makeJuplendWithdrawIx({ ...shared, jupLendingState })));
         break;
       }
       case AssetTag.DRIFT: {
-        const driftState = bankMetadataMap[bankAddress.toBase58()]?.driftStates;
+        const driftState = bankMetadataMap[bankAddress]?.driftStates;
         if (!driftState) {
-          throw new Error(`drift state missing for bank ${bankAddress.toBase58()}`);
+          throw new Error(`drift state missing for bank ${bankAddress}`);
         }
-        const withdraw = await makeDriftWithdrawIx({
-          ...shared,
-          amount: 0,
-          driftSpotMarket: driftState.spotMarketState,
-          userRewards: driftState.userRewards,
-        });
-        instructions = withdraw.instructions;
+        withdrawIxs.push(
+          ...(await makeDriftWithdrawIx({
+            ...shared,
+            driftSpotMarket: driftState.spotMarketState,
+            userRewards: driftState.userRewards,
+          }))
+        );
         break;
       }
       default: {
-        const withdraw = await makeWithdrawIx({
-          ...shared,
-          amount: 0,
-        });
-        instructions = withdraw.instructions;
+        withdrawIxs.push(...(await makeWithdrawIx(shared)));
         break;
       }
     }
 
-    withdrawIxs.push(...instructions);
     setupTokens.push({ mint: bank.mint, tokenProgram });
     withdrawnSoFar.push(bankAddress);
   }
 
   // One unwrap after the last withdraw covers every SOL position (closes the wSOL ata)
-  if (setupTokens.some((t) => t.mint.equals(NATIVE_MINT))) {
-    withdrawIxs.push(makeUnwrapSolIx(authority));
+  if (setupTokens.some((t) => t.mint === WSOL_MINT)) {
+    withdrawIxs.push(await makeUnwrapSolIx(authority));
   }
 
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
-  const withdrawTxs: ExtendedV0Transaction[] = splitInstructionsToFitTransactions([], withdrawIxs, {
-    blockhash,
-    payerKey: authority,
+  const withdrawTxs: SolanaTransaction[] = splitInstructionsToFitTransactions([], withdrawIxs, {
+    latestBlockhash,
+    feePayer: authority,
     luts: selectedLuts,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
-  }).map((tx) =>
-    addTransactionMetadata(tx, {
-      addressLookupTables: selectedLuts,
-      type: TransactionType.WITHDRAW,
-    })
-  );
+  }).map((message) => ({ message, type: TransactionType.WITHDRAW }));
 
   // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
   // tx for the whole batch (see the atomic-bundle note in the doc comment).
-  const additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: SolanaTransaction[] = [];
 
   const setupIxs = await makeSetupIx({
-    connection,
+    rpc,
     authority,
     tokens: setupTokens,
   });
   if (setupIxs.length > 0) {
     const setupTxs = splitInstructionsToFitTransactions([], setupIxs, {
-      blockhash,
-      payerKey: authority,
+      latestBlockhash,
+      feePayer: authority,
       luts: selectedLuts,
     });
     additionalTxs.push(
-      ...setupTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: selectedLuts,
-        })
-      )
+      ...setupTxs.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
     );
   }
 
   // One shared refresh for the whole batch: kamino reserves + obligations for
   // the withdrawn kamino banks, rate cranks for the account's other jup/drift
   // banks (the withdrawn ones self-update via CPI in their withdraw ix).
-  const refreshIxs = makeRefreshIntegrationBanksIxs(
+  const refreshIxs = await makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     bankAddresses,
     bankMetadataMap
-  ).instructions;
+  );
   if (refreshIxs.length > 0) {
     const refreshTxs = splitInstructionsToFitTransactions([], refreshIxs, {
-      blockhash,
-      payerKey: authority,
+      latestBlockhash,
+      feePayer: authority,
       luts: selectedLuts,
     });
-    additionalTxs.push(
-      ...refreshTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CRANK,
-          addressLookupTables: selectedLuts,
-        })
-      )
-    );
+    additionalTxs.push(...refreshTxs.map((message) => ({ message, type: TransactionType.CRANK })));
   }
 
   return {
@@ -261,61 +224,58 @@ export async function makeBulkWithdrawTx(
  */
 export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<BulkLendTxsResult> {
   const {
-    program,
-    connection,
+    programAddress,
+    authority,
+    rpc,
     marginfiAccount,
     bankAddresses,
     bankMap,
     tokenProgramsByBank,
-    overrideInferAccounts,
+    luts = {},
   } = params;
-  const luts = params.addressLookupTableAccounts ?? [];
-  const authority = marginfiAccount.authority;
 
   if (bankAddresses.length === 0) throw new Error("no banks to repay");
 
   const activeBalances = marginfiAccount.balances.filter((b) => b.active);
 
-  const repayIxs: TransactionInstruction[] = [];
+  const repayIxs: Instruction[] = [];
   for (const bankAddress of bankAddresses) {
     const bank = requireBank(bankMap, bankAddress);
     const tokenProgram = requireTokenProgram(tokenProgramsByBank, bankAddress);
-    const balance = activeBalances.find((b) => b.bankPk.equals(bankAddress));
+    const balance = activeBalances.find((b) => b.bankPk === bankAddress);
     if (!balance || !balance.liabilityShares.gt(0)) {
-      throw new Error(`no active debt for bank ${bankAddress.toBase58()}`);
+      throw new Error(`no active debt for bank ${bankAddress}`);
     }
     const uiAmount = computeQuantityUi(balance, bank).liabilities;
 
-    const repay = await makeRepayIx({
-      program,
-      bank,
-      tokenProgram,
-      amount: uiAmount,
-      accountAddress: marginfiAccount.address,
-      authority,
-      repayAll: true,
-      opts: {
-        wrapAndUnwrapSol: true,
-        overrideInferAccounts,
-      },
-    });
-    repayIxs.push(...repay.instructions);
+    repayIxs.push(
+      ...(await makeRepayIx({
+        programAddress,
+        bank,
+        tokenProgram,
+        amount: uiAmount,
+        accountAddress: marginfiAccount.address,
+        authority,
+        group: marginfiAccount.group,
+        repayAll: true,
+        opts: {
+          wrapAndUnwrapSol: true,
+        },
+      }))
+    );
   }
 
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
   const transactions = splitInstructionsToFitTransactions([], repayIxs, {
-    blockhash,
-    payerKey: authority,
+    latestBlockhash,
+    feePayer: authority,
     luts,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
-  }).map((tx) =>
-    addTransactionMetadata(tx, {
-      addressLookupTables: luts,
-      type: TransactionType.REPAY,
-    })
-  );
+  }).map((message) => ({ message, type: TransactionType.REPAY }));
 
   return { transactions, actionTxIndex: 0, mustBeAtomicBundle: false };
 }

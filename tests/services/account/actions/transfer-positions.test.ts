@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { BigNumber } from "bignumber.js";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import { createNoopSigner, getAddressDecoder } from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
-import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 import {
   buildCollateralLegIxs,
   classifyAndValidate,
@@ -14,11 +13,11 @@ import { MakeTransferPositionsTxParams } from "~/services/account/types";
 import { MarginfiAccountType } from "~/services/account/types/account.types";
 import { AssetTag, BankType } from "~/services/bank";
 import { KaminoReserve } from "~/vendor/klend";
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { BankIntegrationMetadataMap } from "~/types";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 
 const pk = (seed: number) =>
-  new PublicKey(Buffer.from(Array.from({ length: 32 }, (_, i) => (seed + i) % 256)));
+  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
 
 // --------------------------------------------------------------------------------------
 // Hard cap on positions per transfer
@@ -28,8 +27,9 @@ describe("classifyAndValidate (position cap)", () => {
   // The cap check fires before any balance/oracle lookup, so minimal params suffice.
   const capParams = (bankCount: number, maxPositions?: number): MakeTransferPositionsTxParams =>
     ({
-      program: {} as unknown as MarginfiProgram,
-      connection: {} as never,
+      programAddress: pk(99),
+      authority: createNoopSigner(pk(31)),
+      rpc: {} as never,
       marginfiAccount: {
         address: pk(30),
         authority: pk(31),
@@ -38,7 +38,6 @@ describe("classifyAndValidate (position cap)", () => {
       } as unknown as MarginfiAccountType,
       bankAddresses: Array.from({ length: bankCount }, (_, i) => pk(100 + i)),
       bankMap: new Map(),
-      oraclePrices: new Map(),
       bankMetadataMap: {} as BankIntegrationMetadataMap,
       assetShareValueMultiplierByBank: new Map(),
       tokenProgramsByBank: new Map(),
@@ -74,8 +73,7 @@ describe("classifyAndValidate (position cap)", () => {
 });
 
 // --------------------------------------------------------------------------------------
-// Integration collateral-leg dispatch (Kamino sync path; JupLend withdraw is async-only so its
-// success path needs an IDL-backed program and is covered by an on-chain smoke test instead).
+// Integration collateral-leg dispatch
 // --------------------------------------------------------------------------------------
 
 const KAMINO_BANK_PK = pk(20);
@@ -89,19 +87,20 @@ const reserve: KaminoReserve = {
   liquidity: {
     mintPubkey: pk(3),
     supplyVault: pk(4),
-    mintDecimals: new BN(6),
-    availableAmount: new BN("123456789"),
-    borrowedAmountSf: new BN("987654321000000000"),
-    accumulatedProtocolFeesSf: new BN("111"),
-    accumulatedReferrerFeesSf: new BN("222"),
-    pendingReferrerFeesSf: new BN("333"),
+    mintDecimals: 6n,
+    totalAvailableAmount: 123456789n,
+    borrowedAmountSf: 987654321000000000n,
+    accumulatedProtocolFeesSf: 111n,
+    accumulatedReferrerFeesSf: 222n,
+    pendingReferrerFeesSf: 333n,
   },
-  collateral: { mintPubkey: pk(5), mintTotalSupply: new BN("55555555"), supplyVault: pk(6) },
+  collateral: { mintPubkey: pk(5), mintTotalSupply: 55555555n, supplyVault: pk(6) },
+  withdrawQueue: { queuedCollateralAmount: 0n },
   config: {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,
-    depositLimit: new BN("10000000000000000"),
-    borrowLimit: new BN("9000000000000000"),
+    depositLimit: 10000000000000000n,
+    borrowLimit: 9000000000000000n,
     borrowRateCurve: { points: [{ utilizationRateBps: 0, borrowRateBps: 100 }] },
     tokenInfo: {
       scopeConfiguration: { priceFeed: pk(7) },
@@ -114,6 +113,7 @@ const reserve: KaminoReserve = {
 const kaminoBank = {
   address: KAMINO_BANK_PK,
   mint: pk(21),
+  liquidityVault: pk(24),
   mintDecimals: 6,
   tokenSymbol: "kTKN",
   config: { assetTag: AssetTag.KAMINO },
@@ -122,7 +122,8 @@ const kaminoBank = {
 
 function baseCtx(overrides: Partial<BuildContext> = {}): BuildContext {
   return {
-    program: { programId: PROGRAM_PK } as unknown as MarginfiProgram,
+    programAddress: PROGRAM_PK,
+    authority: createNoopSigner(pk(31)),
     accountA: {
       address: pk(30),
       authority: pk(31),
@@ -132,9 +133,9 @@ function baseCtx(overrides: Partial<BuildContext> = {}): BuildContext {
     accountB: { address: ACCOUNT_B_PK, group: pk(32) } as unknown as MarginfiAccountType,
     bankMap: new Map(),
     bankMetadataMap: {
-      [KAMINO_BANK_PK.toBase58()]: { kaminoStates: { reserveState: reserve } },
+      [KAMINO_BANK_PK]: { kaminoStates: { reserveState: reserve } },
     } as unknown as BankIntegrationMetadataMap,
-    assetShareValueMultiplierByBank: new Map([[KAMINO_BANK_PK.toBase58(), new BigNumber(2)]]),
+    assetShareValueMultiplierByBank: new Map([[KAMINO_BANK_PK, new BigNumber(2)]]),
     borrowPaddingBps: 10,
     groupRateLimiterEnabled: false,
     destPreexistingBanks: [],
@@ -147,44 +148,39 @@ const kaminoPosition: ClassifiedPosition = {
   side: "collateral",
   uiAmount: new BigNumber(100),
   bank: kaminoBank,
-  tokenProgram: TOKEN_PROGRAM_ID,
+  tokenProgram: TOKEN_PROGRAM_ADDRESS,
 };
 
 describe("buildCollateralLegIxs (integration dispatch)", () => {
   it("routes a KAMINO position to the Kamino builders and locks its reserve/obligation accounts", async () => {
-    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(
-      baseCtx(),
-      kaminoPosition,
-      true,
-      []
-    );
+    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(baseCtx(), kaminoPosition, []);
 
     expect(withdrawIxs.length).toBeGreaterThan(0);
     expect(depositIxs.length).toBeGreaterThan(0);
 
     // Every emitted instruction targets the marginfi program (the Kamino CPI accounts ride as keys).
     for (const ix of [...withdrawIxs, ...depositIxs]) {
-      expect(ix.programId.toBase58()).toBe(PROGRAM_PK.toBase58());
+      expect(ix.programAddress).toBe(PROGRAM_PK);
     }
 
     // The Kamino reserve/obligation plumbing pulled from bankMetadataMap must appear in the keys —
     // proof the dispatch chose the Kamino builder rather than the plain lending ix.
     const keys = [...withdrawIxs, ...depositIxs].flatMap((ix) =>
-      ix.keys.map((k) => k.pubkey.toBase58())
+      (ix.accounts ?? []).map((meta) => meta.address)
     );
-    expect(keys).toContain(reserve.lendingMarket.toBase58());
-    expect(keys).toContain(reserve.liquidity.supplyVault.toBase58());
-    expect(keys).toContain(reserve.collateral.supplyVault.toBase58());
-    expect(keys).toContain(kaminoBank.kaminoIntegrationAccounts!.kaminoObligation.toBase58());
+    expect(keys).toContain(reserve.lendingMarket);
+    expect(keys).toContain(reserve.liquidity.supplyVault);
+    expect(keys).toContain(reserve.collateral.supplyVault);
+    expect(keys).toContain(pk(23)); // kaminoObligation
 
     // The deposit leg targets the destination account B.
-    const depositKeys = depositIxs.flatMap((ix) => ix.keys.map((k) => k.pubkey.toBase58()));
-    expect(depositKeys).toContain(ACCOUNT_B_PK.toBase58());
+    const depositKeys = depositIxs.flatMap((ix) => (ix.accounts ?? []).map((meta) => meta.address));
+    expect(depositKeys).toContain(ACCOUNT_B_PK);
   });
 
   it("throws a clear error when Kamino reserve state is missing from the metadata map", async () => {
     const ctx = baseCtx({ bankMetadataMap: {} as unknown as BankIntegrationMetadataMap });
-    await expect(buildCollateralLegIxs(ctx, kaminoPosition, true, [])).rejects.toThrow(
+    await expect(buildCollateralLegIxs(ctx, kaminoPosition, [])).rejects.toThrow(
       /kamino reserve state missing/
     );
   });
@@ -201,8 +197,7 @@ describe("buildCollateralLegIxs (integration dispatch)", () => {
     } as unknown as BankType;
     const jupPosition: ClassifiedPosition = { ...kaminoPosition, bank: jupBank };
 
-    // The guard fires before the async builder, so this needs no IDL-backed program.
-    await expect(buildCollateralLegIxs(baseCtx(), jupPosition, true, [])).rejects.toThrow(
+    await expect(buildCollateralLegIxs(baseCtx(), jupPosition, [])).rejects.toThrow(
       /juplend lending state missing/
     );
   });

@@ -1,14 +1,23 @@
-import { Buffer } from "buffer";
-
 import {
-  AddressLookupTableAccount,
-  ComputeBudgetProgram,
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
-import BN from "bn.js";
+  compileTransaction,
+  createNoopSigner,
+  fetchAddressesForLookupTables,
+  getBase64EncodedWireTransaction,
+  getBase64Encoder,
+  type Address,
+  type BlockhashLifetimeConstraint,
+  type ReadonlyUint8Array,
+  type TransactionSigner,
+} from "@solana/kit";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+import {
+  fetchToken,
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+} from "@solana-program/token";
 
 import {
   MakeRollPtTxParams,
@@ -32,30 +41,22 @@ import { makeWithdrawIx } from "./withdraw";
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
   getTxSize,
   getTotalAccountKeys,
-  InstructionsWrapper,
+  makeTransactionMessage,
+  SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
 import {
-  EXPONENT_CLMM_PROGRAM_ID,
-  ExponentClmmTradePtContext,
-  ExponentMergeContext,
-  exponentClmmBuyPtArgs,
+  EXPONENT_CLMM_PROGRAM_ADDRESS,
   makeExponentClmmTradePtIx,
   makeExponentMergeIx,
   resolveExponentClmmTradePtContext,
   resolveExponentMergeContext,
+  SwapDirection,
 } from "~/vendor/exponent";
-import {
-  TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-} from "~/vendor/spl";
 
 /** Default slippage tolerance (bps) for the SY → PT CLMM swap when the caller omits one. */
 const DEFAULT_ROLL_SLIPPAGE_BPS = 50;
@@ -82,54 +83,49 @@ const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
  * bounded by the pool's depth.
  */
 export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
-  transactions: ExtendedV0Transaction[];
+  transactions: SolanaTransaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
 }> {
-  const {
-    marginfiAccount,
-    connection,
-    withdrawOpts,
-    depositOpts,
-    rollOpts,
-    addressLookupTableAccounts,
-  } = params;
-
-  if (!rollOpts.maturedMarket && !rollOpts.maturedVault) {
-    throw new Error("roll-pt: rollOpts.maturedMarket or maturedVault is required");
-  }
+  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, luts } = params;
 
   // Resolve the matured vault's `merge` (redeem PT → SY) accounts and the successor CLMM pool's
   // `trade_pt` (buy SY → PT) accounts up front. The merge's SY is exactly the CLMM pool's quote
   // token (the same SY mint is shared across maturities), so the redeemed SY feeds the buy directly.
+  const { maturedVault, maturedMarket } = rollOpts;
+  let mergeTarget: { vault: Address } | { market: Address };
+  if (maturedVault) mergeTarget = { vault: maturedVault };
+  else if (maturedMarket) mergeTarget = { market: maturedMarket };
+  else throw new Error("roll-pt: rollOpts.maturedMarket or maturedVault is required");
   const merge = await resolveExponentMergeContext({
-    connection,
+    rpc,
     owner: marginfiAccount.authority,
-    market: rollOpts.maturedMarket,
-    vault: rollOpts.maturedVault,
+    ...mergeTarget,
     ptYtTokenProgram: withdrawOpts.tokenProgram,
     syTokenProgram: rollOpts.syTokenProgram,
   });
   const clmm = await resolveExponentClmmTradePtContext({
-    connection,
+    rpc,
     owner: marginfiAccount.authority,
     market: rollOpts.successorMarket,
     ptTokenProgram: depositOpts.tokenProgram,
     syTokenProgram: rollOpts.syTokenProgram,
   });
 
-  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
   // ATAs the bundle touches: old PT (withdraw dest + merge pt_src), the matured vault's YT (a
   // fixed `merge` account — validated as an initialized token account even post-maturity, when no
   // YT is actually moved), the shared SY (merge dst + trade src), and the new PT (trade dest +
   // deposit source). No base, and no YT *byproduct* — the YT ATA just has to exist.
   const setupIxs = await makeSetupIx({
-    connection,
-    authority: marginfiAccount.authority,
+    rpc,
+    authority,
     tokens: [
       { mint: withdrawOpts.withdrawBank.mint, tokenProgram: withdrawOpts.tokenProgram },
-      { mint: merge.mergeAccounts.mintYt, tokenProgram: withdrawOpts.tokenProgram },
+      { mint: merge.vault.mintYt, tokenProgram: withdrawOpts.tokenProgram },
       { mint: merge.underlying.mint, tokenProgram: merge.underlying.tokenProgram },
       { mint: depositOpts.depositBank.mint, tokenProgram: depositOpts.tokenProgram },
     ],
@@ -139,25 +135,19 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     params,
     merge,
     clmm,
-    setupIxs,
-    blockhash,
+    latestBlockhash,
   });
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: SolanaTransaction[] = [];
 
   if (setupIxs.length > 0) {
-    const txs = splitInstructionsToFitTransactions([], setupIxs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
+    const messages = splitInstructionsToFitTransactions([], setupIxs, {
+      latestBlockhash,
+      feePayer: authority,
+      luts: luts ?? {},
     });
     additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
+      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
     );
   }
 
@@ -170,28 +160,29 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   };
 }
 
+type ExponentMergeContext = Awaited<ReturnType<typeof resolveExponentMergeContext>>;
+type ExponentClmmTradePtContext = Awaited<ReturnType<typeof resolveExponentClmmTradePtContext>>;
+
 async function buildRollPtFlashloanTx({
   params,
   merge,
   clmm,
-  blockhash,
+  latestBlockhash,
 }: {
   params: MakeRollPtTxParams;
   merge: ExponentMergeContext;
   clmm: ExponentClmmTradePtContext;
-  setupIxs: TransactionInstruction[];
-  blockhash: string;
+  latestBlockhash: BlockhashLifetimeConstraint;
 }) {
   const {
-    program,
+    programAddress,
     marginfiAccount,
+    authority,
+    rpc,
     bankMap,
     withdrawOpts,
     depositOpts,
-    bankMetadataMap,
-    connection,
-    addressLookupTableAccounts,
-    overrideInferAccounts,
+    luts: accountLuts,
     rollOpts,
   } = params;
   const {
@@ -201,8 +192,7 @@ async function buildRollPtFlashloanTx({
     withdrawAmount,
   } = withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
-  const authority = marginfiAccount.authority;
-  const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(connection);
+  const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(rpc);
 
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
     throw new Error("withdrawAmount must be greater than 0");
@@ -213,18 +203,16 @@ async function buildRollPtFlashloanTx({
     actualWithdrawAmount,
     withdrawBank.mintDecimals
   );
-  const withdrawNative = BigInt(
-    uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toString()
-  );
+  const withdrawNative = uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals);
 
   const cuRequestIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
+    getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
   // 1. Withdraw the matured PT (standard SPL collateral bank).
-  const withdrawIxs: InstructionsWrapper = await makeWithdrawIx({
-    program,
+  const withdrawIxs = await makeWithdrawIx({
+    programAddress,
     bank: withdrawBank,
     bankMap,
     tokenProgram: withdrawTokenProgram,
@@ -232,46 +220,41 @@ async function buildRollPtFlashloanTx({
     marginfiAccount,
     authority,
     withdrawAll: isFullWithdraw,
-    bankMetadataMap,
-    isSync: false,
-    opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts },
+    opts: { createAtas: false, wrapAndUnwrapSol: false },
   });
 
   // 2. `merge`: PT_old → SY, post-maturity (1:1, no AMM). The redeemed SY is exactly the CLMM
   //    pool's quote token, so it feeds the buy directly.
-  const mergeIx = makeExponentMergeIx(merge.mergeAccounts, withdrawNative);
+  const mergeIx = await makeExponentMergeIx(
+    { ...merge.mergeInput, owner: authority, amount: withdrawNative },
+    merge.remainingAccounts
+  );
 
   // 3. Deposit the new PT — seeded with a placeholder, byte-patched to the swap's min output.
-  const depositIxs: InstructionsWrapper = await makeDepositIx({
-    program,
+  const depositIxs = await makeDepositIx({
+    programAddress,
     bank: depositBank,
     tokenProgram: depositTokenProgram,
     amount: 0,
     accountAddress: marginfiAccount.address,
     authority,
     group: marginfiAccount.group,
-    opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
+    opts: { wrapAndUnwrapSol: false },
   });
 
   // LUTs for the bundle: the matured vault ALT (merge remaining accounts) + the CLMM pool ALT
   // (trade_pt remaining accounts). A dedicated PT-roll LUT (`rollOpts.lookupTable`) can replace
   // them to compress bytes; account *locks* are bounded by the fixed, compact CLMM footprint.
-  let luts: AddressLookupTableAccount[];
-  if (rollOpts.lookupTable) {
-    const fetched = (await connection.getAddressLookupTable(rollOpts.lookupTable)).value;
-    if (!fetched) {
-      throw new Error(
-        `roll-pt: PT-roll lookup table not found: ${rollOpts.lookupTable.toBase58()}`
-      );
-    }
-    luts = [fetched, merge.addressLookupTable, clmm.addressLookupTable];
-  } else {
-    luts = [
-      ...(addressLookupTableAccounts ?? []),
-      merge.addressLookupTable,
-      clmm.addressLookupTable,
-    ];
-  }
+  const exponentLuts = {
+    [merge.lookupTable.address]: merge.lookupTable.addresses,
+    [clmm.lookupTable.address]: clmm.lookupTable.addresses,
+  };
+  const luts = rollOpts.lookupTable
+    ? {
+        ...(await fetchAddressesForLookupTables([rollOpts.lookupTable], rpc)),
+        ...exponentLuts,
+      }
+    : { ...accountLuts, ...exponentLuts };
 
   // 4. Size the redeem deterministically: merge pays floor(pt × sy_for_pt / pt_supply) —
   //    Exponent's `Vault::pt_redemption_rate` — computed from the vault state fetched at
@@ -285,11 +268,12 @@ async function buildRollPtFlashloanTx({
   }
 
   const exactPtOut = await quoteClmmTradeOut({
-    connection,
+    rpc,
     simulateTx,
     clmm,
     amountInSyNative: syExact,
     payer: authority,
+    latestBlockhash,
   });
 
   const slippageBps = rollOpts.slippageBps ?? DEFAULT_ROLL_SLIPPAGE_BPS;
@@ -301,30 +285,31 @@ async function buildRollPtFlashloanTx({
   }
 
   // 5. Buy the new PT with the redeemed SY (exact-in on the merge's SY, min-out guard on PT).
-  const tradeIx = makeExponentClmmTradePtIx(
-    clmm.tradePtAccounts,
-    exponentClmmBuyPtArgs({ amountInSyNative: syExact, minPtOutNative: minPtOut })
+  const tradeIx = await makeExponentClmmTradePtIx(
+    {
+      ...clmm.tradePtInput,
+      trader: authority,
+      amountIn: syExact,
+      swapDirection: SwapDirection.SyToPt,
+      amountOutConstraint: minPtOut,
+      priceSpotLimit: null,
+    },
+    clmm.remainingAccounts
   );
 
   // Patch the seeded deposit to the guaranteed (minimum) PT output.
-  const depositIxToPatch = depositIxs.instructions.find(isDepositIx);
-  if (!depositIxToPatch) {
+  const depositIxIndex = depositIxs.findIndex(isDepositIx);
+  if (depositIxIndex < 0) {
     throw new Error("roll-pt: could not locate deposit instruction for amount patching");
   }
-  patchDepositAmount(depositIxToPatch, new BN(minPtOut.toString()));
+  depositIxs[depositIxIndex] = patchDepositAmount(depositIxs[depositIxIndex], minPtOut);
 
-  const allNonFlIxs = [
-    ...cuRequestIxs,
-    ...withdrawIxs.instructions,
-    mergeIx,
-    tradeIx,
-    ...depositIxs.instructions,
-  ];
+  const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, mergeIx, tradeIx, ...depositIxs];
 
   // Size the precheck against the full footprint (the CLMM swap is part of the flashloan, not an
   // engine route, so there are no separate swap ix/LUT counts to reserve).
-  const { sizeConstraint } = computeFlashLoanNonSwapBudget({
-    program,
+  const { sizeConstraint } = await computeFlashLoanNonSwapBudget({
+    programAddress,
     marginfiAccount,
     bankMap,
     addressLookupTableAccounts: luts,
@@ -333,7 +318,7 @@ async function buildRollPtFlashloanTx({
 
   compileFlashloanPrecheck({
     allIxs: allNonFlIxs,
-    payer: authority,
+    payer: authority.address,
     luts,
     sizeConstraint,
     swapIxCount: 0,
@@ -341,17 +326,17 @@ async function buildRollPtFlashloanTx({
   });
 
   const flashloanTx = await makeFlashLoanTx({
-    program,
+    programAddress,
     marginfiAccount,
+    authority,
     bankMap,
-    addressLookupTableAccounts: luts,
-    blockhash,
+    luts,
+    latestBlockhash,
     ixs: allNonFlIxs,
-    isSync: false,
   });
 
-  const txSize = getTxSize(flashloanTx);
-  const totalKeys = getTotalAccountKeys(flashloanTx);
+  const txSize = getTxSize(flashloanTx.message);
+  const totalKeys = getTotalAccountKeys(flashloanTx.message);
   if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(txSize, totalKeys, undefined);
   }
@@ -366,20 +351,17 @@ async function buildRollPtFlashloanTx({
   return { flashloanTx, swapQuote, withdrawIxs, depositIxs };
 }
 
-/** The default {@link RollQuoteSimulator}: a plain `connection.simulateTransaction`. */
-function defaultRollQuoteSimulator(
-  connection: MakeRollPtTxParams["connection"]
-): RollQuoteSimulator {
+/** The default {@link RollQuoteSimulator}: a plain `rpc.simulateTransaction`. */
+function defaultRollQuoteSimulator(rpc: MakeRollPtTxParams["rpc"]): RollQuoteSimulator {
   return async (tx) => {
-    const sim = await connection.simulateTransaction(tx, {
-      sigVerify: false,
-      replaceRecentBlockhash: true,
-    });
-    return {
-      err: sim.value.err,
-      logs: sim.value.logs,
-      returnData: (sim.value as { returnData?: RollQuoteSimResult["returnData"] }).returnData,
-    };
+    const { value } = await rpc
+      .simulateTransaction(getBase64EncodedWireTransaction(tx), {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+      })
+      .send();
+    return { err: value.err, logs: value.logs, returnData: value.returnData };
   };
 }
 
@@ -403,16 +385,17 @@ function tokenBalanceDelta(sim: RollQuoteSimResult, mint: string, owner: string)
  * identifies the layout, the other field is `amount_out`. Returns `null` when the blob
  * matches neither shape.
  */
-function readTradePtOut(data: Buffer, amountIn: bigint): bigint | null {
+function readTradePtOut(data: ReadonlyUint8Array, amountIn: bigint): bigint | null {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   if (data.length === 16) {
-    const a = data.readBigUInt64LE(0);
-    const b = data.readBigUInt64LE(8);
+    const a = view.getBigUint64(0, true);
+    const b = view.getBigUint64(8, true);
     if (a === amountIn) return b;
     if (b === amountIn) return a;
     return null;
   }
   if (data.length >= TRADE_PT_EVENT_AMOUNT_OUT_OFFSET + 8) {
-    return data.readBigUInt64LE(TRADE_PT_EVENT_AMOUNT_OUT_OFFSET);
+    return view.getBigUint64(TRADE_PT_EVENT_AMOUNT_OUT_OFFSET, true);
   }
   return null;
 }
@@ -430,26 +413,25 @@ function readTradePtOut(data: Buffer, amountIn: bigint): bigint | null {
  * is the fee payer (`sigVerify` is off, so neither it nor the holder needs to actually sign).
  */
 async function quoteClmmTradeOut({
-  connection,
+  rpc,
   simulateTx,
   clmm,
   amountInSyNative,
   payer,
+  latestBlockhash,
 }: {
-  connection: MakeRollPtTxParams["connection"];
+  rpc: MakeRollPtTxParams["rpc"];
   simulateTx: RollQuoteSimulator;
   clmm: ExponentClmmTradePtContext;
   amountInSyNative: bigint;
-  payer: PublicKey;
+  payer: TransactionSigner;
+  latestBlockhash: BlockhashLifetimeConstraint;
 }): Promise<bigint> {
   // Exclude the pool's own SY token accounts so we don't quote against its escrow/treasury.
-  const excluded = new Set([
-    clmm.tradePtAccounts.tokenSyEscrow.toBase58(),
-    clmm.tradePtAccounts.tokenFeeTreasurySy.toBase58(),
-  ]);
-  const largest = await connection.getTokenLargestAccounts(clmm.sy.mint);
+  const excluded = new Set([clmm.tradePtInput.tokenSyEscrow, clmm.tradePtInput.tokenFeeTreasurySy]);
+  const largest = await rpc.getTokenLargestAccounts(clmm.sy.mint).send();
   const funded = largest.value.find(
-    (a) => !excluded.has(a.address.toBase58()) && BigInt(a.amount) >= amountInSyNative
+    (a) => !excluded.has(a.address) && BigInt(a.amount) >= amountInSyNative
   );
   if (!funded) {
     throw new Error(
@@ -457,34 +439,43 @@ async function quoteClmmTradeOut({
         "CLMM liquidity for this pair"
     );
   }
-  const parsed = await connection.getParsedAccountInfo(funded.address);
-  const info = (parsed.value?.data as { parsed?: { info?: { owner?: string } } } | undefined)
-    ?.parsed?.info;
-  if (!info?.owner) throw new Error("roll-pt: could not resolve the quote SY holder's owner");
-  const trader = new PublicKey(info.owner);
-  const ptTokenProgram = clmm.pt.tokenProgram ?? TOKEN_PROGRAM_ID;
-  const tokenPtTrader = getAssociatedTokenAddressSync(clmm.pt.mint, trader, true, ptTokenProgram);
+  const { data: holder } = await fetchToken(rpc, funded.address);
+  const trader = holder.owner;
+  const [tokenPtTrader] = await findAssociatedTokenPda({
+    mint: clmm.pt.mint,
+    owner: trader,
+    tokenProgram: clmm.pt.tokenProgram,
+  });
 
   // Re-point the trade at the funded holder (the pool/ticks/escrow/CPI accounts are unchanged).
-  const quoteIx = makeExponentClmmTradePtIx(
-    { ...clmm.tradePtAccounts, trader, tokenSyTrader: funded.address, tokenPtTrader },
-    exponentClmmBuyPtArgs({ amountInSyNative, minPtOutNative: 1n })
+  const quoteIx = await makeExponentClmmTradePtIx(
+    {
+      ...clmm.tradePtInput,
+      trader: createNoopSigner(trader),
+      tokenSyTrader: funded.address,
+      tokenPtTrader,
+      amountIn: amountInSyNative,
+      swapDirection: SwapDirection.SyToPt,
+      amountOutConstraint: 1n,
+      priceSpotLimit: null,
+    },
+    clmm.remainingAccounts
   );
-  const createPtAta = createAssociatedTokenAccountIdempotentInstruction(
+  const createPtAta = getCreateAssociatedTokenIdempotentInstruction({
     payer,
-    tokenPtTrader,
-    trader,
-    clmm.pt.mint,
-    ptTokenProgram
-  );
+    ata: tokenPtTrader,
+    owner: trader,
+    mint: clmm.pt.mint,
+    tokenProgram: clmm.pt.tokenProgram,
+  });
 
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
-  const message = new TransactionMessage({
-    payerKey: payer,
-    recentBlockhash: blockhash,
+  const message = makeTransactionMessage({
     instructions: [createPtAta, quoteIx],
-  }).compileToV0Message([clmm.addressLookupTable]);
-  const sim = await simulateTx(new VersionedTransaction(message));
+    feePayer: payer,
+    latestBlockhash,
+    luts: { [clmm.lookupTable.address]: clmm.lookupTable.addresses },
+  });
+  const sim = await simulateTx(compileTransaction(message));
 
   if (process.env.ROLL_DEBUG) {
     // eslint-disable-next-line no-console
@@ -498,17 +489,14 @@ async function quoteClmmTradeOut({
 
   // The PT actually credited to the trader IS the quote — transport-independent ground
   // truth, reported by bundle-sim transports. The trade is the trader's only PT movement.
-  const delta = tokenBalanceDelta(sim, clmm.pt.mint.toBase58(), trader.toBase58());
+  const delta = tokenBalanceDelta(sim, clmm.pt.mint, trader);
   if (delta !== null && delta > 0n) return delta;
 
   // Plain `simulateTransaction` transports report no token balances — read the program
   // return blob instead.
   const rd = sim.returnData;
-  if (rd?.data && rd.programId === EXPONENT_CLMM_PROGRAM_ID.toBase58()) {
-    const out = readTradePtOut(
-      Buffer.from(rd.data[0], rd.data[1] as BufferEncoding),
-      amountInSyNative
-    );
+  if (rd?.data && rd.programId === EXPONENT_CLMM_PROGRAM_ADDRESS) {
+    const out = readTradePtOut(getBase64Encoder().encode(rd.data[0]), amountInSyNative);
     if (out !== null && out > 0n) return out;
   }
 

@@ -5,25 +5,21 @@ import type {
   GetAccountInfoApi,
   GetLatestBlockhashApi,
   GetMultipleAccountsApi,
+  GetTokenLargestAccountsApi,
   Instruction,
   Rpc,
+  SimulateTransactionApi,
+  Transaction,
   TransactionSigner,
 } from "@solana/kit";
-import {
-  AddressLookupTableAccount,
-  Connection,
-  PublicKey,
-  VersionedTransaction,
-} from "@solana/web3.js";
 
 import type { SwapEngineRunner } from "../services/swap-engine/types";
 
 import { MarginfiAccountType } from "./account.types";
 
 import { BankType } from "~/services/bank";
-import { OraclePrice } from "~/services/price";
-import { ExtendedV0Transaction, SolanaTransaction } from "~/services/transaction";
-import { Amount, TypedAmount, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { SolanaTransaction } from "~/services/transaction";
+import { Amount, TypedAmount, BankIntegrationMetadataMap } from "~/types";
 import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
 import { JupLendingState } from "~/vendor/jup-lend";
 import { KaminoReserve } from "~/vendor/klend";
@@ -273,35 +269,35 @@ export interface MakeFlashLoanTxParams {
 export type TransferPositionSide = "collateral" | "debt";
 
 export interface MakeTransferPositionsTxParams {
-  program: MarginfiProgram;
-  connection: Connection;
+  programAddress: Address;
+  /** The authority of both accounts; signs and pays. */
+  authority: TransactionSigner;
+  rpc: Rpc<GetLatestBlockhashApi & GetMultipleAccountsApi>;
   /** Source account A (positions move out of this account). */
   marginfiAccount: MarginfiAccountType;
   /** Banks whose A-positions to move; the side is inferred from A's balance. */
-  bankAddresses: PublicKey[];
+  bankAddresses: Address[];
   /** Destination account B. Omit to create a fresh account inside the flashloan tx. */
   destinationAccount?: MarginfiAccountType;
   /** Only used when `destinationAccount` is omitted. */
   createDestinationOpts?: { accountIndex?: number; thirdPartyId?: number };
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  /** Token program per transferred bank (base58 bank address → token program id). */
-  tokenProgramsByBank: Map<string, PublicKey>;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
+  /** Token program per transferred bank (bank address → token program). */
+  tokenProgramsByBank: Map<string, Address>;
+  luts?: AddressesByLookupTableAddress;
   /** Head-room added to each borrow over the estimated debt for interest accrual. Default 10 bps. */
   borrowPaddingBps?: number;
   /** Max positions per transfer; a larger selection is rejected. Default 5. */
   maxPositions?: number;
   /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
   groupRateLimiterEnabled?: boolean;
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
 export interface TransferPositionsResult {
   /** Ordered for execution: [setup/crank txs…, flashloan tx]. */
-  transactions: ExtendedV0Transaction[];
+  transactions: SolanaTransaction[];
   /** Index of the flashloan tx in `transactions`. */
   actionTxIndex: number;
   /** The destination account (passed-in, or the projected account created in the tx). */
@@ -311,37 +307,37 @@ export interface TransferPositionsResult {
 }
 
 export interface MakeBulkWithdrawTxParams {
-  program: MarginfiProgram;
-  connection: Connection;
+  programAddress: Address;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: Rpc<GetLatestBlockhashApi & GetMultipleAccountsApi>;
   marginfiAccount: MarginfiAccountType;
   /** Banks whose FULL positions to withdraw, in execution order. */
-  bankAddresses: PublicKey[];
+  bankAddresses: Address[];
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  /** Token program per withdrawn bank (base58 bank address → token program id). */
-  tokenProgramsByBank: Map<string, PublicKey>;
-  luts: AddressLookupTableAccount[];
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+  /** Token program per withdrawn bank (bank address → token program). */
+  tokenProgramsByBank: Map<string, Address>;
+  luts: AddressesByLookupTableAddress;
 }
 
 export interface MakeBulkRepayTxParams {
-  program: MarginfiProgram;
-  connection: Connection;
+  programAddress: Address;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: Rpc<GetLatestBlockhashApi>;
   marginfiAccount: MarginfiAccountType;
   /** Banks whose FULL debts to repay from the wallet. */
-  bankAddresses: PublicKey[];
+  bankAddresses: Address[];
   bankMap: Map<string, BankType>;
-  /** Token program per repaid bank (base58 bank address → token program id). */
-  tokenProgramsByBank: Map<string, PublicKey>;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+  /** Token program per repaid bank (bank address → token program). */
+  tokenProgramsByBank: Map<string, Address>;
+  luts?: AddressesByLookupTableAddress;
 }
 
 export interface BulkLendTxsResult {
   /** Ordered for execution: [setup/crank txs…, action txs…]. */
-  transactions: ExtendedV0Transaction[];
+  transactions: SolanaTransaction[];
   /** Index of the first action tx in `transactions`. */
   actionTxIndex: number;
   /** Whether all transactions must land atomically in one bundle. */
@@ -490,34 +486,35 @@ export interface MakeSwapCollateralTxParams {
  * `trade_pt`, so the deposit is sized to the guaranteed minimum out.
  */
 export interface MakeRollPtTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  /** The account authority; signs, pays and owns the PT/SY token accounts. */
+  authority: TransactionSigner;
+  rpc: Rpc<
+    GetAccountInfoApi &
+      GetLatestBlockhashApi &
+      GetMultipleAccountsApi &
+      GetTokenLargestAccountsApi &
+      SimulateTransactionApi
+  >;
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
   withdrawOpts: {
     totalPositionAmount: number;
     withdrawAmount?: number;
     /** The expiring (matured) PT bank. */
     withdrawBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
   };
   depositOpts: {
     /** The successor (next-maturity) PT bank. */
     depositBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
   };
   /** Exponent redeem (`merge`) + successor-CLMM buy config for the matured PT. */
   rollOpts: RollPtOpts;
-  /** See {@link RollQuoteSimulator}. Defaults to `connection.simulateTransaction`. */
+  /** See {@link RollQuoteSimulator}. Defaults to `rpc.simulateTransaction`. */
   simulateTx?: RollQuoteSimulator;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
+  luts?: AddressesByLookupTableAddress;
 }
 
 /** One token-account balance snapshot from a {@link makeRollPtTx} quote simulation. */
@@ -549,7 +546,7 @@ export interface RollQuoteSimResult {
  * `connection.simulateTransaction`; browsers whose RPC proxy disallows
  * `simulateTransaction` inject one that routes through an app-side endpoint instead.
  */
-export type RollQuoteSimulator = (tx: VersionedTransaction) => Promise<RollQuoteSimResult>;
+export type RollQuoteSimulator = (tx: Transaction) => Promise<RollQuoteSimResult>;
 
 /**
  * Exponent roll config for {@link makeRollPtTx}. `makeRollPtTx` resolves the matured vault's
@@ -558,21 +555,21 @@ export type RollQuoteSimulator = (tx: VersionedTransaction) => Promise<RollQuote
  */
 export interface RollPtOpts {
   /** The matured PT's Exponent `MarketTwo` — its `vault` is read (one of market/vault required). */
-  maturedMarket?: PublicKey;
+  maturedMarket?: Address;
   /** …or the matured vault directly. */
-  maturedVault?: PublicKey;
+  maturedVault?: Address;
   /** The successor maturity's **CLMM** (`MarketThree`) pool — where the new PT trades (SY → PT). */
-  successorMarket: PublicKey;
+  successorMarket: Address;
   /** Slippage tolerance (bps) for the SY → PT CLMM swap. Defaults to 50. */
   slippageBps?: number;
   /** Token program for the shared SY mint (defaults to the classic Token program). */
-  syTokenProgram?: PublicKey;
+  syTokenProgram?: Address;
   /**
    * Optional dedicated PT-roll address lookup table (fetched internally) that compresses the
    * merge + CLMM-swap flashloan bytes (see `examples/create-pt-roll-lut.ts`). Account *locks*
    * are already bounded by the compact, fixed CLMM footprint.
    */
-  lookupTable?: PublicKey;
+  lookupTable?: Address;
 }
 
 export interface MakeSwapDebtTxParams {
