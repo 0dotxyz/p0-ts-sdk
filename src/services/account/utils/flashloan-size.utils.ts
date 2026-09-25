@@ -21,7 +21,10 @@ import {
   type AddressesByLookupTableAddress,
   type Instruction,
 } from "@solana/kit";
-import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
 
 import { makeBorrowIx } from "../actions/borrow";
 import {
@@ -45,12 +48,8 @@ import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank";
-import {
-  getTotalAccountKeys,
-  InstructionsWrapper,
-  makeTransactionMessage,
-} from "~/services/transaction";
-import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { getTotalAccountKeys, makeTransactionMessage } from "~/services/transaction";
+import { BankIntegrationMetadataMap } from "~/types";
 
 // V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
 // causes the compiler to redistribute key resolution. Multi-hop routes add many
@@ -260,258 +259,180 @@ export function compileFlashloanPrecheck({
 // ============================================================================
 
 export type FlashloanBudgetIx =
-  | { type: "borrow"; bank: BankType; tokenProgram: PublicKey }
-  | { type: "repay"; bank: BankType; tokenProgram: PublicKey }
-  | { type: "deposit"; bank: BankType; tokenProgram: PublicKey }
-  | { type: "withdraw"; bank: BankType; tokenProgram: PublicKey };
+  | { type: "borrow"; bank: BankType; tokenProgram: Address }
+  | { type: "repay"; bank: BankType; tokenProgram: Address }
+  | { type: "deposit"; bank: BankType; tokenProgram: Address }
+  | { type: "withdraw"; bank: BankType; tokenProgram: Address };
 
 /**
- * Build dummy IXs for a single budget entry using the existing async IX builders
- * with isSync: true. Switches on type + assetTag to pick the right variant.
+ * Build dummy IXs for a single budget entry using the action IX builders.
+ * Switches on type + assetTag to pick the right variant.
  */
 async function buildBudgetIx(
   config: FlashloanBudgetIx,
-  program: MarginfiProgram,
+  programAddress: Address,
   marginfiAccount: MarginfiAccountType,
   bankMap: Map<string, BankType>,
-  bankMetadataMap: BankIntegrationMetadataMap,
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey }
-): Promise<InstructionsWrapper> {
+  bankMetadataMap: BankIntegrationMetadataMap
+): Promise<Instruction[]> {
   const { bank, tokenProgram } = config;
+  const authority = createNoopSigner(marginfiAccount.authority);
 
   switch (config.type) {
     case "borrow":
       return makeBorrowIx({
-        program,
+        programAddress,
         bank,
         bankMap,
         tokenProgram,
         amount: 1,
         marginfiAccount,
-        authority: marginfiAccount.authority,
-        isSync: true,
-        opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts },
+        authority,
+        opts: { createAtas: false, wrapAndUnwrapSol: false },
       });
 
     case "repay":
       return makeRepayIx({
-        program,
+        programAddress,
         bank,
         tokenProgram,
         amount: 1,
         accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
+        authority,
+        group: marginfiAccount.group,
         repayAll: false,
-        isSync: true,
-        opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
+        opts: { wrapAndUnwrapSol: false },
       });
 
     case "deposit":
-      return buildDepositBudgetIx(
-        config,
-        program,
-        marginfiAccount,
-        bankMetadataMap,
-        overrideInferAccounts
-      );
+      return buildDepositBudgetIx(config, programAddress, marginfiAccount, bankMetadataMap);
 
     case "withdraw":
       return buildWithdrawBudgetIx(
         config,
-        program,
+        programAddress,
         marginfiAccount,
         bankMap,
-        bankMetadataMap,
-        overrideInferAccounts
+        bankMetadataMap
       );
   }
 }
 
 async function buildDepositBudgetIx(
   config: FlashloanBudgetIx & { type: "deposit" },
-  program: MarginfiProgram,
+  programAddress: Address,
   marginfiAccount: MarginfiAccountType,
-  bankMetadataMap: BankIntegrationMetadataMap,
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey }
-): Promise<InstructionsWrapper> {
+  bankMetadataMap: BankIntegrationMetadataMap
+): Promise<Instruction[]> {
   const { bank, tokenProgram } = config;
-  const opts = { wrapAndUnwrapSol: false, overrideInferAccounts };
+  const depositParams = {
+    programAddress,
+    bank,
+    tokenProgram,
+    amount: 1,
+    accountAddress: marginfiAccount.address,
+    authority: createNoopSigner(marginfiAccount.authority),
+    group: marginfiAccount.group,
+    opts: { wrapAndUnwrapSol: false },
+  };
 
   switch (bank.config.assetTag) {
     case AssetTag.KAMINO: {
-      const reserve = bankMetadataMap[bank.address.toBase58()]?.kaminoStates?.reserveState;
+      const reserve = bankMetadataMap[bank.address]?.kaminoStates?.reserveState;
       if (!reserve) {
         throw TransactionBuildingError.kaminoReserveNotFound(
-          bank.address.toBase58(),
-          bank.mint.toBase58(),
+          bank.address,
+          bank.mint,
           bank.tokenSymbol
         );
       }
-      return makeKaminoDepositIx({
-        program,
-        bank,
-        tokenProgram,
-        amount: 1,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        reserve,
-        isSync: true,
-        opts,
-      });
+      return makeKaminoDepositIx({ ...depositParams, reserve });
     }
     case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[bank.address.toBase58()]?.driftStates;
+      const driftState = bankMetadataMap[bank.address]?.driftStates;
       if (!driftState) {
         throw TransactionBuildingError.driftStateNotFound(
-          bank.address.toBase58(),
-          bank.mint.toBase58(),
+          bank.address,
+          bank.mint,
           bank.tokenSymbol
         );
       }
       return makeDriftDepositIx({
-        program,
-        bank,
-        tokenProgram,
-        amount: 1,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
+        ...depositParams,
         driftMarketIndex: driftState.spotMarketState.marketIndex,
         driftOracle: driftState.spotMarketState.oracle,
-        isSync: true,
-        opts,
       });
     }
-    case AssetTag.JUPLEND: {
-      return makeJuplendDepositIx({
-        program,
-        bank,
-        tokenProgram,
-        amount: 1,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        isSync: true,
-        opts,
-      });
-    }
-    default: {
-      return makeDepositIx({
-        program,
-        bank,
-        tokenProgram,
-        amount: 1,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        isSync: true,
-        opts,
-      });
-    }
+    case AssetTag.JUPLEND:
+      return makeJuplendDepositIx(depositParams);
+    default:
+      return makeDepositIx(depositParams);
   }
 }
 
 async function buildWithdrawBudgetIx(
   config: FlashloanBudgetIx & { type: "withdraw" },
-  program: MarginfiProgram,
+  programAddress: Address,
   marginfiAccount: MarginfiAccountType,
   bankMap: Map<string, BankType>,
-  bankMetadataMap: BankIntegrationMetadataMap,
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey }
-): Promise<InstructionsWrapper> {
+  bankMetadataMap: BankIntegrationMetadataMap
+): Promise<Instruction[]> {
   const { bank, tokenProgram } = config;
-  const opts = { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts };
+  const withdrawParams = {
+    programAddress,
+    bank,
+    bankMap,
+    tokenProgram,
+    amount: 1,
+    marginfiAccount,
+    authority: createNoopSigner(marginfiAccount.authority),
+    withdrawAll: false,
+    opts: { createAtas: false, wrapAndUnwrapSol: false },
+  };
 
   switch (bank.config.assetTag) {
     case AssetTag.KAMINO: {
-      const reserve = bankMetadataMap[bank.address.toBase58()]?.kaminoStates?.reserveState;
+      const reserve = bankMetadataMap[bank.address]?.kaminoStates?.reserveState;
       if (!reserve) {
         throw TransactionBuildingError.kaminoReserveNotFound(
-          bank.address.toBase58(),
-          bank.mint.toBase58(),
+          bank.address,
+          bank.mint,
           bank.tokenSymbol
         );
       }
-      return makeKaminoWithdrawIx({
-        program,
-        bank,
-        bankMap,
-        tokenProgram,
-        cTokenAmount: 1,
-        marginfiAccount,
-        authority: marginfiAccount.authority,
-        reserve,
-        bankMetadataMap,
-        withdrawAll: false,
-        isSync: true,
-        opts,
-      });
+      return makeKaminoWithdrawIx({ ...withdrawParams, cTokenAmount: 1, reserve });
     }
     case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[bank.address.toBase58()]?.driftStates;
+      const driftState = bankMetadataMap[bank.address]?.driftStates;
       if (!driftState) {
         throw TransactionBuildingError.driftStateNotFound(
-          bank.address.toBase58(),
-          bank.mint.toBase58(),
+          bank.address,
+          bank.mint,
           bank.tokenSymbol
         );
       }
       return makeDriftWithdrawIx({
-        program,
-        bank,
-        bankMap,
-        tokenProgram,
-        amount: 1,
-        marginfiAccount,
-        authority: marginfiAccount.authority,
+        ...withdrawParams,
         driftSpotMarket: driftState.spotMarketState,
         userRewards: driftState.userRewards,
-        bankMetadataMap,
-        withdrawAll: false,
-        isSync: true,
-        opts,
       });
     }
     case AssetTag.JUPLEND: {
-      const jupLendState = bankMetadataMap[bank.address.toBase58()]?.jupLendStates;
+      const jupLendState = bankMetadataMap[bank.address]?.jupLendStates;
       if (!jupLendState) {
         throw TransactionBuildingError.jupLendStateNotFound(
-          bank.address.toBase58(),
-          bank.mint.toBase58(),
+          bank.address,
+          bank.mint,
           bank.tokenSymbol
         );
       }
       return makeJuplendWithdrawIx({
-        program,
-        bank,
-        bankMap,
-        tokenProgram,
-        amount: 1,
-        marginfiAccount,
-        authority: marginfiAccount.authority,
+        ...withdrawParams,
         jupLendingState: jupLendState.jupLendingState,
-        bankMetadataMap,
-        withdrawAll: false,
-        isSync: true,
-        opts,
       });
     }
-    default: {
-      return makeWithdrawIx({
-        program,
-        bank,
-        bankMap,
-        tokenProgram,
-        amount: 1,
-        marginfiAccount,
-        authority: marginfiAccount.authority,
-        withdrawAll: false,
-        bankMetadataMap,
-        isSync: true,
-        opts,
-      });
-    }
+    default:
+      return makeWithdrawIx(withdrawParams);
   }
 }
 
@@ -521,53 +442,37 @@ async function buildWithdrawBudgetIx(
  * blocks in each action file.
  */
 export async function computeFlashloanSwapConstraints({
-  program,
+  programAddress,
   marginfiAccount,
   bankMap,
-  addressLookupTableAccounts,
+  luts,
   bankMetadataMap,
   primaryIx,
   secondaryIx,
-  overrideInferAccounts,
 }: {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   bankMap: Map<string, BankType>;
-  addressLookupTableAccounts: AddressLookupTableAccount[];
+  luts: AddressesByLookupTableAddress;
   bankMetadataMap: BankIntegrationMetadataMap;
   primaryIx: FlashloanBudgetIx;
   secondaryIx: FlashloanBudgetIx;
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }): Promise<FlashloanSwapConstraints> {
   const cuRequestIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
+    getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
-  const [primaryResult, secondaryResult] = await Promise.all([
-    buildBudgetIx(
-      primaryIx,
-      program,
-      marginfiAccount,
-      bankMap,
-      bankMetadataMap,
-      overrideInferAccounts
-    ),
-    buildBudgetIx(
-      secondaryIx,
-      program,
-      marginfiAccount,
-      bankMap,
-      bankMetadataMap,
-      overrideInferAccounts
-    ),
+  const [primaryIxs, secondaryIxs] = await Promise.all([
+    buildBudgetIx(primaryIx, programAddress, marginfiAccount, bankMap, bankMetadataMap),
+    buildBudgetIx(secondaryIx, programAddress, marginfiAccount, bankMap, bankMetadataMap),
   ]);
 
   return computeFlashLoanNonSwapBudget({
-    program,
+    programAddress,
     marginfiAccount,
     bankMap,
-    addressLookupTableAccounts,
-    ixs: [...cuRequestIxs, ...primaryResult.instructions, ...secondaryResult.instructions],
+    addressLookupTableAccounts: luts,
+    ixs: [...cuRequestIxs, ...primaryIxs, ...secondaryIxs],
   });
 }

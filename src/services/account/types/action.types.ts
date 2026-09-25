@@ -13,7 +13,6 @@ import {
   AddressLookupTableAccount,
   Connection,
   PublicKey,
-  TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
 
@@ -349,19 +348,23 @@ export interface BulkLendTxsResult {
   mustBeAtomicBundle: boolean;
 }
 
+/** RPC methods the swap flows use: blockhash, ATA and mint lookups, swap lookup tables. */
+export type SwapFlowRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
+
 export interface MakeLoopTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: SwapFlowRpc;
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   depositOpts: {
     // if deposit looping, this principal amount will be added
     inputDepositAmount: number;
     depositBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
     loopMode: "DEPOSIT" | "BORROW";
     // market price (USD per token, UI units) used for the no-slippage deposit estimate
     marketPrice: number;
@@ -369,17 +372,13 @@ export interface MakeLoopTxParams {
   borrowOpts: {
     borrowAmount: number;
     borrowBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
     // market price (USD per token, UI units) used for the no-slippage deposit estimate
     marketPrice: number;
   };
   swapOpts: SwapOpts;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
-  additionalIxs?: TransactionInstruction[];
+  luts?: AddressesByLookupTableAddress;
+  additionalIxs?: Instruction[];
   /**
    * Optional override for how the swap engine runs. Defaults to the in-process
    * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
@@ -403,30 +402,31 @@ export interface MakeLoopTxParams {
  */
 export interface LoopFlashloanDescriptor {
   // Inner instructions in final order: [cuRequest..., borrow..., <swap slot>, deposit...]
-  innerIxs: TransactionInstruction[];
+  innerIxs: Instruction[];
   // Array index in `innerIxs` where the swap instruction(s) should be inserted
   swapSlotIndex: number;
   // Index of the deposit instruction in `innerIxs` (for the post-swap amount byte-patch)
   depositIxIndex: number;
-  inputMint: string;
-  outputMint: string;
+  inputMint: Address;
+  outputMint: Address;
   inputDecimals: number;
   outputDecimals: number;
   // Borrow amount in native (base) units — the swap input amount (ExactIn)
   inAmountNative: number;
-  destinationTokenAccount: PublicKey;
+  destinationTokenAccount: Address;
   // Remaining tx budget for the swap, already net of the flashloan wrapper cost
   sizeConstraint: number;
   maxSwapTotalAccounts: number;
-  luts: AddressLookupTableAccount[];
+  luts: AddressesByLookupTableAddress;
 }
 
 export interface MakeRepayWithCollatTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: SwapFlowRpc;
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   bankMetadataMap: BankIntegrationMetadataMap;
   withdrawOpts: {
@@ -435,33 +435,27 @@ export interface MakeRepayWithCollatTxParams {
     // Amount to withdraw to pay for debt
     withdrawAmount: number;
     withdrawBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
   };
   repayOpts: {
     repayBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
     // Amount of the total position use to determine max repay amount
     totalPositionAmount: number;
-    // if repayAmount is provided, it will be used instead of jupiter swap output
-    repayAmount?: number;
   };
   swapOpts: SwapOpts;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
-  additionalIxs?: TransactionInstruction[];
+  luts?: AddressesByLookupTableAddress;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeSwapCollateralTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: SwapFlowRpc;
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   withdrawOpts: {
@@ -470,19 +464,14 @@ export interface MakeSwapCollateralTxParams {
     // Amount to withdraw (optional, defaults to totalPositionAmount for full swap)
     withdrawAmount?: number;
     withdrawBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
   };
   depositOpts: {
     depositBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
   };
   swapOpts: SwapOpts;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
-  additionalIxs?: TransactionInstruction[];
+  luts?: AddressesByLookupTableAddress;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -587,11 +576,12 @@ export interface RollPtOpts {
 }
 
 export interface MakeSwapDebtTxParams {
-  program: MarginfiProgram;
+  programAddress: Address;
   marginfiAccount: MarginfiAccountType;
-  connection: Connection;
+  /** The account authority; signs and pays. */
+  authority: TransactionSigner;
+  rpc: SwapFlowRpc;
   bankMap: Map<string, BankType>;
-  oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   // Source debt (what we're repaying)
@@ -601,24 +591,20 @@ export interface MakeSwapDebtTxParams {
     // Amount to repay (optional, defaults to totalPositionAmount for full swap)
     repayAmount?: number;
     repayBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
     // Market price (USD per token, UI units) used to size the borrow amount.
     marketPrice: number;
   };
   // Destination debt (what we're borrowing)
   borrowOpts: {
     borrowBank: BankType;
-    tokenProgram: PublicKey;
+    tokenProgram: Address;
     // Market price (USD per token, UI units) used to size the borrow amount.
     marketPrice: number;
   };
   swapOpts: SwapOpts;
-  addressLookupTableAccounts?: AddressLookupTableAccount[];
-  overrideInferAccounts?: {
-    group?: PublicKey;
-    authority?: PublicKey;
-  };
-  additionalIxs?: TransactionInstruction[];
+  luts?: AddressesByLookupTableAddress;
+  additionalIxs?: Instruction[];
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }

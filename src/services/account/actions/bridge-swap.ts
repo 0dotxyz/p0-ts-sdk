@@ -1,26 +1,21 @@
 import {
-  AddressLookupTableAccount,
-  PublicKey,
-  TransactionInstruction,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  getBase64Decoder,
+  type Address,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
+  type TransactionSigner,
+} from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
 import { MarginfiAccountType, SwapQuoteResult } from "../types";
 import { computeProjectedActiveBalancesNoCpi } from "../utils";
 
-import { MarginfiAccount } from "~/models/account";
-import { Balance } from "~/models/balance";
 import { BankType } from "~/services/bank";
 import {
-  addTransactionMetadata,
-  decompileV0Transaction,
-  ExtendedV0Transaction,
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
-import { MarginfiProgram } from "~/types";
 
 /**
  * Bridge / double-hop swaps — the flow-agnostic mechanics.
@@ -71,11 +66,11 @@ export interface ComposeBridgedSwapParams {
    */
   buildSecondLeg: (projectedAccount: MarginfiAccountType) => Promise<BridgedSwapLeg>;
   marginfiAccount: MarginfiAccountType;
-  program: MarginfiProgram;
+  programAddress: Address;
   banksMap: Map<string, BankType>;
   /** Per-bank cToken multiplier (1 for vanilla SPL banks) — for the first leg's effect projection. */
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  feePayer: PublicKey;
+  feePayer: TransactionSigner;
   /** Override the bundle-size ceiling (default {@link MAX_BRIDGED_BUNDLE_TXS}). */
   maxBundleTxs?: number;
 }
@@ -93,14 +88,14 @@ export interface ComposeBridgedSwapResult {
 }
 
 interface ClassifiedTxs {
-  setups: ExtendedV0Transaction[];
-  cranks: ExtendedV0Transaction[];
-  flashloans: ExtendedV0Transaction[]; // order preserved
+  setups: SolanaTransaction[];
+  cranks: SolanaTransaction[];
+  flashloans: SolanaTransaction[]; // order preserved
 }
 
 function classifyTxs(txs: SolanaTransaction[]): ClassifiedTxs {
   const out: ClassifiedTxs = { setups: [], cranks: [], flashloans: [] };
-  for (const tx of txs as ExtendedV0Transaction[]) {
+  for (const tx of txs) {
     if (tx.type === TransactionType.CREATE_ATA) out.setups.push(tx);
     else if (tx.type === TransactionType.CRANK) out.cranks.push(tx);
     else out.flashloans.push(tx); // FLASHLOAN / LOOP / REPAY_COLLAT / …
@@ -109,84 +104,66 @@ function classifyTxs(txs: SolanaTransaction[]): ClassifiedTxs {
 }
 
 /** Structural identity of an instruction (program + ordered keys + data) — for setup dedupe. */
-function ixIdentity(ix: TransactionInstruction): string {
-  const keys = ix.keys.map((k) => k.pubkey.toBase58()).join(",");
-  return `${ix.programId.toBase58()}|${keys}|${Buffer.from(ix.data).toString("base64")}`;
+function ixIdentity(ix: Instruction): string {
+  const keys = (ix.accounts ?? []).map((account) => account.address).join(",");
+  return `${ix.programAddress}|${keys}|${getBase64Decoder().decode(ix.data ?? new Uint8Array())}`;
 }
 
 /**
- * Merge both legs' setup (ATA-create) txs into ONE tx: decompile each, concat instructions (dedupe
- * by structural identity — the first and second legs share the bridge ATA-create), union LUTs, recompile. Returns
- * null if the merged instructions don't fit a single tx. (Cranks are NOT merged — see module doc.)
+ * Merge both legs' setup (ATA-create) txs into ONE tx: concat their instructions (dedupe by
+ * structural identity — the first and second legs share the bridge ATA-create) and recompile. The
+ * instructions keep their lookup-table accounts, so no tables are needed. Returns null if the
+ * merged instructions don't fit a single tx. (Cranks are NOT merged — see module doc.)
  */
 function mergeSetupTxs(
-  txs: ExtendedV0Transaction[],
-  payer: PublicKey,
-  blockhash: string
-): ExtendedV0Transaction | null {
+  txs: SolanaTransaction[],
+  payer: TransactionSigner,
+  latestBlockhash: BlockhashLifetimeConstraint
+): SolanaTransaction | null {
   if (txs.length === 0) return null;
   if (txs.length === 1) return txs[0];
 
-  const lutMap = new Map<string, AddressLookupTableAccount>();
   const seen = new Set<string>();
-  const ixs: TransactionInstruction[] = [];
-  for (const tx of txs) {
-    const luts = tx.addressLookupTables ?? [];
-    luts.forEach((l) => lutMap.set(l.key.toBase58(), l));
-    const msg = decompileV0Transaction(tx as VersionedTransaction, luts);
-    for (const ix of msg.instructions) {
+  const ixs = txs
+    .flatMap((tx) => tx.message.instructions)
+    .filter((ix) => {
       const id = ixIdentity(ix);
-      if (seen.has(id)) continue;
+      if (seen.has(id)) return false;
       seen.add(id);
-      ixs.push(ix);
-    }
-  }
+      return true;
+    });
 
-  const luts = [...lutMap.values()];
-  const split = splitInstructionsToFitTransactions([], ixs, { blockhash, payerKey: payer, luts });
+  const split = splitInstructionsToFitTransactions([], ixs, {
+    latestBlockhash,
+    feePayer: payer,
+    luts: {},
+  });
   if (split.length !== 1) return null; // merged setup spilled to >1 tx
-  return addTransactionMetadata(split[0], {
-    type: TransactionType.CREATE_ATA,
-    addressLookupTables: luts,
-  }) as ExtendedV0Transaction;
+  return { message: split[0], type: TransactionType.CREATE_ATA };
 }
 
 /**
- * Return `account` as it will look AFTER the first leg executes — a clone with the first leg's own
- * instructions replayed onto it (source position removed, bridge position added, using the exact
- * withdraw-all / borrow semantics the first leg used). The second leg must be built against this
- * projected account, not the raw one — see invariant (2) in the module doc.
+ * Return `account` as it will look AFTER the first leg executes — its balances with the first
+ * leg's own instructions replayed onto them (source position removed, bridge position added, using
+ * the exact withdraw-all / borrow semantics the first leg used). The second leg must be built
+ * against this projected account, not the raw one — see invariant (2) in the module doc.
  */
 function projectAccountAfterFirstLeg(
   account: MarginfiAccountType,
   firstLegFlashloanTxs: SolanaTransaction[],
-  program: MarginfiProgram,
+  programAddress: Address,
   banksMap: Map<string, BankType>,
   multipliers: Map<string, BigNumber>
 ): MarginfiAccountType {
-  const ixs: TransactionInstruction[] = [];
-  for (const tx of firstLegFlashloanTxs as ExtendedV0Transaction[]) {
-    const luts = tx.addressLookupTables ?? [];
-    ixs.push(...decompileV0Transaction(tx as VersionedTransaction, luts).instructions);
-  }
-
   const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
     account,
-    instructions: ixs,
-    program,
+    instructions: firstLegFlashloanTxs.flatMap((tx) => tx.message.instructions),
+    programAddress,
     banksMap,
     assetShareValueMultiplierByBank: multipliers,
   });
 
-  return new MarginfiAccount(
-    account.address,
-    account.group,
-    account.authority,
-    projectedBalances.map((b) => Balance.fromBalanceType(b)),
-    account.accountFlags,
-    account.emissionsDestinationAccount,
-    account.healthCache
-  );
+  return { ...account, balances: projectedBalances };
 }
 
 /**
@@ -196,14 +173,14 @@ function projectAccountAfterFirstLeg(
 function composeBundle(
   firstLegTxs: SolanaTransaction[],
   secondLegTxs: SolanaTransaction[],
-  payer: PublicKey,
-  blockhash: string,
+  payer: TransactionSigner,
+  latestBlockhash: BlockhashLifetimeConstraint,
   maxBundleTxs: number
 ): SolanaTransaction[] | null {
   const c1 = classifyTxs(firstLegTxs);
   const c2 = classifyTxs(secondLegTxs);
 
-  const mergedSetup = mergeSetupTxs([...c1.setups, ...c2.setups], payer, blockhash);
+  const mergedSetup = mergeSetupTxs([...c1.setups, ...c2.setups], payer, latestBlockhash);
   if ([...c1.setups, ...c2.setups].length > 0 && !mergedSetup) return null;
 
   const result: SolanaTransaction[] = [
@@ -293,12 +270,6 @@ export function mergeBridgeQuotesLoop(
   };
 }
 
-/** A throwaway blockhash for re-compiling merged setup txs (rewritten at submission). */
-function blockhashOf(leg: BridgedSwapLeg): string {
-  const tx = leg.transactions[0] as ExtendedV0Transaction | undefined;
-  return tx ? tx.message.recentBlockhash : PublicKey.default.toBase58();
-}
-
 /**
  * Compose an already-built first leg and a caller-built second leg into one atomic bridged-swap
  * bundle. Owns the flow-agnostic mechanics — first-leg-effect projection, separate-crank composition, and
@@ -312,7 +283,7 @@ export async function composeBridgedSwap(
     firstLeg,
     buildSecondLeg,
     marginfiAccount,
-    program,
+    programAddress,
     banksMap,
     assetShareValueMultiplierByBank,
     feePayer,
@@ -324,7 +295,7 @@ export async function composeBridgedSwap(
   const projectedAccount = projectAccountAfterFirstLeg(
     marginfiAccount,
     classifyTxs(firstLeg.transactions).flashloans,
-    program,
+    programAddress,
     banksMap,
     assetShareValueMultiplierByBank
   );
@@ -336,7 +307,7 @@ export async function composeBridgedSwap(
     firstLeg.transactions,
     secondLeg.transactions,
     feePayer,
-    blockhashOf(firstLeg),
+    firstLeg.transactions[0].message.lifetimeConstraint,
     maxBundleTxs
   );
   if (!transactions) return null;

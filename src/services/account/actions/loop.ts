@@ -1,6 +1,15 @@
-import { ComputeBudgetProgram, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import type {
+  AddressesByLookupTableAddress,
+  BlockhashLifetimeConstraint,
+  Instruction,
+} from "@solana/kit";
+import {
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
-import BN from "bn.js";
 
 import {
   runSwapEngine,
@@ -34,52 +43,38 @@ import {
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSwapDebtTx } from "./swap-debt";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  getTxSize,
   getTotalAccountKeys,
-  InstructionsWrapper,
+  getTxSize,
   makeWrapSolIxs,
+  SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
 
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
-  transactions: ExtendedV0Transaction[];
+  transactions: SolanaTransaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
   /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
    *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
   mustBeAtomicBundle: boolean;
 }> {
-  const {
-    marginfiAccount,
-    depositOpts,
-    borrowOpts,
-    addressLookupTableAccounts,
-    connection,
-    additionalIxs = [],
-  } = params;
+  const { authority, depositOpts, borrowOpts, luts, rpc, additionalIxs = [] } = params;
 
-  // Get blockhash
-  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
   // Setup Ata's if needed for borrow & deposit tokens
   const setupIxs = await makeSetupIx({
-    connection,
-    authority: marginfiAccount.authority,
+    rpc,
+    authority,
     tokens: [
       {
         mint: borrowOpts.borrowBank.mint,
@@ -94,7 +89,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   // depositBank is excluded from the jup/drift updates (deposit ix updates them via CPI);
   // kamino has no cpi so borrow and deposit banks are included in the refresh
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
+  const refreshIntegrationIxs = await makeRefreshIntegrationBanksIxs(
     params.marginfiAccount,
     params.bankMap,
     [depositOpts.depositBank.address],
@@ -104,24 +99,21 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   const { flashloanTx, setupInstructions, swapQuote } = await buildLoopFlashloanTx({
     ...params,
-    blockhash,
+    latestBlockhash,
   });
 
   // Add ata creations needed for routing
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
     // filter out compute budget instructions
-    if (ix.programId.equals(ComputeBudgetProgram.programId)) {
+    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
       return false;
     }
 
-    if (ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
+    if (ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
       // key 3 is always mint in create ata
-      const mintKey = ix.keys[3]?.pubkey;
+      const mintKey = ix.accounts?.[3]?.address;
 
-      if (
-        mintKey?.equals(depositOpts.depositBank.mint) ||
-        mintKey?.equals(borrowOpts.borrowBank.mint)
-      ) {
+      if (mintKey === depositOpts.depositBank.mint || mintKey === borrowOpts.borrowBank.mint) {
         return false;
       }
     }
@@ -131,35 +123,26 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
+  const additionalTxs: SolanaTransaction[] = [];
 
   // wrap sol if needed
-  if (depositOpts.depositBank.mint.equals(NATIVE_MINT) && depositOpts.inputDepositAmount) {
+  if (depositOpts.depositBank.mint === WSOL_MINT && depositOpts.inputDepositAmount) {
     setupIxs.push(
-      ...makeWrapSolIxs(marginfiAccount.authority, new BigNumber(depositOpts.inputDepositAmount))
+      ...(await makeWrapSolIxs(authority, new BigNumber(depositOpts.inputDepositAmount)))
     );
   }
 
   // if atas are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    additionalIxs.length > 0 ||
-    refreshIntegrationIxs.instructions.length > 0
-  ) {
-    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs.instructions];
-    const txs = splitInstructionsToFitTransactions([], ixs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
+  if (setupIxs.length > 0 || additionalIxs.length > 0 || refreshIntegrationIxs.length > 0) {
+    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs];
+    const messages = splitInstructionsToFitTransactions([], ixs, {
+      latestBlockhash,
+      feePayer: authority,
+      luts: luts ?? {},
     });
 
     additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
+      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
     );
   }
 
@@ -168,11 +151,11 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
   };
 }
 
-type LoopParams = MakeLoopTxParams & { blockhash: string };
+type LoopParams = MakeLoopTxParams & { latestBlockhash: BlockhashLifetimeConstraint };
 
 /**
  * Orchestrates the deferred-swap loop build:
@@ -198,7 +181,7 @@ async function buildLoopFlashloanTx(params: LoopParams) {
 
     return {
       flashloanTx,
-      setupInstructions: [] as TransactionInstruction[],
+      setupInstructions: [] as Instruction[],
       swapQuote: undefined,
       borrowIxs,
       depositIxs,
@@ -216,20 +199,18 @@ async function buildLoopFlashloanTx(params: LoopParams) {
   const principalNative =
     depositOpts.loopMode === "DEPOSIT"
       ? uiToNative(depositOpts.inputDepositAmount, depositOpts.depositBank.mintDecimals)
-      : new BN(0);
-  const finalDepositNative = engineResult.outputAmountNative.add(principalNative);
+      : 0n;
+  const finalDepositNative = engineResult.outputAmountNative + principalNative;
 
   const depositIxPosition = descriptor.depositIxIndex + engineResult.swapInstructions.length;
-  patchDepositAmount(finalIxs[depositIxPosition], finalDepositNative);
-
-  const luts = [...descriptor.luts, ...engineResult.swapLuts];
+  finalIxs[depositIxPosition] = patchDepositAmount(finalIxs[depositIxPosition], finalDepositNative);
 
   const flashloanTx = await finalizeLoopFlashloanTx({
     params,
     innerIxs: finalIxs,
-    luts,
+    luts: { ...descriptor.luts, ...engineResult.swapLuts },
     swapIxCount: engineResult.swapInstructions.length,
-    swapLutCount: engineResult.swapLuts.length,
+    swapLutCount: Object.keys(engineResult.swapLuts).length,
     sizeConstraint: descriptor.sizeConstraint,
   });
 
@@ -251,33 +232,32 @@ async function buildLoopFlashloanTx(params: LoopParams) {
 async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
   descriptor: LoopFlashloanDescriptor;
   swapNeeded: boolean;
-  borrowIxs: InstructionsWrapper;
-  depositIxs: InstructionsWrapper;
+  borrowIxs: Instruction[];
+  depositIxs: Instruction[];
 }> {
   const {
-    program,
+    programAddress,
     marginfiAccount,
+    authority,
     bankMap,
     borrowOpts,
     depositOpts,
     bankMetadataMap,
-    addressLookupTableAccounts,
-    overrideInferAccounts,
+    luts,
   } = params;
 
   const cuRequestIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
+    getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
-  const swapNeeded = !depositOpts.depositBank.mint.equals(borrowOpts.borrowBank.mint);
+  const swapNeeded = depositOpts.depositBank.mint !== borrowOpts.borrowBank.mint;
 
-  const destinationTokenAccount = getAssociatedTokenAddressSync(
-    new PublicKey(depositOpts.depositBank.mint),
-    marginfiAccount.authority,
-    true,
-    depositOpts.tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-  );
+  const [destinationTokenAccount] = await findAssociatedTokenPda({
+    mint: depositOpts.depositBank.mint,
+    owner: authority.address,
+    tokenProgram: depositOpts.tokenProgram,
+  });
 
   const principalUi = depositOpts.loopMode === "DEPOSIT" ? depositOpts.inputDepositAmount : 0;
 
@@ -291,11 +271,11 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
   } else {
     // Measure how many bytes & accounts remain for swapping (net of begin/end flashloan).
     const swapConstraints = await computeFlashloanSwapConstraints({
-      program,
+      programAddress,
       marginfiAccount,
       bankMap,
       bankMetadataMap,
-      addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+      luts: luts ?? {},
       primaryIx: {
         type: "borrow",
         bank: borrowOpts.borrowBank,
@@ -306,7 +286,6 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
         bank: depositOpts.depositBank,
         tokenProgram: depositOpts.tokenProgram,
       },
-      overrideInferAccounts,
     });
     sizeConstraint = swapConstraints.sizeConstraint;
     maxSwapTotalAccounts = swapConstraints.maxSwapTotalAccounts;
@@ -317,27 +296,25 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
   }
 
   const borrowIxs = await makeBorrowIx({
-    program,
+    programAddress,
     bank: borrowOpts.borrowBank,
     bankMap,
     tokenProgram: borrowOpts.tokenProgram,
     amount: borrowOpts.borrowAmount,
     marginfiAccount,
-    authority: marginfiAccount.authority,
-    isSync: false,
+    authority,
     opts: {
       createAtas: false,
       wrapAndUnwrapSol: false,
-      overrideInferAccounts,
     },
   });
 
   const depositIxs = await buildDepositIxs(params, depositAmountUi);
 
   // Inner ix order: [cuRequest..., borrow..., <swap slot>, deposit...]
-  const innerIxsBeforeSwap = [...cuRequestIxs, ...borrowIxs.instructions];
+  const innerIxsBeforeSwap = [...cuRequestIxs, ...borrowIxs];
   const swapSlotIndex = innerIxsBeforeSwap.length;
-  const innerIxs = [...innerIxsBeforeSwap, ...depositIxs.instructions];
+  const innerIxs = [...innerIxsBeforeSwap, ...depositIxs];
 
   const depositIxIndex = innerIxs.findIndex(isDepositIx);
   if (depositIxIndex < 0) {
@@ -350,114 +327,76 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     innerIxs,
     swapSlotIndex,
     depositIxIndex,
-    inputMint: borrowOpts.borrowBank.mint.toBase58(),
-    outputMint: depositOpts.depositBank.mint.toBase58(),
+    inputMint: borrowOpts.borrowBank.mint,
+    outputMint: depositOpts.depositBank.mint,
     inputDecimals: borrowOpts.borrowBank.mintDecimals,
     outputDecimals: depositOpts.depositBank.mintDecimals,
-    inAmountNative: uiToNative(
-      borrowOpts.borrowAmount,
-      borrowOpts.borrowBank.mintDecimals
-    ).toNumber(),
+    inAmountNative: Number(uiToNative(borrowOpts.borrowAmount, borrowOpts.borrowBank.mintDecimals)),
     destinationTokenAccount,
     sizeConstraint,
     maxSwapTotalAccounts,
-    luts: addressLookupTableAccounts ?? [],
+    luts: luts ?? {},
   };
 
   return { descriptor, swapNeeded, borrowIxs, depositIxs };
 }
 
 /** Builds the deposit instruction(s) for the loop's deposit bank at the given UI amount. */
-async function buildDepositIxs(params: LoopParams, amountUi: number): Promise<InstructionsWrapper> {
-  const { program, marginfiAccount, depositOpts, bankMetadataMap, overrideInferAccounts } = params;
+async function buildDepositIxs(params: LoopParams, amountUi: number): Promise<Instruction[]> {
+  const { programAddress, marginfiAccount, authority, depositOpts, bankMetadataMap } = params;
+  const { depositBank } = depositOpts;
+  const depositParams = {
+    programAddress,
+    bank: depositBank,
+    tokenProgram: depositOpts.tokenProgram,
+    amount: amountUi,
+    accountAddress: marginfiAccount.address,
+    authority,
+    group: marginfiAccount.group,
+    opts: {
+      wrapAndUnwrapSol: false,
+    },
+  };
 
-  switch (depositOpts.depositBank.config.assetTag) {
+  switch (depositBank.config.assetTag) {
     case AssetTag.KAMINO: {
-      const reserve =
-        bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.kaminoStates?.reserveState;
+      const reserve = bankMetadataMap[depositBank.address]?.kaminoStates?.reserveState;
 
       if (!reserve) {
         throw TransactionBuildingError.kaminoReserveNotFound(
-          depositOpts.depositBank.address.toBase58(),
-          depositOpts.depositBank.mint.toBase58(),
-          depositOpts.depositBank.tokenSymbol
+          depositBank.address,
+          depositBank.mint,
+          depositBank.tokenSymbol
         );
       }
 
-      return makeKaminoDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountUi,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        reserve,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
+      return makeKaminoDepositIx({ ...depositParams, reserve });
     }
 
     case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[depositOpts.depositBank.address.toBase58()]?.driftStates;
+      const driftState = bankMetadataMap[depositBank.address]?.driftStates;
 
       if (!driftState) {
         throw TransactionBuildingError.driftStateNotFound(
-          depositOpts.depositBank.address.toBase58(),
-          depositOpts.depositBank.mint.toBase58(),
-          depositOpts.depositBank.tokenSymbol
+          depositBank.address,
+          depositBank.mint,
+          depositBank.tokenSymbol
         );
       }
 
       return makeDriftDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountUi,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
+        ...depositParams,
         driftMarketIndex: driftState.spotMarketState.marketIndex,
         driftOracle: driftState.spotMarketState.oracle,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
       });
     }
 
     case AssetTag.JUPLEND: {
-      return makeJuplendDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountUi,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
+      return makeJuplendDepositIx(depositParams);
     }
 
     default: {
-      return makeDepositIx({
-        program,
-        bank: depositOpts.depositBank,
-        tokenProgram: depositOpts.tokenProgram,
-        amount: amountUi,
-        accountAddress: marginfiAccount.address,
-        authority: marginfiAccount.authority,
-        group: marginfiAccount.group,
-        opts: {
-          wrapAndUnwrapSol: false,
-          overrideInferAccounts,
-        },
-      });
+      return makeDepositIx(depositParams);
     }
   }
 }
@@ -471,13 +410,13 @@ async function runLoopSwapEngine(
   descriptor: LoopFlashloanDescriptor,
   params: LoopParams
 ): Promise<{
-  swapInstructions: TransactionInstruction[];
-  setupInstructions: TransactionInstruction[];
-  swapLuts: LoopFlashloanDescriptor["luts"];
+  swapInstructions: Instruction[];
+  setupInstructions: Instruction[];
+  swapLuts: AddressesByLookupTableAddress;
   quoteResponse: SwapQuoteResult;
-  outputAmountNative: BN;
+  outputAmountNative: bigint;
 }> {
-  const { connection, swapOpts, marginfiAccount, swapEngineRunner } = params;
+  const { rpc, swapOpts, authority, swapEngineRunner } = params;
 
   // Caller-pinned route override: the pinned quote's min-out sizes the deposit byte-patch,
   // exactly like an engine-selected route (validated — a pinned route can never silently
@@ -501,13 +440,13 @@ async function runLoopSwapEngine(
     inputDecimals: descriptor.inputDecimals,
     outputDecimals: descriptor.outputDecimals,
     ...swapEngineQuoteFieldsFromOpts(swapOpts),
-    taker: marginfiAccount.authority,
+    taker: authority.address,
     destinationTokenAccount: descriptor.destinationTokenAccount,
-    connection,
+    rpc,
     footprint: {
       instructions: descriptor.innerIxs,
       luts: descriptor.luts,
-      payer: marginfiAccount.authority,
+      payer: authority.address,
       sizeConstraint: descriptor.sizeConstraint,
       maxSwapTotalAccounts: descriptor.maxSwapTotalAccounts,
     },
@@ -537,18 +476,18 @@ async function finalizeLoopFlashloanTx({
   sizeConstraint,
 }: {
   params: LoopParams;
-  innerIxs: TransactionInstruction[];
-  luts: LoopFlashloanDescriptor["luts"];
+  innerIxs: Instruction[];
+  luts: AddressesByLookupTableAddress;
   swapIxCount: number;
   swapLutCount: number;
   sizeConstraint: number;
 }) {
-  const { program, marginfiAccount, bankMap, swapOpts, blockhash } = params;
+  const { programAddress, marginfiAccount, authority, bankMap, swapOpts, latestBlockhash } = params;
 
   if (swapIxCount > 0) {
     compileFlashloanPrecheck({
       allIxs: innerIxs,
-      payer: marginfiAccount.authority,
+      payer: authority.address,
       luts,
       sizeConstraint,
       swapIxCount,
@@ -561,16 +500,17 @@ async function finalizeLoopFlashloanTx({
   // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
   // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
   const flashloanTx = await makeFlashLoanTx({
-    program,
+    programAddress,
     marginfiAccount,
+    authority,
     bankMap,
-    addressLookupTableAccounts: luts,
-    blockhash,
+    luts,
+    latestBlockhash,
     ixs: innerIxs,
   });
 
-  const txSize = getTxSize(flashloanTx);
-  const totalKeys = getTotalAccountKeys(flashloanTx);
+  const txSize = getTxSize(flashloanTx.message);
+  const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
   if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.swapSizeExceededLoop(
@@ -589,6 +529,8 @@ async function finalizeLoopFlashloanTx({
 
 export interface MakeBridgedLoopTxParams extends MakeLoopTxParams {
   bridgeOpts?: BridgeOpts;
+  /** Prices the bridge legs (by bank address). */
+  oraclePrices: Map<string, OraclePrice>;
 }
 
 /**
@@ -616,7 +558,7 @@ export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promis
 }
 
 async function tryBridgedLoop(
-  params: MakeLoopTxParams,
+  params: Omit<MakeBridgedLoopTxParams, "bridgeOpts">,
   bridgeOpts: BridgeOpts | undefined
 ): Promise<BridgedTxResult | null> {
   const { depositBank } = params.depositOpts;
@@ -634,7 +576,7 @@ async function tryBridgedLoop(
   // Bridge legs price via the oracle (0 when missing): caller-supplied market prices only cover
   // the source/destination pair, never the bridge.
   const oraclePriceOf = (bank: BankType) =>
-    params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
+    params.oraclePrices.get(bank.address)?.priceRealtime.price.toNumber() ?? 0;
 
   const borrowBankPrice = oraclePriceOf(borrowBank);
   if (borrowBankPrice <= 0) return null;
@@ -654,7 +596,7 @@ async function tryBridgedLoop(
       if (bridgeBorrowUi <= 0) return null;
       const bridgeTokenProgram = await resolveTokenProgramForMint(
         bridgeBank.mint,
-        params.connection,
+        params.rpc,
         tokenProgramCache
       );
 
@@ -696,10 +638,10 @@ async function tryBridgedLoop(
             },
           }),
         marginfiAccount: params.marginfiAccount,
-        program: params.program,
+        programAddress: params.programAddress,
         banksMap: params.bankMap,
         assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
+        feePayer: params.authority,
         maxBundleTxs: bridgeOpts?.maxBundleTxs,
       });
       if (!result) return null; // both legs didn't build / bundle didn't fit — try the next bridge

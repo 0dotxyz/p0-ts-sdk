@@ -151,33 +151,29 @@ export async function tryBridgeCandidates(args: {
 /** The flow context shared verbatim by both legs of every bridged build. */
 export type SharedBridgeLegContext = Pick<
   MakeSwapDebtTxParams,
-  | "program"
+  | "programAddress"
   | "marginfiAccount"
-  | "connection"
+  | "authority"
+  | "rpc"
   | "bankMap"
-  | "oraclePrices"
   | "bankMetadataMap"
   | "assetShareValueMultiplierByBank"
   | "swapOpts"
-  | "addressLookupTableAccounts"
-  | "overrideInferAccounts"
-  | "crossbarUrl"
+  | "luts"
   | "swapEngineRunner"
 >;
 
 export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBridgeLegContext {
   return {
-    program: params.program,
+    programAddress: params.programAddress,
     marginfiAccount: params.marginfiAccount,
-    connection: params.connection,
+    authority: params.authority,
+    rpc: params.rpc,
     bankMap: params.bankMap,
-    oraclePrices: params.oraclePrices,
     bankMetadataMap: params.bankMetadataMap,
     assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     swapOpts: params.swapOpts,
-    addressLookupTableAccounts: params.addressLookupTableAccounts,
-    overrideInferAccounts: params.overrideInferAccounts,
-    crossbarUrl: params.crossbarUrl,
+    luts: params.luts,
     swapEngineRunner: params.swapEngineRunner,
   };
 }

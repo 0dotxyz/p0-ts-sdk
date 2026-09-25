@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { getAddressDecoder, type Address } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import {
@@ -19,6 +19,8 @@ import {
 } from "~/services/bank";
 import { MarginfiAccountType } from "~/services/account";
 
+const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
+
 // ----------------------------------------------------------------------------
 // Fixtures (minimal casts — these helpers only read a few fields)
 // ----------------------------------------------------------------------------
@@ -37,12 +39,12 @@ function bank(opts: {
   assetTag: AssetTag;
   operationalState: OperationalState;
   borrowLimit: number;
-  mint?: PublicKey;
-  address?: PublicKey;
+  mint?: Address;
+  address?: Address;
 }): BankType {
   return {
-    address: opts.address ?? Keypair.generate().publicKey,
-    mint: opts.mint ?? Keypair.generate().publicKey,
+    address: opts.address ?? uniqueAddress(),
+    mint: opts.mint ?? uniqueAddress(),
     config: {
       assetTag: opts.assetTag,
       operationalState: opts.operationalState,
@@ -52,7 +54,7 @@ function bank(opts: {
 }
 
 function accountWith(
-  balances: Array<{ bankPk: PublicKey; assetShares: number; liabilityShares: number }>
+  balances: Array<{ bankPk: Address; assetShares: number; liabilityShares: number }>
 ): MarginfiAccountType {
   return {
     balances: balances.map((b) => ({
@@ -164,7 +166,7 @@ describe("isStandardBorrowable / isStandardDepositable", () => {
 // ----------------------------------------------------------------------------
 
 describe("accountConflictsWithBridgeBank", () => {
-  const bankPk = Keypair.generate().publicKey;
+  const bankPk = uniqueAddress();
 
   it("deposit-side conflicts with an existing liability, not an asset", () => {
     const liab = accountWith([{ bankPk, assetShares: 0, liabilityShares: 5 }]);
@@ -187,9 +189,9 @@ describe("accountConflictsWithBridgeBank", () => {
 });
 
 describe("resolveBridgeCandidateBanks", () => {
-  const usdcMint = Keypair.generate().publicKey;
-  const solMint = Keypair.generate().publicKey;
-  const wrapperMint = Keypair.generate().publicKey; // only has a non-standard bank
+  const usdcMint = uniqueAddress();
+  const solMint = uniqueAddress();
+  const wrapperMint = uniqueAddress(); // only has a non-standard bank
 
   const usdcBank = bank({
     assetTag: AssetTag.DEFAULT,
@@ -218,9 +220,9 @@ describe("resolveBridgeCandidateBanks", () => {
       marginfiAccount: accountWith([]),
       bridgeTokenSide: "deposit",
     });
-    expect(usableBridgeBanks.map((b: BankType) => b.address.toBase58())).toEqual([
-      usdcBank.address.toBase58(),
-      solBank.address.toBase58(),
+    expect(usableBridgeBanks.map((b: BankType) => b.address)).toEqual([
+      usdcBank.address,
+      solBank.address,
     ]);
     expect(conflictingBridgeBanks).toHaveLength(0);
   });
@@ -234,11 +236,7 @@ describe("resolveBridgeCandidateBanks", () => {
       marginfiAccount: account,
       bridgeTokenSide: "borrow",
     });
-    expect(usableBridgeBanks.map((b: BankType) => b.address.toBase58())).toEqual([
-      usdcBank.address.toBase58(),
-    ]);
-    expect(conflictingBridgeBanks.map((b) => b.address.toBase58())).toEqual([
-      solBank.address.toBase58(),
-    ]);
+    expect(usableBridgeBanks.map((b: BankType) => b.address)).toEqual([usdcBank.address]);
+    expect(conflictingBridgeBanks.map((b) => b.address)).toEqual([solBank.address]);
   });
 });
