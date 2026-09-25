@@ -20,13 +20,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
 import accountFixtures from "../fixtures/mainnet-accounts.json";
 
-import { decodeBank, decodeMarginfiAccount } from "~/accounts";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { makeLoopTx } from "~/services/account/actions/loop";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine";
 import { SwapProvider } from "~/services/account/types";
-import { parseMarginfiAccountRaw } from "~/services/account/utils/deserialize.utils";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { TransactionType } from "~/services/transaction";
 
 const base64 = getBase64Encoder();
@@ -41,13 +40,13 @@ const rpcEndpoint = "http://loop.test";
 const banks = Object.fromEntries(
   bankFixtures.map(({ label, address: bankAddress, data }) => [
     label.split(" ")[0],
-    parseBankRaw(address(bankAddress), decodeBank(base64.encode(data))),
+    decodeBank(address(bankAddress), base64.encode(data)),
   ])
 );
 const bankMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));
-const parsed = parseMarginfiAccountRaw(
+const parsed = decodeMarginfiAccount(
   address(accountFixtures[1].address),
-  decodeMarginfiAccount(base64.encode(accountFixtures[1].data))
+  base64.encode(accountFixtures[1].data)
 );
 const marginfiAccount = {
   ...parsed,

@@ -1,6 +1,7 @@
-import type { Address } from "@solana/kit";
+import type { Address , ReadonlyUint8Array } from "@solana/kit";
 
-import type { SpotBalanceType, SpotPosition, UserStats } from "~/generated/drift";
+
+import type { SpotBalanceType } from "~/generated/drift";
 
 /** Curated Drift `SpotMarket`: the fields used for token amounts, rates and labeling. */
 export interface DriftSpotMarket {
@@ -30,14 +31,67 @@ export interface DriftSpotMarket {
   poolId: number;
 }
 
+/** A Drift spot position: a deposit or borrow in one spot market. */
+export interface DriftSpotPosition {
+  /** Scaled balance, precision SPOT_BALANCE_PRECISION (1e9); token amount = × cumulative interest */
+  scaledBalance: bigint;
+  /** Open spot bids, token mint precision */
+  openBids: bigint;
+  /** Open spot asks, token mint precision */
+  openAsks: bigint;
+  /** Net deposits minus withdrawals, token mint precision */
+  cumulativeDeposits: bigint;
+  marketIndex: number;
+  balanceType: SpotBalanceType;
+  openOrders: number;
+  padding: ReadonlyUint8Array;
+}
+
 /** Curated Drift `User`: the authority and its spot positions. */
 export interface DriftUser {
   authority: Address;
-  spotPositions: SpotPosition[];
+  spotPositions: DriftSpotPosition[];
 }
 
-/** Drift `UserStats` without its discriminator. */
-export type DriftUserStats = Omit<UserStats, "discriminator">;
+/** Drift `UserFees`, native quote units. */
+export interface DriftUserFees {
+  totalFeePaid: bigint;
+  totalFeeRebate: bigint;
+  totalTokenDiscount: bigint;
+  totalRefereeDiscount: bigint;
+  totalReferrerReward: bigint;
+  currentEpochReferrerReward: bigint;
+}
+
+/** Drift `UserStats` (volumes, fees, fuel) without its discriminator. */
+export interface DriftUserStats {
+  authority: Address;
+  referrer: Address;
+  fees: DriftUserFees;
+  nextEpochTs: bigint;
+  makerVolume30d: bigint;
+  takerVolume30d: bigint;
+  fillerVolume30d: bigint;
+  lastMakerVolume30dTs: bigint;
+  lastTakerVolume30dTs: bigint;
+  lastFillerVolume30dTs: bigint;
+  ifStakedQuoteAssetAmount: bigint;
+  numberOfSubAccounts: number;
+  numberOfSubAccountsCreated: number;
+  referrerStatus: number;
+  disableUpdatePerpBidAskTwap: number;
+  pausedOperations: number;
+  fuelOverflowStatus: number;
+  fuelInsurance: number;
+  fuelDeposits: number;
+  fuelBorrows: number;
+  fuelPositions: number;
+  fuelTaker: number;
+  fuelMaker: number;
+  ifStakedGovTokenAmount: bigint;
+  lastFuelIfBonusUpdateTs: number;
+  padding: ReadonlyUint8Array;
+}
 
 /** A Drift reward: a spot position the program credited to the bank's Drift user. */
 export interface DriftRewards {
@@ -45,7 +99,7 @@ export interface DriftRewards {
   marketIndex: number;
   spotMarket: Address;
   mint: Address;
-  spotPosition: SpotPosition;
+  spotPosition: DriftSpotPosition;
 }
 
 /** JSON DTO of a Drift `SpotPosition`: bigints as strings, padding as numbers. */

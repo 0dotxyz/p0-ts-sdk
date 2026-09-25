@@ -23,7 +23,7 @@ import {
 } from "../types";
 import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
 
-import { decodeFeeState } from "~/accounts";
+import { decodeFeeStateRaw } from "~/accounts";
 import { DEFAULT_ADDRESS } from "~/constants";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
@@ -125,7 +125,7 @@ export async function makeAccountTransferToNewAccountTx({
     authority,
     feePayer,
     newAuthority,
-    globalFeeWallet: decodeFeeState(feeStateAccount.data).globalFeeWallet,
+    globalFeeWallet: decodeFeeStateRaw(feeStateAccount.data).globalFeeWallet,
     feeState: feeStateAddress,
   });
 

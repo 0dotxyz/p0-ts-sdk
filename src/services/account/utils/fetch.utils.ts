@@ -13,9 +13,9 @@ import {
 
 import { BalanceType } from "../types";
 
-import { parseMarginfiAccountRaw } from "./deserialize.utils";
+import { decodeMarginfiAccount } from "./deserialize.utils";
 
-import { decodeMarginfiAccount, MARGINFI_ACCOUNT_DISCRIMINATOR } from "~/accounts";
+import { MARGINFI_ACCOUNT_DISCRIMINATOR } from "~/accounts";
 import { deriveMarginfiAccount } from "~/utils";
 
 const DISCRIMINATOR_FILTER: GetProgramAccountsMemcmpFilter = {
@@ -199,7 +199,7 @@ export const fetchMarginfiAccountActiveBalancesForBank = async (
 
   const results: AccountActiveBalanceForBank[] = [];
   for (const [accountAddress, account] of byAddress) {
-    const parsed = parseMarginfiAccountRaw(accountAddress, decodeMarginfiAccount(account.data));
+    const parsed = decodeMarginfiAccount(accountAddress, account.data);
     const balance = parsed.balances.find((b) => b.active && b.bankPk === bank);
     // Defensive: the memcmp matched this bank, so an active balance should exist. Skip if the
     // slot was deactivated between the scan and decode.

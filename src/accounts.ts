@@ -28,7 +28,7 @@ export {
  * Decodes a marginfi `Bank` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeBank(data: ReadonlyUint8Array): Bank {
+export function decodeBankRaw(data: ReadonlyUint8Array): Bank {
   return decodeAccountData(data, BANK_DISCRIMINATOR, getBankDecoder(), "marginfi Bank");
 }
 
@@ -36,7 +36,7 @@ export function decodeBank(data: ReadonlyUint8Array): Bank {
  * Decodes a marginfi `MarginfiAccount` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeMarginfiAccount(data: ReadonlyUint8Array): MarginfiAccount {
+export function decodeMarginfiAccountRaw(data: ReadonlyUint8Array): MarginfiAccount {
   return decodeAccountData(
     data,
     MARGINFI_ACCOUNT_DISCRIMINATOR,
@@ -49,7 +49,7 @@ export function decodeMarginfiAccount(data: ReadonlyUint8Array): MarginfiAccount
  * Decodes a marginfi `MarginfiGroup` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeMarginfiGroup(data: ReadonlyUint8Array): MarginfiGroup {
+export function decodeMarginfiGroupRaw(data: ReadonlyUint8Array): MarginfiGroup {
   return decodeAccountData(
     data,
     MARGINFI_GROUP_DISCRIMINATOR,
@@ -62,7 +62,7 @@ export function decodeMarginfiGroup(data: ReadonlyUint8Array): MarginfiGroup {
  * Decodes the marginfi `FeeState` account (global fee wallet and fees).
  * @throws if the discriminator doesn't match
  */
-export function decodeFeeState(data: ReadonlyUint8Array): FeeState {
+export function decodeFeeStateRaw(data: ReadonlyUint8Array): FeeState {
   return decodeAccountData(
     data,
     FEE_STATE_DISCRIMINATOR,

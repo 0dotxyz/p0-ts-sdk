@@ -11,30 +11,32 @@ import {
   type Rpc,
 } from "@solana/kit";
 
-import { BankRaw } from "../types";
+import { BankType } from "../types";
 
-import { BANK_DISCRIMINATOR, decodeBank } from "~/accounts";
+import { decodeBank } from "./deserialize.utils";
+
+import { BANK_DISCRIMINATOR } from "~/accounts";
 import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 
 export const fetchBank = async (
   rpc: Rpc<GetAccountInfoApi>,
   bankAddress: Address
-): Promise<{ address: Address; data: BankRaw }> => {
+): Promise<BankType> => {
   const account = await fetchEncodedAccount(rpc, bankAddress);
 
   if (!account.exists) {
     throw new Error(`Bank ${bankAddress} not found`);
   }
 
-  return { address: bankAddress, data: decodeBank(account.data) };
+  return decodeBank(bankAddress, account.data);
 };
 
 export const fetchMultipleBanks = async (
   rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
   programAddress: Address,
   opts?: { bankAddresses?: Address[]; groupAddress?: Address }
-): Promise<{ address: Address; data: BankRaw }[]> => {
-  const bankDatas: { address: Address; data: BankRaw }[] = [];
+): Promise<BankType[]> => {
+  const banks: BankType[] = [];
 
   if (opts?.bankAddresses && opts.bankAddresses.length > 0) {
     const addresses = opts.bankAddresses;
@@ -42,7 +44,7 @@ export const fetchMultipleBanks = async (
 
     accounts.forEach((account, idx) => {
       if (account) {
-        bankDatas.push({ address: account.address, data: decodeBank(account.data) });
+        banks.push(decodeBank(account.address, account.data));
       } else {
         console.error(`Bank ${addresses[idx]} not found`);
       }
@@ -66,12 +68,9 @@ export const fetchMultipleBanks = async (
       .getProgramAccounts(programAddress, { encoding: "base64", filters })
       .send();
     for (const { pubkey, account } of accounts) {
-      bankDatas.push({
-        address: pubkey,
-        data: decodeBank(parseBase64RpcAccount(pubkey, account).data),
-      });
+      banks.push(decodeBank(pubkey, parseBase64RpcAccount(pubkey, account).data));
     }
   }
 
-  return bankDatas;
+  return banks;
 };

@@ -15,14 +15,14 @@ import { makePulseHealthIx } from "../actions/account-lifecycle";
 import {
   HealthCacheSimulationError,
   HealthCacheStatus,
-  MarginfiAccountRaw,
   MarginfiAccountType,
   MarginRequirementType,
 } from "../types";
+import type { MarginfiAccountRaw } from "../types/raw-account.types";
 import { computeHealthComponentsFromBalances } from "../utils/compute/health-compute.utils";
 import { parseMarginfiAccountRaw } from "../utils/deserialize.utils";
 
-import { decodeMarginfiAccount } from "~/accounts";
+import { decodeMarginfiAccountRaw } from "~/accounts";
 import { AssetTag, BankType } from "~/services/bank/types";
 import { makeUpdateJupLendRateIxs, OraclePrice } from "~/services/price";
 import { makeTransactionMessage, simulateBundle } from "~/services/transaction";
@@ -328,7 +328,7 @@ export async function simulateAccountHealthCache(params: {
     throw new Error("Account not found");
   }
 
-  const marginfiAccountPost = decodeMarginfiAccount(
+  const marginfiAccountPost = decodeMarginfiAccountRaw(
     getBase64Encoder().encode(postExecutionAccount.postExecutionAccounts[0].data[0])
   );
 

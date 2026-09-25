@@ -12,11 +12,12 @@ import bankFixtures from "../bank/fixtures/mainnet-banks.json";
 
 import accountFixtures from "./fixtures/mainnet-accounts.json";
 
-import { decodeBank, decodeMarginfiAccount } from "~/accounts";
+import { decodeMarginfiAccountRaw } from "~/accounts";
 import { simulateAccountHealthCache } from "~/services/account/services/account-simulation.service";
-import { HealthCacheRaw, HealthCacheSimulationError } from "~/services/account/types";
-import { parseMarginfiAccountRaw } from "~/services/account/utils/deserialize.utils";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { HealthCacheSimulationError } from "~/services/account/types";
+import type { HealthCacheRaw } from "~/services/account/types/raw-account.types";
+import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
 // The simulated post-execution account is the fixture itself, with `post.healthCache` applied.
@@ -25,8 +26,8 @@ vi.mock("~/accounts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/accounts")>();
   return {
     ...actual,
-    decodeMarginfiAccount: (data: Uint8Array) => {
-      const account = actual.decodeMarginfiAccount(data);
+    decodeMarginfiAccountRaw: (data: Uint8Array) => {
+      const account = actual.decodeMarginfiAccountRaw(data);
       return { ...account, healthCache: { ...account.healthCache, ...post.healthCache } };
     },
   };
@@ -44,12 +45,12 @@ const accountFixture = accountFixtures[1];
 const banksMap = new Map(
   bankFixtures.map(({ address: bankAddress, data }) => [
     bankAddress,
-    parseBankRaw(address(bankAddress), decodeBank(base64.encode(data))),
+    decodeBank(address(bankAddress), base64.encode(data)),
   ])
 );
-const parsed = parseMarginfiAccountRaw(
+const parsed = decodeMarginfiAccount(
   address(accountFixture.address),
-  decodeMarginfiAccount(base64.encode(accountFixture.data))
+  base64.encode(accountFixture.data)
 );
 const marginfiAccount = {
   ...parsed,
@@ -101,7 +102,7 @@ describe("simulateAccountHealthCache", () => {
     const simulated = await simulate();
 
     expect(simulated.lendingAccount).toEqual(
-      decodeMarginfiAccount(base64.encode(accountFixture.data)).lendingAccount
+      decodeMarginfiAccountRaw(base64.encode(accountFixture.data)).lendingAccount
     );
     expect(request.params[0].encodedTransactions.map(decodeBundleTx)).toEqual([
       {

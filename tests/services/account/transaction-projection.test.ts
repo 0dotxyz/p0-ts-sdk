@@ -12,15 +12,14 @@ import bankFixtures from "../bank/fixtures/mainnet-banks.json";
 
 import accountFixtures from "./fixtures/mainnet-accounts.json";
 
-import { decodeBank, decodeMarginfiAccount } from "~/accounts";
 import instructions from "~/instructions";
 import {
   computeProjectedActiveBalancesNoCpi,
   computeProjectedActiveBanksNoCpi,
 } from "~/services/account/utils/compute/transaction-projection.utils";
-import { parseMarginfiAccountRaw } from "~/services/account/utils/deserialize.utils";
+import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { balanceToDto } from "~/services/account/utils/serialize.utils";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
 const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const base64 = getBase64Encoder();
@@ -29,14 +28,14 @@ const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 // Mainnet account with 14 active positions, incl. an asset in the default bank fixture and a
 // liability in the SOL bank fixture; the other fixture banks become new positions.
 const accountFixture = accountFixtures[1];
-const account = parseMarginfiAccountRaw(
+const account = decodeMarginfiAccount(
   address(accountFixture.address),
-  decodeMarginfiAccount(base64.encode(accountFixture.data))
+  base64.encode(accountFixture.data)
 );
 const banks = Object.fromEntries(
   bankFixtures.map(({ label, address: bankAddress, data }) => [
     label.split(" ")[0],
-    parseBankRaw(address(bankAddress), decodeBank(base64.encode(data))),
+    decodeBank(address(bankAddress), base64.encode(data)),
   ])
 );
 const banksMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));

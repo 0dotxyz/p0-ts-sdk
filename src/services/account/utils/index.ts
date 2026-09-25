@@ -1,4 +1,15 @@
-export * from "./deserialize.utils";
+// Raw-level parsers work on generated account types and stay internal.
+export {
+  decodeMarginfiAccount,
+  dtoToBalance,
+  dtoToHealthCache,
+  dtoToMarginfiAccount,
+  getActiveAccountFlags,
+  getActiveHealthCacheFlags,
+  getHealthCacheStatusDescription,
+  hasAccountFlag,
+  hasHealthCacheFlag,
+} from "./deserialize.utils";
 export * from "./serialize.utils";
 export * from "./emode.utils";
 export * from "./compute";

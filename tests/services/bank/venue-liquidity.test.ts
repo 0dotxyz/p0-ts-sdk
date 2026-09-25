@@ -3,8 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import banks from "./fixtures/mainnet-banks.json";
 
-import { decodeBank } from "~/accounts";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import {
   computeVenueAvailableLiquidity,
   VENUE_AVAILABLE_LIQUIDITY_BUFFER,
@@ -15,9 +14,9 @@ const pk = (seed: number) => getAddressDecoder().decode(new Uint8Array(32).fill(
 
 const kaminoFixture = banks.find((bank) => bank.label === "kamino");
 if (!kaminoFixture) throw new Error("missing kamino bank fixture");
-const kaminoBank = parseBankRaw(
+const kaminoBank = decodeBank(
   address(kaminoFixture.address),
-  decodeBank(getBase64Encoder().encode(kaminoFixture.data))
+  getBase64Encoder().encode(kaminoFixture.data)
 );
 const unit = 10 ** kaminoBank.mintDecimals;
 

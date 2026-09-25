@@ -2,21 +2,24 @@ import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
 import { decodeAccountData } from "../account-data";
 
-import type { JupLendingState, JupTokenReserve } from "./types";
+import type {
+  JupLendingRewardsRateModel,
+  JupLendingState,
+  JupRateModel,
+  JupTokenReserve,
+} from "./types";
 
 import {
   getLendingDecoder,
   getLendingRewardsRateModelDecoder,
   LENDING_DISCRIMINATOR,
   LENDING_REWARDS_RATE_MODEL_DISCRIMINATOR,
-  type LendingRewardsRateModel,
 } from "~/generated/jup-lend";
 import {
   getRateModelDecoder,
   getTokenReserveDecoder,
   RATE_MODEL_DISCRIMINATOR,
   TOKEN_RESERVE_DISCRIMINATOR,
-  type RateModel,
 } from "~/generated/jup-lend-liquidity";
 
 export { LENDING_PROGRAM_ADDRESS as JUP_LEND_PROGRAM_ADDRESS } from "~/generated/jup-lend";
@@ -74,10 +77,10 @@ export function decodeJupTokenReserve(address: Address, data: ReadonlyUint8Array
 }
 
 /**
- * Decodes a JupLend liquidity-layer `RateModel` account; the result satisfies `JupRateModel`.
+ * Decodes a JupLend liquidity-layer `RateModel` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeJupRateModel(data: ReadonlyUint8Array): RateModel {
+export function decodeJupRateModel(data: ReadonlyUint8Array): JupRateModel {
   return decodeAccountData(
     data,
     RATE_MODEL_DISCRIMINATOR,
@@ -87,13 +90,12 @@ export function decodeJupRateModel(data: ReadonlyUint8Array): RateModel {
 }
 
 /**
- * Decodes a JupLend `LendingRewardsRateModel` account; the result satisfies
- * `JupLendingRewardsRateModel`.
+ * Decodes a JupLend `LendingRewardsRateModel` account.
  * @throws if the discriminator doesn't match
  */
 export function decodeJupLendingRewardsRateModel(
   data: ReadonlyUint8Array
-): LendingRewardsRateModel {
+): JupLendingRewardsRateModel {
   return decodeAccountData(
     data,
     LENDING_REWARDS_RATE_MODEL_DISCRIMINATOR,

@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import accounts from "./fixtures/mainnet-accounts.json";
 
-import { decodeMarginfiAccount } from "~/accounts";
 import {
   dtoToMarginfiAccount,
-  parseMarginfiAccountRaw,
+  decodeMarginfiAccount,
 } from "~/services/account/utils/deserialize.utils";
 import { marginfiAccountToDto } from "~/services/account/utils/serialize.utils";
 
@@ -15,9 +14,9 @@ describe("marginfi account DTO", () => {
   it.each(accounts)(
     "decodes the $label account into the API DTO",
     ({ address: accountAddress, data }) => {
-      const account = parseMarginfiAccountRaw(
+      const account = decodeMarginfiAccount(
         address(accountAddress),
-        decodeMarginfiAccount(getBase64Encoder().encode(data))
+        getBase64Encoder().encode(data)
       );
       const dto = marginfiAccountToDto(account);
 

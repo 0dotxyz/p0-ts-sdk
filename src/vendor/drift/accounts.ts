@@ -2,6 +2,8 @@ import type { ReadonlyUint8Array } from "@solana/kit";
 
 import { decodeAccountData } from "../account-data";
 
+import type { DriftSpotMarket, DriftUser, DriftUserStats } from "./types";
+
 import {
   getSpotMarketDecoder,
   getUserDecoder,
@@ -9,18 +11,16 @@ import {
   SPOT_MARKET_DISCRIMINATOR,
   USER_DISCRIMINATOR,
   USER_STATS_DISCRIMINATOR,
-  type SpotMarket,
-  type User,
-  type UserStats,
 } from "~/generated/drift";
+
 
 export { DRIFT_PROGRAM_ADDRESS, SpotBalanceType } from "~/generated/drift";
 
 /**
- * Decodes a Drift `SpotMarket` account; the result satisfies `DriftSpotMarket`.
+ * Decodes a Drift `SpotMarket` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeDriftSpotMarket(data: ReadonlyUint8Array): SpotMarket {
+export function decodeDriftSpotMarket(data: ReadonlyUint8Array): DriftSpotMarket {
   return decodeAccountData(
     data,
     SPOT_MARKET_DISCRIMINATOR,
@@ -30,18 +30,18 @@ export function decodeDriftSpotMarket(data: ReadonlyUint8Array): SpotMarket {
 }
 
 /**
- * Decodes a Drift `User` account; the result satisfies `DriftUser`.
+ * Decodes a Drift `User` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeDriftUser(data: ReadonlyUint8Array): User {
+export function decodeDriftUser(data: ReadonlyUint8Array): DriftUser {
   return decodeAccountData(data, USER_DISCRIMINATOR, getUserDecoder(), "Drift User");
 }
 
 /**
- * Decodes a Drift `UserStats` account; the result satisfies `DriftUserStats`.
+ * Decodes a Drift `UserStats` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeDriftUserStats(data: ReadonlyUint8Array): UserStats {
+export function decodeDriftUserStats(data: ReadonlyUint8Array): DriftUserStats {
   return decodeAccountData(
     data,
     USER_STATS_DISCRIMINATOR,

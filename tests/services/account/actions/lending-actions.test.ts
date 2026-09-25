@@ -13,7 +13,6 @@ import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
 import accountFixtures from "../fixtures/mainnet-accounts.json";
 import expected from "../fixtures/lending-actions-v2.8.3.json";
 
-import { decodeBank, decodeMarginfiAccount } from "~/accounts";
 import {
   makeCloseMarginfiAccountIx,
   makeCreateMarginfiAccountIx,
@@ -31,8 +30,8 @@ import {
   makeJuplendWithdrawIx,
   makeWithdrawIx,
 } from "~/services/account/actions/withdraw";
-import { parseMarginfiAccountRaw } from "~/services/account/utils/deserialize.utils";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { decodeDriftSpotMarket, SpotBalanceType } from "~/vendor/drift";
 import { decodeJupLendingState } from "~/vendor/jup-lend";
 
@@ -45,13 +44,13 @@ const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const banks = Object.fromEntries(
   bankFixtures.map(({ label, address: bankAddress, data }) => [
     label.split(" ")[0],
-    parseBankRaw(address(bankAddress), decodeBank(base64.encode(data))),
+    decodeBank(address(bankAddress), base64.encode(data)),
   ])
 );
 const banksMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));
-const parsed = parseMarginfiAccountRaw(
+const parsed = decodeMarginfiAccount(
   address(accountFixtures[1].address),
-  decodeMarginfiAccount(base64.encode(accountFixtures[1].data))
+  base64.encode(accountFixtures[1].data)
 );
 const marginfiAccount = {
   ...parsed,

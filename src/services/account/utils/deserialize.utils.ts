@@ -1,9 +1,7 @@
-import { address, type Address } from "@solana/kit";
+import { address, type Address, type ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import {
-  MarginfiAccountRaw,
-  BalanceRaw,
   BalanceType,
   AccountFlags,
   HealthCacheFlags,
@@ -12,10 +10,11 @@ import {
   BalanceTypeDto,
   HealthCacheTypeDto,
   HealthCacheType,
-  HealthCacheRaw,
   HealthCacheStatus,
 } from "../types";
+import type { MarginfiAccountRaw, BalanceRaw, HealthCacheRaw } from "../types/raw-account.types";
 
+import { decodeMarginfiAccountRaw } from "~/accounts";
 import { toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
@@ -61,6 +60,17 @@ export function parseHealthCacheRaw(healthCacheRaw: HealthCacheRaw): HealthCache
     simulationStatus,
   };
   return healthCache;
+}
+
+/**
+ * Decodes a marginfi `MarginfiAccount` account's data into a `MarginfiAccountType`.
+ * @throws if the account isn't a marginfi `MarginfiAccount`
+ */
+export function decodeMarginfiAccount(
+  address: Address,
+  data: ReadonlyUint8Array
+): MarginfiAccountType {
+  return parseMarginfiAccountRaw(address, decodeMarginfiAccountRaw(data));
 }
 
 export function parseMarginfiAccountRaw(

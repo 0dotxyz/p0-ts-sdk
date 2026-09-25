@@ -14,10 +14,9 @@ import { describe, expect, it } from "vitest";
 
 import bankFixtures from "../bank/fixtures/mainnet-banks.json";
 
-import { decodeBank } from "~/accounts";
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import instructions from "~/instructions";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import {
   isFlashloan,
   makeTransactionMessage,
@@ -48,7 +47,7 @@ const ix = (firstKey: number, accounts: number, dataLength = 0): Instruction => 
 const banks = Object.fromEntries(
   bankFixtures.map(({ label, address: bankAddress, data }) => [
     label.split(" ")[0],
-    parseBankRaw(address(bankAddress), decodeBank(getBase64Encoder().encode(data))),
+    decodeBank(address(bankAddress), getBase64Encoder().encode(data)),
   ])
 );
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { BANK_DISCRIMINATOR, decodeBank, OracleSetupRaw } from "~/accounts";
+import { BANK_DISCRIMINATOR, decodeBankRaw, OracleSetupRaw } from "~/accounts";
 import { OracleSetup } from "~/services/bank/types";
 import { parseOracleSetup, parseBankConfigRaw } from "~/services/bank/utils/deserialize.utils";
 import { serializeOracleSetup } from "~/services/bank/utils/serialize.utils";
@@ -60,7 +60,7 @@ describe("scopeEntryIndex plumbing", () => {
   const zeroConfig = () => {
     const data = new Uint8Array(4096);
     data.set(BANK_DISCRIMINATOR);
-    return decodeBank(data).config;
+    return decodeBankRaw(data).config;
   };
 
   it("passes scopeEntryIndex through parseBankConfigRaw", () => {

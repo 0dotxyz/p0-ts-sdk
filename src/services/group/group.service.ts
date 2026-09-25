@@ -9,8 +9,9 @@ import {
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import BigNumber from "bignumber.js";
 
-import { BankConfigOptRaw } from "../bank/types";
+import { BankConfigOpt } from "../bank/types";
 import {
+  serializeBankConfigOpt,
   serializeInterestRateConfig,
   serializeOperationalState,
   serializeRiskTier,
@@ -38,13 +39,13 @@ export async function makePoolConfigureBankIx({
   groupAddress: Address;
   admin: TransactionSigner;
   bankAddress: Address;
-  bankConfigOpt: BankConfigOptRaw;
+  bankConfigOpt: BankConfigOpt;
 }): Promise<Instruction> {
   return instructions.makePoolConfigureBankIx(programAddress, {
     group: groupAddress,
     admin,
     bank: bankAddress,
-    bankConfigOpt,
+    bankConfigOpt: serializeBankConfigOpt(bankConfigOpt),
   });
 }
 

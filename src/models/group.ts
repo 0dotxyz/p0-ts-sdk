@@ -10,19 +10,18 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { decodeMarginfiGroup } from "../accounts";
+import { decodeMarginfiGroupRaw } from "../accounts";
 import {
   AddBankConfig,
-  BankConfigOptRaw,
   BankRateLimiterType,
   fetchMultipleBanks,
   makeAddPermissionlessStakedBankIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
-  MarginfiGroupRaw,
+  BankConfigOpt,
   MarginfiGroupType,
-  parseBankRateLimiterRaw,
 } from "../services";
+import { parseBankRateLimiterRaw } from "../services/bank/utils/deserialize.utils";
 
 import { Bank } from "./bank";
 
@@ -63,27 +62,24 @@ class MarginfiGroup implements MarginfiGroupType {
     rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
     programAddress: Address
   ): Promise<Bank[]> {
-    const bankDatas = await fetchMultipleBanks(rpc, programAddress, {
+    const banks = await fetchMultipleBanks(rpc, programAddress, {
       groupAddress: this.address,
     });
 
-    return bankDatas.map((bankData) => Bank.fromAccountParsed(bankData.address, bankData.data));
+    return banks.map((bank) => Bank.fromBankType(bank));
   }
 
   // ----------------------------------------------------------------------------
   // Factories
   // ----------------------------------------------------------------------------
 
-  static fromAccountParsed(address: Address, accountData: MarginfiGroupRaw): MarginfiGroup {
+  static fromBuffer(address: Address, rawData: ReadonlyUint8Array): MarginfiGroup {
+    const accountData = decodeMarginfiGroupRaw(rawData);
     return new MarginfiGroup(
       accountData.admin,
       address,
       parseBankRateLimiterRaw(accountData.rateLimiter)
     );
-  }
-
-  static fromBuffer(address: Address, rawData: ReadonlyUint8Array) {
-    return MarginfiGroup.fromAccountParsed(address, decodeMarginfiGroup(rawData));
   }
 
   // ----------------------------------------------------------------------------
@@ -97,7 +93,7 @@ class MarginfiGroup implements MarginfiGroupType {
     programAddress: Address,
     admin: TransactionSigner,
     bankAddress: Address,
-    bankConfigOpt: BankConfigOptRaw
+    bankConfigOpt: BankConfigOpt
   ): Promise<Instruction> {
     return makePoolConfigureBankIx({
       programAddress,

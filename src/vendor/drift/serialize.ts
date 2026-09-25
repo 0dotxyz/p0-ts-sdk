@@ -5,6 +5,7 @@ import type {
   DriftRewardsJSON,
   DriftSpotMarket,
   DriftSpotMarketJSON,
+  DriftSpotPosition,
   DriftSpotPositionJSON,
   DriftUser,
   DriftUserJSON,
@@ -12,9 +13,7 @@ import type {
   DriftUserStatsJSON,
 } from "./types";
 
-import type { SpotPosition } from "~/generated/drift";
-
-function spotPositionToDto(position: SpotPosition): DriftSpotPositionJSON {
+function spotPositionToDto(position: DriftSpotPosition): DriftSpotPositionJSON {
   return {
     scaledBalance: position.scaledBalance.toString(),
     openBids: position.openBids.toString(),
@@ -27,7 +26,7 @@ function spotPositionToDto(position: SpotPosition): DriftSpotPositionJSON {
   };
 }
 
-function dtoToSpotPosition(dto: DriftSpotPositionJSON): SpotPosition {
+function dtoToSpotPosition(dto: DriftSpotPositionJSON): DriftSpotPosition {
   return {
     scaledBalance: BigInt(dto.scaledBalance),
     openBids: BigInt(dto.openBids),

@@ -1,7 +1,6 @@
 import BigNumber from "bignumber.js";
 
 import {
-  BankConfigOptRaw,
   BankConfigOpt,
   RiskTier,
   OperationalState,
@@ -20,6 +19,7 @@ import {
   BankRateLimiterDto,
   RateLimitWindowDto,
 } from "../types";
+import type { BankConfigOptRaw } from "../types/raw-bank.types";
 
 import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import type { InterestRateConfigCompactArgs } from "~/generated/marginfi";

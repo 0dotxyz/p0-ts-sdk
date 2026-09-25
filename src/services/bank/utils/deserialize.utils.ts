@@ -1,11 +1,9 @@
-import { address, type Address } from "@solana/kit";
+import { address, type Address, type ReadonlyUint8Array } from "@solana/kit";
 import BigNumber from "bignumber.js";
 
 import {
   AssetTag,
-  BankConfigRaw,
   BankConfigType,
-  BankRaw,
   BankType,
   EmodeEntryFlags,
   EmodeFlags,
@@ -19,15 +17,19 @@ import {
   BankTypeDto,
   EmodeSettingsDto,
   InterestRateConfigDto,
-  EmodeSettingsRaw,
-  BankRateLimiterRaw,
   BankRateLimiterType,
   RateLimitWindowType,
   BankRateLimiterDto,
   RateLimitWindowDto,
 } from "../types";
+import type {
+  BankConfigRaw,
+  BankRaw,
+  EmodeSettingsRaw,
+  BankRateLimiterRaw,
+} from "../types/raw-bank.types";
 
-import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
+import { decodeBankRaw, OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import {
   DEFAULT_ORACLE_MAX_AGE,
   STAKED_ORACLE_DISABLED_FLAG,
@@ -86,6 +88,19 @@ interface BankMetadata {
   tokenAddress: string;
   tokenName: string;
   tokenSymbol: string;
+}
+
+/**
+ * Decodes a marginfi `Bank` account's data into a `BankType`.
+ * @param bankMetadata - Optional token name/symbol for the bank's mint
+ * @throws if the account isn't a marginfi `Bank`
+ */
+export function decodeBank(
+  address: Address,
+  data: ReadonlyUint8Array,
+  bankMetadata?: BankMetadata
+): BankType {
+  return parseBankRaw(address, decodeBankRaw(data), bankMetadata);
 }
 
 export function parseBankRaw(

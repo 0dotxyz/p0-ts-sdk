@@ -3,16 +3,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 import banks from "../bank/fixtures/mainnet-banks.json";
 
-import { decodeBank } from "~/accounts";
 import { BankType, OracleSetup } from "~/services/bank/types";
-import { parseBankRaw } from "~/services/bank/utils/deserialize.utils";
+import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { fetchScopeOracleData } from "~/services/price/services/scope-oracle.service";
 
 const ORACLE_PRICES_KEY = address("AMjqm5S4QaAHWLv52jJiRpFNW1qo23F6ZM5ChCF5tYgc");
-const baseBank = parseBankRaw(
-  address(banks[0].address),
-  decodeBank(getBase64Encoder().encode(banks[0].data))
-);
+const baseBank = decodeBank(address(banks[0].address), getBase64Encoder().encode(banks[0].data));
 
 let nextKey = 1;
 const uniqueAddress = () => getAddressDecoder().decode(new Uint8Array(32).fill(nextKey++));
