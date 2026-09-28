@@ -1,8 +1,7 @@
 import { BigNumber } from "bignumber.js";
 
 import { HealthCacheFlags, HealthCacheStatus, HealthCacheType } from "../services";
-import type { HealthCacheRaw } from "../services/account/types/raw-account.types";
-import { parseHealthCacheRaw } from "../services/account/utils/deserialize.utils";
+
 export class HealthCache implements HealthCacheType {
   constructor(
     public assetValue: BigNumber,
@@ -30,9 +29,5 @@ export class HealthCache implements HealthCacheType {
       healthCacheType.prices,
       healthCacheType.simulationStatus
     );
-  }
-
-  static from(healthCacheRaw: HealthCacheRaw): HealthCache {
-    return this.fromHealthCacheType(parseHealthCacheRaw(healthCacheRaw));
   }
 }

@@ -1,4 +1,5 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { createNoopSigner, type Address, type TransactionSigner } from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import { MarginfiAccount } from "./account";
@@ -7,8 +8,10 @@ import { Bank } from "./bank";
 import { Project0Client } from "./client";
 import { HealthCache } from "./health-cache";
 
+import { WSOL_MINT } from "~/constants";
 import {
-  BridgedTxResult,
+  computeLowestEmodeWeights,
+  createActiveEmodePairFromPairs,
   MakeBorrowIxOpts,
   MakeBridgedLoopTxParams,
   MakeBridgedSwapCollateralTxParams,
@@ -21,58 +24,57 @@ import {
   MakeRollPtTxParams,
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
-  MakeWithdrawIxOpts,
   MakeTransferPositionsTxParams,
+  MakeWithdrawIxOpts,
   MarginRequirementType,
-  SwapQuoteResult,
-  TransactionBuilderResult,
-  TransferPositionsResult,
-  computeLowestEmodeWeights,
-  createActiveEmodePairFromPairs,
 } from "~/services/account";
-import { BankType, EmodePair, ActionEmodeImpact, fetchBank } from "~/services/bank";
+import { ActionEmodeImpact, BankType, EmodePair } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
-import {
-  InstructionsWrapper,
-  ExtendedV0Transaction,
-  ExtendedTransaction,
-} from "~/services/transaction";
 import { Amount, MintData } from "~/types";
-import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
-import { KaminoReserve } from "~/vendor/klend";
-import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "~/vendor/spl";
+
+/** Params every wrapped flow gets from the client and the wrapper's signer. */
+type ClientFilled =
+  | "programAddress"
+  | "marginfiAccount"
+  | "authority"
+  | "rpc"
+  | "bankMap"
+  | "bankMetadataMap"
+  | "assetShareValueMultiplierByBank"
+  | "luts";
 
 /**
- * Wrapper around MarginfiAccount that auto-injects client data for cleaner API.
- *
- * Instead of:
- *   await account.makeDepositIx(program, banks, mintDatas, amount, bankAddress)
- *
- * Use:
- *   await wrappedAccount.makeDepositIx(amount, bankAddress)
- *
- * The wrapper handles all the boilerplate of looking up banks, mint data, etc.
+ * A {@link MarginfiAccount} bound to a {@link Project0Client}: its builders and computations
+ * take only what the action needs (bank, amount, options) and fill the rest from the client.
+ * Transactions are signed by `signer`, a noop signer for the account's authority unless given one
+ * (then sign with the wallet; pass a `KeyPairSigner` to sign with
+ * `signTransactionMessageWithSigners`).
  */
 export class MarginfiAccountWrapper {
+  signer: TransactionSigner;
+
   constructor(
     private readonly account: MarginfiAccount,
-    private readonly client: Project0Client
-  ) {}
+    private readonly client: Project0Client,
+    signer?: TransactionSigner
+  ) {
+    this.signer = signer ?? createNoopSigner(account.authority);
+  }
 
   // ----------------------------------------------------------------------------
-  // Delegate state access to underlying account
+  // Account state
   // ----------------------------------------------------------------------------
 
-  get address(): PublicKey {
+  get address(): Address {
     return this.account.address;
   }
 
-  get group(): PublicKey {
+  get group(): Address {
     return this.account.group;
   }
 
-  get authority(): PublicKey {
+  get authority(): Address {
     return this.account.authority;
   }
 
@@ -88,7 +90,7 @@ export class MarginfiAccountWrapper {
     return this.account.accountFlags;
   }
 
-  get emissionsDestinationAccount(): PublicKey {
+  get emissionsDestinationAccount(): Address {
     return this.account.emissionsDestinationAccount;
   }
 
@@ -108,121 +110,83 @@ export class MarginfiAccountWrapper {
     return this.account.isTransferAccountAuthorityEnabled;
   }
 
-  getBalance(bankPk: PublicKey): Balance {
+  /** The balance in `bankPk` (an empty one when the account holds none). */
+  getBalance(bankPk: Address): Balance {
     return this.account.getBalance(bankPk);
   }
 
-  async getBankFromAddress(bankAddress: PublicKey): Promise<BankType> {
-    const bank = this.client.bankMap.get(bankAddress.toBase58());
-    if (!bank) {
-      const bankData = await fetchBank(this.client.program, bankAddress);
-      const bank = Bank.fromAccountParsed(bankAddress, bankData.data);
-      return bank;
-    } else {
-      return bank;
-    }
+  /**
+   * The client's bank at `bankAddress`, fetched when the client doesn't hold it.
+   * @throws if it isn't in the client and doesn't exist on-chain
+   */
+  async getBankFromAddress(bankAddress: Address): Promise<BankType> {
+    return this.client.bankMap.get(bankAddress) ?? Bank.fetch(bankAddress, this.client.rpc);
   }
 
+  /** The client's mint data for `bank`, falling back to reading the mint's token program. */
   async getMintDataFromBank(bank: BankType): Promise<MintData> {
-    let mintData = this.client.mintDataByBank.get(bank.address.toBase58());
+    const mintData = this.client.mintDataByBank.get(bank.address);
+    if (mintData) return mintData;
+    if (bank.mint === WSOL_MINT) return { mint: bank.mint, tokenProgram: TOKEN_PROGRAM_ADDRESS };
 
-    if (!mintData) {
-      // For native SOL (wrapped SOL), use TOKEN_PROGRAM_ID directly
-      if (bank.mint.equals(NATIVE_MINT)) {
-        mintData = {
-          mint: bank.mint,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        };
-      } else {
-        // Try to fetch token program for other mints
-        const connection = this.client.program.provider.connection;
-        const fetchedMintData = await fetchProgramForMints(connection, [bank.mint]);
-        const fetched = fetchedMintData[0];
-        if (!fetched) {
-          // Fallback to TOKEN_PROGRAM_ID for standard tokens
-          console.warn(
-            `Could not fetch token program for mint ${bank.mint.toBase58()}, using TOKEN_PROGRAM_ID`
-          );
-          mintData = {
-            mint: bank.mint,
-            tokenProgram: TOKEN_PROGRAM_ID,
-          };
-        } else {
-          mintData = {
-            mint: fetched.mint,
-            tokenProgram: fetched.program,
-          };
-        }
-      }
+    const [fetched] = await fetchProgramForMints(this.client.rpc, [bank.mint]);
+    if (!fetched) {
+      console.warn(`Could not fetch token program for mint ${bank.mint}, using the Token program`);
+      return { mint: bank.mint, tokenProgram: TOKEN_PROGRAM_ADDRESS };
     }
-    return mintData;
+    return { mint: fetched.mint, tokenProgram: fetched.program };
+  }
+
+  private get context() {
+    return {
+      programAddress: this.client.programAddress,
+      authority: this.signer,
+      rpc: this.client.rpc,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      luts: this.client.addressLookupTables,
+    };
+  }
+
+  private async lendingContext(bankAddress: Address) {
+    const bank = await this.getBankFromAddress(bankAddress);
+    const { tokenProgram } = await this.getMintDataFromBank(bank);
+    return { ...this.context, bank, tokenProgram };
   }
 
   // ----------------------------------------------------------------------------
-  // Wrapped transaction methods - clean API without boilerplate
+  // Lending actions
   // ----------------------------------------------------------------------------
 
   /**
-   * Creates a deposit instruction with auto-injected client data.
-   *
-   * Automatically looks up bank and mint data from the client.
-   *
-   * @param bankAddress - Bank address to deposit to
-   * @param amount - Amount to deposit in UI units
-   * @param opts - Optional configuration for wrapping SOL and overrides
+   * Deposit instructions for `amount` (UI units) into `bankAddress`.
+   * @throws Error if `amount` isn't positive
    */
-  async makeDepositIx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    opts: MakeDepositIxOpts = {}
-  ): Promise<InstructionsWrapper> {
-    if (new BigNumber(amount).lte(0)) {
-      throw Error(`Deposit amount must be positive, got ${amount}`);
-    }
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
+  async makeDepositIx(bankAddress: Address, amount: Amount, opts: MakeDepositIxOpts = {}) {
+    if (new BigNumber(amount).lte(0)) throw Error(`Deposit amount must be positive, got ${amount}`);
     return this.account.makeDepositIx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
+      ...(await this.lendingContext(bankAddress)),
       amount,
       opts,
     });
   }
 
   /**
-   * Creates a repay instruction with auto-injected client data.
-   *
-   * Automatically looks up bank and mint data from the client.
-   *
-   * @param bankAddress - Bank address to repay to
-   * @param amount - Amount to repay in UI units
-   * @param repayAll - If true, repays the entire borrowed position
-   * @param opts - Optional configuration for wrapping SOL and overrides
+   * Repay instructions for `amount` (UI units) of `bankAddress`; `repayAll` closes the balance.
+   * @throws Error if `amount` isn't positive without `repayAll`
    */
   async makeRepayIx(
-    bankAddress: PublicKey,
+    bankAddress: Address,
     amount: Amount,
     repayAll: boolean = false,
     opts: MakeRepayIxOpts = {}
-  ): Promise<InstructionsWrapper> {
+  ) {
     if (!repayAll && new BigNumber(amount).lte(0)) {
       throw Error(`Repay amount must be positive, got ${amount}`);
     }
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
     return this.account.makeRepayIx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
+      ...(await this.lendingContext(bankAddress)),
       amount,
       repayAll,
       opts,
@@ -230,854 +194,267 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Creates a withdraw instruction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, and metadata from the client.
-   *
-   * @param bankAddress - Bank address to withdraw from
-   * @param amount - Amount to withdraw in UI units
-   * @param withdrawAll - If true, withdraws the entire collateral position
-   * @param opts - Optional configuration for unwrapping SOL and overrides
+   * Withdraw instructions for `amount` (UI units) from `bankAddress`; `withdrawAll` closes the
+   * balance.
+   * @throws Error if `amount` isn't positive without `withdrawAll`
    */
   async makeWithdrawIx(
-    bankAddress: PublicKey,
+    bankAddress: Address,
     amount: Amount,
     withdrawAll: boolean = false,
     opts: MakeWithdrawIxOpts = {}
-  ): Promise<InstructionsWrapper> {
+  ) {
     if (!withdrawAll && new BigNumber(amount).lte(0)) {
       throw Error(`Withdraw amount must be positive, got ${amount}`);
     }
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
     return this.account.makeWithdrawIx({
-      program: this.client.program,
-      bank,
-      bankMap: this.client.bankMap,
-      tokenProgram: mintData.tokenProgram,
+      ...(await this.lendingContext(bankAddress)),
       amount,
       withdrawAll,
-      bankMetadataMap: this.client.bankIntegrationMap,
       opts,
     });
   }
 
   /**
-   * Creates a borrow instruction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, and metadata from the client.
-   *
-   * @param bankAddress - Bank address to borrow from
-   * @param amount - Amount to borrow in UI units
-   * @param opts - Optional configuration for unwrapping SOL and overrides
+   * Borrow instructions for `amount` (UI units) from `bankAddress`.
+   * @throws Error if `amount` isn't positive
    */
-  async makeBorrowIx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    opts: MakeBorrowIxOpts = {}
-  ): Promise<InstructionsWrapper> {
-    if (new BigNumber(amount).lte(0)) {
-      throw Error(`Borrow amount must be positive, got ${amount}`);
-    }
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
+  async makeBorrowIx(bankAddress: Address, amount: Amount, opts: MakeBorrowIxOpts = {}) {
+    if (new BigNumber(amount).lte(0)) throw Error(`Borrow amount must be positive, got ${amount}`);
+    return this.account.makeBorrowIx({ ...(await this.lendingContext(bankAddress)), amount, opts });
+  }
 
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeBorrowIx({
-      program: this.client.program,
-      bank,
-      bankMap: this.client.bankMap,
-      tokenProgram: mintData.tokenProgram,
+  /** Deposit transaction for `amount` (UI units) into `bankAddress`. */
+  async makeDepositTx(bankAddress: Address, amount: Amount, opts: MakeDepositIxOpts = {}) {
+    return this.account.makeDepositTx({
+      ...(await this.lendingContext(bankAddress)),
       amount,
       opts,
     });
   }
 
-  /**
-   * Creates a begin flash loan instruction.
-   *
-   * @param endIndex - End index for the flash loan
-   * @param authority - Optional authority override
-   */
-  async makeBeginFlashLoanIx(
-    endIndex: number,
-    authority?: PublicKey
-  ): Promise<InstructionsWrapper> {
-    return this.account.makeBeginFlashLoanIx(this.client.program, endIndex, authority);
+  /** Repay transaction for `amount` (UI units) of `bankAddress`; `repayAll` closes the balance. */
+  async makeRepayTx(
+    bankAddress: Address,
+    amount: Amount,
+    repayAll: boolean = false,
+    opts: MakeRepayIxOpts = {}
+  ) {
+    return this.account.makeRepayTx({
+      ...(await this.lendingContext(bankAddress)),
+      amount,
+      repayAll,
+      opts,
+    });
   }
 
   /**
-   * Creates an end flash loan instruction with auto-injected client data.
-   *
-   * @param projectedActiveBanks - Array of active bank public keys after flash loan
-   * @param authority - Optional authority override
+   * Withdraw transaction for `amount` (UI units) from `bankAddress`; `withdrawAll` closes the
+   * balance.
    */
-  async makeEndFlashLoanIx(
-    projectedActiveBanks: PublicKey[],
-    authority?: PublicKey
-  ): Promise<InstructionsWrapper> {
+  async makeWithdrawTx(
+    bankAddress: Address,
+    amount: Amount,
+    withdrawAll: boolean = false,
+    opts: MakeWithdrawIxOpts = {}
+  ) {
+    return this.account.makeWithdrawTx({
+      ...(await this.lendingContext(bankAddress)),
+      amount,
+      withdrawAll,
+      opts,
+    });
+  }
+
+  /** Borrow transaction for `amount` (UI units) from `bankAddress`. */
+  async makeBorrowTx(bankAddress: Address, amount: Amount, opts: MakeBorrowIxOpts = {}) {
+    return this.account.makeBorrowTx({ ...(await this.lendingContext(bankAddress)), amount, opts });
+  }
+
+  // ----------------------------------------------------------------------------
+  // Account and flash-loan actions
+  // ----------------------------------------------------------------------------
+
+  /** Starts a flash loan that ends at transaction instruction `endIndex`. */
+  async makeBeginFlashLoanIx(endIndex: number) {
+    return this.account.makeBeginFlashLoanIx(this.client.programAddress, endIndex, this.signer);
+  }
+
+  /**
+   * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
+   * @throws Error if the client misses one of `projectedActiveBanks`
+   */
+  async makeEndFlashLoanIx(projectedActiveBanks: Address[]) {
     return this.account.makeEndFlashLoanIx(
-      this.client.program,
+      this.client.programAddress,
       this.client.bankMap,
       projectedActiveBanks,
-      authority
+      this.signer
     );
   }
 
+  /** Wraps `params.ixs` in a flash loan on this account. */
+  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, ClientFilled>) {
+    return this.account.makeFlashLoanTx({ ...this.context, ...params });
+  }
+
   /**
-   * Builds a transaction to transfer this account to a new authority.
-   *
-   * @param newMarginfiAccount - Freshly generated keypair for the destination account
-   * @param newAuthority - New authority public key
-   * @param feePayer - Optional `PublicKey` (adapter-signed) or `Keypair` (separate
-   *   payer); defaults to this account's authority
+   * Moves this account's positions to `newMarginfiAccount` (a fresh keypair signer) owned by
+   * `newAuthority`; `feePayer` defaults to the signer.
    */
   async makeAccountTransferToNewAccountTx(
-    newMarginfiAccount: Keypair,
-    newAuthority: PublicKey,
-    feePayer?: PublicKey | Keypair
-  ): Promise<ExtendedV0Transaction> {
-    return this.account.makeAccountTransferToNewAccountTx(
-      this.client.program,
+    newMarginfiAccount: TransactionSigner,
+    newAuthority: Address,
+    feePayer?: TransactionSigner
+  ) {
+    return this.account.makeAccountTransferToNewAccountTx({
+      rpc: this.client.rpc,
+      programAddress: this.client.programAddress,
+      authority: this.signer,
       newMarginfiAccount,
       newAuthority,
-      feePayer
-    );
+      feePayer,
+    });
   }
 
-  /**
-   * Creates a close account instruction.
-   */
-  async makeCloseAccountIx(): Promise<InstructionsWrapper> {
-    return this.account.makeCloseAccountIx(this.client.program);
+  /** Closes this (empty) account; the signer receives the rent. */
+  async makeCloseAccountIx() {
+    return this.account.makeCloseAccountIx(this.client.programAddress, this.signer);
   }
 
-  /**
-   * Creates a pulse health instruction with auto-injected client data.
-   *
-   * @param mandatoryBanks - Array of mandatory bank public keys
-   * @param excludedBanks - Array of excluded bank public keys
-   */
-  async makePulseHealthIx(mandatoryBanks: PublicKey[], excludedBanks: PublicKey[]) {
-    return this.account.makePulseHealthIx(
-      this.client.program,
-      this.client.bankMap,
-      mandatoryBanks,
-      excludedBanks
-    );
+  /** Refreshes this account's on-chain health cache. */
+  async makePulseHealthIx() {
+    return this.account.makePulseHealthIx(this.client.programAddress, this.client.bankMap);
   }
 
-  /**
-   * Creates a loop transaction (leverage) with auto-injected client data.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
-   *
-   * @param params - Loop transaction parameters (user provides: connection, depositOpts, borrowOpts, swapOpts, etc.)
-   */
-  async makeLoopTx(
-    params: Omit<
-      MakeLoopTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-    >
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    const fullParams: MakeLoopTxParams = {
-      ...params,
-      program: this.client.program,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
+  // ----------------------------------------------------------------------------
+  // Flows
+  // ----------------------------------------------------------------------------
+
+  /** Leverage loop: flash-borrow, swap into the deposit asset and deposit. */
+  async makeLoopTx(params: Omit<MakeLoopTxParams, ClientFilled>) {
+    return this.account.makeLoopTx({ ...this.context, ...params });
+  }
+
+  /** {@link makeLoopTx} with a bridged (double-hop) fallback when the direct swap doesn't fit. */
+  async makeBridgedLoopTx(params: Omit<MakeBridgedLoopTxParams, ClientFilled | "oraclePrices">) {
+    return this.account.makeBridgedLoopTx({
+      ...this.context,
       oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-    };
-    return this.account.makeLoopTx(fullParams);
+      ...params,
+    });
+  }
+
+  /** Repays debt with withdrawn collateral, swapped into the debt asset in a flash loan. */
+  async makeRepayWithCollatTx(params: Omit<MakeRepayWithCollatTxParams, ClientFilled>) {
+    return this.account.makeRepayWithCollatTx({ ...this.context, ...params });
+  }
+
+  /** Swaps one collateral position into another in a flash loan. */
+  async makeSwapCollateralTx(params: Omit<MakeSwapCollateralTxParams, ClientFilled>) {
+    return this.account.makeSwapCollateralTx({ ...this.context, ...params });
+  }
+
+  /** {@link makeSwapCollateralTx} with a bridged (double-hop) fallback. */
+  async makeBridgedSwapCollateralTx(params: Omit<MakeBridgedSwapCollateralTxParams, ClientFilled>) {
+    return this.account.makeBridgedSwapCollateralTx({ ...this.context, ...params });
+  }
+
+  /** Swaps one debt position into another in a flash loan. */
+  async makeSwapDebtTx(params: Omit<MakeSwapDebtTxParams, ClientFilled>) {
+    return this.account.makeSwapDebtTx({ ...this.context, ...params });
+  }
+
+  /** {@link makeSwapDebtTx} with a bridged (double-hop) fallback. */
+  async makeBridgedSwapDebtTx(
+    params: Omit<MakeBridgedSwapDebtTxParams, ClientFilled | "oraclePrices">
+  ) {
+    return this.account.makeBridgedSwapDebtTx({
+      ...this.context,
+      oraclePrices: this.client.oraclePriceByBank,
+      ...params,
+    });
+  }
+
+  /** Rolls a matured Exponent PT position into its next-maturity PT in a flash loan. */
+  async makeRollPtTx(params: Omit<MakeRollPtTxParams, ClientFilled>) {
+    return this.account.makeRollPtTx({ ...this.context, ...params });
   }
 
   /**
-   * Atomically move a selected set of positions from this account to a destination account with
-   * auto-injected client data.
-   *
-   * Auto-injects: program, connection, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
-   * assetShareValueMultiplierByBank, addressLookupTables, tokenProgramsByBank, groupRateLimiterEnabled.
+   * Moves the positions in `params.bankAddresses` to another account of the same authority in a
+   * flash loan.
+   * @throws Error if the client misses one of `params.bankAddresses`
    */
   async makeTransferPositionsTx(
     params: Omit<
       MakeTransferPositionsTxParams,
-      | "program"
-      | "connection"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "assetShareValueMultiplierByBank"
-      | "addressLookupTableAccounts"
-      | "tokenProgramsByBank"
-      | "groupRateLimiterEnabled"
+      ClientFilled | "tokenProgramsByBank" | "groupRateLimiterEnabled"
     >
-  ): Promise<TransferPositionsResult> {
-    const tokenProgramsByBank = new Map<string, PublicKey>();
+  ) {
+    const tokenProgramsByBank = new Map<string, Address>();
     for (const bankAddress of params.bankAddresses) {
-      const bank = this.client.bankMap.get(bankAddress.toBase58());
-      if (!bank) throw new Error(`Bank ${bankAddress.toBase58()} not found`);
-      const mintData = await this.getMintDataFromBank(bank);
-      tokenProgramsByBank.set(bankAddress.toBase58(), mintData.tokenProgram);
+      const bank = this.client.bankMap.get(bankAddress);
+      if (!bank) throw new Error(`Bank ${bankAddress} not found`);
+      tokenProgramsByBank.set(bankAddress, (await this.getMintDataFromBank(bank)).tokenProgram);
     }
 
-    const fullParams: MakeTransferPositionsTxParams = {
-      ...params,
-      program: this.client.program,
-      connection: this.client.program.provider.connection,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      addressLookupTableAccounts: this.client.addressLookupTables,
+    return this.account.makeTransferPositionsTx({
+      ...this.context,
       tokenProgramsByBank,
       groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
-    };
-    return this.account.makeTransferPositionsTx(fullParams);
-  }
-
-  /**
-   * Creates a repay with collateral transaction with auto-injected client data.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
-   *
-   * @param params - Repay with collateral parameters (user provides: connection, withdrawOpts, repayOpts, swapOpts, etc.)
-   */
-  async makeRepayWithCollatTx(
-    params: Omit<
-      MakeRepayWithCollatTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-    >
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    swapQuote: SwapQuoteResult | undefined;
-    amountToRepay: number;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    const fullParams: MakeRepayWithCollatTxParams = {
       ...params,
-      program: this.client.program,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-    };
-    return this.account.makeRepayWithCollatTx(fullParams);
-  }
-
-  /**
-   * Creates a swap collateral transaction with auto-injected client data.
-   *
-   * Swaps one collateral type for another (e.g., JitoSOL -> mSOL) using a flash loan
-   * so account health is not affected during the swap.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
-   *
-   * @param params - Swap collateral parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, etc.)
-   */
-  async makeSwapCollateralTx(
-    params: Omit<
-      MakeSwapCollateralTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-    >
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    const fullParams: MakeSwapCollateralTxParams = {
-      ...params,
-      program: this.client.program,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-    };
-    return this.account.makeSwapCollateralTx(fullParams);
-  }
-
-  /**
-   * Rolls a matured Exponent PT collateral position into its next-maturity PT, with
-   * auto-injected client data (withdraw PT_old → `wrapper_merge` to base → swap-engine buy
-   * PT_new → deposit, flash-loan wrapped). The full deposit ends up as new PT.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
-   *
-   * @param params - Roll-PT parameters (user provides: connection, withdrawOpts, depositOpts, rollOpts, etc.)
-   */
-  async makeRollPtTx(
-    params: Omit<
-      MakeRollPtTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-    >
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-  }> {
-    const fullParams: MakeRollPtTxParams = {
-      ...params,
-      program: this.client.program,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-    };
-    return this.account.makeRollPtTx(fullParams);
-  }
-
-  /**
-   * Creates a swap debt transaction with auto-injected client data.
-   *
-   * Swaps one debt type for another (e.g., USDC debt -> SOL debt) using a flash loan
-   * so account health is not affected during the swap.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap, addressLookupTables
-   *
-   * @param params - Swap debt parameters (user provides: connection, repayOpts, borrowOpts, swapOpts, etc.)
-   */
-  async makeSwapDebtTx(
-    params: Omit<
-      MakeSwapDebtTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-    >
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    const fullParams: MakeSwapDebtTxParams = {
-      ...params,
-      program: this.client.program,
-      marginfiAccount: this.account,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-    };
-    return this.account.makeSwapDebtTx(fullParams);
-  }
-
-  /**
-   * Creates a loop (leverage) transaction with a transparent bridged (double-hop) fallback and
-   * auto-injected client data.
-   *
-   * One call: tries the direct {@link makeLoopTx} first; if its borrow→deposit swap can't fit one
-   * transaction or has no route, it loops the deposit asset against a value-equivalent borrow of a
-   * bridge token (USDC/wSOL/USDT by default, override via `bridgeOpts.bridgeCandidateMints`) and
-   * debt-swaps that bridge debt to the requested borrow asset — one atomic Jito bundle.
-   * `result.bridgeMint` is set only when the bridged path was used.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
-   * addressLookupTables, assetShareValueMultiplierByBank
-   *
-   * @param params - Loop parameters (user provides: connection, depositOpts, borrowOpts, swapOpts, bridgeOpts?, etc.)
-   */
-  async makeBridgedLoopTx(
-    params: Omit<
-      MakeBridgedLoopTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-      | "assetShareValueMultiplierByBank"
-    >
-  ): Promise<BridgedTxResult> {
-    return this.account.makeBridgedLoopTx({
-      ...params,
-      program: this.client.program,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-    });
-  }
-
-  /**
-   * Creates a collateral-swap transaction with a transparent bridged (double-hop) fallback and
-   * auto-injected client data.
-   *
-   * One call: tries the direct {@link makeSwapCollateralTx} first; if the swap `A → C` can't fit
-   * one transaction or has no route, it decomposes into `A → bridge` + `bridge → C` through a
-   * bridge token, composed as one atomic Jito bundle. `result.bridgeMint` is set only when the
-   * bridged path was used.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
-   * addressLookupTables, assetShareValueMultiplierByBank
-   *
-   * @param params - Swap collateral parameters (user provides: connection, withdrawOpts, depositOpts, swapOpts, bridgeOpts?, etc.)
-   */
-  async makeBridgedSwapCollateralTx(
-    params: Omit<
-      MakeBridgedSwapCollateralTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-      | "assetShareValueMultiplierByBank"
-    >
-  ): Promise<BridgedTxResult> {
-    return this.account.makeBridgedSwapCollateralTx({
-      ...params,
-      program: this.client.program,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-    });
-  }
-
-  /**
-   * Creates a debt-swap transaction with a transparent bridged (double-hop) fallback and
-   * auto-injected client data.
-   *
-   * One call: tries the direct {@link makeSwapDebtTx} first; if the swap `A → C` can't fit one
-   * transaction or has no route, the first leg repays A by borrowing a bridge token and the second
-   * leg repays exactly that bridge debt while borrowing C — one atomic Jito bundle.
-   * `result.bridgeMint` is set only when the bridged path was used.
-   *
-   * Auto-injects: program, marginfiAccount, bankMap, oraclePrices, bankMetadataMap,
-   * addressLookupTables, assetShareValueMultiplierByBank
-   *
-   * @param params - Swap debt parameters (user provides: connection, repayOpts, borrowOpts, swapOpts, bridgeOpts?, etc.)
-   */
-  async makeBridgedSwapDebtTx(
-    params: Omit<
-      MakeBridgedSwapDebtTxParams,
-      | "program"
-      | "marginfiAccount"
-      | "bankMap"
-      | "oraclePrices"
-      | "bankMetadataMap"
-      | "addressLookupTableAccounts"
-      | "assetShareValueMultiplierByBank"
-    >
-  ): Promise<BridgedTxResult> {
-    return this.account.makeBridgedSwapDebtTx({
-      ...params,
-      program: this.client.program,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      addressLookupTableAccounts: this.client.addressLookupTables,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-    });
-  }
-
-  /**
-   * Creates a deposit transaction with auto-injected client data.
-   *
-   * Automatically looks up bank and mint data, then builds and wraps instruction in a transaction.
-   *
-   * @param bankAddress - Bank address to deposit to
-   * @param amount - Amount to deposit in UI units
-   * @param opts - Optional configuration for wrapping SOL and overrides
-   * @returns Promise resolving to an ExtendedTransaction
-   */
-  async makeDepositTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    opts: MakeDepositIxOpts = {}
-  ): Promise<ExtendedTransaction> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeDepositTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      luts: this.client.addressLookupTables,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a Kamino deposit transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, and connection.
-   *
-   * @param bankAddress - Bank address to deposit to
-   * @param amount - Amount to deposit in UI units
-   * @param spotMarket - Drift spot market data
-   * @param opts - Optional configuration
-   * @returns Promise resolving to an ExtendedV0Transaction
-   */
-  async makeDriftDepositTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    spotMarket: DriftSpotMarket,
-    opts: MakeDepositIxOpts = {}
-  ): Promise<ExtendedV0Transaction> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeDriftDepositTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      driftMarketIndex: spotMarket.marketIndex,
-      driftOracle: spotMarket.oracle,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a Kamino deposit transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, and connection.
-   *
-   * @param bankAddress - Bank address to deposit to
-   * @param amount - Amount to deposit in UI units
-   * @param reserve - Kamino reserve data
-   * @param opts - Optional configuration
-   * @returns Promise resolving to an ExtendedV0Transaction
-   */
-  async makeKaminoDepositTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    reserve: KaminoReserve,
-    opts: MakeDepositIxOpts = {}
-  ): Promise<ExtendedV0Transaction> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeKaminoDepositTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      reserve,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a borrow transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, metadata, and oracle prices.
-   *
-   * @param bankAddress - Bank address to borrow from
-   * @param amount - Amount to borrow in UI units
-   * @param opts - Optional configuration
-   * @returns Promise resolving to a TransactionBuilderResult
-   */
-  async makeBorrowTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    opts: MakeBorrowIxOpts = {}
-  ): Promise<TransactionBuilderResult> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeBorrowTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      authority: this.account.authority,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a repay transaction with auto-injected client data.
-   *
-   * Automatically looks up bank and mint data.
-   *
-   * @param bankAddress - Bank address to repay to
-   * @param amount - Amount to repay in UI units
-   * @param repayAll - If true, repays the entire borrowed position
-   * @param opts - Optional configuration
-   * @returns Promise resolving to an ExtendedTransaction
-   */
-  async makeRepayTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    repayAll: boolean = false,
-    opts: MakeRepayIxOpts = {}
-  ): Promise<ExtendedTransaction> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeRepayTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      repayAll,
-      luts: this.client.addressLookupTables,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a withdraw transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, metadata, and oracle prices.
-   *
-   * @param bankAddress - Bank address to withdraw from
-   * @param amount - Amount to withdraw in UI units
-   * @param withdrawAll - If true, withdraws the entire collateral position
-   * @param opts - Optional configuration
-   * @returns Promise resolving to a TransactionBuilderResult
-   */
-  async makeWithdrawTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    withdrawAll: boolean = false,
-    opts: MakeWithdrawIxOpts = {}
-  ): Promise<TransactionBuilderResult> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeWithdrawTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      authority: this.account.authority,
-      withdrawAll,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a Drift withdraw transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, metadata, and oracle prices.
-   *
-   * @param bankAddress - Bank address to withdraw from
-   * @param amount - Amount to withdraw in UI units
-   * @param driftSpotMarket - Drift spot market data
-   * @param withdrawAll - If true, withdraws the entire collateral position
-   * @param opts - Optional configuration
-   * @returns Promise resolving to a TransactionBuilderResult
-   */
-  async makeDriftWithdrawTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    driftSpotMarket: DriftSpotMarket,
-    userRewards: DriftRewards[],
-    withdrawAll: boolean = false,
-    opts: MakeWithdrawIxOpts = {}
-  ): Promise<TransactionBuilderResult> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeDriftWithdrawTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      authority: this.account.authority,
-      driftSpotMarket,
-      userRewards,
-      withdrawAll,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a Kamino withdraw transaction with auto-injected client data.
-   *
-   * Automatically looks up bank, mint data, metadata, and oracle prices.
-   *
-   * @param bankAddress - Bank address to withdraw from
-   * @param amount - Amount to withdraw in UI units
-   * @param reserve - Kamino reserve data
-   * @param withdrawAll - If true, withdraws the entire collateral position
-   * @param opts - Optional configuration
-   * @returns Promise resolving to a TransactionBuilderResult
-   */
-  async makeKaminoWithdrawTx(
-    bankAddress: PublicKey,
-    amount: Amount,
-    reserve: any,
-    withdrawAll: boolean = false,
-    opts: MakeWithdrawIxOpts = {}
-  ): Promise<TransactionBuilderResult> {
-    // Try to get bank from client, fallback to fetching it
-    const bank = await this.getBankFromAddress(bankAddress);
-
-    // Try to get mint data from cache, fallback to fetching it
-    const mintData = await this.getMintDataFromBank(bank);
-
-    return this.account.makeKaminoWithdrawTx({
-      program: this.client.program,
-      bank,
-      tokenProgram: mintData.tokenProgram,
-      amount,
-      authority: this.account.authority,
-      reserve,
-      withdrawAll,
-      bankMap: this.client.bankMap,
-      oraclePrices: this.client.oraclePriceByBank,
-      bankMetadataMap: this.client.bankIntegrationMap,
-      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      luts: this.client.addressLookupTables,
-      connection: this.client.program.provider.connection,
-      opts,
-    });
-  }
-
-  /**
-   * Creates a flash loan transaction with auto-injected client data.
-   *
-   * Auto-injects: program, marginfiAccount
-   *
-   * @param params - Flash loan transaction parameters (user provides: ixs, endIndex, etc.)
-   * @returns Promise resolving to flash loan transaction details
-   */
-  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "program" | "marginfiAccount">) {
-    return this.account.makeFlashLoanTx({
-      ...params,
-      program: this.client.program,
     });
   }
 
   // ----------------------------------------------------------------------------
-  // E-mode state — derived from client.emodePairs + account balances
+  // Emode
   // ----------------------------------------------------------------------------
 
-  /**
-   * Returns the active emode pairs for this account based on current positions.
-   */
+  /** Emode pairs active for this account, from the client's pairs. */
   getActiveEmodePairs(): EmodePair[] {
     return this.account.computeActiveEmodePairs(this.client.emodePairs);
   }
 
-  /**
-   * Returns the lowest emode weights per collateral bank for currently active pairs.
-   * Keyed by bank address string → { assetWeightInit, assetWeightMaint }.
-   */
+  /** The lowest emode weights of the active pairs, by collateral bank address. */
   getActiveEmodeWeightsByBank(): Map<
     string,
     { assetWeightInit: BigNumber; assetWeightMaint: BigNumber }
   > {
-    const activePairs = this.getActiveEmodePairs();
-    return computeLowestEmodeWeights(activePairs);
+    return computeLowestEmodeWeights(this.getActiveEmodePairs());
   }
 
-  /**
-   * Computes emode impacts for all banks using the client's emode pairs.
-   */
+  /** How acting on each of the client's banks would change emode. */
   getEmodeImpacts(): Record<string, ActionEmodeImpact> {
-    const bankAddresses = this.client.banks.map((b) => b.address);
-    return this.account.computeEmodeImpacts(this.client.emodePairs, bankAddresses);
+    return this.account.computeEmodeImpacts(
+      this.client.emodePairs,
+      this.client.banks.map((b) => b.address)
+    );
+  }
+
+  /** {@link MarginfiAccount.computeActiveEmodePairs} for a custom pair set. */
+  computeActiveEmodePairs(emodePairs: EmodePair[]): EmodePair[] {
+    return this.account.computeActiveEmodePairs(emodePairs);
+  }
+
+  /** {@link MarginfiAccount.computeEmodeImpacts} for a custom pair set. */
+  computeEmodeImpacts(
+    emodePairs: EmodePair[],
+    banks: Address[]
+  ): Record<string, ActionEmodeImpact> {
+    return this.account.computeEmodeImpacts(emodePairs, banks);
   }
 
   // ----------------------------------------------------------------------------
-  // Computation methods with auto-injected client data
+  // Computations
   // ----------------------------------------------------------------------------
 
-  /**
-   * Simulates health cache update with auto-injected client data.
-   */
+  /** {@link MarginfiAccount.simulateHealthCache} with the client's state. */
   async simulateHealthCache() {
     return this.account.simulateHealthCache({
-      program: this.client.program,
+      rpc: this.client.rpc,
+      rpcEndpoint: this.client.rpcEndpoint,
+      programAddress: this.client.programAddress,
       banksMap: this.client.bankMap,
       oraclePricesByBank: this.client.oraclePriceByBank,
       bankIntegrationMap: this.client.bankIntegrationMap,
@@ -1086,9 +463,7 @@ export class MarginfiAccountWrapper {
     });
   }
 
-  /**
-   * Computes net APY with auto-injected client data.
-   */
+  /** Net APY of all positions (0.05 = 5%). */
   computeNetApy(): number {
     return this.account.computeNetApy({
       banksMap: this.client.bankMap,
@@ -1098,18 +473,12 @@ export class MarginfiAccountWrapper {
     });
   }
 
-  /**
-   * Computes account value (equity) with auto-injected client data.
-   */
+  /** Assets minus liabilities (USD), from the health cache. */
   computeAccountValue(): BigNumber {
     return this.account.computeAccountValue();
   }
 
-  /**
-   * Computes health components with auto-injected client data.
-   *
-   * @param marginRequirement - Margin requirement type
-   */
+  /** Weighted assets and liabilities (USD) for `marginRequirement`, from the health cache. */
   computeHealthComponentsFromCache(marginRequirement: MarginRequirementType): {
     assets: BigNumber;
     liabilities: BigNumber;
@@ -1117,33 +486,20 @@ export class MarginfiAccountWrapper {
     return this.account.computeHealthComponentsFromCache(marginRequirement);
   }
 
-  /**
-   * Computes free collateral with auto-injected client data.
-   *
-   * @param opts - Optional configuration
-   */
+  /** Collateral (USD) not backing liabilities, from the health cache. */
   computeFreeCollateralFromCache(opts?: { clamped?: boolean }): BigNumber {
     return this.account.computeFreeCollateralFromCache(opts);
   }
 
   /**
-   * Computes max borrow for a bank with auto-injected client data.
-   *
-   * @param bankAddress - Bank address to check max borrow for
-   * @param opts - Optional configuration for emode and volatility
+   * Maximum borrow (UI units) from `bankAddress`, with the bank's emode impact applied;
+   * `ignoreBankLimits` skips the borrow cap, liquidity and rate-limiter clamps.
    */
   computeMaxBorrowForBank(
-    bankAddress: PublicKey,
-    opts?: {
-      volatilityFactor?: number;
-      /** Skip bank-level clamps (remaining borrow cap, available liquidity, rate limiters) */
-      ignoreBankLimits?: boolean;
-    }
+    bankAddress: Address,
+    opts?: { volatilityFactor?: number; ignoreBankLimits?: boolean }
   ): BigNumber {
-    const bankKey = bankAddress.toBase58();
-    const emodeImpacts = this.getEmodeImpacts();
-    const bankImpact = emodeImpacts[bankKey];
-    const borrowImpact = bankImpact?.borrowImpact;
+    const borrowImpact = this.getEmodeImpacts()[bankAddress]?.borrowImpact;
 
     return this.account.computeMaxBorrowForBank({
       banksMap: this.client.bankMap,
@@ -1159,49 +515,32 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Computes max withdraw for a bank with auto-injected client data.
-   *
-   * @param bankAddress - Bank address to check max withdraw for
-   * @param opts - Optional configuration for volatility and emode
+   * Maximum withdrawal (UI units) from `bankAddress` that keeps the account healthy;
+   * `ignoreBankLimits` skips the liquidity and rate-limiter clamps.
    */
   computeMaxWithdrawForBank(
-    bankAddress: PublicKey,
-    opts?: {
-      volatilityFactor?: number;
-      /** Skip bank-level clamps (available liquidity, rate limiters) */
-      ignoreBankLimits?: boolean;
-    }
+    bankAddress: Address,
+    opts?: { volatilityFactor?: number; ignoreBankLimits?: boolean }
   ): BigNumber {
     const activePairs = this.getActiveEmodePairs();
-    const activePair =
-      activePairs.length > 0 ? createActiveEmodePairFromPairs(activePairs) : undefined;
 
     return this.account.computeMaxWithdrawForBank({
       banksMap: this.client.bankMap,
       oraclePricesByBank: this.client.oraclePriceByBank,
       bankAddress,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      activePair,
+      activePair: activePairs.length > 0 ? createActiveEmodePairFromPairs(activePairs) : undefined,
       volatilityFactor: opts?.volatilityFactor,
       groupRateLimiter: this.client.group.rateLimiter,
-      venueStates: this.client.bankIntegrationMap[bankAddress.toBase58()],
+      venueStates: this.client.bankIntegrationMap[bankAddress],
       ignoreBankLimits: opts?.ignoreBankLimits,
     });
   }
 
-  /**
-   * Computes max deposit for a bank with auto-injected client data.
-   *
-   * Bounded by the bank's remaining deposit cap and, if provided, the wallet balance.
-   *
-   * @param bankAddress - Bank address to check max deposit for
-   * @param opts - Optional wallet balance (UI units) to cap the result
-   */
+  /** Maximum deposit (UI units) into `bankAddress`: its remaining cap, capped by `walletBalance`. */
   computeMaxDepositForBank(
-    bankAddress: PublicKey,
-    opts?: {
-      walletBalance?: BigNumber | number;
-    }
+    bankAddress: Address,
+    opts?: { walletBalance?: BigNumber | number }
   ): BigNumber {
     return this.account.computeMaxDepositForBank({
       banksMap: this.client.bankMap,
@@ -1211,58 +550,14 @@ export class MarginfiAccountWrapper {
     });
   }
 
-  /**
-   * Computes active emode pairs for custom emode pair sets.
-   * For typical usage, prefer `getActiveEmodePairs()` which uses client data.
-   *
-   * @param emodePairs - All available emode pairs
-   */
-  computeActiveEmodePairs(emodePairs: EmodePair[]): EmodePair[] {
-    return this.account.computeActiveEmodePairs(emodePairs);
-  }
-
-  /**
-   * Computes emode impacts for custom emode pair sets.
-   * For typical usage, prefer `getEmodeImpacts()` which uses client data.
-   *
-   * @param emodePairs - All available emode pairs
-   * @param banks - Array of bank addresses to analyze
-   */
-  computeEmodeImpacts(
-    emodePairs: EmodePair[],
-    banks: PublicKey[]
-  ): Record<string, ActionEmodeImpact> {
-    return this.account.computeEmodeImpacts(emodePairs, banks);
-  }
-
-  /**
-   * Gets health check accounts with auto-injected client data.
-   *
-   * @param mandatoryBanks - Array of mandatory bank public keys (default: [])
-   * @param excludedBanks - Array of excluded bank public keys (default: [])
-   */
-  getHealthCheckAccounts(
-    mandatoryBanks: PublicKey[] = [],
-    excludedBanks: PublicKey[] = []
-  ): BankType[] {
-    return this.account.getHealthCheckAccounts(this.client.bankMap, mandatoryBanks, excludedBanks);
-  }
-
   // ----------------------------------------------------------------------------
-  // Helper methods
+  // Access
   // ----------------------------------------------------------------------------
 
-  /**
-   * Gets the underlying MarginfiAccount instance.
-   * Useful for advanced operations that need direct access.
-   */
   getUnderlyingAccount(): MarginfiAccount {
     return this.account;
   }
 
-  /**
-   * Gets the client instance.
-   */
   getClient(): Project0Client {
     return this.client;
   }

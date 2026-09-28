@@ -1,24 +1,29 @@
-import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+  assertAccountExists,
+  fetchEncodedAccount,
+  type Address,
+  type GetAccountInfoApi,
+  type Instruction,
+  type ReadonlyUint8Array,
+  type Rpc,
+  type TransactionSigner,
+} from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
 import { Balance } from "./balance";
-import { Bank } from "./bank";
 import { HealthCache } from "./health-cache";
 
-import { MarginfiIdlType } from "~/idl";
-import instructions from "~/instructions";
 import {
   AccountFlags,
   computeAccountValue,
   computeActiveEmodePairs,
   computeEmodeImpacts,
-  computeFreeCollateralFromCache,
   computeFreeCollateralFromBalances,
   ComputeFreeCollateralFromBalancesParams,
-  computeHealthCheckAccounts,
-  computeHealthComponentsFromCache,
+  computeFreeCollateralFromCache,
   computeHealthComponentsFromBalances,
   ComputeHealthComponentsFromBalancesParams,
+  computeHealthComponentsFromCache,
   computeMaxBorrowForBank,
   ComputeMaxBorrowForBankParams,
   computeMaxDepositForBank,
@@ -29,13 +34,22 @@ import {
   ComputeNetApyParams,
   computeProjectedActiveBalancesNoCpi,
   computeProjectedActiveBanksNoCpi,
-  decodeAccountRaw,
+  decodeMarginfiAccount,
   getBalance,
+  makeAccountTransferToNewAccountTx,
+  MakeAccountTransferToNewAccountTxParams,
   makeBeginFlashLoanIx,
   makeBorrowIx,
   MakeBorrowIxParams,
   makeBorrowTx,
   MakeBorrowTxParams,
+  makeBridgedLoopTx,
+  MakeBridgedLoopTxParams,
+  makeBridgedSwapCollateralTx,
+  MakeBridgedSwapCollateralTxParams,
+  makeBridgedSwapDebtTx,
+  MakeBridgedSwapDebtTxParams,
+  makeCloseMarginfiAccountIx,
   makeDepositIx,
   MakeDepositIxParams,
   makeDepositTx,
@@ -43,19 +57,8 @@ import {
   makeEndFlashLoanIx,
   makeFlashLoanTx,
   MakeFlashLoanTxParams,
-  makeKaminoDepositTx,
-  MakeKaminoDepositTxParams,
-  makeKaminoWithdrawTx,
-  MakeKaminoWithdrawTxParams,
-  makeAccountTransferToNewAccountTx,
-  makeBridgedLoopTx,
-  MakeBridgedLoopTxParams,
-  makeBridgedSwapCollateralTx,
-  MakeBridgedSwapCollateralTxParams,
-  makeBridgedSwapDebtTx,
-  MakeBridgedSwapDebtTxParams,
-  BridgedTxResult,
   makeLoopTx,
+  MakeLoopTxParams,
   makePulseHealthIx,
   makeRepayIx,
   MakeRepayIxParams,
@@ -63,76 +66,62 @@ import {
   MakeRepayTxParams,
   makeRepayWithCollatTx,
   MakeRepayWithCollatTxParams,
-  makeSwapCollateralTx,
-  MakeSwapCollateralTxParams,
   makeRollPtTx,
   MakeRollPtTxParams,
+  makeSwapCollateralTx,
+  MakeSwapCollateralTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
+  makeTransferPositionsTx,
+  MakeTransferPositionsTxParams,
   makeWithdrawIx,
   MakeWithdrawIxParams,
   makeWithdrawTx,
   MakeWithdrawTxParams,
-  MarginfiAccountRaw,
   MarginfiAccountType,
   MarginRequirementType,
-  MakeLoopTxParams,
-  parseMarginfiAccountRaw,
   simulateAccountHealthCacheWithFallback,
   SimulateAccountHealthCacheWithFallbackParams,
-  TransactionBuilderResult,
-  MakeDriftDepositTxParams,
-  makeDriftDepositTx,
-  MakeDriftWithdrawTxParams,
-  makeDriftWithdrawTx,
-  makeTransferPositionsTx,
-  MakeTransferPositionsTxParams,
-  TransferPositionsResult,
-  SwapQuoteResult,
 } from "~/services/account";
-import { BankType, EmodePair, ActionEmodeImpact } from "~/services/bank";
-import {
-  ExtendedTransaction,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  makeUnwrapSolIx,
-  makeWrapSolIxs,
-} from "~/services/transaction";
-import { Amount, MarginfiProgram } from "~/types";
+import { ActionEmodeImpact, BankType, EmodePair } from "~/services/bank";
+import { makeUnwrapSolIx, makeWrapSolIxs } from "~/services/transaction";
+import { Amount } from "~/types";
 
-// ----------------------------------------------------------------------------
-// Client types
-// ----------------------------------------------------------------------------
-
+/**
+ * A marginfi account: its balances, flags and health cache, with the SDK's account computations
+ * and transaction builders bound to it.
+ */
 class MarginfiAccount implements MarginfiAccountType {
   constructor(
-    public readonly address: PublicKey,
-    public readonly group: PublicKey,
-    public readonly authority: PublicKey,
+    public readonly address: Address,
+    public readonly group: Address,
+    public readonly authority: Address,
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
-    public readonly emissionsDestinationAccount: PublicKey,
+    public readonly emissionsDestinationAccount: Address,
     public healthCache: HealthCache
   ) {}
 
   /**
-   * Fetches a marginfi account from on-chain data.
-   *
-   * @param address - The public key of the marginfi account
-   * @param program - The Marginfi program instance
-   *
-   * @returns Promise resolving to a MarginfiAccount instance
+   * Fetches and decodes the marginfi account at `address`.
+   * @throws if the account doesn't exist or isn't a marginfi account
    */
-  static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiAccount> {
-    const data: MarginfiAccountRaw = await program.account.marginfiAccount.fetch(address);
-    return MarginfiAccount.fromAccountParsed(address, data);
+  static async fetch(address: Address, rpc: Rpc<GetAccountInfoApi>): Promise<MarginfiAccount> {
+    const account = await fetchEncodedAccount(rpc, address);
+    assertAccountExists(account);
+    return MarginfiAccount.fromBuffer(address, account.data);
   }
 
-  static decodeAccountRaw(encoded: Buffer, idl: MarginfiIdlType): MarginfiAccountRaw {
-    return decodeAccountRaw(encoded, idl);
+  /**
+   * Decodes marginfi account data.
+   * @throws if `data` isn't a marginfi account
+   */
+  static fromBuffer(address: Address, data: ReadonlyUint8Array): MarginfiAccount {
+    return MarginfiAccount.fromAccountType(decodeMarginfiAccount(address, data));
   }
 
-  static fromAccountType(account: MarginfiAccountType) {
+  /** Wraps a plain {@link MarginfiAccountType}. */
+  static fromAccountType(account: MarginfiAccountType): MarginfiAccount {
     return new MarginfiAccount(
       account.address,
       account.group,
@@ -145,157 +134,68 @@ class MarginfiAccount implements MarginfiAccountType {
   }
 
   /**
-   * Creates a MarginfiAccount instance from parsed account data.
-   *
-   * @param marginfiAccountPk - The public key of the marginfi account
-   * @param accountData - The raw account data from the program
-   *
-   * @returns A new MarginfiAccount instance
-   */
-  static fromAccountParsed(marginfiAccountPk: PublicKey, accountData: MarginfiAccountRaw) {
-    const props = parseMarginfiAccountRaw(marginfiAccountPk, accountData);
-    return new MarginfiAccount(
-      props.address,
-      props.group,
-      props.authority,
-      props.balances.map((b) => Balance.fromBalanceType(b)),
-      props.accountFlags,
-      props.emissionsDestinationAccount,
-      HealthCache.fromHealthCacheType(props.healthCache)
-    );
-  }
-
-  /**
-   * Simulates and updates the health cache for this account.
-   *
-   * Fetches current oracle prices and computes fresh health values. Returns a new
-   * account instance with updated health cache (does not mutate this instance).
-   *
-   * @param params - Configuration for health cache simulation (excluding marginfiAccount)
-   * @returns Object containing the updated account and any errors
+   * Simulates a health-cache refresh; returns a new account carrying the refreshed cache (or the
+   * computed fallback) and the simulation error, if any. Doesn't mutate this account.
    */
   async simulateHealthCache(
     params: Omit<SimulateAccountHealthCacheWithFallbackParams, "marginfiAccount">
   ) {
-    const accountWithHealthCache = await simulateAccountHealthCacheWithFallback({
-      marginfiAccount: this,
+    const { marginfiAccount, error } = await simulateAccountHealthCacheWithFallback({
       ...params,
+      marginfiAccount: this,
     });
 
-    return {
-      account: MarginfiAccount.fromAccountType(accountWithHealthCache.marginfiAccount),
-      error: accountWithHealthCache.error,
-    };
+    return { account: MarginfiAccount.fromAccountType(marginfiAccount), error };
   }
 
-  static fromAccountDataRaw(marginfiAccountPk: PublicKey, rawData: Buffer, idl: MarginfiIdlType) {
-    const marginfiAccountData = MarginfiAccount.decodeAccountRaw(rawData, idl);
-    return MarginfiAccount.fromAccountParsed(marginfiAccountPk, marginfiAccountData);
-  }
   // ----------------------------------------------------------------------------
   // Attributes
   // ----------------------------------------------------------------------------
 
-  /**
-   * Gets all balances that are currently active (non-zero).
-   *
-   * @returns Array of active Balance instances
-   */
+  /** Balances holding a position. */
   get activeBalances(): Balance[] {
     return this.balances.filter((b) => b.active);
   }
 
-  /**
-   * Gets the balance for a specific bank.
-   *
-   * @param bankPk - The public key of the bank
-   *
-   * @returns The Balance instance for the bank (may be empty)
-   */
-  getBalance(bankPk: PublicKey): Balance {
+  /** The balance in `bankPk` (an empty one when the account holds none). */
+  getBalance(bankPk: Address): Balance {
     return Balance.fromBalanceType(getBalance(bankPk, this.balances));
   }
 
-  /**
-   * Checks if the account is disabled.
-   *
-   * @returns True if the account is disabled, false otherwise
-   */
   get isDisabled(): boolean {
     return this.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED);
   }
 
-  /**
-   * Checks if the account is currently in a flash loan.
-   *
-   * @returns True if a flash loan is active, false otherwise
-   */
   get isFlashLoanEnabled(): boolean {
     return this.accountFlags.includes(AccountFlags.ACCOUNT_IN_FLASHLOAN);
   }
 
-  /**
-   * Checks if account authority transfer is enabled.
-   *
-   * @returns True if authority transfer is allowed, false otherwise
-   */
   get isTransferAccountAuthorityEnabled(): boolean {
     return this.accountFlags.includes(AccountFlags.ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
   }
 
-  /**
-   * Sets the health cache for this account.
-   *
-   * Note: This mutates the account instance. Consider using simulateHealthCache()
-   * for a pure functional approach that returns a new account instance.
-   *
-   * @param value - The new health cache to set
-   */
+  /** Replaces the health cache (mutates; {@link simulateHealthCache} returns a copy instead). */
   setHealthCache(value: HealthCache) {
     this.healthCache = value;
   }
 
-  /**
-   * Computes free collateral using cached health values.
-   *
-   * Free collateral represents the amount of collateral that is not backing any liabilities.
-   *
-   * @param opts - Optional configuration
-   * @param opts.clamped - If true, clamps negative values to zero
-   *
-   * @returns The free collateral amount in USD
-   */
+  // ----------------------------------------------------------------------------
+  // Computations
+  // ----------------------------------------------------------------------------
+
+  /** Collateral (USD) not backing liabilities, from the health cache; `clamped` floors it at 0. */
   computeFreeCollateralFromCache(opts?: { clamped?: boolean }): BigNumber {
     return computeFreeCollateralFromCache(this, opts);
   }
 
-  /**
-   * Computes free collateral from balances using Initial margin requirements.
-   *
-   * Free collateral represents the amount of value available for new borrows or withdrawals.
-   * By default, negative values are clamped to zero.
-   *
-   * @param params - Configuration for free collateral computation (excluding activeBalances)
-   * @returns Free collateral value in USD (clamped to zero by default)
-   */
+  /** Collateral (USD) not backing liabilities at Initial weights, from the balances. */
   computeFreeCollateralFromBalances(
     params: Omit<ComputeFreeCollateralFromBalancesParams, "activeBalances">
   ): BigNumber {
-    return computeFreeCollateralFromBalances({
-      activeBalances: this.activeBalances,
-      ...params,
-    });
+    return computeFreeCollateralFromBalances({ ...params, activeBalances: this.activeBalances });
   }
 
-  /**
-   * Computes health components using cached health values.
-   *
-   * Returns weighted asset and liability values based on the margin requirement type.
-   *
-   * @param marginReqType - The margin requirement type (Initial, Maintenance, or Equity)
-   *
-   * @returns Object containing assets and liabilities values in USD
-   */
+  /** Weighted assets and liabilities (USD) for `marginRequirement`, from the health cache. */
   computeHealthComponentsFromCache(marginRequirement: MarginRequirementType): {
     assets: BigNumber;
     liabilities: BigNumber;
@@ -303,982 +203,229 @@ class MarginfiAccount implements MarginfiAccountType {
     return computeHealthComponentsFromCache(this, marginRequirement);
   }
 
-  /**
-   * Computes health components from balances with price bias.
-   *
-   * Returns weighted asset and liability values using conservative pricing
-   * (Lowest for assets, Highest for liabilities).
-   *
-   * @param params - Configuration for health computation (excluding activeBalances)
-   * @returns Object containing assets and liabilities values in USD
-   */
+  /** Weighted assets and liabilities (USD) from the balances, with conservative price bias. */
   computeHealthComponentsFromBalances(
     params: Omit<ComputeHealthComponentsFromBalancesParams, "activeBalances">
-  ): {
-    assets: BigNumber;
-    liabilities: BigNumber;
-  } {
-    return computeHealthComponentsFromBalances({
-      activeBalances: this.activeBalances,
-      ...params,
-    });
+  ): { assets: BigNumber; liabilities: BigNumber } {
+    return computeHealthComponentsFromBalances({ ...params, activeBalances: this.activeBalances });
   }
 
-  /**
-   * Computes the total account value (equity).
-   *
-   * Account value is calculated as total assets minus total liabilities.
-   *
-   * @returns The account value in USD
-   */
+  /** Assets minus liabilities (USD), from the health cache. */
   computeAccountValue(): BigNumber {
     return computeAccountValue(this);
   }
 
-  /**
-   * Computes the net APY (Annual Percentage Yield) for this account.
-   *
-   * The net APY represents the combined annualized return from all lending and borrowing
-   * positions, weighted by their USD values.
-   *
-   * @param params - Configuration for net APY computation (excluding marginfiAccount and activeBalances)
-   * @returns The net APY as a decimal (e.g., 0.05 = 5%)
-   */
+  /** Net APY of all positions, weighted by USD value (0.05 = 5%). */
   computeNetApy(params: Omit<ComputeNetApyParams, "marginfiAccount" | "activeBalances">): number {
     return computeNetApy({
+      ...params,
       marginfiAccount: this,
       activeBalances: this.activeBalances,
-      ...params,
     });
   }
 
   /**
-   * Calculates the maximum amount that can be borrowed from a bank.
-   *
-   * Takes into account:
-   * - Free collateral available
-   * - Existing deposits in the bank
-   * - Risk weights and oracle prices
-   * - E-mode configurations if applicable
-   *
-   * @param params - Configuration for max borrow computation (excluding account)
-   * @returns Maximum borrowable amount in UI units
-   *
-   * @remarks
-   * NOTE FOR LIQUIDATORS: This function doesn't account for collateral received when liquidating.
-   *
-   * @see {@link computeMaxBorrowForBank} for implementation details
+   * Maximum borrow (UI units) from `bankAddress` given free collateral, existing deposits, risk
+   * weights and emode. Liquidators: collateral received from liquidating isn't counted.
    */
   computeMaxBorrowForBank(params: Omit<ComputeMaxBorrowForBankParams, "account">): BigNumber {
-    return computeMaxBorrowForBank({
-      account: this,
-      ...params,
-    });
+    return computeMaxBorrowForBank({ ...params, account: this });
   }
 
-  /**
-   * Calculates the maximum amount that can be withdrawn from a bank without borrowing.
-   *
-   * Ensures the account remains healthy after withdrawal by checking collateral requirements.
-   *
-   * @param params - Configuration for max withdraw computation (excluding account)
-   * @returns Maximum withdrawable amount in UI units
-   *
-   * @see {@link computeMaxWithdrawForBank} for implementation details
-   */
+  /** Maximum withdrawal (UI units) from `bankAddress` that keeps the account healthy. */
   computeMaxWithdrawForBank(params: Omit<ComputeMaxWithdrawForBankParams, "account">): BigNumber {
-    return computeMaxWithdrawForBank({
-      account: this,
-      ...params,
-    });
+    return computeMaxWithdrawForBank({ ...params, account: this });
   }
 
-  /**
-   * Calculates the maximum amount that can be deposited into a bank.
-   *
-   * Deposits are not constrained by account health, only by the bank's remaining deposit cap
-   * and (optionally) the wallet balance.
-   *
-   * @param params - Configuration for max deposit computation
-   * @returns Maximum depositable amount in UI units
-   *
-   * @see {@link computeMaxDepositForBank} for implementation details
-   */
+  /** Maximum deposit (UI units): the bank's remaining deposit cap, capped by the wallet balance. */
   computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
     return computeMaxDepositForBank(params);
   }
 
-  /**
-   * Gets the banks required for health check calculations.
-   *
-   * Returns banks that have active balances, plus any mandatory banks, minus excluded banks.
-   *
-   * @param banks - Map of all available banks
-   * @param mandatoryBanks - Banks to always include
-   * @param excludedBanks - Banks to exclude
-   *
-   * @returns Array of banks needed for health checks
-   */
-  getHealthCheckAccounts(
-    banks: Map<string, BankType>,
-    mandatoryBanks: PublicKey[] = [],
-    excludedBanks: PublicKey[] = []
-  ): BankType[] {
-    return computeHealthCheckAccounts({
-      account: this,
-      banksMap: banks,
-      mandatoryBanks,
-      excludedBanks,
-    });
-  }
-
-  /**
-   * Determines which E-mode pairs are currently active for this account.
-   *
-   * E-mode (Efficiency Mode) allows for higher leverage when borrowing and lending
-   * related assets (e.g., different stablecoins).
-   *
-   * @param emodePairs - All available E-mode pairs to check
-   *
-   * @returns Array of active E-mode pairs, or empty array if no E-mode is active
-   */
+  /** Emode pairs active for this account's collateral and liabilities. */
   computeActiveEmodePairs(emodePairs: EmodePair[]): EmodePair[] {
-    const activeLiabilities = this.activeBalances
-      .filter((balance) => balance.liabilityShares.gt(0))
-      .map((balance) => balance.bankPk);
-    const activeCollateral = this.activeBalances
-      .filter((balance) => balance.assetShares.gt(0))
-      .map((balance) => balance.bankPk);
-    return computeActiveEmodePairs(emodePairs, activeLiabilities, activeCollateral);
+    const { liabilities, collateral } = this.emodePositions();
+    return computeActiveEmodePairs(emodePairs, liabilities, collateral);
   }
 
-  /**
-   * Calculates how different actions would affect E-mode status.
-   *
-   * For each bank, simulates:
-   * - Borrowing (for banks not currently borrowed from)
-   * - Supplying (for supported collateral banks)
-   * - Repaying (for banks with active liabilities)
-   * - Withdrawing (for banks with active collateral)
-   *
-   * @param emodePairs - All available E-mode pairs
-   * @param banks - Array of bank PublicKeys to analyze
-   *
-   * @returns Object mapping bank addresses to their action impact analysis
-   */
+  /** How borrowing, supplying, repaying or withdrawing each of `banks` would change emode. */
   computeEmodeImpacts(
     emodePairs: EmodePair[],
-    banks: PublicKey[]
+    banks: Address[]
   ): Record<string, ActionEmodeImpact> {
-    const activeLiabilities = this.activeBalances
-      .filter((balance) => balance.liabilityShares.gt(0))
-      .map((balance) => balance.bankPk);
-    const activeCollateral = this.activeBalances
-      .filter((balance) => balance.assetShares.gt(0))
-      .map((balance) => balance.bankPk);
-
-    return computeEmodeImpacts(emodePairs, activeLiabilities, activeCollateral, banks);
+    const { liabilities, collateral } = this.emodePositions();
+    return computeEmodeImpacts(emodePairs, liabilities, collateral, banks);
   }
 
-  // ----------------------------------------------------------------------------
-  // Actions
-  // ----------------------------------------------------------------------------
-
-  /**
-   * Creates a deposit instruction for this marginfi account.
-   *
-   * @param params - Deposit instruction parameters
-   * @returns Promise resolving to InstructionsWrapper containing the deposit instructions
-   *
-   * @see {@link makeDepositIx} for detailed implementation and additional options
-   */
-  async makeDepositIx(
-    params: Omit<MakeDepositIxParams, "accountAddress" | "authority" | "group">
-  ): Promise<InstructionsWrapper> {
-    return makeDepositIx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-      group: this.group,
-    });
-  }
-
-  /**
-   * Creates a repay instruction for this marginfi account.
-   *
-   * @param params - Repay instruction parameters
-   * @returns Promise resolving to InstructionsWrapper containing the repay instructions
-   *
-   * @see {@link makeRepayIx} for detailed implementation
-   */
-  async makeRepayIx(
-    params: Omit<MakeRepayIxParams, "accountAddress" | "authority">
-  ): Promise<InstructionsWrapper> {
-    return makeRepayIx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-    });
-  }
-
-  /**
-   * Creates a withdraw instruction for this marginfi account.
-   *
-   * @param params - Withdraw instruction parameters
-   * @returns Promise resolving to InstructionsWrapper containing the withdraw instructions
-   *
-   * @see {@link makeWithdrawIx} for detailed implementation
-   */
-  async makeWithdrawIx(
-    params: Omit<MakeWithdrawIxParams, "marginfiAccount" | "authority">
-  ): Promise<InstructionsWrapper> {
-    return makeWithdrawIx({
-      ...params,
-      marginfiAccount: this,
-      authority: this.authority,
-    });
-  }
-
-  /**
-   * Creates a borrow instruction for this marginfi account.
-   *
-   * @param params - Borrow instruction parameters
-   * @returns Promise resolving to InstructionsWrapper containing the borrow instructions
-   *
-   * @see {@link makeBorrowIx} for detailed implementation
-   */
-  async makeBorrowIx(
-    params: Omit<MakeBorrowIxParams, "marginfiAccount" | "authority">
-  ): Promise<InstructionsWrapper> {
-    return makeBorrowIx({
-      ...params,
-      marginfiAccount: this,
-      authority: this.authority,
-    });
-  }
-
-  /**
-   * Creates an instruction to begin a flash loan.
-   *
-   * Flash loans allow borrowing assets within a single transaction, which must be
-   * repaid before the transaction completes.
-   *
-   * @param params - Begin flash loan instruction parameters
-   * @returns Promise resolving to InstructionsWrapper containing the begin flash loan instruction
-   *
-   * @see {@link makeBeginFlashLoanIx} for implementation
-   */
-  async makeBeginFlashLoanIx(
-    program: MarginfiProgram,
-    endIndex: number,
-    authority?: PublicKey
-  ): Promise<InstructionsWrapper> {
-    return await makeBeginFlashLoanIx(program, this.address, endIndex, authority);
-  }
-
-  /**
-   * Creates an instruction to end a flash loan.
-   *
-   * Validates that all required banks are available and constructs the end flash loan
-   * instruction with proper health checks.
-   *
-   * @param program - The Marginfi program instance
-   * @param bankMap - Map of all available banks
-   * @param projectedActiveBanks - Banks that will be active after the flash loan
-   * @param authority - Optional authority override (defaults to account authority)
-   *
-   * @returns Promise resolving to InstructionsWrapper containing the end flash loan instruction
-   *
-   * @throws {Error} If any projected active bank is not found in bankMap
-   *
-   * @see {@link makeEndFlashLoanIx} for implementation
-   */
-  async makeEndFlashLoanIx(
-    program: MarginfiProgram,
-    bankMap: Map<string, Bank>,
-    projectedActiveBanks: PublicKey[],
-    authority?: PublicKey
-  ): Promise<InstructionsWrapper> {
-    // Pre-validate all banks exist before processing
-    const missingBanks = projectedActiveBanks.filter((account) => !bankMap.get(account.toBase58()));
-    if (missingBanks.length > 0) {
-      throw Error(
-        `Banks not found for flashloan end operation: ${missingBanks.map((b) => b.toBase58()).join(", ")}`
-      );
-    }
-
-    const banks = projectedActiveBanks.map((account) => bankMap.get(account.toBase58())!);
-
-    return makeEndFlashLoanIx(program, this.address, this.group, banks, authority);
-  }
-
-  /**
-   * Builds a transaction to transfer this account to a new authority.
-   *
-   * Thin wrapper over the {@link makeAccountTransferToNewAccountTx} action,
-   * injecting the connection and this account from context. The global fee
-   * wallet is derived inside the action from the program's fee state.
-   *
-   * @param program - The Marginfi program instance
-   * @param newMarginfiAccount - Freshly generated keypair for the destination account
-   * @param newAuthority - The new authority public key
-   * @param feePayer - Optional `PublicKey` (adapter-signed) or `Keypair` (separate
-   *   payer); defaults to this account's authority
-   *
-   * @returns Promise resolving to the transfer transaction
-   */
-  async makeAccountTransferToNewAccountTx(
-    program: MarginfiProgram,
-    newMarginfiAccount: Keypair,
-    newAuthority: PublicKey,
-    feePayer?: PublicKey | Keypair
-  ): Promise<ExtendedV0Transaction> {
-    return makeAccountTransferToNewAccountTx({
-      connection: program.provider.connection,
-      program,
-      marginfiAccount: this,
-      newMarginfiAccount,
-      newAuthority,
-      feePayer,
-    });
-  }
-
-  /**
-   * Creates an instruction to close this marginfi account.
-   *
-   * Closes the account and returns rent to the fee payer. The account must have
-   * no active balances before closing.
-   *
-   * @param program - The Marginfi program instance
-   *
-   * @returns Promise resolving to InstructionsWrapper containing the close account instruction
-   *
-   * @see {@link makeCloseAccountIx} for implementation
-   */
-  async makeCloseAccountIx(program: MarginfiProgram): Promise<InstructionsWrapper> {
-    const ix = await instructions.makeCloseAccountIx(program, {
-      marginfiAccount: this.address,
-      feePayer: this.authority,
-    });
-    return { instructions: [ix], keys: [] };
-  }
-
-  /**
-   * Creates an instruction to update the account's health cache.
-   *
-   * Pulses the health of the account to ensure the cached health values are current.
-   *
-   * @param program - The Marginfi program instance
-   * @param banks - Map of all available banks
-   * @param mandatoryBanks - Banks that must be included in health calculation
-   * @param excludedBanks - Banks to exclude from health calculation
-   *
-   * @returns Promise resolving to InstructionsWrapper containing the pulse health instruction
-   *
-   * @see {@link makePulseHealthIx} for implementation
-   */
-  async makePulseHealthIx(
-    program: MarginfiProgram,
-    banks: Map<string, Bank>,
-    mandatoryBanks: PublicKey[],
-    excludedBanks: PublicKey[]
-  ) {
-    return makePulseHealthIx(program, this, banks, mandatoryBanks, excludedBanks);
-  }
-
-  /**
-   * Computes which banks will be active after executing the given instructions.
-   *
-   * Analyzes transaction instructions to determine which banks will have active
-   * balances, without making CPI calls.
-   *
-   * @param program - The Marginfi program instance
-   * @param instructions - Transaction instructions to analyze
-   *
-   * @returns Array of PublicKeys for banks that will be active
-   *
-   * @see {@link computeProjectedActiveBanksNoCpi} for implementation
-   */
-  computeProjectedActiveBanksNoCpi(
-    program: MarginfiProgram,
-    instructions: TransactionInstruction[]
-  ): PublicKey[] {
-    return computeProjectedActiveBanksNoCpi({ account: this, instructions, program });
-  }
-
-  /**
-   * Computes projected active balances after executing the given instructions.
-   *
-   * Simulates the effect of instructions on account balances without making CPI calls.
-   * Returns the projected balances and which banks will be impacted.
-   *
-   * @param program - The Marginfi program instance
-   * @param instructions - Transaction instructions to simulate
-   * @param bankMap - Map of all available banks
-   *
-   * @returns Object containing projected balances and impacted banks
-   *
-   * @see {@link computeProjectedActiveBalancesNoCpi} for implementation
-   */
-  computeProjectedActiveBalancesNoCpi(
-    program: MarginfiProgram,
-    instructions: TransactionInstruction[],
-    banksMap: Map<string, BankType>,
-    assetShareValueMultiplierByBank: Map<string, BigNumber>
-  ): {
-    projectedBalances: Balance[];
-    impactedAssetsBanks: string[];
-    impactedLiabilityBanks: string[];
-  } {
-    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi({
-      account: this,
-      instructions,
-      program,
-      banksMap,
-      assetShareValueMultiplierByBank,
-    });
-
+  private emodePositions() {
     return {
-      projectedBalances: projectedBalances.map(Balance.fromBalanceType),
-      ...rest,
+      liabilities: this.activeBalances.filter((b) => b.liabilityShares.gt(0)).map((b) => b.bankPk),
+      collateral: this.activeBalances.filter((b) => b.assetShares.gt(0)).map((b) => b.bankPk),
     };
   }
 
+  /** Banks active after `instructions` run (marginfi instructions only, no CPI). */
+  computeProjectedActiveBanksNoCpi(
+    programAddress: Address,
+    instructions: Instruction[]
+  ): Address[] {
+    return computeProjectedActiveBanksNoCpi({ account: this, instructions, programAddress });
+  }
+
+  /** Balances after `instructions` run (marginfi instructions only, no CPI), and the banks hit. */
+  computeProjectedActiveBalancesNoCpi(
+    programAddress: Address,
+    instructions: Instruction[],
+    banksMap: Map<string, BankType>,
+    assetShareValueMultiplierByBank: Map<string, BigNumber>
+  ) {
+    const { projectedBalances, ...rest } = computeProjectedActiveBalancesNoCpi({
+      account: this,
+      instructions,
+      programAddress,
+      banksMap,
+      assetShareValueMultiplierByBank,
+    });
+    return { ...rest, projectedBalances: projectedBalances.map(Balance.fromBalanceType) };
+  }
+
+  // ----------------------------------------------------------------------------
+  // Actions (see the service builder of the same name for details)
+  // ----------------------------------------------------------------------------
+
+  async makeDepositIx(params: Omit<MakeDepositIxParams, "marginfiAccount">) {
+    return makeDepositIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeRepayIx(params: Omit<MakeRepayIxParams, "marginfiAccount">) {
+    return makeRepayIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeWithdrawIx(params: Omit<MakeWithdrawIxParams, "marginfiAccount">) {
+    return makeWithdrawIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeBorrowIx(params: Omit<MakeBorrowIxParams, "marginfiAccount">) {
+    return makeBorrowIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeDepositTx(params: Omit<MakeDepositTxParams, "marginfiAccount">) {
+    return makeDepositTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeRepayTx(params: Omit<MakeRepayTxParams, "marginfiAccount">) {
+    return makeRepayTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeWithdrawTx(params: Omit<MakeWithdrawTxParams, "marginfiAccount">) {
+    return makeWithdrawTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeBorrowTx(params: Omit<MakeBorrowTxParams, "marginfiAccount">) {
+    return makeBorrowTx({ ...params, marginfiAccount: this });
+  }
+
+  /** Starts a flash loan that ends at transaction instruction `endIndex`. */
+  async makeBeginFlashLoanIx(
+    programAddress: Address,
+    endIndex: number,
+    authority: TransactionSigner
+  ) {
+    return makeBeginFlashLoanIx(programAddress, this.address, endIndex, authority);
+  }
+
   /**
-   * Wraps an instruction with SOL wrapping and unwrapping instructions.
-   *
-   * Useful for instructions that need native SOL to be converted to wSOL.
-   * Automatically unwraps wSOL back to SOL after the instruction executes.
-   *
-   * @param ix - The instruction to wrap
-   * @param amount - The amount of SOL to wrap (defaults to 0)
-   *
-   * @returns Array of instructions: [wrap SOL, original instruction, unwrap SOL]
-   *
-   * @see {@link makeWrapSolIxs} and {@link makeUnwrapSolIx} for wrap/unwrap implementation
+   * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
+   * @throws Error if `bankMap` misses one of `projectedActiveBanks`
    */
-  wrapInstructionForWSol(
-    ix: TransactionInstruction,
-    amount: Amount = new BigNumber(0)
-  ): TransactionInstruction[] {
+  async makeEndFlashLoanIx(
+    programAddress: Address,
+    bankMap: Map<string, BankType>,
+    projectedActiveBanks: Address[],
+    authority: TransactionSigner
+  ) {
+    return makeEndFlashLoanIx(
+      programAddress,
+      this.address,
+      this.group,
+      bankMap,
+      projectedActiveBanks,
+      authority
+    );
+  }
+
+  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "marginfiAccount">) {
+    return makeFlashLoanTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeAccountTransferToNewAccountTx(
+    params: Omit<MakeAccountTransferToNewAccountTxParams, "marginfiAccount">
+  ) {
+    return makeAccountTransferToNewAccountTx({ ...params, marginfiAccount: this });
+  }
+
+  /** Closes this (empty) account; `authority` signs and receives the rent. */
+  async makeCloseAccountIx(programAddress: Address, authority: TransactionSigner) {
+    return makeCloseMarginfiAccountIx({ programAddress, marginfiAccount: this, authority });
+  }
+
+  /**
+   * Refreshes this account's on-chain health cache.
+   * @throws Error if `bankMap` misses one of the account's active banks
+   */
+  async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
+    return makePulseHealthIx(programAddress, this, bankMap);
+  }
+
+  /** Surrounds `ix` with wrapping `amount` SOL (UI units) into wSOL and unwrapping it after. */
+  async wrapInstructionForWSol(
+    ix: Instruction,
+    authority: TransactionSigner,
+    amount: Amount = 0
+  ): Promise<Instruction[]> {
     return [
-      ...makeWrapSolIxs(this.authority, new BigNumber(amount)),
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount))),
       ix,
-      makeUnwrapSolIx(this.authority),
+      await makeUnwrapSolIx(authority),
     ];
   }
 
-  /**
-   * Creates a loop transaction to leverage a position.
-   *
-   * A loop transaction:
-   * 1. Deposits initial collateral (if in DEPOSIT mode)
-   * 2. Borrows assets via flashloan
-   * 3. Swaps borrowed assets to deposit asset (via Jupiter)
-   * 4. Deposits swapped assets as additional collateral
-   *
-   * This creates a leveraged position by recursively depositing and borrowing.
-   *
-   * @param params - Loop transaction parameters
-   * @param params.connection - Solana connection instance
-   * @param params.oraclePrices - Map of current oracle prices
-   * @param params.depositOpts - Deposit configuration (bank, amount, mode)
-   * @param params.borrowOpts - Borrow configuration (bank, amount)
-   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
-   * @param params.addressLookupTableAccounts - Address lookup tables
-   * @param params.overrideInferAccounts - Optional account overrides
-   * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
-   *
-   * @returns Object containing transactions array, action index, and swap quote
-   *
-   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
-   *
-   * @see {@link makeLoopTx} for detailed implementation
-   */
-  async makeLoopTx(params: Omit<MakeLoopTxParams, "marginfiAccount">): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    return makeLoopTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeLoopTx(params: Omit<MakeLoopTxParams, "marginfiAccount">) {
+    return makeLoopTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Atomically move a selected set of positions from this account to a destination account
-   * (same authority, same group) using flashloans, auto-splitting across transactions as needed.
-   *
-   * @see {@link makeTransferPositionsTx} for detailed implementation
-   */
-  async makeTransferPositionsTx(
-    params: Omit<MakeTransferPositionsTxParams, "marginfiAccount">
-  ): Promise<TransferPositionsResult> {
-    return makeTransferPositionsTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeBridgedLoopTx(params: Omit<MakeBridgedLoopTxParams, "marginfiAccount">) {
+    return makeBridgedLoopTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a loop transaction with a transparent bridged (double-hop) fallback.
-   *
-   * One call: tries the direct {@link makeLoopTx} first; if its borrow→deposit swap can't fit one
-   * transaction (size / account-locks) or has no route, it loops the deposit asset against a
-   * value-equivalent borrow of a high-liquidity bridge token, then debt-swaps the bridge debt to
-   * the requested borrow asset — both legs composed into ONE atomic Jito bundle.
-   *
-   * Bridge candidates default to USDC → wSOL → USDT and can be reordered/overridden via
-   * `params.bridgeOpts.bridgeCandidateMints`; `bridgeOpts` also accepts known token programs (skips RPC
-   * lookups), a bundle-size ceiling, and an abort signal. `result.bridgeMint` is set only when the
-   * bridged path was used.
-   *
-   * Intended for existing accounts — a fresh account's loop fits the direct path, so flows that
-   * create the account in the same action should call {@link makeLoopTx} directly.
-   *
-   * @param params - Loop transaction parameters plus optional `bridgeOpts`
-   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
-   *
-   * @see {@link makeBridgedLoopTx} for detailed implementation
-   */
-  async makeBridgedLoopTx(
-    params: Omit<MakeBridgedLoopTxParams, "marginfiAccount">
-  ): Promise<BridgedTxResult> {
-    return makeBridgedLoopTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeRepayWithCollatTx(params: Omit<MakeRepayWithCollatTxParams, "marginfiAccount">) {
+    return makeRepayWithCollatTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a collateral-swap transaction with a transparent bridged (double-hop) fallback.
-   *
-   * One call: tries the direct {@link makeSwapCollateralTx} first; if the swap `A → C` can't fit
-   * one transaction or has no route, it decomposes into `A → bridge` + `bridge → C` through a
-   * high-liquidity bridge collateral, both legs composed into ONE atomic Jito bundle. See
-   * {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
-   *
-   * @param params - Swap collateral transaction parameters plus optional `bridgeOpts`
-   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
-   *
-   * @see {@link makeBridgedSwapCollateralTx} for detailed implementation
-   */
+  async makeSwapCollateralTx(params: Omit<MakeSwapCollateralTxParams, "marginfiAccount">) {
+    return makeSwapCollateralTx({ ...params, marginfiAccount: this });
+  }
+
   async makeBridgedSwapCollateralTx(
     params: Omit<MakeBridgedSwapCollateralTxParams, "marginfiAccount">
-  ): Promise<BridgedTxResult> {
-    return makeBridgedSwapCollateralTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  ) {
+    return makeBridgedSwapCollateralTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a debt-swap transaction with a transparent bridged (double-hop) fallback.
-   *
-   * One call: tries the direct {@link makeSwapDebtTx} first; if the swap `A → C` can't fit one
-   * transaction or has no route, the first leg repays A by borrowing a bridge token and the second
-   * leg repays exactly that bridge debt while borrowing C — both legs composed into ONE atomic
-   * Jito bundle. See {@link makeBridgedLoopTx} for the `bridgeOpts` knobs.
-   *
-   * @param params - Swap debt transaction parameters plus optional `bridgeOpts`
-   * @returns Object containing transactions, action index, merged swap quote, and the bridge mint
-   *
-   * @see {@link makeBridgedSwapDebtTx} for detailed implementation
-   */
-  async makeBridgedSwapDebtTx(
-    params: Omit<MakeBridgedSwapDebtTxParams, "marginfiAccount">
-  ): Promise<BridgedTxResult> {
-    return makeBridgedSwapDebtTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeSwapDebtTx(params: Omit<MakeSwapDebtTxParams, "marginfiAccount">) {
+    return makeSwapDebtTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a transaction to repay debt using collateral.
-   *
-   * A repay with collateral transaction:
-   * 1. Withdraws collateral from the account via flashloan
-   * 2. Swaps collateral to debt asset (via Jupiter)
-   * 3. Repays the debt with swapped assets
-   *
-   * This allows users to close or reduce positions without external funds.
-   *
-   * @param params - Repay with collateral transaction parameters
-   * @param params.connection - Solana connection instance
-   * @param params.oraclePrices - Map of current oracle prices
-   * @param params.withdrawOpts - Withdraw configuration (bank, amount)
-   * @param params.repayOpts - Repay configuration (bank, optional amount)
-   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
-   * @param params.addressLookupTableAccounts - Address lookup tables
-   * @param params.overrideInferAccounts - Optional account overrides
-   * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
-   *
-   * @returns Object containing transactions array, action index, and swap details
-   *
-   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
-   * @throws {TransactionBuildingError} If Kamino reserve not found
-   *
-   * @see {@link makeRepayWithCollatTx} for detailed implementation
-   */
-  async makeRepayWithCollatTx(
-    params: Omit<MakeRepayWithCollatTxParams, "marginfiAccount">
-  ): Promise<{
-    transactions: ExtendedV0Transaction[];
-    swapQuote: SwapQuoteResult | undefined;
-    amountToRepay: number;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    return makeRepayWithCollatTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeBridgedSwapDebtTx(params: Omit<MakeBridgedSwapDebtTxParams, "marginfiAccount">) {
+    return makeBridgedSwapDebtTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a transaction to swap one collateral position to another using a flash loan.
-   *
-   * A swap collateral transaction:
-   * 1. Withdraws existing collateral via flash loan
-   * 2. Swaps collateral to new asset (via Jupiter)
-   * 3. Deposits swapped assets as new collateral
-   *
-   * This allows users to change their collateral type (e.g., JitoSOL -> mSOL) without
-   * withdrawing and affecting their health during the swap.
-   *
-   * @param params - Swap collateral transaction parameters
-   * @param params.connection - Solana connection instance
-   * @param params.oraclePrices - Map of current oracle prices
-   * @param params.withdrawOpts - Withdraw configuration (bank, amount, tokenProgram)
-   * @param params.depositOpts - Deposit configuration (bank, tokenProgram)
-   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
-   * @param params.addressLookupTableAccounts - Address lookup tables
-   * @param params.overrideInferAccounts - Optional account overrides
-   * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
-   *
-   * @returns Object containing transactions array, action index, and swap quote
-   *
-   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
-   * @throws {TransactionBuildingError} If Kamino reserve not found
-   *
-   * @see {@link makeSwapCollateralTx} for detailed implementation
-   */
-  async makeSwapCollateralTx(params: Omit<MakeSwapCollateralTxParams, "marginfiAccount">): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    return makeSwapCollateralTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
+  async makeRollPtTx(params: Omit<MakeRollPtTxParams, "marginfiAccount">) {
+    return makeRollPtTx({ ...params, marginfiAccount: this });
   }
 
-  /**
-   * Creates a transaction to roll a matured Exponent PT collateral position into its
-   * next-maturity PT, in one flash-loan-wrapped bundle
-   * (withdraw PT_old → `wrapper_merge` to base → swap-engine buy PT_new → deposit).
-   * See {@link makeRollPtTx}.
-   *
-   * @param params - Roll-PT parameters (`withdrawOpts`/`depositOpts`/`swapOpts`/`rollOpts`).
-   */
-  async makeRollPtTx(params: Omit<MakeRollPtTxParams, "marginfiAccount">): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-  }> {
-    return makeRollPtTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
-  }
-
-  /**
-   * Creates a transaction to swap one debt position to another using a flash loan.
-   *
-   * A swap debt transaction:
-   * 1. Borrows new asset via flash loan (new debt)
-   * 2. Swaps new asset to old debt asset (via Jupiter)
-   * 3. Repays old debt with swapped assets
-   *
-   * This allows users to change their debt type (e.g., USDC debt -> SOL debt) without
-   * repaying and affecting their health during the swap.
-   *
-   * @param params - Swap debt transaction parameters
-   * @param params.connection - Solana connection instance
-   * @param params.oraclePrices - Map of current oracle prices
-   * @param params.repayOpts - Repay configuration (bank, amount, tokenProgram)
-   * @param params.borrowOpts - Borrow configuration (bank, tokenProgram)
-   * @param params.swapOpts - Swap configuration (venue, slippage, fees)
-   * @param params.addressLookupTableAccounts - Address lookup tables
-   * @param params.overrideInferAccounts - Optional account overrides
-   * @param params.additionalIxs - Additional instructions to include
-   * @param params.crossbarUrl - Crossbar URL for oracle updates
-   *
-   * @returns Object containing transactions array, action index, and swap quote
-   *
-   * @throws {TransactionBuildingError} If swap exceeds transaction size limits
-   *
-   * @see {@link makeSwapDebtTx} for detailed implementation
-   */
-  async makeSwapDebtTx(params: Omit<MakeSwapDebtTxParams, "marginfiAccount">): Promise<{
-    transactions: ExtendedV0Transaction[];
-    actionTxIndex: number;
-    quoteResponse: SwapQuoteResult | undefined;
-    /** true → send as ONE atomic Jito bundle (bridged legs / integration refreshes);
-     *  false → sequential sends are safe. */
-    mustBeAtomicBundle: boolean;
-  }> {
-    return makeSwapDebtTx({
-      ...params,
-      marginfiAccount: this,
-      overrideInferAccounts: {
-        authority: this.authority,
-        group: this.group,
-        ...params.overrideInferAccounts,
-      },
-    });
-  }
-
-  /**
-   * Creates a deposit transaction.
-   *
-   * @param params - Parameters for the deposit transaction
-   * @returns Promise resolving to an ExtendedTransaction
-   *
-   * @see {@link makeDepositTx} for detailed implementation
-   */
-  async makeDepositTx(
-    params: Omit<MakeDepositTxParams, "accountAddress" | "authority" | "group">
-  ): Promise<ExtendedTransaction> {
-    return makeDepositTx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-      group: this.group,
-    });
-  }
-
-  /**
-   * Creates a Drift deposit transaction.
-   *
-   * @param params - Parameters for the Drift deposit transaction
-   * @returns Promise resolving to an ExtendedV0Transaction
-   *
-   * @see {@link makeDriftDepositTx} for detailed implementation
-   */
-  async makeDriftDepositTx(
-    params: Omit<MakeDriftDepositTxParams, "accountAddress" | "authority" | "group">
-  ): Promise<ExtendedV0Transaction> {
-    return makeDriftDepositTx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-      group: this.group,
-    });
-  }
-
-  /**
-   * Creates a Kamino deposit transaction.
-   *
-   * @param params - Parameters for the Kamino deposit transaction
-   * @returns Promise resolving to an ExtendedV0Transaction
-   *
-   * @see {@link makeKaminoDepositTx} for detailed implementation
-   */
-  async makeKaminoDepositTx(
-    params: Omit<MakeKaminoDepositTxParams, "accountAddress" | "authority" | "group">
-  ): Promise<ExtendedV0Transaction> {
-    return makeKaminoDepositTx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-      group: this.group,
-    });
-  }
-
-  /**
-   * Creates a borrow transaction.
-   *
-   * @param params - Parameters for the borrow transaction
-   * @returns Promise resolving to a TransactionBuilderResult
-   *
-   * @see {@link makeBorrowTx} for detailed implementation
-   */
-  async makeBorrowTx(
-    params: Omit<MakeBorrowTxParams, "marginfiAccount">
-  ): Promise<TransactionBuilderResult> {
-    return makeBorrowTx({
-      ...params,
-      marginfiAccount: this,
-      opts: {
-        ...params.opts,
-        overrideInferAccounts: {
-          authority: this.authority,
-          ...params.opts?.overrideInferAccounts,
-        },
-      },
-    });
-  }
-
-  /**
-   * Creates a repay transaction.
-   *
-   * @param params - Parameters for the repay transaction
-   * @returns Promise resolving to an ExtendedTransaction
-   *
-   * @see {@link makeRepayTx} for detailed implementation
-   */
-  async makeRepayTx(
-    params: Omit<MakeRepayTxParams, "accountAddress" | "authority">
-  ): Promise<ExtendedTransaction> {
-    return makeRepayTx({
-      ...params,
-      accountAddress: this.address,
-      authority: this.authority,
-    });
-  }
-
-  /**
-   * Creates a withdraw transaction.
-   *
-   * @param params - Parameters for the withdraw transaction
-   * @returns Promise resolving to a TransactionBuilderResult
-   *
-   * @see {@link makeWithdrawTx} for detailed implementation
-   */
-  async makeWithdrawTx(
-    params: Omit<MakeWithdrawTxParams, "marginfiAccount">
-  ): Promise<TransactionBuilderResult> {
-    return makeWithdrawTx({
-      ...params,
-      marginfiAccount: this,
-      opts: {
-        ...params.opts,
-        overrideInferAccounts: {
-          authority: this.authority,
-          group: this.group,
-          ...params.opts?.overrideInferAccounts,
-        },
-      },
-    });
-  }
-
-  /**
-   * Creates a Drift withdraw transaction.
-   *
-   * @param params - Parameters for the Drift withdraw transaction
-   * @returns Promise resolving to an ExtendedV0Transaction
-   *
-   * @see {@link makeDriftWithdrawTx} for detailed implementation
-   */
-  async makeDriftWithdrawTx(
-    params: Omit<MakeDriftWithdrawTxParams, "marginfiAccount">
-  ): Promise<TransactionBuilderResult> {
-    return makeDriftWithdrawTx({
-      ...params,
-      marginfiAccount: this,
-      opts: {
-        ...params.opts,
-        overrideInferAccounts: {
-          authority: this.authority,
-          group: this.group,
-          ...params.opts?.overrideInferAccounts,
-        },
-      },
-    });
-  }
-
-  /**
-   * Creates a Kamino withdraw transaction.
-   *
-   * @param params - Parameters for the Kamino withdraw transaction
-   * @returns Promise resolving to a TransactionBuilderResult
-   *
-   * @see {@link makeKaminoWithdrawTx} for detailed implementation
-   */
-  async makeKaminoWithdrawTx(
-    params: Omit<MakeKaminoWithdrawTxParams, "marginfiAccount">
-  ): Promise<TransactionBuilderResult> {
-    return makeKaminoWithdrawTx({
-      ...params,
-      marginfiAccount: this,
-      opts: {
-        ...params.opts,
-        overrideInferAccounts: {
-          authority: this.authority,
-          group: this.group,
-          ...params.opts?.overrideInferAccounts,
-        },
-      },
-    });
-  }
-
-  /**
-   * Creates a flash loan transaction.
-   *
-   * @param params - Parameters for the flash loan transaction
-   * @returns Promise resolving to flash loan transaction details
-   *
-   * @see {@link makeFlashLoanTx} for detailed implementation
-   */
-  async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "marginfiAccount">) {
-    return makeFlashLoanTx({
-      ...params,
-      marginfiAccount: this,
-    });
+  async makeTransferPositionsTx(params: Omit<MakeTransferPositionsTxParams, "marginfiAccount">) {
+    return makeTransferPositionsTx({ ...params, marginfiAccount: this });
   }
 }
 

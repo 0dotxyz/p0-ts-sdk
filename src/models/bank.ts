@@ -1,11 +1,16 @@
-import { PublicKey } from "@solana/web3.js";
+import {
+  fetchEncodedAccount,
+  assertAccountExists,
+  type Address,
+  type GetAccountInfoApi,
+  type ReadonlyUint8Array,
+  type Rpc,
+} from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
 import {
   BankType,
-  BankRaw,
-  decodeBankRaw,
-  parseBankRaw,
+  decodeBank,
   OraclePrice,
   PriceBias,
   getPrice,
@@ -37,21 +42,12 @@ import {
   OracleSetup,
   InterestRateConfig,
   OperationalState,
-  BankConfigRaw,
-  parseBankConfigRaw,
   MarginRequirementType,
 } from "../services";
 
 import { EmodeSettings } from "./emode-settings";
 
-import { MarginfiIdlType } from "~/idl";
-import { MarginfiProgram } from "~/types";
-
-interface BankMetadata {
-  tokenAddress: string;
-  tokenName: string;
-  tokenSymbol: string;
-}
+import { BankMetadata } from "~/types";
 
 // ----------------------------------------------------------------------------
 // Client types
@@ -59,20 +55,20 @@ interface BankMetadata {
 
 class Bank implements BankType {
   constructor(
-    public readonly address: PublicKey,
-    public readonly mint: PublicKey,
+    public readonly address: Address,
+    public readonly mint: Address,
     public readonly mintDecimals: number,
-    public readonly group: PublicKey,
+    public readonly group: Address,
     public readonly assetShareValue: BigNumber,
     public readonly liabilityShareValue: BigNumber,
-    public readonly liquidityVault: PublicKey,
+    public readonly liquidityVault: Address,
     public readonly liquidityVaultBump: number,
     public readonly liquidityVaultAuthorityBump: number,
-    public readonly insuranceVault: PublicKey,
+    public readonly insuranceVault: Address,
     public readonly insuranceVaultBump: number,
     public readonly insuranceVaultAuthorityBump: number,
     public readonly collectedInsuranceFeesOutstanding: BigNumber,
-    public readonly feeVault: PublicKey,
+    public readonly feeVault: Address,
     public readonly feeVaultBump: number,
     public readonly feeVaultAuthorityBump: number,
     public readonly collectedGroupFeesOutstanding: BigNumber,
@@ -83,52 +79,56 @@ class Bank implements BankType {
     public readonly emissionsActiveBorrowing: boolean,
     public readonly emissionsActiveLending: boolean,
     public readonly emissionsRate: number,
-    public readonly emissionsMint: PublicKey,
+    public readonly emissionsMint: Address,
     public readonly emissionsRemaining: BigNumber,
     public readonly collectedProgramFeesOutstanding: BigNumber,
-    public readonly oracleKey: PublicKey,
+    public readonly oracleKey: Address,
     public readonly emode: EmodeSettings,
     public readonly rateLimiter?: BankRateLimiterType,
     public readonly kaminoIntegrationAccounts?: {
-      kaminoReserve: PublicKey;
-      kaminoObligation: PublicKey;
+      kaminoReserve: Address;
+      kaminoObligation: Address;
     },
     public readonly driftIntegrationAccounts?: {
-      driftSpotMarket: PublicKey;
-      driftUser: PublicKey;
-      driftUserStats: PublicKey;
+      driftSpotMarket: Address;
+      driftUser: Address;
+      driftUserStats: Address;
     },
     public readonly solendIntegrationAccounts?: {
-      solendReserve: PublicKey;
-      solendObligation: PublicKey;
+      solendReserve: Address;
+      solendObligation: Address;
     },
     public readonly jupLendIntegrationAccounts?: {
-      jupLendingState: PublicKey;
-      jupFTokenVault: PublicKey;
-      jupFTokenAta: PublicKey;
+      jupLendingState: Address;
+      jupFTokenVault: Address;
+      jupFTokenAta: Address;
     },
-    public readonly feesDestinationAccount?: PublicKey,
+    public readonly feesDestinationAccount?: Address,
     public readonly lendingPositionCount?: BigNumber,
     public readonly borrowingPositionCount?: BigNumber,
     public readonly tokenSymbol?: string
   ) {}
 
+  /**
+   * Fetches and decodes the bank at `address`; `bankMetadata` supplies its token symbol.
+   * @throws if the account doesn't exist or isn't a bank
+   */
   static async fetch(
-    address: PublicKey,
-    program: MarginfiProgram,
+    address: Address,
+    rpc: Rpc<GetAccountInfoApi>,
     bankMetadata?: BankMetadata
   ): Promise<Bank> {
-    const data: BankRaw = await program.account.bank.fetch(address);
-    return Bank.fromAccountParsed(address, data, bankMetadata);
+    const account = await fetchEncodedAccount(rpc, address);
+    assertAccountExists(account);
+    return Bank.fromBuffer(address, account.data, bankMetadata);
   }
 
-  static decodeBankRaw(encoded: Buffer, idl: MarginfiIdlType): BankRaw {
-    return decodeBankRaw(encoded, idl);
-  }
-
-  static fromBuffer(bankPk: PublicKey, rawData: Buffer, idl: MarginfiIdlType): Bank {
-    const accountParsed = Bank.decodeBankRaw(rawData, idl);
-    return Bank.fromAccountParsed(bankPk, accountParsed);
+  /**
+   * Decodes bank account data; `bankMetadata` supplies its token symbol.
+   * @throws if `data` isn't a bank account
+   */
+  static fromBuffer(address: Address, data: ReadonlyUint8Array, bankMetadata?: BankMetadata): Bank {
+    return Bank.fromBankType(decodeBank(address, data, bankMetadata));
   }
 
   static fromBankType(bankType: BankType): Bank {
@@ -191,54 +191,6 @@ class Bank implements BankType {
       bankType.lendingPositionCount,
       bankType.borrowingPositionCount,
       bankType.tokenSymbol
-    );
-  }
-
-  static fromAccountParsed(
-    address: PublicKey,
-    accountParsed: BankRaw,
-    bankMetadata?: BankMetadata
-  ): Bank {
-    const props = parseBankRaw(address, accountParsed, bankMetadata);
-    return new Bank(
-      props.address,
-      props.mint,
-      props.mintDecimals,
-      props.group,
-      props.assetShareValue,
-      props.liabilityShareValue,
-      props.liquidityVault,
-      props.liquidityVaultBump,
-      props.liquidityVaultAuthorityBump,
-      props.insuranceVault,
-      props.insuranceVaultBump,
-      props.insuranceVaultAuthorityBump,
-      props.collectedInsuranceFeesOutstanding,
-      props.feeVault,
-      props.feeVaultBump,
-      props.feeVaultAuthorityBump,
-      props.collectedGroupFeesOutstanding,
-      props.lastUpdate,
-      props.config,
-      props.totalAssetShares,
-      props.totalLiabilityShares,
-      props.emissionsActiveBorrowing,
-      props.emissionsActiveLending,
-      props.emissionsRate,
-      props.emissionsMint,
-      props.emissionsRemaining,
-      props.collectedProgramFeesOutstanding,
-      props.oracleKey,
-      props.emode,
-      props.rateLimiter,
-      props.kaminoIntegrationAccounts,
-      props.driftIntegrationAccounts,
-      props.solendIntegrationAccounts,
-      props.jupLendIntegrationAccounts,
-      props.feesDestinationAccount,
-      props.lendingPositionCount,
-      props.borrowingPositionCount,
-      props.tokenSymbol
     );
   }
 
@@ -376,7 +328,7 @@ class BankConfig implements BankConfigType {
     public readonly totalAssetValueInitLimit: BigNumber,
     public readonly assetTag: AssetTag,
     public readonly oracleSetup: OracleSetup,
-    public readonly oracleKeys: PublicKey[],
+    public readonly oracleKeys: Address[],
     public readonly oracleMaxAge: number,
     public readonly interestRateConfig: InterestRateConfig,
     public readonly operationalState: OperationalState,
@@ -385,30 +337,6 @@ class BankConfig implements BankConfigType {
     public readonly configFlags?: BankConfigFlag,
     public readonly scopeEntryIndex?: number
   ) {}
-
-  static fromAccountParsed(bankConfigRaw: BankConfigRaw): BankConfig {
-    const bankConfig = parseBankConfigRaw(bankConfigRaw);
-    return new BankConfig(
-      bankConfig.assetWeightInit,
-      bankConfig.assetWeightMaint,
-      bankConfig.liabilityWeightInit,
-      bankConfig.liabilityWeightMaint,
-      bankConfig.depositLimit,
-      bankConfig.borrowLimit,
-      bankConfig.riskTier,
-      bankConfig.totalAssetValueInitLimit,
-      bankConfig.assetTag,
-      bankConfig.oracleSetup,
-      bankConfig.oracleKeys,
-      bankConfig.oracleMaxAge,
-      bankConfig.interestRateConfig,
-      bankConfig.operationalState,
-      bankConfig.oracleMaxConfidence,
-      bankConfig.fixedPrice,
-      bankConfig.configFlags,
-      bankConfig.scopeEntryIndex
-    );
-  }
 }
 
 export { Bank, BankConfig };

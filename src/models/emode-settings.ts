@@ -1,6 +1,4 @@
 import { EmodeEntry, EmodeFlags, EmodeSettingsType, EmodeTag } from "../services";
-import type { EmodeSettingsRaw } from "../services/bank/types/raw-bank.types";
-import { parseEmodeSettingsRaw } from "../services/bank/utils/deserialize.utils";
 
 export class EmodeSettings implements EmodeSettingsType {
   constructor(
@@ -22,10 +20,5 @@ export class EmodeSettings implements EmodeSettingsType {
       emodeSettingsType.flags,
       emodeSettingsType.emodeEntries
     );
-  }
-
-  static from(emodeSettingsRaw: EmodeSettingsRaw): EmodeSettings {
-    const emodeSettingsType = parseEmodeSettingsRaw(emodeSettingsRaw);
-    return EmodeSettings.fromEmodeSettingsType(emodeSettingsType);
   }
 }
