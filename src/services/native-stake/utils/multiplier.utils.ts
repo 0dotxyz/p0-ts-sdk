@@ -1,105 +1,37 @@
-import { Buffer } from "buffer";
-
-import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import type { GetMultipleAccountsApi, Rpc } from "@solana/kit";
+import { getMintDecoder } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
-import { getStakedBankMetadataMap } from "./metadata.utils";
-
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/utils";
-import {
-  findPoolAddress,
-  findPoolStakeAddress,
-  findPoolMintAddress,
-} from "~/vendor/single-spl-pool";
+import { BankType } from "~/services/bank";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/utils";
 
 /**
- * Minimal bank shape required to compute staked-bank multipliers.
- * Kept local to avoid a hard dependency on the Bank model.
- */
-interface StakedBankLike {
-  address: PublicKey;
-}
-
-/**
- * Computes the asset-share multiplier (LST → SOL ratio) for each staked bank.
- *
- * For each staked bank:
- *   multiplier = max(stakeLamports - LAMPORTS_PER_SOL, 0) / lstMintSupply
- *
- * Banks whose metadata cannot be resolved, or whose pool accounts cannot be
- * fetched, default to a multiplier of 1.
- *
- * @param stakedBanks - Banks with `assetTag === AssetTag.STAKED`
- * @param connection  - Solana RPC connection
- * @returns Map of bank address (base58) → BigNumber multiplier
+ * SOL per LST of each staked bank, keyed by bank address: its pool's stake above the pool's 1 SOL
+ * minimum over the LST supply. 1 when the pool stake account or LST mint is missing or the supply is
+ * zero.
  */
 export async function computeStakedBankMultipliers(
-  stakedBanks: StakedBankLike[],
-  connection: Connection
+  rpc: Rpc<GetMultipleAccountsApi>,
+  stakedBanks: BankType[]
 ): Promise<Map<string, BigNumber>> {
-  const multiplierByBank = new Map<string, BigNumber>();
+  // A staked bank's oracle keys 1 and 2 are its pool's LST mint and stake account.
+  const accounts = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
+    rpc,
+    stakedBanks.flatMap((bank) => [bank.config.oracleKeys[2], bank.config.oracleKeys[1]])
+  );
 
-  if (stakedBanks.length === 0) {
-    return multiplierByBank;
-  }
+  return new Map(
+    stakedBanks.map((bank, i) => {
+      const [poolStake, lstMint] = accounts.slice(2 * i, 2 * i + 2);
+      const supply = lstMint ? getMintDecoder().decode(lstMint.data).supply : 0n;
+      if (!poolStake || supply === 0n) return [bank.address, new BigNumber(1)];
 
-  const metadataMap = getStakedBankMetadataMap();
-
-  // Derive pool stake addresses and LST mint addresses for each staked bank
-  const stakedBankAddresses: string[] = [];
-  const poolStakeAddresses: PublicKey[] = [];
-  const lstMintAddresses: PublicKey[] = [];
-
-  for (const bank of stakedBanks) {
-    const metadata = metadataMap.get(bank.address.toBase58());
-    if (!metadata) {
-      multiplierByBank.set(bank.address.toBase58(), new BigNumber(1));
-      continue;
-    }
-    const pool = findPoolAddress(new PublicKey(metadata.validatorVoteAccount));
-    stakedBankAddresses.push(bank.address.toBase58());
-    poolStakeAddresses.push(findPoolStakeAddress(pool));
-    lstMintAddresses.push(findPoolMintAddress(pool));
-  }
-
-  if (stakedBankAddresses.length === 0) {
-    return multiplierByBank;
-  }
-
-  // Batch-fetch pool stake accounts and LST mint supplies
-  const allAddresses = [
-    ...poolStakeAddresses.map((a) => a.toBase58()),
-    ...lstMintAddresses.map((a) => a.toBase58()),
-  ];
-  const accountInfos = await chunkedGetRawMultipleAccountInfoOrdered(connection, allAddresses);
-  const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
-  const lstMintInfos = accountInfos.slice(poolStakeAddresses.length);
-
-  for (let i = 0; i < stakedBankAddresses.length; i++) {
-    const bankAddr = stakedBankAddresses[i];
-    const poolStakeInfo = poolStakeInfos[i];
-    const lstMintInfo = lstMintInfos[i];
-
-    if (!poolStakeInfo || !lstMintInfo) {
-      multiplierByBank.set(bankAddr, new BigNumber(1));
-      continue;
-    }
-
-    const stakeLamports = poolStakeInfo.lamports;
-    // LST mint supply is stored at offset 36, as a little-endian u64
-    const supplyBuffer = lstMintInfo.data.slice(36, 44);
-    const lstMintSupply = Number(Buffer.from(supplyBuffer).readBigUInt64LE(0));
-
-    if (lstMintSupply === 0) {
-      multiplierByBank.set(bankAddr, new BigNumber(1));
-      continue;
-    }
-
-    // multiplier = (stakeInPool - LAMPORTS_PER_SOL) / lstMintSupply
-    const adjustedStake = Math.max(stakeLamports - LAMPORTS_PER_SOL, 0);
-    const multiplier = new BigNumber(adjustedStake).dividedBy(lstMintSupply);
-    multiplierByBank.set(bankAddr, multiplier);
-  }
-
-  return multiplierByBank;
+      const stakeAboveMinimum =
+        poolStake.lamports > 1_000_000_000n ? poolStake.lamports - 1_000_000_000n : 0n;
+      return [
+        bank.address,
+        new BigNumber(stakeAboveMinimum.toString()).dividedBy(supply.toString()),
+      ];
+    })
+  );
 }

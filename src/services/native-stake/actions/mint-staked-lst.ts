@@ -1,168 +1,129 @@
+import { generateKeyPairSigner, type Instruction } from "@solana/kit";
 import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  StakeAuthorizationLayout,
-  StakeProgram,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  fetchStakeStateAccount,
+  getAuthorizeInstruction,
+  getSplitInstruction,
+  STAKE_PROGRAM_ADDRESS,
+  StakeAuthorize,
+} from "@solana-program/stake";
+import { getCreateAccountInstruction } from "@solana-program/system";
+import {
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 
 import type { MakeMintStakedLstIxParams, MakeMintStakedLstTxParams } from "../types";
 
+import { STAKE_ACCOUNT_SIZE } from "~/constants";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import { uiToNative } from "~/utils";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  SinglePoolInstruction,
   findPoolAddress,
   findPoolMintAddress,
   findPoolStakeAuthorityAddress,
+  makeSinglePoolDepositStakeIx,
 } from "~/vendor/single-spl-pool";
-import {
-  getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountInstruction,
-} from "~/vendor/spl";
-
-const SYSVAR_CLOCK_ID = new PublicKey("SysvarC1ock11111111111111111111111111111111");
 
 /**
- * Creates instructions to convert a native stake account into LST tokens.
- *
- * Steps:
- * 1. Create LST ATA if needed
- * 2. Split stake account if partial amount
- * 3. Authorize staker + withdrawer to pool
- * 4. Deposit stake into pool → user receives LST
+ * Converts `amount` SOL (UI units) of `stakeAccount` into the validator's single-pool LST, sent to
+ * the authority's ATA (created if missing). Less than the account's delegation is first split into
+ * a new stake account, whose generated signer the instructions carry.
+ * @throws if `stakeAccount` doesn't exist or isn't a stake account
  */
-export async function makeMintStakedLstIx(
-  params: MakeMintStakedLstIxParams
-): Promise<InstructionsWrapper> {
-  const { amount, authority, stakeAccountPk, validator, connection } = params;
-
-  // Derive addresses
-  const pool = findPoolAddress(validator);
-  const lstMint = findPoolMintAddress(pool);
-  const poolStakeAuth = findPoolStakeAuthorityAddress(pool);
-  const lstAta = getAssociatedTokenAddressSync(lstMint, authority);
-
-  // Fetch account info
-  const [lstAccInfo, stakeAccInfoParsed, rentExemptReserve] = await Promise.all([
-    connection.getAccountInfo(lstAta),
-    connection.getParsedAccountInfo(stakeAccountPk),
-    connection.getMinimumBalanceForRentExemption(StakeProgram.space),
+export async function makeMintStakedLstIx({
+  rpc,
+  amount,
+  authority,
+  stakeAccount,
+  validator,
+}: MakeMintStakedLstIxParams): Promise<Instruction[]> {
+  const pool = await findPoolAddress(validator);
+  const [lstMint, poolStakeAuthority, stake, rentExemption] = await Promise.all([
+    findPoolMintAddress(pool),
+    findPoolStakeAuthorityAddress(pool),
+    fetchStakeStateAccount(rpc, stakeAccount),
+    rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
   ]);
-
-  const stakeAccParsed = stakeAccInfoParsed?.value?.data as {
-    parsed: { info: { stake?: { delegation?: { stake?: string } } } };
-  };
-
-  // Calculate amounts
-  const amountLamports = Math.round(Number(amount) * LAMPORTS_PER_SOL);
-  const stakeAccLamports = Number(stakeAccParsed?.parsed?.info?.stake?.delegation?.stake ?? 0);
-  const isFullStake = amountLamports >= stakeAccLamports;
-
-  // Build instructions
-  const instructions: TransactionInstruction[] = [];
-  const signers: Keypair[] = [];
-
-  // Create ATA if needed
-  if (!lstAccInfo) {
-    instructions.push(
-      createAssociatedTokenAccountInstruction(authority, lstAta, authority, lstMint)
-    );
-  }
-
-  // Handle stake splitting if partial
-  let targetStakePubkey: PublicKey;
-  if (!isFullStake) {
-    const splitStakeAccount = Keypair.generate();
-    signers.push(splitStakeAccount);
-    targetStakePubkey = splitStakeAccount.publicKey;
-
-    instructions.push(
-      ...StakeProgram.split(
-        {
-          stakePubkey: stakeAccountPk,
-          authorizedPubkey: authority,
-          splitStakePubkey: splitStakeAccount.publicKey,
-          lamports: amountLamports,
-        },
-        rentExemptReserve
-      ).instructions
-    );
-  } else {
-    targetStakePubkey = stakeAccountPk;
-  }
-
-  // Authorize pool stake authority as staker + withdrawer
-  const [authorizeStakerIx, authorizeWithdrawIx] = await Promise.all([
-    StakeProgram.authorize({
-      stakePubkey: targetStakePubkey,
-      authorizedPubkey: authority,
-      newAuthorizedPubkey: poolStakeAuth,
-      stakeAuthorizationType: StakeAuthorizationLayout.Staker,
-    }).instructions,
-    StakeProgram.authorize({
-      stakePubkey: targetStakePubkey,
-      authorizedPubkey: authority,
-      newAuthorizedPubkey: poolStakeAuth,
-      stakeAuthorizationType: StakeAuthorizationLayout.Withdrawer,
-    }).instructions,
-  ]);
-
-  // Fix SYSVAR_CLOCK_ID writability (known Solana SDK quirk)
-  [authorizeStakerIx[0], authorizeWithdrawIx[0]].forEach((ix) => {
-    if (ix) {
-      ix.keys = ix.keys.map((key) => ({
-        ...key,
-        isWritable: key.pubkey.equals(SYSVAR_CLOCK_ID) ? false : key.isWritable,
-      }));
-    }
+  const [lstAta] = await findAssociatedTokenPda({
+    mint: lstMint,
+    owner: authority.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
   });
+  const lamports = uiToNative(amount, 9);
+  const delegated =
+    stake.data.state.__kind === "Stake" ? stake.data.state.fields[1].delegation.stake : 0n;
 
-  instructions.push(...authorizeStakerIx, ...authorizeWithdrawIx);
+  const mintIxs: Instruction[] = [
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: authority,
+      ata: lstAta,
+      owner: authority.address,
+      mint: lstMint,
+    }),
+  ];
 
-  // Deposit stake into pool → user receives LST
-  const depositStakeIx = await SinglePoolInstruction.depositStake(
-    pool,
-    targetStakePubkey,
-    lstAta,
-    authority
+  let depositedStake = stakeAccount;
+  if (lamports < delegated) {
+    const splitStake = await generateKeyPairSigner();
+    mintIxs.push(
+      getCreateAccountInstruction({
+        payer: authority,
+        newAccount: splitStake,
+        lamports: rentExemption,
+        space: STAKE_ACCOUNT_SIZE,
+        programAddress: STAKE_PROGRAM_ADDRESS,
+      }),
+      getSplitInstruction({
+        stake: stakeAccount,
+        splitStake: splitStake.address,
+        stakeAuthority: authority,
+        args: lamports,
+      })
+    );
+    depositedStake = splitStake.address;
+  }
+
+  mintIxs.push(
+    getAuthorizeInstruction({
+      stake: depositedStake,
+      authority,
+      arg0: poolStakeAuthority,
+      arg1: StakeAuthorize.Staker,
+    }),
+    getAuthorizeInstruction({
+      stake: depositedStake,
+      authority,
+      arg0: poolStakeAuthority,
+      arg1: StakeAuthorize.Withdrawer,
+    }),
+    await makeSinglePoolDepositStakeIx(pool, depositedStake, lstAta, authority.address)
   );
-  instructions.push(depositStakeIx);
 
-  return { instructions, keys: signers };
+  return mintIxs;
 }
 
 /**
- * Creates a versioned transaction to convert a native stake account into LST tokens.
+ * Builds a transaction around {@link makeMintStakedLstIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeMintStakedLstIx}
  */
 export async function makeMintStakedLstTx(
   params: MakeMintStakedLstTxParams
-): Promise<ExtendedV0Transaction> {
-  const { connection, luts, blockhash: providedBlockhash } = params;
+): Promise<SolanaTransaction> {
+  const { luts, latestBlockhash, ...mintIxParams } = params;
 
-  const { instructions, keys } = await makeMintStakedLstIx(params);
+  const mintIxs = await makeMintStakedLstIx(mintIxParams);
 
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: params.authority,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    signers: keys,
-    addressLookupTables: luts,
+  return {
+    message: makeTransactionMessage({
+      instructions: mintIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ??
+        (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.DEPOSIT_STAKE,
-  });
+  };
 }

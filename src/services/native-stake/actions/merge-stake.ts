@@ -1,50 +1,36 @@
-import { StakeProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { getMergeInstruction } from "@solana-program/stake";
 
 import type { MakeMergeStakeAccountsTxParams } from "../types";
 
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  TransactionType,
-} from "~/services/transaction";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
 
 /**
- * Creates a versioned transaction to merge two stake accounts.
- *
- * The source stake account will be merged into the destination stake account.
- * Both accounts must share the same authorized staker/withdrawer and vote account.
+ * Builds a transaction merging `sourceStakeAccount` into `destinationStakeAccount`; both need the
+ * same authority and vote account. The authority pays and signs; `latestBlockhash` is fetched when
+ * omitted.
  */
-export async function makeMergeStakeAccountsTx(
-  params: MakeMergeStakeAccountsTxParams
-): Promise<ExtendedV0Transaction> {
-  const {
-    authority,
-    sourceStakeAccount,
-    destinationStakeAccount,
-    connection,
-    luts,
-    blockhash: providedBlockhash,
-  } = params;
-
-  const mergeIx = StakeProgram.merge({
-    stakePubkey: destinationStakeAccount,
-    sourceStakePubKey: sourceStakeAccount,
-    authorizedPubkey: authority,
-  }).instructions;
-
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: authority,
-    recentBlockhash: blockhash,
-    instructions: mergeIx,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    addressLookupTables: luts,
+export async function makeMergeStakeAccountsTx({
+  rpc,
+  luts,
+  latestBlockhash,
+  authority,
+  sourceStakeAccount,
+  destinationStakeAccount,
+}: MakeMergeStakeAccountsTxParams): Promise<SolanaTransaction> {
+  return {
+    message: makeTransactionMessage({
+      instructions: [
+        getMergeInstruction({
+          destinationStake: destinationStakeAccount,
+          sourceStake: sourceStakeAccount,
+          stakeAuthority: authority,
+        }),
+      ],
+      feePayer: authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.MERGE_STAKE_ACCOUNTS,
-  });
+  };
 }

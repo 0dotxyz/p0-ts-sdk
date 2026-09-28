@@ -1,118 +1,92 @@
+import { generateKeyPairSigner, type Instruction } from "@solana/kit";
+import { STAKE_PROGRAM_ADDRESS } from "@solana-program/stake";
+import { getCreateAccountInstruction } from "@solana-program/system";
 import {
-  Keypair,
-  StakeProgram,
-  SystemProgram,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
-import { BigNumber } from "bignumber.js";
+  findAssociatedTokenPda,
+  getApproveInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 
 import type { MakeRedeemStakedLstIxParams, MakeRedeemStakedLstTxParams } from "../types";
 
+import { STAKE_ACCOUNT_SIZE } from "~/constants";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import { uiToNative } from "~/utils";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  SinglePoolInstruction,
   findPoolAddress,
   findPoolMintAddress,
   findPoolMintAuthorityAddress,
+  makeSinglePoolWithdrawStakeIx,
 } from "~/vendor/single-spl-pool";
-import { getAssociatedTokenAddressSync, createApproveInstruction } from "~/vendor/spl";
 
 /**
- * Creates instructions to convert LST tokens back to a native stake account.
- *
- * Steps:
- * 1. Create new stake account (rent-exempt)
- * 2. Approve pool mint authority to burn LST
- * 3. Withdraw stake from pool → user receives stake account
+ * Redeems `amount` LST (UI units) of the validator's single pool from the authority's ATA into a new
+ * stake account owned by the authority, whose generated signer the instructions carry.
  */
-export async function makeRedeemStakedLstIx(
-  params: MakeRedeemStakedLstIxParams
-): Promise<InstructionsWrapper> {
-  const { amount, authority, validator, connection } = params;
+export async function makeRedeemStakedLstIx({
+  rpc,
+  amount,
+  authority,
+  validator,
+}: MakeRedeemStakedLstIxParams): Promise<Instruction[]> {
+  const pool = await findPoolAddress(validator);
+  const [lstMint, mintAuthority, stakeAccount, rentExemption] = await Promise.all([
+    findPoolMintAddress(pool),
+    findPoolMintAuthorityAddress(pool),
+    generateKeyPairSigner(),
+    rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
+  ]);
+  const [lstAta] = await findAssociatedTokenPda({
+    mint: lstMint,
+    owner: authority.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const tokenAmount = uiToNative(amount, 9);
 
-  // Derive addresses
-  const pool = findPoolAddress(validator);
-  const lstMint = findPoolMintAddress(pool);
-  const mintAuthority = findPoolMintAuthorityAddress(pool);
-  const lstAta = getAssociatedTokenAddressSync(lstMint, authority);
-
-  // Calculate rent exemption for new stake account
-  const rentExemption = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
-
-  const stakeAmount = new BigNumber(new BigNumber(amount).toString());
-
-  // Build instructions
-  const instructions: TransactionInstruction[] = [];
-  const signers: Keypair[] = [];
-
-  // Create new stake account to receive the withdrawn stake
-  const stakeAccount = Keypair.generate();
-  signers.push(stakeAccount);
-
-  instructions.push(
-    SystemProgram.createAccount({
-      fromPubkey: authority,
-      newAccountPubkey: stakeAccount.publicKey,
+  return [
+    getCreateAccountInstruction({
+      payer: authority,
+      newAccount: stakeAccount,
       lamports: rentExemption,
-      space: StakeProgram.space,
-      programId: StakeProgram.programId,
-    })
-  );
-
-  // Approve mint authority to burn LST tokens
-  instructions.push(
-    createApproveInstruction(
+      space: STAKE_ACCOUNT_SIZE,
+      programAddress: STAKE_PROGRAM_ADDRESS,
+    }),
+    getApproveInstruction({
+      source: lstAta,
+      delegate: mintAuthority,
+      owner: authority,
+      amount: tokenAmount,
+    }),
+    await makeSinglePoolWithdrawStakeIx(
+      pool,
+      stakeAccount.address,
+      authority.address,
       lstAta,
-      mintAuthority,
-      authority,
-      BigInt(stakeAmount.multipliedBy(1e9).toFixed(0))
-    )
-  );
-
-  // Withdraw stake from pool (LST → stake account)
-  const withdrawStakeIx = await SinglePoolInstruction.withdrawStake(
-    pool,
-    stakeAccount.publicKey,
-    authority,
-    lstAta,
-    stakeAmount
-  );
-  instructions.push(withdrawStakeIx);
-
-  return { instructions, keys: signers };
+      tokenAmount
+    ),
+  ];
 }
 
 /**
- * Creates a versioned transaction to convert LST tokens back to a native stake account.
+ * Builds a transaction around {@link makeRedeemStakedLstIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
  */
 export async function makeRedeemStakedLstTx(
   params: MakeRedeemStakedLstTxParams
-): Promise<ExtendedV0Transaction> {
-  const { connection, luts, blockhash: providedBlockhash } = params;
+): Promise<SolanaTransaction> {
+  const { luts, latestBlockhash, ...redeemIxParams } = params;
 
-  const { instructions, keys } = await makeRedeemStakedLstIx(params);
+  const redeemIxs = await makeRedeemStakedLstIx(redeemIxParams);
 
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: params.authority,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    signers: keys,
-    addressLookupTables: luts,
+  return {
+    message: makeTransactionMessage({
+      instructions: redeemIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ??
+        (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.WITHDRAW_STAKE,
-  });
+  };
 }

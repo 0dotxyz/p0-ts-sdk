@@ -17,6 +17,9 @@ importers:
       '@solana-program/compute-budget':
         specifier: ^0.19.0
         version: 0.19.0(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))
+      '@solana-program/stake':
+        specifier: ^0.10.0
+        version: 0.10.0(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))
       '@solana-program/system':
         specifier: ^0.15.0
         version: 0.15.0(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))
@@ -928,6 +931,11 @@ packages:
 
   '@solana-program/compute-budget@0.19.0':
     resolution: {integrity: sha512-YV5T0MnTM//avw46UBvWswZw3KZx+HgqohPZkH/OonEHRX4+MSO9wV/8XePEDDyu/geHtdmdEXY/HlgRGJKa8A==}
+    peerDependencies:
+      '@solana/kit': ^8.3.0
+
+  '@solana-program/stake@0.10.0':
+    resolution: {integrity: sha512-BGrOWeoE/6W8uUF1Os95KATyw3AD/5M0CKic9TLp0o1yjR9ZCwAKZ9m2es/mD1IYU0rWwGxa0QBYL91KC+gTYg==}
     peerDependencies:
       '@solana/kit': ^8.3.0
 
@@ -4165,6 +4173,10 @@ snapshots:
   '@shikijs/vscode-textmate@10.0.2': {}
 
   '@solana-program/compute-budget@0.19.0(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@solana/kit': 8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+
+  '@solana-program/stake@0.10.0(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))':
     dependencies:
       '@solana/kit': 8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
 
