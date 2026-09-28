@@ -104,3 +104,30 @@ export interface JupLendingRewardsRateModelJSON {
 
 /** JSON DTO of {@link JupRateModel}. */
 export type JupRateModelJSON = JupRateModel;
+
+/** A marginfi JupLend bank's lending state (its integration account 1). */
+export interface JupLendBankInput {
+  bankAddress: Address;
+  lendingState: Address;
+}
+
+/**
+ * A JupLend bank's venue state: its lending state, the liquidity layer's token reserve and rate
+ * model, the lending rewards rate model (`null` when there is none) and the fToken supply.
+ */
+export interface JupLendStates {
+  lendingState: JupLendingState;
+  tokenReserveState: JupTokenReserve;
+  rewardsRateModel: JupLendingRewardsRateModel | null;
+  rateModel: JupRateModel | null;
+  fTokenTotalSupply: bigint;
+}
+
+/** JSON DTO of {@link JupLendStates}. */
+export interface JupLendStatesJSON {
+  lendingState: JupLendingStateJSON;
+  tokenReserveState: JupTokenReserveJSON;
+  rewardsRateModel: JupLendingRewardsRateModelJSON | null;
+  rateModel: JupRateModelJSON | null;
+  fTokenTotalSupply: string;
+}

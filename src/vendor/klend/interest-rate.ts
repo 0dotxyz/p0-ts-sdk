@@ -11,6 +11,7 @@
  * (`calculateTheoreticalReserveRewardsSupplyAPR`); neither is ported yet.
  */
 
+import { BigNumber } from "bignumber.js";
 import { Decimal } from "decimal.js";
 
 import {
@@ -321,6 +322,15 @@ export function scaledSupplies(state: KaminoReserve): [Decimal, Decimal] {
 // =============================================================================
 // CURVE PROCESSING
 // =============================================================================
+
+/** Underlying tokens per cToken of `reserve` (1 while it has no collateral). */
+export function getKaminoCTokenMultiplier(reserve: KaminoReserve): BigNumber {
+  const [totalLiquidity, totalCollateral] = scaledSupplies(reserve);
+
+  return totalCollateral.isZero()
+    ? new BigNumber(1)
+    : new BigNumber(totalLiquidity.dividedBy(totalCollateral).toString());
+}
 
 /**
  * Convert raw curve points to normalized [utilization, rate] pairs

@@ -11,7 +11,7 @@ import {
 import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
 
 import { MAX_U64 } from "~/constants";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrdered } from "~/utils";
 import {
   findPoolAddress,
   findPoolStakeAddress,

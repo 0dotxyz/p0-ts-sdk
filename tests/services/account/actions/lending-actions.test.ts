@@ -81,7 +81,7 @@ const bankMetadataMap = {
       ],
     },
   },
-  [banks.juplend.address]: { jupLendStates: { jupLendingState } },
+  [banks.juplend.address]: { jupLendStates: { lendingState: jupLendingState } },
 } as BankIntegrationMetadataMap;
 
 const deposit = { programAddress, tokenProgram, marginfiAccount, authority, bankMetadataMap };

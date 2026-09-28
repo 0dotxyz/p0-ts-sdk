@@ -193,7 +193,7 @@ export async function makeWithdrawIx({
     }
 
     case AssetTag.JUPLEND: {
-      const jupLendingState = bankMetadataMap?.[bank.address]?.jupLendStates?.jupLendingState;
+      const jupLendingState = bankMetadataMap?.[bank.address]?.jupLendStates?.lendingState;
       if (!jupLendingState || !bank.jupLendIntegrationAccounts) {
         throw TransactionBuildingError.jupLendStateNotFound(
           bank.address,

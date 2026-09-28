@@ -1,5 +1,4 @@
-import type { Address , ReadonlyUint8Array } from "@solana/kit";
-
+import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
 import type { SpotBalanceType } from "~/generated/drift";
 
@@ -183,4 +182,25 @@ export interface DriftUserStatsJSON {
   ifStakedGovTokenAmount: string;
   lastFuelIfBonusUpdateTs: number;
   padding: number[];
+}
+
+/** A marginfi Drift bank's venue accounts (its integration accounts 1 and 2). */
+export interface DriftBankInput {
+  bankAddress: Address;
+  spotMarket: Address;
+  user: Address;
+}
+
+/** A Drift bank's venue state: its spot market, its Drift user and the rewards credited to that user. */
+export interface DriftStates {
+  spotMarketState: DriftSpotMarket;
+  userState: DriftUser;
+  userRewards: DriftRewards[];
+}
+
+/** JSON DTO of {@link DriftStates}. */
+export interface DriftStatesJSON {
+  spotMarketState: DriftSpotMarketJSON;
+  userState: DriftUserJSON;
+  userRewards: DriftRewardsJSON[];
 }

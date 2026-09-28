@@ -6,15 +6,10 @@ import fixture from "./fixtures/mainnet-integration.json";
 import { DEFAULT_ADDRESS } from "~/constants";
 import { AssetTag } from "~/services/bank";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
-import {
-  fetchBankIntegrationMetadata,
-  getDriftCTokenMultiplier,
-  getDriftStatesDto,
-  getJupLendFTokenMultiplier,
-  getJupLendStatesDto,
-  getKaminoCTokenMultiplier,
-  getKaminoStatesDto,
-} from "~/services/integration";
+import { fetchBankIntegrationMetadata } from "~/services/bank/utils/fetch.utils";
+import { fetchDriftStatesDto, getDriftCTokenMultiplier } from "~/vendor/drift";
+import { fetchJupLendStatesDto, getJupLendFTokenMultiplier } from "~/vendor/jup-lend";
+import { fetchKaminoStatesDto, getKaminoCTokenMultiplier } from "~/vendor/klend";
 
 // One mainnet Kamino (with farm), Drift and JupLend (with rewards model) bank and every account
 // their venue state reads. DTO snapshots were checked against v2.8.4 on all 40 mainnet venue banks.
@@ -59,7 +54,7 @@ const mockRpc = () => {
   return { rpc: rpc as never, requested };
 };
 
-describe("integration venue states", () => {
+describe("bank integration metadata", () => {
   it("fetches each bank's venue state into the metadata map", async () => {
     const { rpc } = mockRpc();
     const metadata = await fetchBankIntegrationMetadata(rpc, [kaminoBank, driftBank, jupLendBank]);
@@ -69,15 +64,15 @@ describe("integration venue states", () => {
     const jupLend = metadata[jupLendBank.address].jupLendStates;
     expect(kamino?.farmState).toBeDefined();
     expect(drift?.userRewards).toEqual([]);
-    expect(jupLend?.jupRewardsRateModel).not.toBeNull();
+    expect(jupLend?.rewardsRateModel).not.toBeNull();
 
     expect({
       kamino: getKaminoCTokenMultiplier(kamino!.reserveState).toString(),
       drift: getDriftCTokenMultiplier(drift!.spotMarketState).toString(),
       jupLend: getJupLendFTokenMultiplier(
-        jupLend!.jupLendingState,
-        jupLend!.jupTokenReserveState,
-        jupLend!.jupRewardsRateModel,
+        jupLend!.lendingState,
+        jupLend!.tokenReserveState,
+        jupLend!.rewardsRateModel,
         jupLend!.fTokenTotalSupply,
         1_790_000_000
       ).toString(),
@@ -91,22 +86,21 @@ describe("integration venue states", () => {
     const jupLendIntegrationAccounts = jupLendBank.jupLendIntegrationAccounts!;
 
     expect({
-      kamino: await getKaminoStatesDto(rpc, [
+      kamino: await fetchKaminoStatesDto(rpc, [
         {
           bankAddress: kaminoBank.address,
           reserve: kaminoIntegrationAccounts.kaminoReserve,
           obligation: kaminoIntegrationAccounts.kaminoObligation,
         },
       ]),
-      drift: await getDriftStatesDto(rpc, [
+      drift: await fetchDriftStatesDto(rpc, [
         {
           bankAddress: driftBank.address,
           spotMarket: driftIntegrationAccounts.driftSpotMarket,
           user: driftIntegrationAccounts.driftUser,
-          userStats: driftIntegrationAccounts.driftUserStats,
         },
       ]),
-      jupLend: await getJupLendStatesDto(rpc, [
+      jupLend: await fetchJupLendStatesDto(rpc, [
         {
           bankAddress: jupLendBank.address,
           lendingState: jupLendIntegrationAccounts.jupLendingState,
@@ -118,7 +112,7 @@ describe("integration venue states", () => {
   it("skips banks with default venue addresses without fetching them", async () => {
     const { rpc, requested } = mockRpc();
 
-    const states = await getKaminoStatesDto(rpc, [
+    const states = await fetchKaminoStatesDto(rpc, [
       { bankAddress: kaminoBank.address, reserve: DEFAULT_ADDRESS, obligation: DEFAULT_ADDRESS },
     ]);
 

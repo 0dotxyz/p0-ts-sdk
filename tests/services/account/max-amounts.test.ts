@@ -518,15 +518,15 @@ describe("computeVenueAvailableLiquidity", () => {
       assetTag: AssetTag.JUPLEND,
     });
     const px = 1_000_000_000_000n; // 1.0 at 1e12 precision
-    const jupTokenReserveState = {
+    const tokenReserveState = {
       totalSupplyWithInterest: BigInt(ui(400).toFixed(0)),
       totalBorrowWithInterest: BigInt(ui(150).toFixed(0)),
       totalSupplyInterestFree: BigInt(ui(50).toFixed(0)),
       totalBorrowInterestFree: 0n,
       supplyExchangePrice: px,
       borrowExchangePrice: px,
-    } as unknown as NonNullable<BankVenueStates["jupLendStates"]>["jupTokenReserveState"];
-    const liq = computeVenueAvailableLiquidity(b, { jupLendStates: { jupTokenReserveState } });
+    } as unknown as NonNullable<BankVenueStates["jupLendStates"]>["tokenReserveState"];
+    const liq = computeVenueAvailableLiquidity(b, { jupLendStates: { tokenReserveState } });
     // (400 + 50) - 150 = 300
     expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
   });

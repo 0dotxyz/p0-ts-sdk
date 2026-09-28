@@ -1,3 +1,5 @@
+import { BigNumber } from "bignumber.js";
+
 import type { DriftSpotMarket } from "./types";
 
 import { SpotBalanceType } from "~/generated/drift";
@@ -24,6 +26,16 @@ export function getDriftTokenAmount(
   const scaled = balanceAmount * spotMarket.cumulativeBorrowInterest;
   const quotient = scaled / precisionDecrease;
   return scaled % precisionDecrease > 0n ? quotient + 1n : quotient;
+}
+
+/**
+ * Tokens (native units) per scaled deposit balance unit of `spotMarket`: {@link getDriftTokenAmount}
+ * for a deposit, without rounding.
+ */
+export function getDriftCTokenMultiplier(spotMarket: DriftSpotMarket): BigNumber {
+  return new BigNumber(spotMarket.cumulativeDepositInterest.toString()).dividedBy(
+    new BigNumber(10).pow(19 - spotMarket.decimals)
+  );
 }
 
 /**

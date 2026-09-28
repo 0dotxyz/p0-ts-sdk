@@ -25,13 +25,7 @@ import {
   getEmodePairs,
   computeLowestEmodeWeights,
 } from "~/services/account";
-import { EmodePair } from "~/services/bank";
-import {
-  fetchBankIntegrationMetadata,
-  getKaminoCTokenMultiplier,
-  getJupLendFTokenMultiplier,
-} from "~/services/integration";
-import { getDriftCTokenMultiplier } from "~/services/integration/drift";
+import { EmodePair , fetchBankIntegrationMetadata } from "~/services/bank";
 import { fetchProgramForMints } from "~/services/misc";
 import { computeStakedBankMultipliers } from "~/services/native-stake";
 import { fetchOracleData, OraclePrice } from "~/services/price";
@@ -42,6 +36,9 @@ import {
   BankIntegrationMetadataMap,
   Wallet,
 } from "~/types";
+import { getDriftCTokenMultiplier } from "~/vendor/drift";
+import { getJupLendFTokenMultiplier } from "~/vendor/jup-lend";
+import { getKaminoCTokenMultiplier } from "~/vendor/klend";
 
 /**
  * An authority's active balance in a specific bank for a queried mint. One row per
@@ -436,9 +433,9 @@ export class Project0Client {
           assetShareMultiplierByBank.set(
             bank.address.toBase58(),
             getJupLendFTokenMultiplier(
-              jupLendStates.jupLendingState,
-              jupLendStates.jupTokenReserveState,
-              jupLendStates.jupRewardsRateModel,
+              jupLendStates.lendingState,
+              jupLendStates.tokenReserveState,
+              jupLendStates.rewardsRateModel,
               jupLendStates.fTokenTotalSupply,
               Math.floor(Date.now() / 1000)
             )

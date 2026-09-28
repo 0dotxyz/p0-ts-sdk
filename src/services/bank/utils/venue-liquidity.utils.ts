@@ -16,7 +16,7 @@ import { getKaminoTotalSupply, KaminoReserve } from "~/vendor/klend";
 export interface BankVenueStates {
   kaminoStates?: { reserveState: KaminoReserve };
   driftStates?: { spotMarketState: DriftSpotMarket };
-  jupLendStates?: { jupTokenReserveState: JupTokenReserve };
+  jupLendStates?: { tokenReserveState: JupTokenReserve };
 }
 
 /**
@@ -85,7 +85,7 @@ export function computeVenueAvailableLiquidity(
       );
     }
     case AssetTag.JUPLEND: {
-      const reserveState = venueStates?.jupLendStates?.jupTokenReserveState;
+      const reserveState = venueStates?.jupLendStates?.tokenReserveState;
       if (!reserveState) return undefined;
       // The `WithInterest` buckets are denominated in internal share units and must be multiplied
       // by the respective exchange price to get the underlying token amount. The `InterestFree`

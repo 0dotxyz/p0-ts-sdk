@@ -43,7 +43,7 @@ export function makeUpdateJupLendRateIxs(
   const jupLendBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.JUPLEND);
 
   return jupLendBanks
-    .map((bank) => bankMetadataMap?.[bank.address]?.jupLendStates?.jupLendingState)
+    .map((bank) => bankMetadataMap?.[bank.address]?.jupLendStates?.lendingState)
     .filter((lendingState): lendingState is NonNullable<typeof lendingState> => !!lendingState)
     .map(makeUpdateJupLendRateIx);
 }

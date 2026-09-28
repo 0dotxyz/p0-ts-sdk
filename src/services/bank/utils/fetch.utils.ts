@@ -16,7 +16,11 @@ import { BankType } from "../types";
 import { decodeBank } from "./deserialize.utils";
 
 import { BANK_DISCRIMINATOR } from "~/accounts";
-import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { BankIntegrationMetadataMap } from "~/types";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/utils";
+import { fetchDriftStates } from "~/vendor/drift";
+import { fetchJupLendStates } from "~/vendor/jup-lend";
+import { fetchKaminoStates } from "~/vendor/klend";
 
 export const fetchBank = async (
   rpc: Rpc<GetAccountInfoApi>,
@@ -74,3 +78,59 @@ export const fetchMultipleBanks = async (
 
   return banks;
 };
+
+/**
+ * Fetches the venue state of every Kamino, Drift and JupLend bank in `banks`, keyed by bank
+ * address: the `bankMetadataMap` the account actions take.
+ * @throws if a fetched venue account isn't the account it should be
+ */
+export async function fetchBankIntegrationMetadata(
+  rpc: Rpc<GetMultipleAccountsApi>,
+  banks: BankType[]
+): Promise<BankIntegrationMetadataMap> {
+  const [kaminoStates, driftStates, jupLendStates] = await Promise.all([
+    fetchKaminoStates(
+      rpc,
+      banks.flatMap(({ address, kaminoIntegrationAccounts: accounts }) =>
+        accounts
+          ? [
+              {
+                bankAddress: address,
+                reserve: accounts.kaminoReserve,
+                obligation: accounts.kaminoObligation,
+              },
+            ]
+          : []
+      )
+    ),
+    fetchDriftStates(
+      rpc,
+      banks.flatMap(({ address, driftIntegrationAccounts: accounts }) =>
+        accounts
+          ? [
+              {
+                bankAddress: address,
+                spotMarket: accounts.driftSpotMarket,
+                user: accounts.driftUser,
+              },
+            ]
+          : []
+      )
+    ),
+    fetchJupLendStates(
+      rpc,
+      banks.flatMap(({ address, jupLendIntegrationAccounts: accounts }) =>
+        accounts ? [{ bankAddress: address, lendingState: accounts.jupLendingState }] : []
+      )
+    ),
+  ]);
+
+  const metadata: BankIntegrationMetadataMap = {};
+  for (const [bank, states] of Object.entries(kaminoStates))
+    metadata[bank] = { kaminoStates: states };
+  for (const [bank, states] of Object.entries(driftStates))
+    metadata[bank] = { driftStates: states };
+  for (const [bank, states] of Object.entries(jupLendStates))
+    metadata[bank] = { jupLendStates: states };
+  return metadata;
+}

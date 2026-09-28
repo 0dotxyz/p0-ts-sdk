@@ -10,7 +10,7 @@ import { OraclePrice, OraclePriceDto } from "../types";
 import { getOracleSourceFromBank } from "../utils";
 
 import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/utils";
 import { decodeScopePriceAtIndex } from "~/vendor/scope";
 
 type FetchScopeOracleOnChainOpts = {

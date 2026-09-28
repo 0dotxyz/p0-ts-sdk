@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`integration venue states > fetches each bank's venue state into the metadata map 1`] = `
+exports[`bank integration metadata > fetches each bank's venue state into the metadata map 1`] = `
 {
   "drift": "1.0039989818",
   "jupLend": "1.039050852722",
@@ -8,11 +8,11 @@ exports[`integration venue states > fetches each bank's venue state into the met
 }
 `;
 
-exports[`integration venue states > serializes the states to the JSON wire format 1`] = `
+exports[`bank integration metadata > serializes the states to the JSON wire format 1`] = `
 {
   "drift": {
     "2D1dc9jo8CNjgVG4qTKpRuGA83zrXv9iuSHV9BWZ7Js9": {
-      "driftSpotMarketState": {
+      "spotMarketState": {
         "borrowBalance": "24686680664076",
         "cumulativeBorrowInterest": "10180423769",
         "cumulativeDepositInterest": "10039989818",
@@ -31,8 +31,8 @@ exports[`integration venue states > serializes the states to the JSON wire forma
         "poolId": 0,
         "pubkey": "B62ErTornx9tSVwcLwGh9RqvfFCen4cfWkArYdRpRy91",
       },
-      "driftUserRewards": [],
-      "driftUserState": {
+      "userRewards": [],
+      "userState": {
         "authority": "Cr4Lsmx2CrhV2knKJSK4m9xmwGjKuo3x8Hh2TUTJYwLa",
         "spotPositions": [
           {
@@ -162,7 +162,7 @@ exports[`integration venue states > serializes the states to the JSON wire forma
   "jupLend": {
     "hLkUhGPbBUuiCUWRsBsXrWnWH95rH3HkRkNtR8vyA7k": {
       "fTokenTotalSupply": "50229153463831",
-      "jupLendingState": {
+      "lendingState": {
         "decimals": 6,
         "fTokenMint": "7GxATsNMnaC88vdwd2t3mwrFuQwwGvmYPrUQ4D6FotXk",
         "lastUpdateTimestamp": "1790599862",
@@ -175,7 +175,7 @@ exports[`integration venue states > serializes the states to the JSON wire forma
         "tokenExchangePrice": "1039050852722",
         "tokenReservesLiquidity": "2tQE8jVR5ezDw3PDa21BNzfyQ14Ug5cTf6n3swJNjkod",
       },
-      "jupRateModel": {
+      "rateModel": {
         "kink1Utilization": 8500,
         "kink2Utilization": 9300,
         "rateAtKink1": 475,
@@ -184,13 +184,13 @@ exports[`integration venue states > serializes the states to the JSON wire forma
         "rateAtZero": 0,
         "version": 2,
       },
-      "jupRewardsRateModel": {
+      "rewardsRateModel": {
         "duration": "88839",
         "startTime": "1789548610",
         "startTvl": "1000000000",
         "yearlyReward": "583584638603",
       },
-      "jupTokenReserveState": {
+      "tokenReserveState": {
         "borrowExchangePrice": "1032619567445",
         "borrowRate": 675,
         "feeOnInterest": 1000,

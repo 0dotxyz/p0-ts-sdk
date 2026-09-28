@@ -173,3 +173,24 @@ export interface KaminoFarmStateJSON {
     rewardScheduleCurve: { points: Array<{ tsStart: string; rewardPerTimeUnit: string }> };
   }>;
 }
+
+/** A marginfi Kamino bank's venue accounts (its integration accounts 1 and 2). */
+export interface KaminoBankInput {
+  bankAddress: Address;
+  reserve: Address;
+  obligation: Address;
+}
+
+/** A Kamino bank's venue state: its reserve, obligation and, when the reserve has one, collateral farm. */
+export interface KaminoStates {
+  reserveState: KaminoReserve;
+  obligationState: KaminoObligation;
+  farmState?: KaminoFarmState;
+}
+
+/** JSON DTO of {@link KaminoStates}. */
+export interface KaminoStatesJSON {
+  reserveState: KaminoReserveJSON;
+  obligationState: KaminoObligationJSON;
+  farmState?: KaminoFarmStateJSON;
+}

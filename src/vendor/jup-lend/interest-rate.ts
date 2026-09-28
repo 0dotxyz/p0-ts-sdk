@@ -1,3 +1,5 @@
+import { BigNumber } from "bignumber.js";
+
 import {
   JupLendingState,
   JupLendingRewardsRateModel,
@@ -207,6 +209,30 @@ export function calculateJupLendNewExchangePrice(
 
   return (
     oldTokenExchangePrice + (oldTokenExchangePrice * totalReturnPercent) / 100_000_000_000_000n
+  );
+}
+
+/**
+ * Underlying tokens (native units) per fToken at `nowSeconds` (unix seconds): the projected exchange
+ * price over its 1e12 precision.
+ */
+export function getJupLendFTokenMultiplier(
+  lendingState: JupLendingState,
+  tokenReserve: JupTokenReserve,
+  rewardsModel: JupLendingRewardsRateModel | null,
+  fTokenTotalSupply: bigint,
+  nowSeconds: number
+): BigNumber {
+  const exchangePrice = calculateJupLendNewExchangePrice(
+    lendingState,
+    tokenReserve,
+    rewardsModel,
+    fTokenTotalSupply,
+    BigInt(nowSeconds)
+  );
+
+  return new BigNumber(exchangePrice.toString()).dividedBy(
+    JUP_EXCHANGE_PRICES_PRECISION.toString()
   );
 }
 

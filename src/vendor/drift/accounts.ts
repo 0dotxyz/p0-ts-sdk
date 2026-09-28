@@ -13,7 +13,6 @@ import {
   USER_STATS_DISCRIMINATOR,
 } from "~/generated/drift";
 
-
 export { DRIFT_PROGRAM_ADDRESS, SpotBalanceType } from "~/generated/drift";
 
 /**

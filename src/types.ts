@@ -2,18 +2,7 @@ import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
 import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
-import {
-  DriftRewards,
-  DriftSpotMarket,
-  DriftUser,
-  KaminoFarmState,
-  KaminoObligation,
-  KaminoReserve,
-  JupLendingRewardsRateModel,
-  JupLendingState,
-  JupRateModel,
-  JupTokenReserve,
-} from "./vendor";
+import { DriftStates, JupLendStates, KaminoStates } from "./vendor";
 
 // Define MintData here to break circular dependencies
 export type MintData = {
@@ -54,30 +43,10 @@ export enum AccountType {
   Bank = "bank",
 }
 
-export type KaminoStates = {
-  reserveState: KaminoReserve;
-  obligationState: KaminoObligation;
-  farmState?: KaminoFarmState;
-};
-
 export type BankIntegrationMetadata = {
-  kaminoStates?: {
-    reserveState: KaminoReserve;
-    obligationState: KaminoObligation;
-    farmState?: KaminoFarmState;
-  };
-  driftStates?: {
-    spotMarketState: DriftSpotMarket;
-    userState: DriftUser;
-    userRewards: DriftRewards[];
-  };
-  jupLendStates?: {
-    jupLendingState: JupLendingState;
-    jupTokenReserveState: JupTokenReserve;
-    jupRewardsRateModel: JupLendingRewardsRateModel | null;
-    jupRateModel: JupRateModel | null;
-    fTokenTotalSupply: bigint;
-  };
+  kaminoStates?: KaminoStates;
+  driftStates?: DriftStates;
+  jupLendStates?: JupLendStates;
 };
 
 export type BankIntegrationMetadataMap = {

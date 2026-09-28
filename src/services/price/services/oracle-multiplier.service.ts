@@ -12,7 +12,7 @@ import {
 } from "../utils";
 
 import { BankType } from "~/services/bank";
-import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/utils";
 
 type FetchOracleMultiplierOnChainOpts = {
   mode: "on-chain";

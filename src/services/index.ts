@@ -6,4 +6,3 @@ export * from "./price";
 export * from "./native-stake";
 export * from "./vaults";
 export * from "./misc";
-export * from "./integration";
