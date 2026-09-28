@@ -36,6 +36,15 @@ import {
   MakeBorrowIxParams,
   makeBorrowTx,
   MakeBorrowTxParams,
+  makeCloseOrderIx,
+  MakeCloseOrderIxParams,
+  makeCloseOrderTx,
+  MakeCloseOrderTxParams,
+  makePlaceOrderIx,
+  MakePlaceOrderIxParams,
+  makePlaceOrderTx,
+  MakePlaceOrderTxParams,
+  makeUpdateOrderTx,
   makeDepositIx,
   MakeDepositIxParams,
   makeDepositTx,
@@ -112,7 +121,8 @@ class MarginfiAccount implements MarginfiAccountType {
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
     public readonly emissionsDestinationAccount: PublicKey,
-    public healthCache: HealthCache
+    public healthCache: HealthCache,
+    public readonly activeOrders: number = 0
   ) {}
 
   /**
@@ -140,7 +150,8 @@ class MarginfiAccount implements MarginfiAccountType {
       account.balances.map((b) => Balance.fromBalanceType(b)),
       account.accountFlags,
       account.emissionsDestinationAccount,
-      account.healthCache
+      account.healthCache,
+      account.activeOrders
     );
   }
 
@@ -161,7 +172,8 @@ class MarginfiAccount implements MarginfiAccountType {
       props.balances.map((b) => Balance.fromBalanceType(b)),
       props.accountFlags,
       props.emissionsDestinationAccount,
-      HealthCache.fromHealthCacheType(props.healthCache)
+      HealthCache.fromHealthCacheType(props.healthCache),
+      props.activeOrders
     );
   }
 
@@ -1167,6 +1179,65 @@ class MarginfiAccount implements MarginfiAccountType {
         },
       },
     });
+  }
+
+  // ----------------------------------------------------------------------------
+  // Orders (take-profit / stop-loss)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Creates a place-order instruction for this marginfi account.
+   *
+   * @see {@link makePlaceOrderIx} for detailed implementation
+   */
+  async makePlaceOrderIx(
+    params: Omit<MakePlaceOrderIxParams, "marginfiAccount">
+  ): Promise<InstructionsWrapper> {
+    return makePlaceOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction placing a take-profit / stop-loss order on a collateral/debt pair.
+   *
+   * @see {@link makePlaceOrderTx} for detailed implementation
+   */
+  async makePlaceOrderTx(
+    params: Omit<MakePlaceOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makePlaceOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a close-order instruction for this marginfi account.
+   *
+   * @see {@link makeCloseOrderIx} for detailed implementation
+   */
+  async makeCloseOrderIx(
+    params: Omit<MakeCloseOrderIxParams, "marginfiAccount">
+  ): Promise<InstructionsWrapper> {
+    return makeCloseOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction closing an existing order.
+   *
+   * @see {@link makeCloseOrderTx} for detailed implementation
+   */
+  async makeCloseOrderTx(
+    params: Omit<MakeCloseOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makeCloseOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a transaction replacing the pair's existing order with new thresholds.
+   *
+   * @see {@link makeUpdateOrderTx} for detailed implementation
+   */
+  async makeUpdateOrderTx(
+    params: Omit<MakePlaceOrderTxParams, "marginfiAccount">
+  ): Promise<ExtendedV0Transaction> {
+    return makeUpdateOrderTx({ ...params, marginfiAccount: this });
   }
 
   /**

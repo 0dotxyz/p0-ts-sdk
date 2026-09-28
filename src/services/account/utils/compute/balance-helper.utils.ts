@@ -28,6 +28,7 @@ export function createEmptyBalance(bankPk: PublicKey): BalanceType {
   const balance: BalanceType = {
     active: false,
     bankPk,
+    tag: 0,
     assetShares: new BigNumber(0),
     liabilityShares: new BigNumber(0),
     emissionsOutstanding: new BigNumber(0),

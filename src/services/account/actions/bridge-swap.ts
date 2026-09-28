@@ -185,7 +185,8 @@ function projectAccountAfterFirstLeg(
     projectedBalances.map((b) => Balance.fromBalanceType(b)),
     account.accountFlags,
     account.emissionsDestinationAccount,
-    account.healthCache
+    account.healthCache,
+    account.activeOrders
   );
 }
 

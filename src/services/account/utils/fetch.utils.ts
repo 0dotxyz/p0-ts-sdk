@@ -1,4 +1,5 @@
 import { AccountInfo, Connection, GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 import bs58 from "bs58";
 
 import { simulateAccountHealthCache } from "../services";
@@ -7,13 +8,14 @@ import {
   HealthCacheSimulationError,
   MarginfiAccountRaw,
   MarginfiAccountType,
+  OrderType,
 } from "../types";
 
-import { parseMarginfiAccountRaw } from "./deserialize.utils";
+import { parseMarginfiAccountRaw, parseOrderRaw } from "./deserialize.utils";
 
 import { BankType } from "~/services/bank";
 import { AccountType, BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { deriveMarginfiAccount } from "~/utils";
+import { deriveFeeState, deriveMarginfiAccount, wrappedI80F48toBigNumber } from "~/utils";
 
 export const fetchMarginfiAccountAddresses = async (
   program: MarginfiProgram,
@@ -229,6 +231,70 @@ export const fetchMarginfiAccountData = async (
     }
     return { marginfiAccount };
   }
+};
+
+/**
+ * Fetches all open orders for a marginfi account.
+ *
+ * @param program - The marginfi Anchor program (connection is taken from its provider)
+ * @param marginfiAccount - The marginfi account public key
+ */
+export const fetchOrdersForAccount = async (
+  program: MarginfiProgram,
+  marginfiAccount: PublicKey
+): Promise<OrderType[]> => {
+  const orders = await program.account.order.all([
+    {
+      memcmp: {
+        bytes: marginfiAccount.toBase58(),
+        offset: 8, // first field after the discriminator
+      },
+    },
+  ]);
+
+  return orders.map(({ publicKey, account }) => parseOrderRaw(publicKey, account));
+};
+
+/**
+ * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
+ * account that owns it, without throwing: a leg whose tagged balance was closed comes back null
+ * (the order is orphaned and can no longer execute). The tag order in `order.tags` follows the
+ * caller-supplied bank key order at placement time, so the side is inferred from the balances.
+ *
+ * @param marginfiAccount - The parsed marginfi account that owns the order
+ * @param order - The order whose bank pair to resolve
+ */
+export const resolveOrderLegs = (
+  marginfiAccount: MarginfiAccountType,
+  order: Pick<OrderType, "tags">
+): { collateralBank: PublicKey | null; debtBank: PublicKey | null } => {
+  const taggedBalances = marginfiAccount.balances.filter(
+    (balance) => balance.active && balance.tag !== 0 && order.tags.includes(balance.tag)
+  );
+
+  return {
+    collateralBank: taggedBalances.find((balance) => balance.assetShares.gt(0))?.bankPk ?? null,
+    debtBank: taggedBalances.find((balance) => balance.liabilityShares.gt(0))?.bankPk ?? null,
+  };
+};
+
+/**
+ * Fetches the order fees from the program's global `FeeState`.
+ *
+ * - `placementFeeLamports`: flat SOL fee charged by `place_order` (and again on every update).
+ * - `executionMaxFee`: the share of the pair's net value a keeper may keep on a take-profit.
+ *
+ * @param program - The marginfi Anchor program
+ */
+export const fetchOrderFees = async (
+  program: MarginfiProgram
+): Promise<{ placementFeeLamports: number; executionMaxFee: BigNumber }> => {
+  const [feeStateAddress] = deriveFeeState(program.programId);
+  const feeState = await program.account.feeState.fetch(feeStateAddress);
+  return {
+    placementFeeLamports: feeState.orderInitFlatSolFee,
+    executionMaxFee: wrappedI80F48toBigNumber(feeState.orderExecutionMaxFee),
+  };
 };
 
 function randomDistinctIndices(count: number, maxExclusive: number): number[] {

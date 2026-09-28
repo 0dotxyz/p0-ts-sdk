@@ -10,6 +10,7 @@ import { WrappedI80F48 } from "~/types";
 export interface BalanceRaw {
   active: boolean | number;
   bankPk: PublicKey;
+  tag: number;
   assetShares: WrappedI80F48;
   liabilityShares: WrappedI80F48;
   emissionsOutstanding: WrappedI80F48;
@@ -37,11 +38,28 @@ export interface HealthCacheRaw {
 export interface MarginfiAccountRaw {
   group: PublicKey;
   authority: PublicKey;
-  lendingAccount: { balances: BalanceRaw[] };
+  lendingAccount: { balances: BalanceRaw[]; lastTagUsed: number };
   accountFlags: BN;
   emissionsDestinationAccount: PublicKey;
   healthCache: HealthCacheRaw;
+  activeOrders: number;
   padding0?: BN[];
+}
+
+export type OrderTriggerTypeRaw =
+  | { stopLoss: Record<string, never> }
+  | { takeProfit: Record<string, never> }
+  | { both: Record<string, never> };
+
+export interface OrderRaw {
+  marginfiAccount: PublicKey;
+  stopLoss: WrappedI80F48;
+  takeProfit: WrappedI80F48;
+  createdAt: BN;
+  maxSlippage: number;
+  tags: number[];
+  trigger: OrderTriggerTypeRaw;
+  bump: number;
 }
 
 export type MarginRequirementTypeRaw =
