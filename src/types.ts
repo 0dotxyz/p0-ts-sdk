@@ -6,7 +6,6 @@ import {
   DriftRewards,
   DriftSpotMarket,
   DriftUser,
-  DriftUserStats,
   KaminoFarmState,
   KaminoObligation,
   KaminoReserve,
@@ -71,7 +70,6 @@ export type BankIntegrationMetadata = {
     spotMarketState: DriftSpotMarket;
     userState: DriftUser;
     userRewards: DriftRewards[];
-    userStatsState?: DriftUserStats;
   };
   jupLendStates?: {
     jupLendingState: JupLendingState;

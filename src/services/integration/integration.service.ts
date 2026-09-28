@@ -1,97 +1,64 @@
-import { Connection } from "@solana/web3.js";
+import type { GetMultipleAccountsApi, Rpc } from "@solana/kit";
 
-import { getDriftMetadata, DriftMetadata } from "./drift";
-import { getJupLendMetadata, JupLendMetadata } from "./juplend";
-import { getKaminoMetadata, KaminoMetadata } from "./kamino";
+import { fetchDriftStates } from "./drift";
+import { fetchJupLendStates } from "./juplend";
+import { fetchKaminoStates } from "./kamino";
 
-import { Bank } from "~/models/bank";
+import { BankType } from "~/services/bank";
 import { BankIntegrationMetadataMap } from "~/types";
 
-export type IntegrationType = "kamino" | "drift" | "juplend";
-
-export interface FetchBankIntegrationMetadataOptions {
-  connection: Connection;
-  banks: Bank[];
-  integrations?: IntegrationType[];
-}
-
 /**
- * Fetch metadata from all enabled integrations and merge into single map
- *
- * This orchestrator:
- * 1. Fetches data from all specified integrations in parallel
- * 2. Merges results into a single BankIntegrationMetadataMap
- * 3. Each bank can have metadata from multiple integrations
- *
- * @param options - Connection, banks, and optional integration filter
- * @returns Combined metadata map keyed by bank address
- *
- * @example
- * ```typescript
- * const metadata = await fetchBankIntegrationMetadata({
- *   connection,
- *   banks: allBanks,
- *   integrations: ["kamino"], // Optional, defaults to all
- * });
- *
- * // Access Kamino data for a specific bank
- * const kaminoData = metadata[bankAddress]?.kaminoStates;
- * ```
+ * Fetches the venue state of every Kamino, Drift and JupLend bank in `banks`, keyed by bank
+ * address: the `bankMetadataMap` the account actions take.
  */
 export async function fetchBankIntegrationMetadata(
-  options: FetchBankIntegrationMetadataOptions
+  rpc: Rpc<GetMultipleAccountsApi>,
+  banks: BankType[]
 ): Promise<BankIntegrationMetadataMap> {
-  const { connection, banks, integrations = ["kamino", "drift", "juplend"] } = options;
-  const bankIntegrationMap: BankIntegrationMetadataMap = {};
-
-  // Fetch from each integration in parallel
-  const fetchPromises: Promise<{
-    type: IntegrationType;
-    data: Map<string, KaminoMetadata | DriftMetadata | JupLendMetadata>;
-  }>[] = [];
-
-  if (integrations.includes("kamino")) {
-    fetchPromises.push(
-      getKaminoMetadata({ connection, banks }).then((kaminoMap: Map<string, KaminoMetadata>) => ({
-        type: "kamino" as const,
-        data: kaminoMap,
-      }))
-    );
-  }
-
-  if (integrations.includes("drift")) {
-    fetchPromises.push(
-      getDriftMetadata({ connection, banks }).then((driftMap: Map<string, DriftMetadata>) => ({
-        type: "drift" as const,
-        data: driftMap,
-      }))
-    );
-  }
-
-  if (integrations.includes("juplend")) {
-    fetchPromises.push(
-      getJupLendMetadata({ connection, banks }).then(
-        (jupLendMap: Map<string, JupLendMetadata>) => ({
-          type: "juplend" as const,
-          data: jupLendMap,
-        })
+  const [kaminoStates, driftStates, jupLendStates] = await Promise.all([
+    fetchKaminoStates(
+      rpc,
+      banks.flatMap(({ address, kaminoIntegrationAccounts: accounts }) =>
+        accounts
+          ? [
+              {
+                bankAddress: address,
+                reserve: accounts.kaminoReserve,
+                obligation: accounts.kaminoObligation,
+              },
+            ]
+          : []
       )
-    );
-  }
+    ),
+    fetchDriftStates(
+      rpc,
+      banks.flatMap(({ address, driftIntegrationAccounts: accounts }) =>
+        accounts
+          ? [
+              {
+                bankAddress: address,
+                spotMarket: accounts.driftSpotMarket,
+                user: accounts.driftUser,
+                userStats: accounts.driftUserStats,
+              },
+            ]
+          : []
+      )
+    ),
+    fetchJupLendStates(
+      rpc,
+      banks.flatMap(({ address, jupLendIntegrationAccounts: accounts }) =>
+        accounts ? [{ bankAddress: address, lendingState: accounts.jupLendingState }] : []
+      )
+    ),
+  ]);
 
-  const results = await Promise.all(fetchPromises);
-
-  // Merge all results into single map
-  for (const result of results) {
-    for (const [bankAddress, metadata] of result.data.entries()) {
-      if (!bankIntegrationMap[bankAddress]) {
-        bankIntegrationMap[bankAddress] = {};
-      }
-
-      // Merge integration-specific metadata
-      Object.assign(bankIntegrationMap[bankAddress], metadata);
-    }
-  }
-
-  return bankIntegrationMap;
+  const metadata: BankIntegrationMetadataMap = {};
+  for (const [bank, states] of Object.entries(kaminoStates))
+    metadata[bank] = { kaminoStates: states };
+  for (const [bank, states] of Object.entries(driftStates))
+    metadata[bank] = { driftStates: states };
+  for (const [bank, states] of Object.entries(jupLendStates))
+    metadata[bank] = { jupLendStates: states };
+  return metadata;
 }

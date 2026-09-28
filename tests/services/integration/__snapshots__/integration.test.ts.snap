@@ -1,0 +1,1302 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`integration venue states > fetches each bank's venue state into the metadata map 1`] = `
+{
+  "drift": "1.0039989818",
+  "jupLend": "1.039050852722",
+  "kamino": "1.0427038072546615089",
+}
+`;
+
+exports[`integration venue states > serializes the states to the JSON wire format 1`] = `
+{
+  "drift": {
+    "2D1dc9jo8CNjgVG4qTKpRuGA83zrXv9iuSHV9BWZ7Js9": {
+      "driftSpotMarketState": {
+        "borrowBalance": "24686680664076",
+        "cumulativeBorrowInterest": "10180423769",
+        "cumulativeDepositInterest": "10039989818",
+        "decimals": 9,
+        "depositBalance": "25031984695226",
+        "insuranceFund": {
+          "totalFactor": 100000,
+        },
+        "marketIndex": 16,
+        "maxBorrowRate": 5000000,
+        "minBorrowRate": 0,
+        "mint": "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",
+        "optimalBorrowRate": 150000,
+        "optimalUtilization": 500000,
+        "oracle": "7SAxf2SCJe5c72rZNo4etpGjz5TaEAqi8QkbfpRbouuT",
+        "poolId": 0,
+        "pubkey": "B62ErTornx9tSVwcLwGh9RqvfFCen4cfWkArYdRpRy91",
+      },
+      "driftUserRewards": [],
+      "driftUserState": {
+        "authority": "Cr4Lsmx2CrhV2knKJSK4m9xmwGjKuo3x8Hh2TUTJYwLa",
+        "spotPositions": [
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "1082168057062",
+            "marketIndex": 16,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "1079653436806",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+          {
+            "balanceType": 0,
+            "cumulativeDeposits": "0",
+            "marketIndex": 0,
+            "openAsks": "0",
+            "openBids": "0",
+            "openOrders": 0,
+            "padding": [
+              0,
+              0,
+              0,
+              0,
+            ],
+            "scaledBalance": "0",
+          },
+        ],
+      },
+    },
+  },
+  "jupLend": {
+    "hLkUhGPbBUuiCUWRsBsXrWnWH95rH3HkRkNtR8vyA7k": {
+      "fTokenTotalSupply": "50229153463831",
+      "jupLendingState": {
+        "decimals": 6,
+        "fTokenMint": "7GxATsNMnaC88vdwd2t3mwrFuQwwGvmYPrUQ4D6FotXk",
+        "lastUpdateTimestamp": "1790599862",
+        "lendingId": 9,
+        "liquidityExchangePrice": "1021427293477",
+        "mint": "JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD",
+        "pubkey": "papYEgeG5uPE4niUWZhihUUzVVotJn1mAWbYo2UBSHi",
+        "rewardsRateModel": "E3U32h49TL9Qof3NeLja9qJxTrGYpY1o1NQPtrSLJjcc",
+        "supplyPositionOnLiquidity": "DXFoJruECdEch2KpzLQ2cSpxoBSsyg4bpYPnHYofsbD4",
+        "tokenExchangePrice": "1039050852722",
+        "tokenReservesLiquidity": "2tQE8jVR5ezDw3PDa21BNzfyQ14Ug5cTf6n3swJNjkod",
+      },
+      "jupRateModel": {
+        "kink1Utilization": 8500,
+        "kink2Utilization": 9300,
+        "rateAtKink1": 475,
+        "rateAtKink2": 675,
+        "rateAtMax": 10000,
+        "rateAtZero": 0,
+        "version": 2,
+      },
+      "jupRewardsRateModel": {
+        "duration": "88839",
+        "startTime": "1789548610",
+        "startTvl": "1000000000",
+        "yearlyReward": "583584638603",
+      },
+      "jupTokenReserveState": {
+        "borrowExchangePrice": "1032619567445",
+        "borrowRate": 675,
+        "feeOnInterest": 1000,
+        "lastUtilization": 9300,
+        "pubkey": "2tQE8jVR5ezDw3PDa21BNzfyQ14Ug5cTf6n3swJNjkod",
+        "supplyExchangePrice": "1021427293477",
+        "totalBorrowInterestFree": "0",
+        "totalBorrowWithInterest": "49771782517633",
+        "totalSupplyInterestFree": "0",
+        "totalSupplyWithInterest": "54099684544840",
+      },
+    },
+  },
+  "kamino": {
+    "VnVjbrytWcxTi6nCASMryKm4vHwpVZvwJetE2W1w5gB": {
+      "farmState": {
+        "rewardInfos": [
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+          {
+            "rewardScheduleCurve": {
+              "points": [
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "0",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+                {
+                  "rewardPerTimeUnit": "0",
+                  "tsStart": "18446744073709551615",
+                },
+              ],
+            },
+            "rewardsAvailable": "0",
+            "rewardsPerSecondDecimals": 0,
+            "token": {
+              "decimals": "0",
+              "mint": "11111111111111111111111111111111",
+            },
+          },
+        ],
+        "token": {
+          "decimals": "0",
+          "mint": "11111111111111111111111111111111",
+        },
+      },
+      "obligationState": {
+        "borrows": [
+          {
+            "borrowReserve": "11111111111111111111111111111111",
+            "borrowedAmountSf": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "borrowReserve": "11111111111111111111111111111111",
+            "borrowedAmountSf": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "borrowReserve": "11111111111111111111111111111111",
+            "borrowedAmountSf": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "borrowReserve": "11111111111111111111111111111111",
+            "borrowedAmountSf": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "borrowReserve": "11111111111111111111111111111111",
+            "borrowedAmountSf": "0",
+            "marketValueSf": "0",
+          },
+        ],
+        "deposits": [
+          {
+            "depositReserve": "9GJ9GBRwCp4pHmWrQ43L5xpc9Vykg7jnfwcFGN8FoHYu",
+            "depositedAmount": "8627579854",
+            "marketValueSf": "10716450838801154479814",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+          {
+            "depositReserve": "11111111111111111111111111111111",
+            "depositedAmount": "0",
+            "marketValueSf": "0",
+          },
+        ],
+        "lendingMarket": "CqAoLuqWtavaVE8deBjMKe8ZfSt9ghR6Vb8nfsyabyHA",
+        "owner": "9x6StiGodcKvKrQrrBGxfpku9XopC57XP17CGqeKNrjG",
+      },
+      "reserveState": {
+        "collateral": {
+          "mintPubkey": "DKaVQFXD6Qz4USTkRWyPun3oU6r1RfYsWJ8YqLpnSnN5",
+          "mintTotalSupply": "38841191893980",
+          "supplyVault": "CtgiQTkAQp8h1ayqdE21Cr56qekdqeQ19da3j1KLgSUn",
+        },
+        "config": {
+          "borrowLimit": "210000000000000",
+          "borrowRateCurve": {
+            "points": [
+              {
+                "borrowRateBps": 463,
+                "utilizationRateBps": 0,
+              },
+              {
+                "borrowRateBps": 494,
+                "utilizationRateBps": 8000,
+              },
+              {
+                "borrowRateBps": 494,
+                "utilizationRateBps": 9000,
+              },
+              {
+                "borrowRateBps": 544,
+                "utilizationRateBps": 9500,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+              {
+                "borrowRateBps": 715,
+                "utilizationRateBps": 10000,
+              },
+            ],
+          },
+          "depositLimit": "240000000000000",
+          "hostFixedInterestRateBps": 0,
+          "interestRateBasis": 1,
+          "protocolTakeRatePct": 10,
+          "tokenInfo": {
+            "pythConfiguration": {
+              "price": "11111111111111111111111111111111",
+            },
+            "scopeConfiguration": {
+              "priceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH",
+            },
+            "switchboardConfiguration": {
+              "priceAggregator": "11111111111111111111111111111111",
+              "twapAggregator": "11111111111111111111111111111111",
+            },
+          },
+        },
+        "farmCollateral": "HqEqwkTmqCAVEQQaEBuSSGD2EAvcorFogqhZz46TYJyz",
+        "lendingMarket": "CqAoLuqWtavaVE8deBjMKe8ZfSt9ghR6Vb8nfsyabyHA",
+        "liquidity": {
+          "accumulatedProtocolFeesSf": "70213642876281222028040049931",
+          "accumulatedReferrerFeesSf": "0",
+          "borrowedAmountSf": "44522366452495985948367064764780",
+          "mintDecimals": "6",
+          "mintPubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "pendingReferrerFeesSf": "0",
+          "supplyVault": "H6JUwz8c61eQnYUx8avGXydKztKPyGvgWAUjmZUPS3BC",
+          "totalAvailableAmount": "1943762147884",
+        },
+        "withdrawQueue": {
+          "queuedCollateralAmount": "0",
+        },
+      },
+    },
+  },
+}
+`;
