@@ -1,5 +1,5 @@
 import { address, type ReadonlyUint8Array } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 export const SPL_STAKE_POOL_PROGRAM_ADDRESS = address(
   "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"

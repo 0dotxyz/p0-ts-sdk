@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   address,
   createNoopSigner,
@@ -8,8 +7,8 @@ import {
   type Instruction,
 } from "@solana/kit";
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { EXPONENT_CLMM_PROGRAM_ADDRESS, EXPONENT_CORE_PROGRAM_ADDRESS } from "~/vendor/exponent";
 
 // ---- Shared capture store (hoisted so the mock factories can see it) ----------------
 const store = vi.hoisted(() => ({
@@ -103,6 +102,7 @@ vi.mock("~/services/account/actions/flash-loan", async () => {
 
 import { makeRollPtTx } from "~/services/account/actions/roll-pt";
 import type { MakeRollPtTxParams, RollPtOpts } from "~/services/account/types";
+import { EXPONENT_CLMM_PROGRAM_ADDRESS, EXPONENT_CORE_PROGRAM_ADDRESS } from "~/vendor/exponent";
 
 function pk(seed: number) {
   const bytes = new Uint8Array(32);

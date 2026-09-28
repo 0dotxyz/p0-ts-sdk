@@ -1,5 +1,5 @@
 import type { Address, GetMultipleAccountsApi, Rpc } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
 import {

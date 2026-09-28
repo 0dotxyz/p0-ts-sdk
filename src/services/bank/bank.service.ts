@@ -1,5 +1,5 @@
-import { AccountRole, type Address, type Instruction, type TransactionSigner } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import type { Address, Instruction, TransactionSigner } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import { OracleSetup } from "./types";
 import { serializeOracleSetup } from "./utils/serialize.utils";
@@ -120,7 +120,7 @@ export async function addOracleToBanksIx({
       setup: serializeOracleSetup(setup),
       oracle: feedId,
     },
-    resolvedOracleAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
+    resolvedOracleAccounts
   );
 }
 
@@ -156,7 +156,7 @@ export async function setOraclePriceIx({
       price: bigNumberToWrappedI80F48(price),
       setup: serializeOracleSetup(setup),
     },
-    oracleAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
+    oracleAccounts
   );
 }
 

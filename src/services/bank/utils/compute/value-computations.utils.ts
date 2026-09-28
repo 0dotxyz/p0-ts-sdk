@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { BankType, BankConfigType, RiskTier, OperationalState } from "../../types";
 

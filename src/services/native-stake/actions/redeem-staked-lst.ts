@@ -6,7 +6,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import type { MakeRedeemStakedLstIxParams, MakeRedeemStakedLstTxParams } from "../types";
 

@@ -11,7 +11,7 @@
  * (`calculateTheoreticalReserveRewardsSupplyAPR`); neither is ported yet.
  */
 
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 
 import {
   ONE_HUNDRED_PCT_IN_BPS,

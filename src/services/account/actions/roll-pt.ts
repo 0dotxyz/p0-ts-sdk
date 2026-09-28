@@ -236,9 +236,8 @@ async function buildRollPtFlashloanTx({
     bank: depositBank,
     tokenProgram: depositTokenProgram,
     amount: 0,
-    accountAddress: marginfiAccount.address,
+    marginfiAccount,
     authority,
-    group: marginfiAccount.group,
     opts: { wrapAndUnwrapSol: false },
   });
 

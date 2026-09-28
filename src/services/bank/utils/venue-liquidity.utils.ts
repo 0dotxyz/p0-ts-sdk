@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { nativeToUi } from "../../../utils/conversion.utils";
 import { AssetTag, BankType } from "../types";

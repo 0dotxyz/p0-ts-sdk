@@ -5,7 +5,7 @@ import {
   getBase64Encoder,
   type Instruction,
 } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import bankFixtures from "../bank/fixtures/mainnet-banks.json";
@@ -43,7 +43,7 @@ const banksMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]
 const group = account.group;
 const marginfiAccount = account.address;
 const authority = createNoopSigner(account.authority);
-const tokenAccounts = { liquidityVault: key(6), tokenProgram: key(7) };
+const tokenAccounts = { liquidityVault: key(6), mint: key(9), tokenProgram: key(7) };
 const venue = { group, marginfiAccount, authority, mint: key(9), integrationAcc1: key(10) };
 const kamino = {
   ...venue,
@@ -120,31 +120,43 @@ async function buildInstructions(): Promise<Instruction[]> {
       signerTokenAccount: key(5),
       amount: 9_000_000n,
     }),
-    await instructions.makeJuplendWithdrawIx(programAddress, {
-      ...juplend,
-      destinationTokenAccount: key(5),
-      claimAccount: key(29),
-      integrationAcc3: key(12),
-      amount: 2_000_000n,
-      withdrawAll: null,
-    }),
+    await instructions.makeJuplendWithdrawIx(
+      programAddress,
+      {
+        ...juplend,
+        destinationTokenAccount: key(5),
+        claimAccount: key(29),
+        integrationAcc3: key(12),
+        amount: 2_000_000n,
+        withdrawAll: null,
+      },
+      []
+    ),
     // withdraw-all via kaminoWithdraw's flags bit 0
-    await instructions.makeKaminoWithdrawIx(programAddress, {
-      ...kamino,
-      amount: 0n,
-      isFinalWithdrawal: true,
-      refreshReserve: false,
-    }),
-    await instructions.makeWithdrawIx(programAddress, {
-      ...tokenAccounts,
-      group,
-      marginfiAccount,
-      authority,
-      bank: banks.default.address,
-      destinationTokenAccount: key(5),
-      amount: 500_000n,
-      withdrawAll: null,
-    }),
+    await instructions.makeKaminoWithdrawIx(
+      programAddress,
+      {
+        ...kamino,
+        amount: 0n,
+        isFinalWithdrawal: true,
+        refreshReserve: false,
+      },
+      []
+    ),
+    await instructions.makeWithdrawIx(
+      programAddress,
+      {
+        ...tokenAccounts,
+        group,
+        marginfiAccount,
+        authority,
+        bank: banks.default.address,
+        destinationTokenAccount: key(5),
+        amount: 500_000n,
+        withdrawAll: null,
+      },
+      []
+    ),
   ];
 }
 

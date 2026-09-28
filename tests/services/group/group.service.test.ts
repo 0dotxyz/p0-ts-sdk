@@ -6,7 +6,7 @@ import {
   isWritableRole,
   type Instruction,
 } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import { OperationalState, RiskTier } from "~/services/bank/types";

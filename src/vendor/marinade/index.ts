@@ -1,5 +1,5 @@
 import { address, type ReadonlyUint8Array } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 export const MARINADE_PROGRAM_ADDRESS = address("MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD");
 

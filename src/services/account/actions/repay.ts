@@ -1,5 +1,4 @@
 import {
-  AccountRole,
   type AddressesByLookupTableAddress,
   type BlockhashLifetimeConstraint,
   type Instruction,
@@ -31,14 +30,9 @@ import {
 
 import { makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
-import {
-  makeDriftWithdrawIx,
-  makeJuplendWithdrawIx,
-  makeKaminoWithdrawIx,
-  makeWithdrawIx,
-} from "./withdraw";
+import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS, TOKEN_2022_PROGRAM_ID, WSOL_MINT } from "~/constants";
+import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { AssetTag } from "~/services/bank";
@@ -56,98 +50,55 @@ import {
 import { nativeToUi, uiToNative } from "~/utils";
 
 /**
- * Creates a repay instruction for repaying borrowed assets to a Marginfi bank.
- *
- * This function handles:
- * - Wrapping SOL to wSOL if repaying native SOL
- * - Token-2022 program support with proper remaining accounts
- * - Full or partial repayment of liabilities
- * - Creating the repay instruction to return assets to the bank's liquidity vault
- *
- * @param params - The parameters for creating the repay instruction
- * @param params.programAddress - The marginfi program address
- * @param params.bank - The bank to repay to
- * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
- * @param params.amount - The amount to repay in UI units
- * @param params.authority - The account authority; signs and owns the source token account
- * @param params.accountAddress - The Marginfi account address
- * @param params.group - The Marginfi group address
- * @param params.repayAll - Whether to repay the entire liability (default: false)
- * @param params.opts - Optional configuration
- * @param params.opts.wrapAndUnwrapSol - Whether to wrap SOL to wSOL (default: true)
- * @param params.opts.wSolBalanceUi - Existing wSOL balance to combine with native SOL (default: 0)
- *
- * @returns Promise resolving to the repay instructions
+ * Repays `amount` (UI units of the bank's mint) of `bank`'s liability; `repayAll` closes the
+ * balance. A wSOL repay first wraps native SOL, net of `opts.wSolBalanceUi`, unless
+ * `opts.wrapAndUnwrapSol` is false.
  */
 export async function makeRepayIx({
   programAddress,
   bank,
   tokenProgram,
   amount,
+  marginfiAccount,
   authority,
-  accountAddress,
-  group,
   repayAll = false,
   opts = {},
 }: MakeRepayIxParams): Promise<Instruction[]> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const wSolBalanceUi = opts.wSolBalanceUi ?? 0;
   const repayIxs: Instruction[] = [];
 
-  // We allow off curve addresses here to support Fuse.
+  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+    repayIxs.push(
+      ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(opts.wSolBalanceUi ?? 0)))
+    );
+  }
+
   const [signerTokenAccount] = await findAssociatedTokenPda({
     mint: bank.mint,
     owner: authority.address,
     tokenProgram,
   });
 
-  if (bank.mint === WSOL_MINT && wrapAndUnwrapSol) {
-    repayIxs.push(...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(wSolBalanceUi))));
-  }
-
   repayIxs.push(
-    await instructions.makeRepayIx(
-      programAddress,
-      {
-        group,
-        marginfiAccount: accountAddress,
-        authority,
-        bank: bank.address,
-        signerTokenAccount,
-        liquidityVault: bank.liquidityVault,
-        tokenProgram,
-        amount: uiToNative(amount, bank.mintDecimals),
-        repayAll,
-      },
-      tokenProgram === TOKEN_2022_PROGRAM_ID
-        ? [{ address: bank.mint, role: AccountRole.READONLY }]
-        : []
-    )
+    await instructions.makeRepayIx(programAddress, {
+      group: marginfiAccount.group,
+      marginfiAccount: marginfiAccount.address,
+      authority,
+      bank: bank.address,
+      signerTokenAccount,
+      liquidityVault: bank.liquidityVault,
+      mint: bank.mint,
+      tokenProgram,
+      amount: uiToNative(amount, bank.mintDecimals),
+      repayAll,
+    })
   );
 
   return repayIxs;
 }
 
 /**
- * Creates a complete repay transaction ready to be signed and sent.
- *
- * This function builds a v0 transaction message that includes:
- * - SOL wrapping instructions if repaying native SOL
- * - The actual repay instruction to return assets to the Marginfi bank
- * - Proper support for Token-2022 tokens
- * - Support for full or partial repayment
- *
- * The authority pays the fees and is the only signer.
- *
- * @param params - The parameters for creating the repay transaction
- * @param params.rpc - RPC client, for the blockhash
- * @param params.luts - Address lookup tables for transaction compression
- * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
- * @param params.bank - The bank to repay to
- * @param params.amount - The amount to repay in UI units
- * @param params.repayAll - Whether to repay the entire liability (default: false)
- *
- * @returns Promise resolving to the repay transaction
+ * Builds a repay transaction around {@link makeRepayIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
  */
 export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTransaction> {
   const { rpc, luts, latestBlockhash, ...repayIxParams } = params;
@@ -167,6 +118,17 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
   };
 }
 
+/**
+ * Repays `repayOpts.repayBank`'s liability with collateral in one flash loan: withdraws
+ * `withdrawOpts.withdrawAmount` (UI units) from `withdrawOpts.withdrawBank`, swaps it into the
+ * repay mint when the mints differ, and repays the swap's minimum output (the withdrawn amount
+ * when no swap is needed), or the whole liability when the quoted output covers
+ * `repayOpts.totalPositionAmount`. ATA creation and integration-bank refreshes go in
+ * transactions before the flash loan, which must land in the same bundle when
+ * `mustBeAtomicBundle` is set.
+ * @throws TransactionBuildingError if the swap has no route, the flash loan transaction exceeds
+ * the size or account-lock limits, or the withdraw bank's venue state is missing
+ */
 export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams) {
   const {
     marginfiAccount,
@@ -183,7 +145,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  // Create atas if needed
   const setupIxs = await makeSetupIx({
     rpc,
     authority,
@@ -214,7 +175,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     });
 
   const jupiterSetupInstructions = setupInstructions.filter((ix) => {
-    // filter out compute budget instructions
     if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
       return false;
     }
@@ -235,7 +195,6 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   const additionalTxs: SolanaTransaction[] = [];
 
-  // if atas are needed, add them
   if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
     const ixs = [...setupIxs, ...refreshIntegrationIxs];
     const messages = splitInstructionsToFitTransactions([], ixs, {
@@ -298,102 +257,41 @@ async function buildRepayWithCollatFlashloanTx({
     withdrawOpts.withdrawAmount,
     withdrawOpts.withdrawBank.mintDecimals
   );
-  const withdrawParams = {
+  // Kamino withdraws are sized in cTokens; the conversion can be off by a few basis points, so pad
+  // it to be sure the withdraw covers the swap input.
+  const kaminoMultiplier =
+    assetShareValueMultiplierByBank.get(withdrawOpts.withdrawBank.address) ?? new BigNumber(1);
+  const withdrawIxs = await makeWithdrawIx({
     programAddress,
     bank: withdrawOpts.withdrawBank,
     bankMap,
     tokenProgram: withdrawOpts.tokenProgram,
-    amount: withdrawOpts.withdrawAmount,
+    amount:
+      withdrawOpts.withdrawBank.config.assetTag === AssetTag.KAMINO
+        ? {
+            value: new BigNumber(withdrawOpts.withdrawAmount)
+              .div(kaminoMultiplier)
+              .times(1.0001)
+              .toNumber(),
+            type: "cToken",
+          }
+        : withdrawOpts.withdrawAmount,
     marginfiAccount,
     authority,
+    bankMetadataMap,
     withdrawAll,
     opts: {
       createAtas: false,
       wrapAndUnwrapSol: false,
     },
-  };
-
-  let withdrawIxs: Instruction[];
-
-  switch (withdrawOpts.withdrawBank.config.assetTag) {
-    case AssetTag.KAMINO: {
-      const reserve =
-        bankMetadataMap[withdrawOpts.withdrawBank.address]?.kaminoStates?.reserveState;
-
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          withdrawOpts.withdrawBank.address,
-          withdrawOpts.withdrawBank.mint,
-          withdrawOpts.withdrawBank.tokenSymbol
-        );
-      }
-
-      // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
-      const multiplier =
-        assetShareValueMultiplierByBank.get(withdrawOpts.withdrawBank.address) ?? new BigNumber(1);
-      const adjustedAmount = new BigNumber(withdrawOpts.withdrawAmount)
-        .div(multiplier)
-        .times(1.0001)
-        .toNumber();
-
-      withdrawIxs = await makeKaminoWithdrawIx({
-        ...withdrawParams,
-        cTokenAmount: adjustedAmount,
-        reserve,
-      });
-      break;
-    }
-
-    case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[withdrawOpts.withdrawBank.address]?.driftStates;
-
-      if (!driftState) {
-        throw TransactionBuildingError.driftStateNotFound(
-          withdrawOpts.withdrawBank.address,
-          withdrawOpts.withdrawBank.mint,
-          withdrawOpts.withdrawBank.tokenSymbol
-        );
-      }
-
-      withdrawIxs = await makeDriftWithdrawIx({
-        ...withdrawParams,
-        driftSpotMarket: driftState.spotMarketState,
-        userRewards: driftState.userRewards,
-      });
-      break;
-    }
-
-    case AssetTag.JUPLEND: {
-      const jupLendState = bankMetadataMap[withdrawOpts.withdrawBank.address]?.jupLendStates;
-
-      if (!jupLendState) {
-        throw TransactionBuildingError.jupLendStateNotFound(
-          withdrawOpts.withdrawBank.address,
-          withdrawOpts.withdrawBank.mint,
-          withdrawOpts.withdrawBank.tokenSymbol
-        );
-      }
-
-      withdrawIxs = await makeJuplendWithdrawIx({
-        ...withdrawParams,
-        jupLendingState: jupLendState.jupLendingState,
-      });
-      break;
-    }
-
-    default: {
-      withdrawIxs = await makeWithdrawIx(withdrawParams);
-      break;
-    }
-  }
+  });
 
   const repayParams = {
     programAddress,
     bank: repayOpts.repayBank,
     tokenProgram: repayOpts.tokenProgram,
-    accountAddress: marginfiAccount.address,
+    marginfiAccount,
     authority,
-    group: marginfiAccount.group,
     opts: { wrapAndUnwrapSol: false },
   };
 

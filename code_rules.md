@@ -13,7 +13,7 @@ Conventions for this codebase. Decisive by design — PRs that violate a rule ge
 - **A comment carries a non-obvious _why_, or it doesn't exist.** No narrating the next line, no reviewer-speak ("so the caller doesn't re-fetch"), no change history or chat context. If it takes a paragraph to justify the code, fix the code.
 - **JSDoc on exported symbols only.** The public API is the product: every export from an entry point (`src/index.ts`, `src/vendor/index.ts`, `src/vendor/jupiter/index.ts`) gets a doc block stating what it does, its units, and what it throws. Nothing internal gets one.
 - **Keep the exported surface small.** No new export unless a consumer outside the file needs it now; helpers stay unexported. Don't re-export from `src/index.ts` "for convenience" — the app imports what it uses.
-- **Inline until the second real use.** No helper, type alias, or wrapper for single-use logic — five duplicated lines beat a new abstraction. A helper whose body is one expression is inlined.
+- **Inline until the second real use — most of the time.** Single-use logic stays inline by default: five duplicated lines beat a new abstraction, and a helper whose body is one expression is always inlined. A single-use helper is fine when it marks a real boundary: a wrapper over generated code (section 2), or a named step that keeps a long flow readable.
 - **One feature, one file.** Split only when a piece is reused elsewhere or the file has genuinely become hard to read. No `index.ts` barrels below a package entry point; no `utils/` + `types/` scaffolding for a single feature.
 - **Search before writing.** `src/utils`, `services/*/utils` and the vendor decoders usually already have it (BN/BigNumber/I80F48 conversion, PDA derivation, account decoding, unit conversion). Reimplementing an existing helper is the most common LLM defect in this repo.
 - **Handle only states that can occur.** No guard stacks for what the types already exclude; if a `!` is needed after the guards, the guards are wrong. Throw a typed error from `src/errors`, don't return `undefined` and let the caller guess.
@@ -23,7 +23,7 @@ Conventions for this codebase. Decisive by design — PRs that violate a rule ge
 ### What this bans, concretely
 
 - `/** … */` blocks on non-exported functions; comments explaining why the change is correct
-- Wrapper functions or type aliases with a single call site
+- Single-use wrappers or type aliases that only forward or rename (generated-code wrappers excepted)
 - New exports that only their own file uses; `export *` barrels added below an entry point
 - Nested ternaries; multi-condition booleans followed by a non-null assertion
 - `any`, `as unknown as`, or `!` to get past a type instead of fixing the type
@@ -37,7 +37,7 @@ Conventions for this codebase. Decisive by design — PRs that violate a rule ge
 
 ### The rule: use generated code only through its wrapper module
 
-Codama clients in `src/generated/` expose hundreds of functions per program. The SDK uses only what a wrapper module re-exposes: `src/instructions.ts` for marginfi instructions, `src/accounts.ts` for marginfi account decoders, enums and discriminators, `src/vendor/<program>/` for everything else (instruction builders, account decoders, PDA finders, program addresses, enums). Wrap every generated function the SDK uses, even when the wrapper only forwards: one import site per program, SDK names instead of IDL names, and decoders that check the discriminator. This is an explicit exception to "no wrapper with a single call site" in section 1. Type-only imports from `~/generated` are fine in internal code; what may be exported is below.
+Codama clients in `src/generated/` expose hundreds of functions per program. The SDK uses only what a wrapper module re-exposes: `src/instructions.ts` for marginfi instructions, `src/accounts.ts` for marginfi account decoders, enums and discriminators, `src/vendor/<program>/` for everything else (instruction builders, account decoders, PDA finders, program addresses, enums). Wrap every generated function the SDK uses, even when the wrapper only forwards: one import site per program, SDK names instead of IDL names, and decoders that check the discriminator. This is one of the cases where section 1 allows a single-use wrapper. Type-only imports from `~/generated` are fine in internal code; what may be exported is below.
 
 Enforced by `@typescript-eslint/no-restricted-imports` in `.eslintrc.cjs` (wrapper files exempt).
 

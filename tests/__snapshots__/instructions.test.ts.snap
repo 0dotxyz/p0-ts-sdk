@@ -130,7 +130,71 @@ exports[`marginfi instruction wire format > makeBorrowIx 1`] = `
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeBorrowIx token-2022 1`] = `
+{
+  "data": "047e74353005d41fd204000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
       true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "F5Bms3USbChSREzFPFZ51VTDa3hQA72du64M9iSv6y4z",
+      false,
+      false,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      false,
+      false,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
+    ],
+    [
+      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      false,
+      false,
+    ],
+    [
+      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -200,16 +264,6 @@ exports[`marginfi instruction wire format > makeDepositIx depositUpToLimit none 
       false,
       false,
     ],
-    [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
-      false,
-      false,
-    ],
-    [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
-      false,
-      true,
-    ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
 }
@@ -254,15 +308,54 @@ exports[`marginfi instruction wire format > makeDepositIx depositUpToLimit true 
       false,
       false,
     ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeDepositIx token-2022 1`] = `
+{
+  "data": "ab5eeb675240d48cd20400000000000000",
+  "keys": [
     [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
       false,
       false,
     ],
     [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
       false,
       true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      false,
+      true,
+    ],
+    [
+      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      false,
+      false,
+    ],
+    [
+      "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      false,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -589,7 +682,7 @@ exports[`marginfi instruction wire format > makeDriftWithdrawIx no rewards, with
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -728,7 +821,7 @@ exports[`marginfi instruction wire format > makeDriftWithdrawIx rewards, withdra
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -762,7 +855,7 @@ exports[`marginfi instruction wire format > makeEndFlashLoanIx 1`] = `
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1029,16 +1122,6 @@ exports[`marginfi instruction wire format > makeJuplendDepositIx 1`] = `
       false,
       false,
     ],
-    [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
-      false,
-      false,
-    ],
-    [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
-      false,
-      true,
-    ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
 }
@@ -1176,7 +1259,7 @@ exports[`marginfi instruction wire format > makeJuplendWithdrawIx withdrawAll no
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1315,7 +1398,7 @@ exports[`marginfi instruction wire format > makeJuplendWithdrawIx withdrawAll tr
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1436,16 +1519,6 @@ exports[`marginfi instruction wire format > makeKaminoDepositIx farms, refresh n
       false,
       false,
     ],
-    [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
-      false,
-      false,
-    ],
-    [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
-      false,
-      true,
-    ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
 }
@@ -1564,16 +1637,6 @@ exports[`marginfi instruction wire format > makeKaminoDepositIx no farms, refres
       "Sysvar1nstructions1111111111111111111111111",
       false,
       false,
-    ],
-    [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
-      false,
-      false,
-    ],
-    [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
-      false,
-      true,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1702,7 +1765,7 @@ exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=false ref
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1831,7 +1894,7 @@ exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=false ref
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -1960,7 +2023,7 @@ exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=true refr
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2089,7 +2152,7 @@ exports[`marginfi instruction wire format > makeKaminoWithdrawIx final=true refr
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2158,7 +2221,7 @@ exports[`marginfi instruction wire format > makeLendingAccountLiquidateIx 1`] = 
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2192,7 +2255,7 @@ exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleIx
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2255,7 +2318,7 @@ exports[`marginfi instruction wire format > makeLendingPoolSetOraclePriceIx 1`] 
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2443,7 +2506,7 @@ exports[`marginfi instruction wire format > makePoolAddPermissionlessStakedBankI
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2547,7 +2610,7 @@ exports[`marginfi instruction wire format > makePoolAddPermissionlessStakedBankI
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2600,7 +2663,7 @@ exports[`marginfi instruction wire format > makePulseHealthIx 1`] = `
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2645,16 +2708,6 @@ exports[`marginfi instruction wire format > makeRepayIx repayAll true 1`] = `
       "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
       false,
       false,
-    ],
-    [
-      "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
-      false,
-      false,
-    ],
-    [
-      "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
-      false,
-      true,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
@@ -2713,7 +2766,7 @@ exports[`marginfi instruction wire format > makeWithdrawIx withdrawAll true 1`] 
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
       false,
-      true,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",

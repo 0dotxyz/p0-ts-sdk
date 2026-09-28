@@ -1,5 +1,4 @@
 import {
-  AccountRole,
   assertAccountExists,
   fetchEncodedAccount,
   type Address,
@@ -9,7 +8,7 @@ import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import {
   HealthCacheStatus,
@@ -21,7 +20,11 @@ import {
   MakeSetupIxParams,
   MarginfiAccountType,
 } from "../types";
-import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
+import {
+  computeHealthAccounts,
+  findRandomAvailableAccountIndex,
+  getActiveBalances,
+} from "../utils";
 
 import { decodeFeeStateRaw } from "~/accounts";
 import { DEFAULT_ADDRESS } from "~/constants";
@@ -146,30 +149,41 @@ export async function makeAccountTransferToNewAccountTx({
  * that can be used for operations before the account actually exists on-chain.
  *
  * @param params - Configuration object
- * @param params.rpc - RPC client, for the blockhash
+ * @param params.rpc - RPC client, for the blockhash and, without `accountIndex`, a free index
  * @param params.programAddress - The marginfi program address
  * @param params.authority - Owner of the new account; signs and pays
  * @param params.group - The Marginfi group address
  * @param params.luts - Address lookup tables for the transaction
  * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
- * @param params.accountIndex - Index in the account PDA seeds
+ * @param params.accountIndex - Optional index in the account PDA seeds; a random free one when
+ * omitted
  * @param params.thirdPartyId - Optional third-party id in the account PDA seeds
  * @returns Object containing the projected account and creation transaction
+ * @throws Error if `accountIndex` is omitted and no free index is found
  */
 export async function makeCreateAccountTxWithProjection(
   params: MakeCreateAccountTxParams
 ): Promise<{ account: MarginfiAccountType; tx: SolanaTransaction }> {
+  const accountIndex =
+    params.accountIndex ??
+    (await findRandomAvailableAccountIndex(
+      params.rpc,
+      params.programAddress,
+      params.group,
+      params.authority.address,
+      params.thirdPartyId
+    ));
   const [marginfiAccountAddress] = await deriveMarginfiAccount(
     params.programAddress,
     params.group,
     params.authority.address,
-    params.accountIndex,
+    accountIndex,
     params.thirdPartyId
   );
 
   return {
     account: generateDummyAccount(params.group, params.authority.address, marginfiAccountAddress),
-    tx: await makeCreateMarginfiAccountTx(params),
+    tx: await makeCreateMarginfiAccountTx({ ...params, accountIndex }),
   };
 }
 
@@ -204,13 +218,31 @@ export async function makeCreateAccountIxWithProjection(
   };
 }
 
+/**
+ * Builds a transaction around {@link makeCreateMarginfiAccountIx}. Without `accountIndex` a random
+ * free index is picked via `rpc`; use {@link makeCreateAccountTxWithProjection} to learn the new
+ * account's address. The authority pays and signs; `latestBlockhash` is fetched when omitted.
+ * @throws Error if `accountIndex` is omitted and no free index is found
+ */
 export async function makeCreateMarginfiAccountTx({
   rpc,
   luts,
   latestBlockhash,
+  accountIndex,
   ...createIxParams
 }: MakeCreateAccountTxParams): Promise<SolanaTransaction> {
-  const initMarginfiAccountIx = await makeCreateMarginfiAccountIx(createIxParams);
+  const initMarginfiAccountIx = await makeCreateMarginfiAccountIx({
+    ...createIxParams,
+    accountIndex:
+      accountIndex ??
+      (await findRandomAvailableAccountIndex(
+        rpc,
+        createIxParams.programAddress,
+        createIxParams.group,
+        createIxParams.authority.address,
+        createIxParams.thirdPartyId
+      )),
+  });
 
   return {
     message: makeTransactionMessage({
@@ -224,6 +256,10 @@ export async function makeCreateMarginfiAccountTx({
   };
 }
 
+/**
+ * Creates a marginfi account at its PDA (`group`, authority, `accountIndex`, `thirdPartyId`). The
+ * authority owns the account, pays its rent and signs.
+ */
 export async function makeCreateMarginfiAccountIx({
   programAddress,
   authority,
@@ -289,25 +325,22 @@ export async function makeSetupIx({
   }
 }
 
+/**
+ * Refreshes `marginfiAccount`'s on-chain health cache from its active banks.
+ * @throws Error if `bankMap` misses one of the account's active banks
+ */
 export async function makePulseHealthIx(
   programAddress: Address,
   marginfiAccount: MarginfiAccountType,
-  banks: Map<string, BankType>,
-  mandatoryBanks: Address[],
-  excludedBanks: Address[]
+  bankMap: Map<string, BankType>
 ): Promise<Instruction[]> {
-  const healthAccounts = computeHealthCheckAccounts({
-    account: marginfiAccount,
-    banksMap: banks,
-    mandatoryBanks,
-    excludedBanks,
-  });
-  const accountMetas = computeHealthAccountMetas({ banksToInclude: healthAccounts });
-
   const ix = await instructions.makePulseHealthIx(
     programAddress,
     { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group },
-    accountMetas.map((address) => ({ address, role: AccountRole.READONLY }))
+    computeHealthAccounts(
+      bankMap,
+      getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk)
+    )
   );
 
   return [ix];

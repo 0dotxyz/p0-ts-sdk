@@ -1,5 +1,5 @@
 import { TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import BN from "bn.js";
 
 import type { MakeVaultDepositIxParams, MakeVaultDepositTxParams } from "../types";

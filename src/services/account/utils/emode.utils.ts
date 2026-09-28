@@ -1,5 +1,5 @@
 import type { Address } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import {
   ActionEmodeImpact,

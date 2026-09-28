@@ -1,4 +1,4 @@
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 
 // Kamino's fractions exceed Decimal's default 20 significant digits and must round-trip exactly
 // (e.g. u128::MAX means "withdraw all"), so they use a private 40-digit clone.

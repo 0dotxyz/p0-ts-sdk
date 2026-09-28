@@ -1,5 +1,4 @@
 import {
-  AccountRole,
   getAddressEncoder,
   getProgramDerivedAddress,
   type Address,
@@ -7,7 +6,7 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { BankConfigOpt } from "../bank/types";
 import {
@@ -88,7 +87,7 @@ export async function makeAddPermissionlessStakedBankIx({
       stakePool: poolAddress,
       validatorVoteAccount: voteAccountAddress,
     },
-    remainingKeys.map((address) => ({ address, role: AccountRole.READONLY }))
+    remainingKeys
   );
 }
 

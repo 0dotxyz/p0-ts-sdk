@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getAddressDecoder } from "@solana/kit";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { SwapProvider } from "~/services/account/types";
 import type {
   ProviderSwapRoute,
   SwapEngineRequest,
 } from "~/services/account/services/swap-engine/types";
+import { SwapProvider } from "~/services/account/types";
 
 // Shared store the mocked registry reads from. `vi.hoisted` runs before the
 // mock factory so the reference is available when `vi.mock` is hoisted.

@@ -1,5 +1,5 @@
 import { AccountRole, getAddressEncoder, upgradeRoleToSigner, type Address } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { Decimal } from "decimal.js";
 
 import { Amount, WrappedI80F48 } from "../types";

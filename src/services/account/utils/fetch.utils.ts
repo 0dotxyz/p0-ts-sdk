@@ -219,51 +219,29 @@ function randomDistinctIndices(count: number, maxExclusive: number): number[] {
 }
 
 /**
- * Generates a random available account index that doesn't collide with existing accounts.
- * Account indices are 0-255 (u8 range).
- *
- * @param rpc - Solana RPC client
- * @param programId - MarginFi program ID
- * @param group - MarginFi group address
- * @param authority - User's wallet address
- * @param thirdPartyId - Third party ID (default 0)
- * @returns A random available account index (0-255)
+ * Picks a random account index below 255 whose marginfi account PDA (`group`, `authority`, index,
+ * `thirdPartyId`) doesn't exist yet, checking 16 candidates per RPC call.
+ * @throws Error if 8 batches of candidates are all taken
  */
 export async function findRandomAvailableAccountIndex(
   rpc: Rpc<GetMultipleAccountsApi>,
-  programId: Address,
+  programAddress: Address,
   group: Address,
   authority: Address,
   thirdPartyId: number = 0
 ): Promise<number> {
-  const MAX_INDEX = 255; // u8 range: 0-255
-  const BATCH_SIZE = 16; // 16 or 32 is fine
-  const MAX_ATTEMPTS = 8; // realisticly all accounts will be found in the first attempt
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    // 1. Pick a random batch of distinct indices in [0, 255]
-    const indices = randomDistinctIndices(Math.min(BATCH_SIZE, MAX_INDEX), MAX_INDEX);
-
-    // 2. Derive PDAs for these indices
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const indices = randomDistinctIndices(16, 255);
     const pdas = await Promise.all(
       indices.map(
-        async (i) => (await deriveMarginfiAccount(programId, group, authority, i, thirdPartyId))[0]
+        async (index) =>
+          (await deriveMarginfiAccount(programAddress, group, authority, index, thirdPartyId))[0]
       )
     );
-
-    // 3. Check which PDAs exist on-chain
     const accounts = await fetchEncodedAccounts(rpc, pdas);
-
-    // 4. Find the first index whose PDA doesn't exist yet
-    for (let i = 0; i < indices.length; i++) {
-      const indice = indices[i];
-      if (!accounts[i].exists && indice !== undefined) {
-        // This index is free right now
-        return indice;
-      }
-    }
+    const freeIndex = indices.find((_, i) => !accounts[i].exists);
+    if (freeIndex !== undefined) return freeIndex;
   }
 
-  // If we get here, indices are taken, (create custom error)
   throw new Error("Unable to find free index after many attempts");
 }

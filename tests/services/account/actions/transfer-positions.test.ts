@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { BigNumber } from "bignumber.js";
 import { createNoopSigner, getAddressDecoder } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect } from "vitest";
 
+import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import {
   buildCollateralLegIxs,
   classifyAndValidate,
@@ -12,9 +13,8 @@ import {
 import { MakeTransferPositionsTxParams } from "~/services/account/types";
 import { MarginfiAccountType } from "~/services/account/types/account.types";
 import { AssetTag, BankType } from "~/services/bank";
-import { KaminoReserve } from "~/vendor/klend";
 import { BankIntegrationMetadataMap } from "~/types";
-import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
+import { KaminoReserve } from "~/vendor/klend";
 
 const pk = (seed: number) =>
   getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
@@ -153,7 +153,7 @@ const kaminoPosition: ClassifiedPosition = {
 
 describe("buildCollateralLegIxs (integration dispatch)", () => {
   it("routes a KAMINO position to the Kamino builders and locks its reserve/obligation accounts", async () => {
-    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(baseCtx(), kaminoPosition, []);
+    const { withdrawIxs, depositIxs } = await buildCollateralLegIxs(baseCtx(), kaminoPosition);
 
     expect(withdrawIxs.length).toBeGreaterThan(0);
     expect(depositIxs.length).toBeGreaterThan(0);
@@ -178,14 +178,14 @@ describe("buildCollateralLegIxs (integration dispatch)", () => {
     expect(depositKeys).toContain(ACCOUNT_B_PK);
   });
 
-  it("throws a clear error when Kamino reserve state is missing from the metadata map", async () => {
+  it("throws KAMINO_RESERVE_NOT_FOUND when the reserve state is missing from the metadata map", async () => {
     const ctx = baseCtx({ bankMetadataMap: {} as unknown as BankIntegrationMetadataMap });
-    await expect(buildCollateralLegIxs(ctx, kaminoPosition, [])).rejects.toThrow(
-      /kamino reserve state missing/
-    );
+    await expect(buildCollateralLegIxs(ctx, kaminoPosition)).rejects.toMatchObject({
+      code: TransactionBuildingErrorCode.KAMINO_RESERVE_NOT_FOUND,
+    });
   });
 
-  it("throws a clear error when JupLend lending state is missing from the metadata map", async () => {
+  it("throws JUPLEND_STATE_NOT_FOUND when the lending state is missing from the metadata map", async () => {
     const jupBank = {
       ...kaminoBank,
       config: { assetTag: AssetTag.JUPLEND },
@@ -197,8 +197,8 @@ describe("buildCollateralLegIxs (integration dispatch)", () => {
     } as unknown as BankType;
     const jupPosition: ClassifiedPosition = { ...kaminoPosition, bank: jupBank };
 
-    await expect(buildCollateralLegIxs(baseCtx(), jupPosition, [])).rejects.toThrow(
-      /juplend lending state missing/
-    );
+    await expect(buildCollateralLegIxs(baseCtx(), jupPosition)).rejects.toMatchObject({
+      code: TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND,
+    });
   });
 });

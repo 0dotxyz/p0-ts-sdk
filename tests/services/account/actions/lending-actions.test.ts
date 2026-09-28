@@ -10,28 +10,21 @@ import {
 import { describe, expect, it } from "vitest";
 
 import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
-import accountFixtures from "../fixtures/mainnet-accounts.json";
 import expected from "../fixtures/lending-actions-v2.8.3.json";
+import accountFixtures from "../fixtures/mainnet-accounts.json";
 
 import {
   makeCloseMarginfiAccountIx,
   makeCreateMarginfiAccountIx,
 } from "~/services/account/actions/account-lifecycle";
 import { makeBorrowIx } from "~/services/account/actions/borrow";
-import {
-  makeDepositIx,
-  makeDriftDepositIx,
-  makeJuplendDepositIx,
-} from "~/services/account/actions/deposit";
+import { makeDepositIx } from "~/services/account/actions/deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "~/services/account/actions/flash-loan";
 import { makeRepayIx } from "~/services/account/actions/repay";
-import {
-  makeDriftWithdrawIx,
-  makeJuplendWithdrawIx,
-  makeWithdrawIx,
-} from "~/services/account/actions/withdraw";
+import { makeWithdrawIx } from "~/services/account/actions/withdraw";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
+import type { BankIntegrationMetadataMap } from "~/types";
 import { decodeDriftSpotMarket, SpotBalanceType } from "~/vendor/drift";
 import { decodeJupLendingState } from "~/vendor/jup-lend";
 
@@ -64,14 +57,35 @@ const jupLendingState = decodeJupLendingState(
   base64.encode(expected.venues.jupLendingState)
 );
 
-const deposit = {
-  programAddress,
-  tokenProgram,
-  accountAddress: marginfiAccount.address,
-  authority,
-  group,
-};
-const withdraw = { programAddress, tokenProgram, bankMap: banksMap, marginfiAccount, authority };
+const bankMetadataMap = {
+  [banks.drift.address]: {
+    driftStates: {
+      spotMarketState: driftSpotMarket,
+      userRewards: [
+        {
+          oracle: driftSpotMarket.oracle,
+          marketIndex: driftSpotMarket.marketIndex,
+          spotMarket: driftSpotMarket.pubkey,
+          mint: driftSpotMarket.mint,
+          spotPosition: {
+            scaledBalance: 0n,
+            openBids: 0n,
+            openAsks: 0n,
+            cumulativeDeposits: 0n,
+            marketIndex: driftSpotMarket.marketIndex,
+            balanceType: SpotBalanceType.Deposit,
+            openOrders: 0,
+            padding: new Uint8Array(4),
+          },
+        },
+      ],
+    },
+  },
+  [banks.juplend.address]: { jupLendStates: { jupLendingState } },
+} as BankIntegrationMetadataMap;
+
+const deposit = { programAddress, tokenProgram, marginfiAccount, authority, bankMetadataMap };
+const withdraw = { ...deposit, bankMap: banksMap };
 
 // The official token client adds SysvarRent to SyncNative; the v2.8.3 builder didn't.
 const toWire = (ixs: Instruction[]) =>
@@ -99,43 +113,11 @@ describe("lending action instructions", () => {
     withdrawAll: () =>
       makeWithdrawIx({ ...withdraw, bank: banks.default, amount: 5, withdrawAll: true }),
     borrowSol: () => makeBorrowIx({ ...withdraw, bank: banks.sol, amount: 0.1 }),
-    driftDeposit: () =>
-      makeDriftDepositIx({
-        ...deposit,
-        bank: banks.drift,
-        amount: 3,
-        driftMarketIndex: driftSpotMarket.marketIndex,
-        driftOracle: driftSpotMarket.oracle,
-      }),
+    driftDeposit: () => makeDepositIx({ ...deposit, bank: banks.drift, amount: 3 }),
     driftWithdrawAll: () =>
-      makeDriftWithdrawIx({
-        ...withdraw,
-        bank: banks.drift,
-        amount: 1,
-        driftSpotMarket,
-        userRewards: [
-          {
-            oracle: driftSpotMarket.oracle,
-            marketIndex: driftSpotMarket.marketIndex,
-            spotMarket: driftSpotMarket.pubkey,
-            mint: driftSpotMarket.mint,
-            spotPosition: {
-              scaledBalance: 0n,
-              openBids: 0n,
-              openAsks: 0n,
-              cumulativeDeposits: 0n,
-              marketIndex: driftSpotMarket.marketIndex,
-              balanceType: SpotBalanceType.Deposit,
-              openOrders: 0,
-              padding: new Uint8Array(4),
-            },
-          },
-        ],
-        withdrawAll: true,
-      }),
-    juplendDeposit: () => makeJuplendDepositIx({ ...deposit, bank: banks.juplend, amount: 9 }),
-    juplendWithdraw: () =>
-      makeJuplendWithdrawIx({ ...withdraw, bank: banks.juplend, amount: 2, jupLendingState }),
+      makeWithdrawIx({ ...withdraw, bank: banks.drift, amount: 1, withdrawAll: true }),
+    juplendDeposit: () => makeDepositIx({ ...deposit, bank: banks.juplend, amount: 9 }),
+    juplendWithdraw: () => makeWithdrawIx({ ...withdraw, bank: banks.juplend, amount: 2 }),
     createAccount: () =>
       makeCreateMarginfiAccountIx({
         programAddress,
@@ -152,7 +134,8 @@ describe("lending action instructions", () => {
         programAddress,
         marginfiAccount.address,
         group,
-        [banks.default, banks.sol],
+        banksMap,
+        [banks.default.address, banks.sol.address],
         authority
       ),
   };

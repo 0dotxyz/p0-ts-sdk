@@ -5,7 +5,7 @@ import {
   getCompiledTransactionMessageDecoder,
   getTransactionDecoder,
 } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import bankFixtures from "../bank/fixtures/mainnet-banks.json";

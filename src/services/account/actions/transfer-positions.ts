@@ -17,15 +17,15 @@ import {
   TransferPositionsResult,
 } from "../types";
 import { MarginfiAccountType } from "../types/account.types";
-import { computeHealthAccountMetas, computeQuantityUi } from "../utils";
+import { computeQuantityUi } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
 import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
-import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
+import { makeDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
-import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
+import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -262,96 +262,65 @@ export interface BuildContext {
 }
 
 /**
- * Build one collateral position's withdraw-from-A + deposit-into-B instructions, dispatching to the
- * right builder for the bank's asset tag. This is the single place that defines which banks the
- * action supports: `DEFAULT`/`SOL`/`STAKED` use the standard withdraw/deposit; `KAMINO`/`JUPLEND`
- * use their dedicated builders (which lock the integration's reserve/vault accounts and, for Kamino,
- * convert the underlying UI amount to cToken units); anything else throws
- * `TRANSFER_POSITIONS_UNSUPPORTED_BANK`. The reserve/rate state each integration builder needs is
- * read from `bankMetadataMap`; the on-chain refresh those reads depend on is emitted separately in
- * `buildIntegrationRefreshIxs`.
+ * Build one collateral position's withdraw-from-A + deposit-into-B instructions. This is the single
+ * place that defines which banks the action supports: `DEFAULT`/`SOL`/`STAKED` and the
+ * `KAMINO`/`JUPLEND` integrations (whose builders read their reserve/vault state from
+ * `bankMetadataMap`; the on-chain refresh those reads depend on is emitted separately in
+ * `buildIntegrationRefreshIxs`); anything else throws `TRANSFER_POSITIONS_UNSUPPORTED_BANK`.
  *
- * `observationBanksOverride` controls the withdraw leg's health pack (empty while A is flashloaned
- * with the group limiter off; the withdrawn bank's oracle when it is on). The deposit leg runs no
- * health check, so it needs none.
+ * The withdraw leg carries no health accounts (A is inside the flashloan) and appends the withdrawn
+ * bank only when the group rate limiter is on. The deposit leg runs no health check, so it needs
+ * none.
  */
 export async function buildCollateralLegIxs(
   ctx: BuildContext,
-  position: ClassifiedPosition,
-  observationBanksOverride: ReturnType<typeof computeHealthAccountMetas>
+  position: ClassifiedPosition
 ): Promise<{ withdrawIxs: Instruction[]; depositIxs: Instruction[] }> {
   const { bank, tokenProgram, uiAmount } = position;
   const tag = bank.config.assetTag;
-  const key = bank.address;
-  const withdrawParams = {
-    programAddress: ctx.programAddress,
-    bank,
-    bankMap: ctx.bankMap,
-    tokenProgram,
-    amount: uiAmount,
-    marginfiAccount: ctx.accountA,
-    authority: ctx.authority,
-    withdrawAll: true,
-    opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
-      observationBanksOverride,
-    },
-  };
-  const depositParams = {
-    programAddress: ctx.programAddress,
-    bank,
-    tokenProgram,
-    amount: uiAmount,
-    accountAddress: ctx.accountB.address,
-    authority: ctx.authority,
-    group: ctx.accountB.group,
-    opts: { wrapAndUnwrapSol: false },
-  };
 
-  if (tag === AssetTag.KAMINO) {
-    const reserve = ctx.bankMetadataMap[key]?.kaminoStates?.reserveState;
-    if (!reserve) {
-      throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `kamino reserve state missing for bank ${key} (populate bankMetadataMap.kaminoStates)`,
-        [key]
-      );
-    }
-    const multiplier = ctx.assetShareValueMultiplierByBank.get(key) ?? new BigNumber(1);
-    return {
-      withdrawIxs: await makeKaminoWithdrawIx({
-        ...withdrawParams,
-        cTokenAmount: uiAmount.div(multiplier),
-        reserve,
-      }),
-      depositIxs: await makeKaminoDepositIx({ ...depositParams, reserve }),
-    };
-  }
-
-  if (tag === AssetTag.JUPLEND) {
-    const jupLendingState = ctx.bankMetadataMap[key]?.jupLendStates?.jupLendingState;
-    if (!jupLendingState) {
-      throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `juplend lending state missing for bank ${key} (populate bankMetadataMap.jupLendStates)`,
-        [key]
-      );
-    }
-    return {
-      withdrawIxs: await makeJuplendWithdrawIx({ ...withdrawParams, jupLendingState }),
-      depositIxs: await makeJuplendDepositIx(depositParams),
-    };
-  }
-
-  // Standard banks (DEFAULT/SOL/STAKED) move with the plain lending ixs. Any other tag is an
-  // integration we don't yet have a collateral-leg builder for (DRIFT/SOLEND, or a future tag).
-  // Adding an integration means adding one branch above, nothing elsewhere.
-  if (tag !== AssetTag.DEFAULT && tag !== AssetTag.SOL && tag !== AssetTag.STAKED) {
-    throw TransactionBuildingError.transferPositionsUnsupportedBank(key, tag, bank.tokenSymbol);
+  // DRIFT/SOLEND (or a future tag) have no collateral-leg support yet.
+  if (
+    ![AssetTag.DEFAULT, AssetTag.SOL, AssetTag.STAKED, AssetTag.KAMINO, AssetTag.JUPLEND].includes(
+      tag
+    )
+  ) {
+    throw TransactionBuildingError.transferPositionsUnsupportedBank(
+      bank.address,
+      tag,
+      bank.tokenSymbol
+    );
   }
 
   return {
-    withdrawIxs: await makeWithdrawIx(withdrawParams),
-    depositIxs: await makeDepositIx(depositParams),
+    withdrawIxs: await makeWithdrawIx({
+      programAddress: ctx.programAddress,
+      bank,
+      bankMap: ctx.bankMap,
+      tokenProgram,
+      amount: uiAmount,
+      marginfiAccount: ctx.accountA,
+      authority: ctx.authority,
+      bankMetadataMap: ctx.bankMetadataMap,
+      assetShareValueMultiplierByBank: ctx.assetShareValueMultiplierByBank,
+      withdrawAll: true,
+      opts: {
+        createAtas: false,
+        wrapAndUnwrapSol: false,
+        activeBanks: [],
+        groupRateLimiterEnabled: ctx.groupRateLimiterEnabled,
+      },
+    }),
+    depositIxs: await makeDepositIx({
+      programAddress: ctx.programAddress,
+      bank,
+      tokenProgram,
+      amount: uiAmount,
+      marginfiAccount: ctx.accountB,
+      authority: ctx.authority,
+      bankMetadataMap: ctx.bankMetadataMap,
+      opts: { wrapAndUnwrapSol: false },
+    }),
   };
 }
 
@@ -377,12 +346,7 @@ async function buildInnerIxs(
   const repayIxs: Instruction[] = [];
 
   for (const position of collateral) {
-    // A is flagged: no health pack. Group off ⇒ no oracle either. Group on ⇒ trailing bank oracle.
-    const observationBanksOverride = ctx.groupRateLimiterEnabled
-      ? computeHealthAccountMetas({ banksToInclude: [], trailingBanks: [position.bank] })
-      : [];
-
-    const legs = await buildCollateralLegIxs(ctx, position, observationBanksOverride);
+    const legs = await buildCollateralLegIxs(ctx, position);
     withdrawIxs.push(...legs.withdrawIxs);
     depositIxs.push(...legs.depositIxs);
   }
@@ -411,12 +375,9 @@ async function buildInnerIxs(
     borrowedSoFar.push(bank);
 
     // Destination banks active at this borrow: pre-existing + all collateral + debts so far.
-    const activeBanks = dedupeBanks([
-      ...ctx.destPreexistingBanks,
-      ...collateralBanks,
-      ...borrowedSoFar,
-    ]);
-    const observationBanksOverride = computeHealthAccountMetas({ banksToInclude: activeBanks });
+    const activeBanks = [...ctx.destPreexistingBanks, ...collateralBanks, ...borrowedSoFar].map(
+      (b) => b.address
+    );
 
     const borrowUi = position.uiAmount.times(1 + ctx.borrowPaddingBps / 10_000);
     borrowIxs.push(
@@ -431,7 +392,7 @@ async function buildInnerIxs(
         opts: {
           createAtas: false,
           wrapAndUnwrapSol: false,
-          observationBanksOverride,
+          activeBanks,
         },
       }))
     );
@@ -442,9 +403,8 @@ async function buildInnerIxs(
         bank,
         tokenProgram,
         amount: position.uiAmount,
-        accountAddress: ctx.accountA.address,
+        marginfiAccount: ctx.accountA,
         authority: ctx.authority,
-        group: ctx.accountA.group,
         repayAll: true,
         opts: {
           wrapAndUnwrapSol: false,
@@ -471,7 +431,8 @@ async function buildTransferFlashloanTx(args: {
   programAddress: Address;
   authority: TransactionSigner;
   accountA: MarginfiAccountType;
-  projectedActiveBanksA: BankType[];
+  bankMap: Map<string, BankType>;
+  projectedActiveBanksA: Address[];
   innerIxs: Instruction[];
   preIxs: Instruction[];
   latestBlockhash: BlockhashLifetimeConstraint;
@@ -481,6 +442,7 @@ async function buildTransferFlashloanTx(args: {
     programAddress,
     authority,
     accountA,
+    bankMap,
     projectedActiveBanksA,
     innerIxs,
     preIxs,
@@ -494,6 +456,7 @@ async function buildTransferFlashloanTx(args: {
     programAddress,
     accountA.address,
     accountA.group,
+    bankMap,
     projectedActiveBanksA,
     authority
   );
@@ -612,11 +575,9 @@ export async function makeTransferPositionsTx(
 
   // endFL(A) health pack: A's remaining active banks after the whole selection leaves.
   const transferred = new Set(positions.map((p) => p.bankAddress));
-  const projectedActiveBanksA = dedupeBanks(
-    accountA.balances
-      .filter((b) => b.active && !transferred.has(b.bankPk))
-      .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)))
-  );
+  const projectedActiveBanksA = accountA.balances
+    .filter((b) => b.active && !transferred.has(b.bankPk))
+    .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)).address);
 
   const { value: latestBlockhash } = await rpc
     .getLatestBlockhash({ commitment: "confirmed" })
@@ -627,6 +588,7 @@ export async function makeTransferPositionsTx(
     programAddress,
     authority,
     accountA,
+    bankMap,
     projectedActiveBanksA,
     innerIxs,
     preIxs,

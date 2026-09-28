@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { getAddressDecoder, type Address } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect } from "vitest";
 
 import {
   mergeBridgeQuotes,
@@ -9,7 +9,7 @@ import {
   resolveBridgeCandidateBanks,
   accountConflictsWithBridgeBank,
   SwapQuoteResult,
-} from "~/services/account";
+ MarginfiAccountType } from "~/services/account";
 import {
   isStandardBorrowable,
   isStandardDepositable,
@@ -17,7 +17,6 @@ import {
   OperationalState,
   BankType,
 } from "~/services/bank";
-import { MarginfiAccountType } from "~/services/account";
 
 const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 

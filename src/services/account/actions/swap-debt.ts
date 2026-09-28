@@ -234,9 +234,8 @@ async function buildSwapDebtFlashloanTx({
     programAddress,
     bank: repayBank,
     tokenProgram: repayTokenProgram,
-    accountAddress: marginfiAccount.address,
+    marginfiAccount,
     authority,
-    group: marginfiAccount.group,
     opts: { wrapAndUnwrapSol: false },
   };
 

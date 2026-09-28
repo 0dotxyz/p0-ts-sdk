@@ -4,7 +4,7 @@ import {
   type ReadonlyUint8Array,
   type Rpc,
 } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { OraclePrice, OraclePriceDto } from "../types";
 import { getOracleSourceFromBank } from "../utils";

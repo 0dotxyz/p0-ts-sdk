@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { getAddressDecoder, type Address } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect } from "vitest";
 
 import { HealthCacheStatus, MarginfiAccountType } from "~/services/account/types";
 import {

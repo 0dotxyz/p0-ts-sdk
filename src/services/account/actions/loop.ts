@@ -34,18 +34,13 @@ import {
 import { makeSetupIx } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
-import {
-  makeDepositIx,
-  makeDriftDepositIx,
-  makeJuplendDepositIx,
-  makeKaminoDepositIx,
-} from "./deposit";
+import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSwapDebtTx } from "./swap-debt";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
-import { AssetTag, BankType } from "~/services/bank";
+import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
 import {
   getTotalAccountKeys,
@@ -309,7 +304,18 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     },
   });
 
-  const depositIxs = await buildDepositIxs(params, depositAmountUi);
+  const depositIxs = await makeDepositIx({
+    programAddress,
+    bank: depositOpts.depositBank,
+    tokenProgram: depositOpts.tokenProgram,
+    amount: depositAmountUi,
+    marginfiAccount,
+    authority,
+    bankMetadataMap,
+    opts: {
+      wrapAndUnwrapSol: false,
+    },
+  });
 
   // Inner ix order: [cuRequest..., borrow..., <swap slot>, deposit...]
   const innerIxsBeforeSwap = [...cuRequestIxs, ...borrowIxs];
@@ -339,66 +345,6 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
   };
 
   return { descriptor, swapNeeded, borrowIxs, depositIxs };
-}
-
-/** Builds the deposit instruction(s) for the loop's deposit bank at the given UI amount. */
-async function buildDepositIxs(params: LoopParams, amountUi: number): Promise<Instruction[]> {
-  const { programAddress, marginfiAccount, authority, depositOpts, bankMetadataMap } = params;
-  const { depositBank } = depositOpts;
-  const depositParams = {
-    programAddress,
-    bank: depositBank,
-    tokenProgram: depositOpts.tokenProgram,
-    amount: amountUi,
-    accountAddress: marginfiAccount.address,
-    authority,
-    group: marginfiAccount.group,
-    opts: {
-      wrapAndUnwrapSol: false,
-    },
-  };
-
-  switch (depositBank.config.assetTag) {
-    case AssetTag.KAMINO: {
-      const reserve = bankMetadataMap[depositBank.address]?.kaminoStates?.reserveState;
-
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          depositBank.address,
-          depositBank.mint,
-          depositBank.tokenSymbol
-        );
-      }
-
-      return makeKaminoDepositIx({ ...depositParams, reserve });
-    }
-
-    case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[depositBank.address]?.driftStates;
-
-      if (!driftState) {
-        throw TransactionBuildingError.driftStateNotFound(
-          depositBank.address,
-          depositBank.mint,
-          depositBank.tokenSymbol
-        );
-      }
-
-      return makeDriftDepositIx({
-        ...depositParams,
-        driftMarketIndex: driftState.spotMarketState.marketIndex,
-        driftOracle: driftState.spotMarketState.oracle,
-      });
-    }
-
-    case AssetTag.JUPLEND: {
-      return makeJuplendDepositIx(depositParams);
-    }
-
-    default: {
-      return makeDepositIx(depositParams);
-    }
-  }
 }
 
 /**

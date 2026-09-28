@@ -1,5 +1,5 @@
 import { getAddressDecoder } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import {

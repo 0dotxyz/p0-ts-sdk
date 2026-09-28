@@ -1,17 +1,17 @@
-import { describe, it, expect } from "vitest";
 import { AccountRole, getAddressDecoder, type Instruction } from "@solana/kit";
+import { describe, it, expect } from "vitest";
 
-import { SwapProvider } from "~/services/account/types";
+import type {
+  SwapEngineRequest,
+  SwapEngineResult,
+} from "~/services/account/services/swap-engine/types";
 import {
   serializeSwapEngineRequest,
   deserializeSwapEngineRequest,
   serializeSwapEngineResult,
   deserializeSwapEngineResult,
 } from "~/services/account/services/swap-engine/utils/serialize.utils";
-import type {
-  SwapEngineRequest,
-  SwapEngineResult,
-} from "~/services/account/services/swap-engine/types";
+import { SwapProvider } from "~/services/account/types";
 
 const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 

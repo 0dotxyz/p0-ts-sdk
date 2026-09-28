@@ -1,18 +1,18 @@
-import { describe, it, expect, vi } from "vitest";
 import { getAddressDecoder, type Address } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect, vi } from "vitest";
 
-import { TransactionBuildingErrorCode } from "~/errors";
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
-import { AssetTag, OperationalState, BankType } from "~/services/bank/types";
+import { TransactionBuildingErrorCode } from "~/errors";
+import type { BridgedTxResult, MarginfiAccountType } from "~/services/account";
 import {
   DEFAULT_BRIDGE_MINTS,
   resolveTokenProgramForMint,
   selectSwapBridges,
   tryBridgeCandidates,
 } from "~/services/account/utils/bridge-routing.utils";
-import type { BridgedTxResult, MarginfiAccountType } from "~/services/account";
+import { AssetTag, OperationalState, BankType } from "~/services/bank/types";
 
 const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { SwapProvider } from "~/services/account/types";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine/types";
+import { SwapProvider } from "~/services/account/types";
 
 // Capture the request the adapter sends over the WebSocket, and let each test
 // stage the SwapQuotes the mocked stream yields.

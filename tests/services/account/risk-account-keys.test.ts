@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
 import { getAddressDecoder, type Address } from "@solana/kit";
+import { describe, it, expect } from "vitest";
 
-import { computeHealthAccountMetas } from "~/services/account/utils/compute/transaction-projection.utils";
+import { computeHealthAccounts } from "~/services/account/utils/compute/transaction-projection.utils";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 
 let nextKey = 1;
@@ -26,9 +26,9 @@ function bank(opts: {
   } as unknown as BankType;
 }
 
-/** Risk account keys for a single bank, via the public health-metas entry point (unsorted). */
+/** Risk account keys for a single bank, via the public health-accounts entry point. */
 function riskAccountKeys(b: BankType): Address[] {
-  return computeHealthAccountMetas({ banksToInclude: [b], enableSorting: false });
+  return computeHealthAccounts(new Map([[b.address, b]]), [b.address]);
 }
 
 describe("bank risk account keys", () => {

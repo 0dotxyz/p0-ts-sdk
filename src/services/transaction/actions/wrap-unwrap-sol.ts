@@ -7,7 +7,7 @@ import {
   getSyncNativeInstruction,
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { WSOL_MINT } from "~/constants";
 import { uiToNative } from "~/utils";

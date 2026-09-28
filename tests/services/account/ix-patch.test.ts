@@ -12,6 +12,7 @@ const accounts = {
   authority: createNoopSigner(key(2)),
   bank: key(4),
   liquidityVault: key(6),
+  mint: key(9),
   tokenProgram: key(7),
 };
 
@@ -25,12 +26,16 @@ const deposit = () =>
 
 describe("deposit amount patching", () => {
   it("recognizes deposit instructions only", async () => {
-    const withdraw = await instructions.makeWithdrawIx(programAddress, {
-      ...accounts,
-      destinationTokenAccount: key(5),
-      amount: 1234n,
-      withdrawAll: null,
-    });
+    const withdraw = await instructions.makeWithdrawIx(
+      programAddress,
+      {
+        ...accounts,
+        destinationTokenAccount: key(5),
+        amount: 1234n,
+        withdrawAll: null,
+      },
+      []
+    );
 
     expect(isDepositIx(await deposit())).toBe(true);
     expect(isDepositIx(withdraw)).toBe(false);
@@ -49,11 +54,15 @@ describe("deposit amount patching", () => {
   });
 
   it("refuses non-deposit instructions and negative amounts", async () => {
-    const borrow = await instructions.makeBorrowIx(programAddress, {
-      ...accounts,
-      destinationTokenAccount: key(5),
-      amount: 1n,
-    });
+    const borrow = await instructions.makeBorrowIx(
+      programAddress,
+      {
+        ...accounts,
+        destinationTokenAccount: key(5),
+        amount: 1n,
+      },
+      []
+    );
 
     const depositIx = await deposit();
 

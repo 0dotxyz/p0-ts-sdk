@@ -1,14 +1,13 @@
 import {
-  AccountRole,
   createNoopSigner,
   getAddressDecoder,
   isSignerRole,
   isWritableRole,
-  type AccountMeta,
   type Instruction,
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
+import { TOKEN_2022_PROGRAM_ID } from "~/constants";
 import instructions from "~/instructions";
 
 // Wire format recorded from the Anchor 0.30 builders these replaced; never update with `-u`.
@@ -24,10 +23,7 @@ const toWire = (ix: Instruction) => ({
 });
 
 const programAddress = key(200);
-const remaining: AccountMeta[] = [
-  { address: key(180), role: AccountRole.READONLY },
-  { address: key(181), role: AccountRole.WRITABLE },
-];
+const remaining = [key(180), key(181)];
 
 const group = key(1);
 const authority = signer(2);
@@ -130,11 +126,12 @@ const cases: Record<string, () => Promise<Instruction>> = {
       thirdPartyId: 7,
     }),
   makeJuplendDepositIx: () =>
-    instructions.makeJuplendDepositIx(
-      programAddress,
-      { ...juplendAccounts, signerTokenAccount: tokenAccount, liquidityVault, amount: 1234n },
-      remaining
-    ),
+    instructions.makeJuplendDepositIx(programAddress, {
+      ...juplendAccounts,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      amount: 1234n,
+    }),
   "makeJuplendWithdrawIx withdrawAll none": () =>
     instructions.makeJuplendWithdrawIx(
       programAddress,
@@ -173,8 +170,7 @@ const cases: Record<string, () => Promise<Instruction>> = {
         reserveFarmState: key(36),
         amount: 1234n,
         refreshReserve: null,
-      },
-      remaining
+      }
     ),
   "makeKaminoDepositIx no farms, refresh true": () =>
     instructions.makeKaminoDepositIx(
@@ -186,8 +182,7 @@ const cases: Record<string, () => Promise<Instruction>> = {
         reserveDestinationDepositCollateral: key(34),
         amount: 1234n,
         refreshReserve: true,
-      },
-      remaining
+      }
     ),
   "makeDriftDepositIx oracle": () =>
     instructions.makeDriftDepositIx(programAddress, {
@@ -203,53 +198,57 @@ const cases: Record<string, () => Promise<Instruction>> = {
       amount: 1234n,
     }),
   "makeDepositIx depositUpToLimit none": () =>
-    instructions.makeDepositIx(
-      programAddress,
-      {
-        group,
-        marginfiAccount,
-        authority,
-        bank,
-        signerTokenAccount: tokenAccount,
-        liquidityVault,
-        tokenProgram,
-        amount: 1234n,
-        depositUpToLimit: null,
-      },
-      remaining
-    ),
+    instructions.makeDepositIx(programAddress, {
+      group,
+      marginfiAccount,
+      authority,
+      bank,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      mint,
+      tokenProgram,
+      amount: 1234n,
+      depositUpToLimit: null,
+    }),
   "makeDepositIx depositUpToLimit true": () =>
-    instructions.makeDepositIx(
-      programAddress,
-      {
-        group,
-        marginfiAccount,
-        authority,
-        bank,
-        signerTokenAccount: tokenAccount,
-        liquidityVault,
-        tokenProgram,
-        amount: 1234n,
-        depositUpToLimit: true,
-      },
-      remaining
-    ),
+    instructions.makeDepositIx(programAddress, {
+      group,
+      marginfiAccount,
+      authority,
+      bank,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      mint,
+      tokenProgram,
+      amount: 1234n,
+      depositUpToLimit: true,
+    }),
+  "makeDepositIx token-2022": () =>
+    instructions.makeDepositIx(programAddress, {
+      group,
+      marginfiAccount,
+      authority,
+      bank,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      mint,
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      amount: 1234n,
+      depositUpToLimit: null,
+    }),
   "makeRepayIx repayAll true": () =>
-    instructions.makeRepayIx(
-      programAddress,
-      {
-        group,
-        marginfiAccount,
-        authority,
-        bank,
-        signerTokenAccount: tokenAccount,
-        liquidityVault,
-        tokenProgram,
-        amount: 1234n,
-        repayAll: true,
-      },
-      remaining
-    ),
+    instructions.makeRepayIx(programAddress, {
+      group,
+      marginfiAccount,
+      authority,
+      bank,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      mint,
+      tokenProgram,
+      amount: 1234n,
+      repayAll: true,
+    }),
   "makeDriftWithdrawIx rewards, withdrawAll true": () =>
     instructions.makeDriftWithdrawIx(
       programAddress,
@@ -317,6 +316,7 @@ const cases: Record<string, () => Promise<Instruction>> = {
         bank,
         destinationTokenAccount: tokenAccount,
         liquidityVault,
+        mint,
         tokenProgram,
         amount: 1234n,
         withdrawAll: true,
@@ -333,8 +333,25 @@ const cases: Record<string, () => Promise<Instruction>> = {
         bank,
         destinationTokenAccount: tokenAccount,
         liquidityVault,
+        mint,
         tokenProgram,
         amount: 18446744073709551615n,
+      },
+      remaining
+    ),
+  "makeBorrowIx token-2022": () =>
+    instructions.makeBorrowIx(
+      programAddress,
+      {
+        group,
+        marginfiAccount,
+        authority,
+        bank,
+        destinationTokenAccount: tokenAccount,
+        liquidityVault,
+        mint,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        amount: 1234n,
       },
       remaining
     ),

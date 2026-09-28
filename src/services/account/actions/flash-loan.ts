@@ -1,10 +1,10 @@
-import { AccountRole, type Address, type Instruction, type TransactionSigner } from "@solana/kit";
+import type { Address, Instruction, TransactionSigner } from "@solana/kit";
 
 import { MakeFlashLoanTxParams } from "../types";
-import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
+import { computeHealthAccounts, computeProjectedActiveBanksNoCpi } from "../utils";
 
 import instructions from "~/instructions";
-import { BankType, requireBank } from "~/services/bank";
+import { BankType } from "~/services/bank";
 import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
 
 export async function makeBeginFlashLoanIx(
@@ -25,14 +25,14 @@ export async function makeEndFlashLoanIx(
   programAddress: Address,
   marginfiAccount: Address,
   group: Address,
-  projectedActiveBanks: BankType[],
+  bankMap: Map<string, BankType>,
+  activeBanks: Address[],
   authority: TransactionSigner
 ): Promise<Instruction[]> {
-  const remainingAccounts = computeHealthAccountMetas({ banksToInclude: projectedActiveBanks });
   const ix = await instructions.makeEndFlashLoanIx(
     programAddress,
     { marginfiAccount, group, authority },
-    remainingAccounts.map((address) => ({ address, role: AccountRole.READONLY }))
+    computeHealthAccounts(bankMap, activeBanks)
   );
   return [ix];
 }
@@ -52,7 +52,7 @@ export async function makeFlashLoanTx({
     account: marginfiAccount,
     instructions: ixs,
     programAddress,
-  }).map((bankAddress) => requireBank(bankMap, bankAddress));
+  });
 
   const beginFlashLoanIxs = await makeBeginFlashLoanIx(
     programAddress,
@@ -64,6 +64,7 @@ export async function makeFlashLoanTx({
     programAddress,
     marginfiAccount.address,
     marginfiAccount.group,
+    bankMap,
     projectedActiveBanks,
     authority
   );

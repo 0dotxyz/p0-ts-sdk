@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import { getAddressDecoder } from "@solana/kit";
+import { describe, it, expect } from "vitest";
 
 import type { SwapOpts, SwapQuoteResult } from "~/services/account/types";
 import { resolvePinnedSwapRoute } from "~/services/account/utils/swap.utils";

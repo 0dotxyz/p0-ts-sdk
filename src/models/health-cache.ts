@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { HealthCacheFlags, HealthCacheStatus, HealthCacheType } from "../services";
 import type { HealthCacheRaw } from "../services/account/types/raw-account.types";

@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { aprToApy } from "../../../utils/accounting.utils";
 import { nativeToUi } from "../../../utils/conversion.utils";

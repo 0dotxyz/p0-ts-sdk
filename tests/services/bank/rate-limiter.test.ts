@@ -1,5 +1,5 @@
+import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
-import BigNumber from "bignumber.js";
 
 import { RateLimitWindowType } from "~/services/bank/types";
 import {

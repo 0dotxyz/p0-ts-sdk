@@ -1,5 +1,5 @@
 import { unwrapOption, type Address, type Instruction, type Option } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { BalanceType, MarginfiAccountType } from "../../types";
 
@@ -10,6 +10,7 @@ import {
   getAssetShares,
   getLiabilityShares,
 } from "~/services/bank/utils/compute/share-conversions.utils";
+import { requireBank } from "~/services/bank/utils/lookup.utils";
 import { composeRemainingAccounts } from "~/utils";
 
 /**
@@ -18,130 +19,23 @@ import { composeRemainingAccounts } from "~/utils";
  */
 
 /**
- * Computes the set of banks to include in health check account metas.
- *
- * This function determines which banks should be included when performing health checks
- * by considering active balances, mandatory banks, and exclusions. It intelligently
- * manages the 16-balance limit by:
- * - Including all active banks (excluding any in the exclusion list)
- * - Reserving inactive slots for mandatory banks that aren't currently active
- *
- * @param account - The marginfi account whose balances are evaluated
- * @param banksMap - Map of bank addresses to bank data
- * @param mandatoryBanks - Banks that must be included (e.g., for pending transactions)
- * @param excludedBanks - Banks to exclude from health checks
- * @returns Array of bank objects to include in health check
- *
- * @example
- * ```typescript
- * const healthCheckBanks = computeHealthCheckAccounts({
- *   account,
- *   banksMap,
- *   mandatoryBanks: [newBankToDeposit], // Not active yet but will be
- *   excludedBanks: [closingBank],       // Being closed in this transaction
- * });
- * ```
+ * Health-check remaining accounts: each of `activeBanks` (the account's active banks when the
+ * program runs the check) as `[bank, oracle, venue/pricing keys]`, sorted by bank key descending
+ * like the program sorts balances before walking them, then `trailingBanks` unsorted. A
+ * withdraw-all passes its closed bank as trailing: the group rate limiter looks up its price there.
+ * @throws Error if a bank isn't in `bankMap`
  */
-export function computeHealthCheckAccounts({
-  account,
-  banksMap,
-  mandatoryBanks = [],
-  excludedBanks = [],
-}: {
-  account: MarginfiAccountType;
-  banksMap: Map<string, BankType>;
-  mandatoryBanks?: Address[];
-  excludedBanks?: Address[];
-}): BankType[] {
-  const balances = account.balances;
-  const activeBalances = balances.filter((b) => b.active);
-
-  const mandatoryBanksSet = new Set(mandatoryBanks);
-  const excludedBanksSet = new Set(excludedBanks);
-  const activeBanks = new Set(activeBalances.map((b) => b.bankPk));
-  const banksToAdd = new Set([...mandatoryBanksSet].filter((x) => !activeBanks.has(x)));
-
-  let slotsToKeep = banksToAdd.size;
-  const projectedActiveBanks = balances
-    .filter((balance) => {
-      if (balance.active) {
-        return !excludedBanksSet.has(balance.bankPk);
-      } else if (slotsToKeep > 0) {
-        slotsToKeep--;
-        return true;
-      } else {
-        return false;
-      }
-    })
-    .map((balance) => {
-      if (balance.active) {
-        const bank = banksMap.get(balance.bankPk);
-        if (!bank) throw Error(`Bank ${balance.bankPk} not found`);
-        return bank;
-      }
-      const newBankAddress = [...banksToAdd.values()][0];
-      banksToAdd.delete(newBankAddress);
-      const bank = banksMap.get(newBankAddress);
-      if (!bank) throw Error(`Bank ${newBankAddress} not found`);
-      return bank;
-    });
-
-  return projectedActiveBanks;
-}
-
-/**
- * Converts bank objects to health check account metas (addresses).
- *
- * This function generates the list of account addresses needed for health check
- * instructions. For each bank, it includes:
- * - The bank address
- * - The oracle address (if not default)
- * - Additional integration accounts:
- *   - Kamino: kamino reserve account
- *   - Drift: drift spot market account
- *
- * Optionally sorts accounts using `composeRemainingAccounts` to optimize transaction size.
- *
- * @param banksToInclude - Array of banks to include in health check
- * @param enableSorting - Whether to sort/optimize account order (default: true)
- * @param trailingBanks - Banks whose accounts are appended unsorted after the health pack
- *   (e.g., the withdrawn bank on withdraw-all, for the 1.9 rate-limiter price fetch)
- * @returns Flattened array of addresses for health check accounts
- *
- * @example
- * ```typescript
- * const healthAccounts = computeHealthAccountMetas({
- *   banksToInclude: [usdcBank, solBank, kaminoUsdcBank],
- * });
- * // Returns: [bank1, oracle1, bank2, oracle2, bank3, oracle3, kaminoReserve3, ...]
- * ```
- */
-export function computeHealthAccountMetas({
-  banksToInclude,
-  enableSorting = true,
-  trailingBanks = [],
-}: {
-  banksToInclude: BankType[];
-  enableSorting?: boolean;
-  trailingBanks?: BankType[];
-}): Address[] {
-  const wrapperFn = enableSorting
-    ? composeRemainingAccounts
-    : (banksAndOracles: Address[][]) => banksAndOracles.flat();
-
-  const accounts = wrapperFn(banksToInclude.map(computeBankRiskAccountKeys));
-
-  // Trailing banks are appended AFTER the sorted health pack so the risk engine's strict
-  // in-order matching of active balances never consumes them (unconsumed trailing accounts
-  // are ignored by both the 1.8 and 1.9 programs). Used for withdraw-all: the withdrawn
-  // bank's balance is closed by the instruction so it must not sit inside the health pack,
-  // but the 1.9 rate-limiter/receivership price fetch searches the whole slice for the
-  // bank key followed by its oracle accounts.
-  for (const bank of trailingBanks) {
-    accounts.push(...computeBankRiskAccountKeys(bank));
-  }
-
-  return accounts;
+export function computeHealthAccounts(
+  bankMap: Map<string, BankType>,
+  activeBanks: Address[],
+  trailingBanks: Address[] = []
+): Address[] {
+  const riskKeys = (bankAddress: Address) =>
+    computeBankRiskAccountKeys(requireBank(bankMap, bankAddress));
+  return [
+    ...composeRemainingAccounts([...new Set(activeBanks)].map(riskKeys)),
+    ...trailingBanks.flatMap(riskKeys),
+  ];
 }
 
 /**

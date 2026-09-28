@@ -1,19 +1,14 @@
 import type { Address, Instruction } from "@solana/kit";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
-import { computeHealthAccountMetas, computeHealthCheckAccounts, computeQuantityUi } from "../utils";
+import { computeQuantityUi } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
 import { makeRepayIx } from "./repay";
-import {
-  makeWithdrawIx,
-  makeKaminoWithdrawIx,
-  makeJuplendWithdrawIx,
-  makeDriftWithdrawIx,
-} from "./withdraw";
+import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
-import { AssetTag, requireBank, requireTokenProgram } from "~/services/bank";
+import { requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   makeUnwrapSolIx,
@@ -70,10 +65,10 @@ export async function makeBulkWithdrawTx(
   ];
   const selectedLuts = selectLutsForBanks(luts, involvedBanks);
 
-  // Build every position's instructions once. The health pack of withdraw N
-  // excludes every bank withdrawn before it (plus itself — full withdrawals
-  // close the balance), mirroring what the account looks like on-chain when
-  // that instruction executes. Tx boundaries don't change the packs.
+  // Build every position's instructions once. Withdraw N sees the account without
+  // the banks withdrawn before it (the builder drops its own bank: a withdraw-all
+  // closes it), mirroring the account on-chain when that instruction executes.
+  // Tx boundaries don't change the packs.
   const withdrawIxs: Instruction[] = [];
   const setupTokens: { mint: Address; tokenProgram: Address }[] = [];
   const withdrawnSoFar: Address[] = [];
@@ -86,70 +81,28 @@ export async function makeBulkWithdrawTx(
       throw new Error(`no active deposit for bank ${bankAddress}`);
     }
 
-    const packBanks = computeHealthCheckAccounts({
-      account: marginfiAccount,
-      banksMap: bankMap,
-      excludedBanks: [...withdrawnSoFar, bankAddress],
-    });
-    const observationBanksOverride = computeHealthAccountMetas({
-      banksToInclude: packBanks,
-      trailingBanks: [bank],
-    });
-
-    const shared = {
-      programAddress,
-      bank,
-      bankMap,
-      tokenProgram,
-      marginfiAccount,
-      authority,
-      // every venue's withdraw ix ignores the amount when the withdraw-all flag is
-      // set and derives the full position on-chain, so all legs pass amount 0
-      amount: 0,
-      withdrawAll: true,
-      opts: {
-        createAtas: false, // ATAs are created in the prelude txs
-        wrapAndUnwrapSol: false, // one unwrap ix is appended after the last withdraw
-        observationBanksOverride,
-      },
-    };
-
-    switch (bank.config.assetTag) {
-      case AssetTag.KAMINO: {
-        const reserve = bankMetadataMap[bankAddress]?.kaminoStates?.reserveState;
-        if (!reserve) {
-          throw new Error(`kamino reserve state missing for bank ${bankAddress}`);
-        }
-        withdrawIxs.push(...(await makeKaminoWithdrawIx({ ...shared, cTokenAmount: 0, reserve })));
-        break;
-      }
-      case AssetTag.JUPLEND: {
-        const jupLendingState = bankMetadataMap[bankAddress]?.jupLendStates?.jupLendingState;
-        if (!jupLendingState) {
-          throw new Error(`juplend lending state missing for bank ${bankAddress}`);
-        }
-        withdrawIxs.push(...(await makeJuplendWithdrawIx({ ...shared, jupLendingState })));
-        break;
-      }
-      case AssetTag.DRIFT: {
-        const driftState = bankMetadataMap[bankAddress]?.driftStates;
-        if (!driftState) {
-          throw new Error(`drift state missing for bank ${bankAddress}`);
-        }
-        withdrawIxs.push(
-          ...(await makeDriftWithdrawIx({
-            ...shared,
-            driftSpotMarket: driftState.spotMarketState,
-            userRewards: driftState.userRewards,
-          }))
-        );
-        break;
-      }
-      default: {
-        withdrawIxs.push(...(await makeWithdrawIx(shared)));
-        break;
-      }
-    }
+    withdrawIxs.push(
+      ...(await makeWithdrawIx({
+        programAddress,
+        bank,
+        bankMap,
+        tokenProgram,
+        marginfiAccount,
+        authority,
+        bankMetadataMap,
+        // every venue's withdraw ix ignores the amount when the withdraw-all flag is
+        // set and derives the full position on-chain, so all legs pass amount 0
+        amount: 0,
+        withdrawAll: true,
+        opts: {
+          createAtas: false, // ATAs are created in the prelude txs
+          wrapAndUnwrapSol: false, // one unwrap ix is appended after the last withdraw
+          activeBanks: activeBalances
+            .map((b) => b.bankPk)
+            .filter((pk) => !withdrawnSoFar.includes(pk)),
+        },
+      }))
+    );
 
     setupTokens.push({ mint: bank.mint, tokenProgram });
     withdrawnSoFar.push(bankAddress);
@@ -254,9 +207,8 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
         bank,
         tokenProgram,
         amount: uiAmount,
-        accountAddress: marginfiAccount.address,
+        marginfiAccount,
         authority,
-        group: marginfiAccount.group,
         repayAll: true,
         opts: {
           wrapAndUnwrapSol: true,

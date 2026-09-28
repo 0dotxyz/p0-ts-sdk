@@ -1,10 +1,4 @@
-import {
-  AccountRole,
-  isInstructionWithData,
-  type AccountMeta,
-  type Address,
-  type Instruction,
-} from "@solana/kit";
+import { AccountRole, isInstructionWithData, type Address, type Instruction } from "@solana/kit";
 
 import {
   getDriftDepositInstructionAsync,
@@ -62,10 +56,24 @@ import {
   type TransferToNewAccountAsyncInput,
 } from "./generated/marginfi";
 
+import { TOKEN_2022_PROGRAM_ID } from "~/constants";
+
 export { MarginfiInstruction } from "./generated/marginfi";
 
-function withRemainingAccounts(ix: Instruction, remainingAccounts: AccountMeta[]): Instruction {
-  return { ...ix, accounts: [...(ix.accounts ?? []), ...remainingAccounts] };
+// Every remaining account marginfi reads is read-only.
+function withRemainingAccounts(ix: Instruction, remainingAccounts: Address[]): Instruction {
+  return {
+    ...ix,
+    accounts: [
+      ...(ix.accounts ?? []),
+      ...remainingAccounts.map((address) => ({ address, role: AccountRole.READONLY })),
+    ],
+  };
+}
+
+// Token-2022 banks take their mint as the first remaining account (`maybe_take_bank_mint`).
+function token2022Mint(tokenProgram: Address, mint: Address): Address[] {
+  return tokenProgram === TOKEN_2022_PROGRAM_ID ? [mint] : [];
 }
 
 /** Creates a marginfi account at a keypair address; `marginfiAccount` must sign. */
@@ -84,50 +92,38 @@ async function makeInitMarginfiAccountPdaIx(
   return getMarginfiAccountInitializePdaInstruction(input, { programAddress });
 }
 
-/**
- * Deposits `amount` (native units) into a JupLend-backed bank.
- * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
- */
+/** Deposits `amount` (native units) into a JupLend-backed bank. */
 async function makeJuplendDepositIx(
   programAddress: Address,
-  input: JuplendDepositAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  input: JuplendDepositAsyncInput
 ): Promise<Instruction> {
-  return withRemainingAccounts(
-    await getJuplendDepositInstructionAsync(input, { programAddress }),
-    remainingAccounts
-  );
+  return getJuplendDepositInstructionAsync(input, { programAddress });
 }
 
 /**
  * Withdraws `amount` (native units) from a JupLend-backed bank; `withdrawAll` closes the balance.
- * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ * @param healthAccounts - Health-check remaining accounts (`computeHealthAccounts`).
  */
 async function makeJuplendWithdrawIx(
   programAddress: Address,
   input: JuplendWithdrawAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  healthAccounts: Address[]
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getJuplendWithdrawInstructionAsync(input, { programAddress }),
-    remainingAccounts
+    healthAccounts
   );
 }
 
 /**
  * Deposits `amount` (native units) into a Kamino-backed bank; `refreshReserve` refreshes the
  * reserve in-instruction.
- * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
  */
 async function makeKaminoDepositIx(
   programAddress: Address,
-  input: KaminoDepositAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  input: KaminoDepositAsyncInput
 ): Promise<Instruction> {
-  return withRemainingAccounts(
-    await getKaminoDepositInstructionAsync(input, { programAddress }),
-    remainingAccounts
-  );
+  return getKaminoDepositInstructionAsync(input, { programAddress });
 }
 
 /** Deposits `amount` (native units) into a Drift-backed bank. */
@@ -138,55 +134,50 @@ async function makeDriftDepositIx(
   return getDriftDepositInstructionAsync(input, { programAddress });
 }
 
-/**
- * Deposits `amount` (native units) from `signerTokenAccount` into the bank.
- * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
- */
+/** Deposits `amount` (native units) of the bank's `mint` from `signerTokenAccount`. */
 async function makeDepositIx(
   programAddress: Address,
-  input: LendingAccountDepositInput,
-  remainingAccounts: AccountMeta[] = []
+  { mint, ...input }: LendingAccountDepositInput & { mint: Address; tokenProgram: Address }
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingAccountDepositInstruction(input, { programAddress }),
-    remainingAccounts
+    token2022Mint(input.tokenProgram, mint)
   );
 }
 
 /**
- * Repays `amount` (native units) of the bank's liability; `repayAll` closes the balance.
- * @param remainingAccounts - Token-2022 mint when the bank uses Token-2022.
+ * Repays `amount` (native units) of the bank's liability in its `mint`; `repayAll` closes the
+ * balance.
  */
 async function makeRepayIx(
   programAddress: Address,
-  input: LendingAccountRepayInput,
-  remainingAccounts: AccountMeta[] = []
+  { mint, ...input }: LendingAccountRepayInput & { mint: Address; tokenProgram: Address }
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingAccountRepayInstruction(input, { programAddress }),
-    remainingAccounts
+    token2022Mint(input.tokenProgram, mint)
   );
 }
 
 /**
  * Withdraws `amount` (native units) from a Drift-backed bank; `withdrawAll` closes the balance.
- * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ * @param healthAccounts - Health-check remaining accounts (`computeHealthAccounts`).
  */
 async function makeDriftWithdrawIx(
   programAddress: Address,
   input: DriftWithdrawAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  healthAccounts: Address[]
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getDriftWithdrawInstructionAsync(input, { programAddress }),
-    remainingAccounts
+    healthAccounts
   );
 }
 
 /**
  * Withdraws `amount` (native units) from a Kamino-backed bank. `isFinalWithdrawal` closes the
  * balance; `refreshReserve` refreshes the reserve via batch refresh.
- * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ * @param healthAccounts - Health-check remaining accounts (`computeHealthAccounts`).
  */
 async function makeKaminoWithdrawIx(
   programAddress: Address,
@@ -198,7 +189,7 @@ async function makeKaminoWithdrawIx(
     isFinalWithdrawal: boolean;
     refreshReserve?: boolean;
   },
-  remainingAccounts: AccountMeta[] = []
+  healthAccounts: Address[]
 ): Promise<Instruction> {
   // bit 0 = withdraw all, bit 1 = batch refresh; `None` when no flag is set.
   const flags = (isFinalWithdrawal ? 1 : 0) | (refreshReserve ? 2 : 0);
@@ -207,37 +198,38 @@ async function makeKaminoWithdrawIx(
       { ...input, flags: flags === 0 ? null : flags },
       { programAddress }
     ),
-    remainingAccounts
+    healthAccounts
   );
 }
 
 /**
- * Withdraws `amount` (native units) to `destinationTokenAccount`; `withdrawAll` closes the balance.
- * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ * Withdraws `amount` (native units) of the bank's `mint` to `destinationTokenAccount`;
+ * `withdrawAll` closes the balance.
+ * @param healthAccounts - Health-check remaining accounts (`computeHealthAccounts`).
  */
 async function makeWithdrawIx(
   programAddress: Address,
-  input: LendingAccountWithdrawAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  { mint, ...input }: LendingAccountWithdrawAsyncInput & { mint: Address; tokenProgram: Address },
+  healthAccounts: Address[]
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getLendingAccountWithdrawInstructionAsync(input, { programAddress }),
-    remainingAccounts
+    [...token2022Mint(input.tokenProgram, mint), ...healthAccounts]
   );
 }
 
 /**
- * Borrows `amount` (native units) to `destinationTokenAccount`.
- * @param remainingAccounts - Token-2022 mint (if any), then health-check bank/oracle accounts.
+ * Borrows `amount` (native units) of the bank's `mint` to `destinationTokenAccount`.
+ * @param healthAccounts - Health-check remaining accounts (`computeHealthAccounts`).
  */
 async function makeBorrowIx(
   programAddress: Address,
-  input: LendingAccountBorrowAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  { mint, ...input }: LendingAccountBorrowAsyncInput & { mint: Address; tokenProgram: Address },
+  healthAccounts: Address[]
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getLendingAccountBorrowInstructionAsync(input, { programAddress }),
-    remainingAccounts
+    [...token2022Mint(input.tokenProgram, mint), ...healthAccounts]
   );
 }
 
@@ -249,7 +241,7 @@ async function makeBorrowIx(
 async function makeLendingAccountLiquidateIx(
   programAddress: Address,
   input: LendingAccountLiquidateAsyncInput,
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getLendingAccountLiquidateInstructionAsync(input, { programAddress }),
@@ -275,12 +267,12 @@ async function makeBeginFlashLoanIx(
 
 /**
  * Ends a flashloan and runs the health check.
- * @param remainingAccounts - Health-check bank/oracle accounts for the projected active banks.
+ * @param remainingAccounts - Health-check accounts for the projected active banks.
  */
 async function makeEndFlashLoanIx(
   programAddress: Address,
   input: LendingAccountEndFlashloanInput,
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingAccountEndFlashloanInstruction(input, { programAddress }),
@@ -306,12 +298,12 @@ async function makeGroupInitIx(
 
 /**
  * Configures a bank's oracle.
- * @param remainingAccounts - The oracle account(s) for `setup` (read-only).
+ * @param remainingAccounts - The oracle account(s) for `setup`.
  */
 async function makeLendingPoolConfigureBankOracleIx(
   programAddress: Address,
   input: LendingPoolConfigureBankOracleInput,
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingPoolConfigureBankOracleInstruction(input, { programAddress }),
@@ -326,18 +318,18 @@ async function makeLendingPoolConfigureBankOracleScopeIx(
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingPoolConfigureBankOracleScopeInstruction(input, { programAddress }),
-    [{ address: input.oracle, role: AccountRole.READONLY }]
+    [input.oracle]
   );
 }
 
 /**
  * Configures a fixed or Exponent PT oracle price.
- * @param remainingAccounts - Oracle accounts required by `setup` (read-only).
+ * @param remainingAccounts - Oracle accounts required by `setup`.
  */
 async function makeLendingPoolSetOraclePriceIx(
   programAddress: Address,
   input: LendingPoolSetOraclePriceInput,
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingPoolSetOraclePriceInstruction(input, { programAddress }),
@@ -347,7 +339,7 @@ async function makeLendingPoolSetOraclePriceIx(
 
 /**
  * Adds a permissionless staked-SOL bank; `bankSeed` defaults to 0.
- * @param remainingAccounts - Pyth oracle, SOL pool and bank mint (read-only).
+ * @param remainingAccounts - Pyth oracle, SOL pool and bank mint.
  */
 async function makePoolAddPermissionlessStakedBankIx(
   programAddress: Address,
@@ -357,7 +349,7 @@ async function makePoolAddPermissionlessStakedBankIx(
   }: Omit<LendingPoolAddBankPermissionlessAsyncInput, "bankSeed"> & {
     bankSeed?: bigint;
   },
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     await getLendingPoolAddBankPermissionlessInstructionAsync(
@@ -399,7 +391,7 @@ async function makeCloseAccountIx(
 async function makePulseHealthIx(
   programAddress: Address,
   input: LendingAccountPulseHealthInput,
-  remainingAccounts: AccountMeta[] = []
+  remainingAccounts: Address[] = []
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingAccountPulseHealthInstruction(input, { programAddress }),

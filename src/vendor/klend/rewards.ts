@@ -1,4 +1,4 @@
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 
 import { getKaminoTotalSupply } from "./interest-rate";
 import { KaminoFarmRewardInfo, KaminoFarmState, KaminoReserve } from "./types";

@@ -9,7 +9,7 @@ import {
 } from "@solana/kit";
 import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
 import { getTransferSolInstruction } from "@solana-program/system";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { makePulseHealthIx } from "../actions/account-lifecycle";
 import {
@@ -288,13 +288,7 @@ export async function simulateAccountHealthCache(params: {
     bankIntegrationMap ?? {}
   );
 
-  const healthPulseIxs = await makePulseHealthIx(
-    programAddress,
-    marginfiAccount,
-    banksMap,
-    activeBalances.map((b) => b.bankPk),
-    []
-  );
+  const healthPulseIxs = await makePulseHealthIx(programAddress, marginfiAccount, banksMap);
 
   const additionalTx = makeTransactionMessage({
     instructions: [

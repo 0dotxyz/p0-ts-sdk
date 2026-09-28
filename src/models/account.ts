@@ -1,5 +1,5 @@
 import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { Balance } from "./balance";
 import { Bank } from "./bank";

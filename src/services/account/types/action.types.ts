@@ -20,9 +20,6 @@ import { MarginfiAccountType } from "./account.types";
 import { BankType } from "~/services/bank";
 import { SolanaTransaction } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap } from "~/types";
-import { DriftRewards, DriftSpotMarket } from "~/vendor/drift";
-import { JupLendingState } from "~/vendor/jup-lend";
-import { KaminoReserve } from "~/vendor/klend";
 
 export enum SwapProvider {
   JUPITER = "JUPITER",
@@ -104,20 +101,14 @@ export interface MakeDepositIxParams {
   programAddress: Address;
   bank: BankType;
   tokenProgram: Address;
+  /** UI units of the bank's mint */
   amount: Amount;
-  accountAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs and owns the source token account. */
   authority: TransactionSigner;
-  group: Address;
+  /** Venue state; required for Kamino and Drift banks. */
+  bankMetadataMap?: BankIntegrationMetadataMap;
   opts?: MakeDepositIxOpts;
-}
-
-export interface MakeDriftDepositIxParams extends MakeDepositIxParams {
-  driftOracle: Address;
-  driftMarketIndex: number;
-}
-
-export interface MakeKaminoDepositIxParams extends MakeDepositIxParams {
-  reserve: KaminoReserve;
 }
 
 /** Transaction options shared by the single-action builders. */
@@ -130,23 +121,27 @@ export interface ActionTxParams {
 
 export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {}
 
-export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams, ActionTxParams {}
-
-export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams, ActionTxParams {}
-
-export interface MakeRepayIxParams extends MakeDepositIxParams {
+export interface MakeRepayIxParams {
+  programAddress: Address;
+  bank: BankType;
+  tokenProgram: Address;
+  /** UI units of the bank's mint */
+  amount: Amount;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs and owns the source token account. */
+  authority: TransactionSigner;
   repayAll?: boolean;
+  opts?: MakeDepositIxOpts;
 }
 
 export interface MakeRepayTxParams extends MakeRepayIxParams, ActionTxParams {}
 
-export interface MakeWithdrawIxOpts {
-  /** Health-check remaining accounts to use instead of the computed ones. */
-  observationBanksOverride?: Address[];
-  /** Unwrap a wSOL withdrawal to native SOL (default true). */
-  wrapAndUnwrapSol?: boolean;
-  /** Create the destination ATA idempotently (default true). */
-  createAtas?: boolean;
+export interface MakeWithdrawIxOpts extends MakeBorrowIxOpts {
+  /**
+   * Whether the group rate limiter is on (default true). A withdraw-all then appends the closed
+   * bank's accounts, where the limiter reads its price; pass false when it's off to save bytes.
+   */
+  groupRateLimiterEnabled?: boolean;
 }
 
 export interface MakeWithdrawIxParams {
@@ -154,25 +149,17 @@ export interface MakeWithdrawIxParams {
   bank: BankType;
   bankMap: Map<string, BankType>;
   tokenProgram: Address;
-  amount: Amount;
+  /** UI units of the bank's mint; a Kamino bank also takes a `cToken` amount. */
+  amount: Amount | TypedAmount;
   marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs and owns the destination token account. */
   authority: TransactionSigner;
+  /** Venue state; required for Kamino, Drift and JupLend banks. */
+  bankMetadataMap?: BankIntegrationMetadataMap;
+  /** Kamino: underlying tokens per cToken, to convert a UI `amount` (default 1). */
+  assetShareValueMultiplierByBank?: Map<string, BigNumber>;
   withdrawAll?: boolean;
   opts?: MakeWithdrawIxOpts;
-}
-
-export interface MakeDriftWithdrawIxParams extends MakeWithdrawIxParams {
-  driftSpotMarket: DriftSpotMarket;
-  userRewards: DriftRewards[];
-}
-
-export interface MakeKaminoWithdrawIxParams extends Omit<MakeWithdrawIxParams, "amount"> {
-  cTokenAmount: Amount;
-  reserve: KaminoReserve;
-}
-
-export interface MakeJuplendWithdrawIxParams extends MakeWithdrawIxParams {
-  jupLendingState: JupLendingState;
 }
 
 /** Withdraw/borrow transactions also refresh the account's integration banks. */
@@ -180,31 +167,31 @@ interface AccountActionTxParams extends ActionTxParams {
   bankMetadataMap: BankIntegrationMetadataMap;
 }
 
-export interface MakeWithdrawTxParams extends MakeWithdrawIxParams, AccountActionTxParams {}
+export interface MakeWithdrawTxParams
+  extends Omit<MakeWithdrawIxParams, "bankMetadataMap">, AccountActionTxParams {}
 
-export interface MakeDriftWithdrawTxParams
-  extends MakeDriftWithdrawIxParams, AccountActionTxParams {}
-
-export interface MakeJuplendWithdrawTxParams
-  extends MakeJuplendWithdrawIxParams, AccountActionTxParams {}
-
-export interface MakeKaminoWithdrawTxParams
-  extends Omit<MakeKaminoWithdrawIxParams, "cTokenAmount">, AccountActionTxParams {
-  /** UI token amount (converted with the bank's multiplier) or a typed cToken amount. */
-  amount: Amount | TypedAmount;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-}
-
-export interface MakeBorrowIxOpts extends MakeWithdrawIxOpts {
+export interface MakeBorrowIxOpts {
   /**
-   * Additional banks to include in the health check calculation.
-   * Useful for combined operations where a deposit precedes the borrow
-   * and the deposited bank needs to be considered for health calculation.
+   * The account's active banks when this instruction runs, if earlier instructions in the
+   * transaction or bundle change them (default: the account's active banks).
    */
-  additionalHealthCheckBanks?: Address[];
+  activeBanks?: Address[];
+  /** Unwrap wSOL received to native SOL (default true). */
+  wrapAndUnwrapSol?: boolean;
+  /** Create the destination ATA idempotently (default true). */
+  createAtas?: boolean;
 }
 
-export interface MakeBorrowIxParams extends Omit<MakeWithdrawIxParams, "withdrawAll" | "opts"> {
+export interface MakeBorrowIxParams {
+  programAddress: Address;
+  bank: BankType;
+  bankMap: Map<string, BankType>;
+  tokenProgram: Address;
+  /** UI units of the bank's mint */
+  amount: Amount;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs and owns the destination token account. */
+  authority: TransactionSigner;
   opts?: MakeBorrowIxOpts;
 }
 
@@ -219,7 +206,12 @@ export interface MakeCreateAccountIxParams {
   thirdPartyId?: number;
 }
 
-export interface MakeCreateAccountTxParams extends MakeCreateAccountIxParams, ActionTxParams {}
+export interface MakeCreateAccountTxParams
+  extends Omit<MakeCreateAccountIxParams, "accountIndex">, ActionTxParams {
+  rpc: Rpc<GetLatestBlockhashApi & GetMultipleAccountsApi>;
+  /** Index in the account PDA seeds; a free one is picked via `rpc` when omitted. */
+  accountIndex?: number;
+}
 
 export interface MakeCloseAccountIxParams {
   programAddress: Address;

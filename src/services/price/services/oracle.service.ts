@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 import { OraclePrice } from "../types";
 import { getOracleSourceFromOracleSetup } from "../utils";

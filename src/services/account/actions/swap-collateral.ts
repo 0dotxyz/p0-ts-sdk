@@ -33,19 +33,9 @@ import {
 
 import { makeSetupIx } from "./account-lifecycle";
 import { composeBridgedSwap, mergeBridgeQuotes } from "./bridge-swap";
-import {
-  makeDepositIx,
-  makeDriftDepositIx,
-  makeJuplendDepositIx,
-  makeKaminoDepositIx,
-} from "./deposit";
+import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
-import {
-  makeDriftWithdrawIx,
-  makeJuplendWithdrawIx,
-  makeKaminoWithdrawIx,
-  makeWithdrawIx,
-} from "./withdraw";
+import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
@@ -220,155 +210,52 @@ async function buildSwapCollateralFlashloanTx({
   let swapQuote: SwapQuoteResult | undefined;
   let sizeConstraintUsed = 0;
 
-  // Build withdraw instruction
-  const withdrawParams = {
+  // Kamino withdraws are sized in cTokens; the conversion can be off by a few basis points, so pad
+  // it to be sure the withdraw covers the swap input.
+  const kaminoMultiplier =
+    assetShareValueMultiplierByBank.get(withdrawBank.address) ?? new BigNumber(1);
+  const withdrawIxs = await makeWithdrawIx({
     programAddress,
     bank: withdrawBank,
     bankMap,
     tokenProgram: withdrawTokenProgram,
-    amount: actualWithdrawAmount,
+    amount:
+      withdrawBank.config.assetTag === AssetTag.KAMINO
+        ? {
+            value: new BigNumber(actualWithdrawAmount)
+              .div(kaminoMultiplier)
+              .times(1.0001)
+              .toNumber(),
+            type: "cToken",
+          }
+        : actualWithdrawAmount,
     marginfiAccount,
     authority,
+    bankMetadataMap,
     withdrawAll: isFullWithdraw,
     opts: {
       createAtas: false,
       wrapAndUnwrapSol: false,
     },
-  };
-  let withdrawIxs: Instruction[];
-
-  switch (withdrawBank.config.assetTag) {
-    case AssetTag.KAMINO: {
-      const reserve = bankMetadataMap[withdrawBank.address]?.kaminoStates?.reserveState;
-
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          withdrawBank.address,
-          withdrawBank.mint,
-          withdrawBank.tokenSymbol
-        );
-      }
-
-      // Sometimes the ctoken conversion can be off by a few basis points, this accounts for that
-      const multiplier =
-        assetShareValueMultiplierByBank.get(withdrawBank.address) ?? new BigNumber(1);
-      const adjustedAmount = new BigNumber(actualWithdrawAmount)
-        .div(multiplier)
-        .times(1.0001)
-        .toNumber();
-
-      withdrawIxs = await makeKaminoWithdrawIx({
-        ...withdrawParams,
-        cTokenAmount: adjustedAmount,
-        reserve,
-      });
-      break;
-    }
-    case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[withdrawBank.address]?.driftStates;
-
-      if (!driftState) {
-        throw TransactionBuildingError.driftStateNotFound(
-          withdrawBank.address,
-          withdrawBank.mint,
-          withdrawBank.tokenSymbol
-        );
-      }
-
-      withdrawIxs = await makeDriftWithdrawIx({
-        ...withdrawParams,
-        driftSpotMarket: driftState.spotMarketState,
-        userRewards: driftState.userRewards,
-      });
-      break;
-    }
-
-    case AssetTag.JUPLEND: {
-      const jupLendState = bankMetadataMap[withdrawBank.address]?.jupLendStates;
-
-      if (!jupLendState) {
-        throw TransactionBuildingError.jupLendStateNotFound(
-          withdrawBank.address,
-          withdrawBank.mint,
-          withdrawBank.tokenSymbol
-        );
-      }
-
-      withdrawIxs = await makeJuplendWithdrawIx({
-        ...withdrawParams,
-        jupLendingState: jupLendState.jupLendingState,
-      });
-      break;
-    }
-
-    default: {
-      withdrawIxs = await makeWithdrawIx(withdrawParams);
-      break;
-    }
-  }
+  });
 
   // Deferred-swap: when a swap is needed the deposit is seeded with a placeholder amount
   // (its byte/account footprint is amount-independent) and byte-patched to the real swap
   // output after the engine runs. Same-mint deposits the exact withdrawn amount.
   const swapNeeded = depositBank.mint !== withdrawBank.mint;
 
-  // Build deposit instruction
-  const depositParams = {
+  const depositIxs = await makeDepositIx({
     programAddress,
     bank: depositBank,
     tokenProgram: depositTokenProgram,
     amount: swapNeeded ? 0 : actualWithdrawAmount,
-    accountAddress: marginfiAccount.address,
+    marginfiAccount,
     authority,
-    group: marginfiAccount.group,
+    bankMetadataMap,
     opts: {
       wrapAndUnwrapSol: false,
     },
-  };
-  let depositIxs: Instruction[];
-
-  switch (depositBank.config.assetTag) {
-    case AssetTag.KAMINO: {
-      const reserve = bankMetadataMap[depositBank.address]?.kaminoStates?.reserveState;
-
-      if (!reserve) {
-        throw TransactionBuildingError.kaminoReserveNotFound(
-          depositBank.address,
-          depositBank.mint,
-          depositBank.tokenSymbol
-        );
-      }
-
-      depositIxs = await makeKaminoDepositIx({ ...depositParams, reserve });
-      break;
-    }
-    case AssetTag.DRIFT: {
-      const driftState = bankMetadataMap[depositBank.address]?.driftStates;
-
-      if (!driftState) {
-        throw TransactionBuildingError.driftStateNotFound(
-          depositBank.address,
-          depositBank.mint,
-          depositBank.tokenSymbol
-        );
-      }
-
-      depositIxs = await makeDriftDepositIx({
-        ...depositParams,
-        driftMarketIndex: driftState.spotMarketState.marketIndex,
-        driftOracle: driftState.spotMarketState.oracle,
-      });
-      break;
-    }
-    case AssetTag.JUPLEND: {
-      depositIxs = await makeJuplendDepositIx(depositParams);
-      break;
-    }
-    default: {
-      depositIxs = await makeDepositIx(depositParams);
-      break;
-    }
-  }
+  });
 
   if (swapNeeded) {
     const [destinationTokenAccount] = await findAssociatedTokenPda({
