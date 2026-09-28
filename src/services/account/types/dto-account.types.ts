@@ -32,4 +32,6 @@ export interface MarginfiAccountTypeDto {
   accountFlags: AccountFlags[];
   emissionsDestinationAccount: string;
   healthCache: HealthCacheTypeDto;
+  /** Optional so DTOs cached before the field existed still parse (defaults to 0). */
+  activeOrders?: number;
 }

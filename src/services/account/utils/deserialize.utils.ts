@@ -141,6 +141,7 @@ export function parseMarginfiAccountRaw(
     accountFlags,
     emissionsDestinationAccount,
     healthCache,
+    activeOrders: accountData.activeOrders,
   };
 }
 
@@ -242,6 +243,7 @@ export function dtoToMarginfiAccount(
     accountFlags: marginfiAccountDto.accountFlags,
     emissionsDestinationAccount: new PublicKey(marginfiAccountDto.emissionsDestinationAccount),
     healthCache: dtoToHealthCache(marginfiAccountDto.healthCache),
+    activeOrders: marginfiAccountDto.activeOrders ?? 0,
   };
 }
 

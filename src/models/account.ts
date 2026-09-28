@@ -119,7 +119,8 @@ class MarginfiAccount implements MarginfiAccountType {
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
     public readonly emissionsDestinationAccount: PublicKey,
-    public healthCache: HealthCache
+    public healthCache: HealthCache,
+    public readonly activeOrders: number = 0
   ) {}
 
   /**
@@ -147,7 +148,8 @@ class MarginfiAccount implements MarginfiAccountType {
       account.balances.map((b) => Balance.fromBalanceType(b)),
       account.accountFlags,
       account.emissionsDestinationAccount,
-      account.healthCache
+      account.healthCache,
+      account.activeOrders
     );
   }
 
@@ -168,7 +170,8 @@ class MarginfiAccount implements MarginfiAccountType {
       props.balances.map((b) => Balance.fromBalanceType(b)),
       props.accountFlags,
       props.emissionsDestinationAccount,
-      HealthCache.fromHealthCacheType(props.healthCache)
+      HealthCache.fromHealthCacheType(props.healthCache),
+      props.activeOrders
     );
   }
 

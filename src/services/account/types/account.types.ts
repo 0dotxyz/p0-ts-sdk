@@ -65,6 +65,8 @@ export interface MarginfiAccountType {
   accountFlags: AccountFlags[];
   emissionsDestinationAccount: PublicKey;
   healthCache: HealthCacheType;
+  /** Orders that point at this account, including orphaned ones. Transfer requires 0. */
+  activeOrders: number;
 }
 
 export enum AccountFlags {
@@ -72,6 +74,10 @@ export enum AccountFlags {
   ACCOUNT_IN_FLASHLOAN = 1 << 1, // 2
   ACCOUNT_FLAG_DEPRECATED = 1 << 2, // 4
   ACCOUNT_TRANSFER_AUTHORITY_ALLOWED = 1 << 3, // 8
+  ACCOUNT_IN_RECEIVERSHIP = 1 << 4, // 16
+  ACCOUNT_IN_DELEVERAGE = 1 << 5, // 32
+  ACCOUNT_FROZEN = 1 << 6, // 64
+  ACCOUNT_IN_ORDER_EXECUTION = 1 << 7, // 128
 }
 
 export enum MarginRequirementType {

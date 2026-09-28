@@ -132,7 +132,9 @@ export function percentToMaxSlippageU32(percent: number): number {
       `Max slippage percent must be in (0, ${MAX_ORDER_SLIPPAGE_PERCENT}], got ${percent}`
     );
   }
-  return Math.round((percent / 100) * U32_MAX);
+  // Floor: the program rejects anything above u32::MAX / 10 (integer division), and rounding
+  // 10% up lands one unit over that cap.
+  return Math.floor((percent / 100) * U32_MAX);
 }
 
 /**

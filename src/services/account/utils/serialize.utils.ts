@@ -26,6 +26,7 @@ export function marginfiAccountToDto(marginfiAccount: MarginfiAccountType): Marg
     accountFlags: marginfiAccount.accountFlags,
     emissionsDestinationAccount: marginfiAccount.emissionsDestinationAccount.toBase58(),
     healthCache: healthCacheToDto(marginfiAccount.healthCache),
+    activeOrders: marginfiAccount.activeOrders,
   };
 }
 
