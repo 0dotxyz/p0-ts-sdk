@@ -168,7 +168,7 @@ export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPr
   return { assets: assetsValue, liabilities: liabilitiesValue };
 }
 
-export interface OrderPairLegValueInput {
+interface OrderPairLegValueInput {
   balance: BalanceType;
   bank: BankType;
   oraclePrice: OraclePrice;

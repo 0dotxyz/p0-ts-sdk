@@ -8,7 +8,6 @@ import {
   HealthCacheSimulationError,
   MarginfiAccountRaw,
   MarginfiAccountType,
-  OrderRaw,
   OrderType,
 } from "../types";
 
@@ -235,21 +234,6 @@ export const fetchMarginfiAccountData = async (
 };
 
 /**
- * Fetches a single order account by address. Returns null if the order does not exist.
- *
- * @param program - The marginfi Anchor program (connection is taken from its provider)
- * @param orderAddress - The order PDA (see {@link deriveOrderPda})
- */
-export const fetchOrder = async (
-  program: MarginfiProgram,
-  orderAddress: PublicKey
-): Promise<OrderType | null> => {
-  const orderRaw: OrderRaw | null = await program.account.order.fetchNullable(orderAddress);
-  if (!orderRaw) return null;
-  return parseOrderRaw(orderAddress, orderRaw);
-};
-
-/**
  * Fetches all open orders for a marginfi account.
  *
  * @param program - The marginfi Anchor program (connection is taken from its provider)
@@ -292,28 +276,6 @@ export const resolveOrderLegs = (
     collateralBank: taggedBalances.find((balance) => balance.assetShares.gt(0))?.bankPk ?? null,
     debtBank: taggedBalances.find((balance) => balance.liabilityShares.gt(0))?.bankPk ?? null,
   };
-};
-
-/**
- * Like {@link resolveOrderLegs}, but throws when either leg is gone (orphaned order).
- *
- * @param marginfiAccount - The parsed marginfi account that owns the order
- * @param order - The order whose bank pair to resolve
- * @throws If either tagged balance is missing or no longer has a position
- */
-export const resolveOrderBanks = (
-  marginfiAccount: MarginfiAccountType,
-  order: Pick<OrderType, "address" | "tags">
-): { collateralBank: PublicKey; debtBank: PublicKey } => {
-  const { collateralBank, debtBank } = resolveOrderLegs(marginfiAccount, order);
-
-  if (!collateralBank || !debtBank) {
-    throw new Error(
-      `Could not resolve banks for order ${order.address.toBase58()}: tagged balances are missing or closed`
-    );
-  }
-
-  return { collateralBank, debtBank };
 };
 
 /**

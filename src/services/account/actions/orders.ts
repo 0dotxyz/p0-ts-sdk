@@ -8,6 +8,7 @@ import {
   OrderTriggerParams,
 } from "../types";
 
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import {
   addTransactionMetadata,
@@ -26,16 +27,30 @@ import {
 /**
  * Converts USD-equity thresholds into the on-chain `OrderTrigger` argument.
  *
- * @throws If neither threshold is set, or both are set with take-profit ≤ stop-loss
+ * @throws {TransactionBuildingError} `ORDER_INVALID_TRIGGER` if neither threshold is set, a
+ *   threshold is not above 0, or take-profit ≤ stop-loss; `ORDER_INVALID_SLIPPAGE` via
+ *   {@link percentToMaxSlippageU32}
  */
 export function buildOrderTrigger(params: OrderTriggerParams): OrderTrigger {
   const { stopLossUsd, takeProfitUsd } = params;
   const maxSlippage = percentToMaxSlippageU32(params.maxSlippagePercent);
+  const invalidTrigger = (reason: string) =>
+    TransactionBuildingError.orderInvalidTrigger(
+      reason,
+      takeProfitUsd?.toString(),
+      stopLossUsd?.toString()
+    );
 
+  if (stopLossUsd && !stopLossUsd.gt(0)) {
+    throw invalidTrigger(`stop-loss threshold (${stopLossUsd}) must be above 0`);
+  }
+  if (takeProfitUsd && !takeProfitUsd.gt(0)) {
+    throw invalidTrigger(`take-profit threshold (${takeProfitUsd}) must be above 0`);
+  }
   if (stopLossUsd && takeProfitUsd) {
     if (takeProfitUsd.lte(stopLossUsd)) {
-      throw new Error(
-        `Take-profit threshold (${takeProfitUsd}) must be above stop-loss threshold (${stopLossUsd})`
+      throw invalidTrigger(
+        `take-profit threshold (${takeProfitUsd}) must be above stop-loss threshold (${stopLossUsd})`
       );
     }
     return {
@@ -52,7 +67,7 @@ export function buildOrderTrigger(params: OrderTriggerParams): OrderTrigger {
   if (takeProfitUsd) {
     return { takeProfit: { threshold: bigNumberToWrappedI80F48(takeProfitUsd), maxSlippage } };
   }
-  throw new Error("An order needs a stop-loss threshold, a take-profit threshold, or both");
+  throw invalidTrigger("an order needs a stop-loss threshold, a take-profit threshold, or both");
 }
 
 /**

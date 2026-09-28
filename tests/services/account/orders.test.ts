@@ -3,6 +3,7 @@ import BigNumber from "bignumber.js";
 import BN from "bn.js";
 import { describe, expect, it } from "vitest";
 
+import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import {
   AccountFlags,
   BalanceType,
@@ -12,7 +13,6 @@ import {
   getActiveAccountFlags,
   marginfiAccountToDto,
   MarginfiAccountType,
-  resolveOrderBanks,
   resolveOrderLegs,
 } from "~/services/account";
 import { AssetTag, BankType, OperationalState, RiskTier } from "~/services/bank";
@@ -28,6 +28,16 @@ const PROGRAM_ID = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const ACCOUNT = new PublicKey("11111111111111111111111111111112");
 const BANK_A = new PublicKey("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh");
 const BANK_B = new PublicKey("2s37akK2eyBbp8DZgCm7RtsaEz8eJE3Nbb2b9dEVRR6d");
+
+const expectBuildError = (run: () => unknown, code: TransactionBuildingErrorCode) => {
+  try {
+    run();
+    expect.unreachable();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TransactionBuildingError);
+    expect((error as TransactionBuildingError).code).toBe(code);
+  }
+};
 
 describe("deriveOrderPda", () => {
   it("is independent of the bank key order", () => {
@@ -78,14 +88,39 @@ describe("buildOrderTrigger", () => {
   });
 
   it("rejects take-profit at or below stop-loss, and empty triggers", () => {
-    expect(() =>
-      buildOrderTrigger({
-        stopLossUsd: new BigNumber(100),
-        takeProfitUsd: new BigNumber(100),
-        maxSlippagePercent: 1,
-      })
-    ).toThrow();
-    expect(() => buildOrderTrigger({ maxSlippagePercent: 1 })).toThrow();
+    expectBuildError(
+      () =>
+        buildOrderTrigger({
+          stopLossUsd: new BigNumber(100),
+          takeProfitUsd: new BigNumber(100),
+          maxSlippagePercent: 1,
+        }),
+      TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER
+    );
+    expectBuildError(
+      () => buildOrderTrigger({ maxSlippagePercent: 1 }),
+      TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER
+    );
+  });
+
+  it("rejects thresholds that are not above 0, like the program", () => {
+    for (const thresholds of [
+      { stopLossUsd: new BigNumber(0) },
+      { takeProfitUsd: new BigNumber(-5) },
+      { stopLossUsd: new BigNumber(0), takeProfitUsd: new BigNumber(120) },
+    ]) {
+      expectBuildError(
+        () => buildOrderTrigger({ ...thresholds, maxSlippagePercent: 1 }),
+        TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER
+      );
+    }
+  });
+
+  it("rejects slippage outside the cap", () => {
+    expectBuildError(
+      () => buildOrderTrigger({ stopLossUsd: new BigNumber(90), maxSlippagePercent: 0 }),
+      TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE
+    );
   });
 });
 
@@ -118,14 +153,13 @@ describe("resolveOrderLegs", () => {
     expect(legs.debtBank?.equals(BANK_B)).toBe(true);
   });
 
-  it("returns null for a closed leg instead of throwing", () => {
+  it("returns null for a closed leg", () => {
     const account = accountWith([balance(BANK_A, 3, { assets: 10 })]);
     const order = { address: ACCOUNT, tags: [3, 4] as [number, number] };
     expect(resolveOrderLegs(account, order)).toEqual({
       collateralBank: BANK_A,
       debtBank: null,
     });
-    expect(() => resolveOrderBanks(account, order)).toThrow();
   });
 });
 

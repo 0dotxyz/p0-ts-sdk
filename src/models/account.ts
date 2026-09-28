@@ -36,6 +36,8 @@ import {
   MakeBorrowIxParams,
   makeBorrowTx,
   MakeBorrowTxParams,
+  makeCloseOrderIx,
+  MakeCloseOrderIxParams,
   makeCloseOrderTx,
   MakeCloseOrderTxParams,
   makePlaceOrderIx,
@@ -1203,6 +1205,17 @@ class MarginfiAccount implements MarginfiAccountType {
     params: Omit<MakePlaceOrderTxParams, "marginfiAccount">
   ): Promise<ExtendedV0Transaction> {
     return makePlaceOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /**
+   * Creates a close-order instruction for this marginfi account.
+   *
+   * @see {@link makeCloseOrderIx} for detailed implementation
+   */
+  async makeCloseOrderIx(
+    params: Omit<MakeCloseOrderIxParams, "marginfiAccount">
+  ): Promise<InstructionsWrapper> {
+    return makeCloseOrderIx({ ...params, marginfiAccount: this });
   }
 
   /**

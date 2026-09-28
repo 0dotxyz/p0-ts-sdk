@@ -866,6 +866,35 @@ export class MarginfiAccountWrapper {
   // ----------------------------------------------------------------------------
 
   /**
+   * Creates a place-order instruction, for composing into a larger transaction.
+   *
+   * @param collateralBank - Bank of the asset-side balance
+   * @param debtBank - Bank of the liability-side balance
+   * @param trigger - USD pair-equity thresholds and max slippage
+   */
+  async makePlaceOrderIx(
+    collateralBank: PublicKey,
+    debtBank: PublicKey,
+    trigger: OrderTriggerParams
+  ): Promise<InstructionsWrapper> {
+    return this.account.makePlaceOrderIx({
+      program: this.client.program,
+      collateralBank,
+      debtBank,
+      trigger,
+    });
+  }
+
+  /**
+   * Creates a close-order instruction, for composing into a larger transaction.
+   *
+   * @param order - The order PDA (from `fetchOrdersForAccount` or `deriveOrderPda`)
+   */
+  async makeCloseOrderIx(order: PublicKey): Promise<InstructionsWrapper> {
+    return this.account.makeCloseOrderIx({ program: this.client.program, order });
+  }
+
+  /**
    * Creates a transaction placing a take-profit / stop-loss order on a collateral/debt pair.
    *
    * @param collateralBank - Bank of the asset-side balance

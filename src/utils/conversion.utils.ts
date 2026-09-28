@@ -6,6 +6,8 @@ import { Decimal } from "decimal.js";
 
 import { Amount, WrappedI80F48 } from "../types";
 
+import { TransactionBuildingError } from "~/errors";
+
 const I80F48_FRACTIONAL_BYTES = 6;
 const I80F48_TOTAL_BYTES = 16;
 const I80F48_DIVISOR = new Decimal(2).pow(8 * I80F48_FRACTIONAL_BYTES);
@@ -124,13 +126,13 @@ const MAX_ORDER_SLIPPAGE_PERCENT = 10;
  * Converts a slippage tolerance in percent to the on-chain u32 representation
  * (a fraction of `u32::MAX`, where 100% = `u32::MAX`).
  *
- * @param percent - Slippage in percent, must be in (0, 10] (protocol cap)
+ * @param percent - Slippage in percent, must be in (0, 10] (protocol cap). The program accepts 0,
+ *   but a keeper can't execute an order that allows no slippage, so 0 is rejected.
+ * @throws {TransactionBuildingError} `ORDER_INVALID_SLIPPAGE` if `percent` is outside (0, 10]
  */
 export function percentToMaxSlippageU32(percent: number): number {
   if (!(percent > 0) || percent > MAX_ORDER_SLIPPAGE_PERCENT) {
-    throw new Error(
-      `Max slippage percent must be in (0, ${MAX_ORDER_SLIPPAGE_PERCENT}], got ${percent}`
-    );
+    throw TransactionBuildingError.orderInvalidSlippage(percent, MAX_ORDER_SLIPPAGE_PERCENT);
   }
   // Floor: the program rejects anything above u32::MAX / 10 (integer division), and rounding
   // 10% up lands one unit over that cap.
