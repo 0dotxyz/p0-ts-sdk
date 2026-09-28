@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.8.4"
   },
   "changesets": [
+    "fresh-facts-find",
     "ninety-shrimps-wish"
   ]
 }

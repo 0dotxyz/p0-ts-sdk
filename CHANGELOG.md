@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.0-alpha.1
+
+### Patch Changes
+
+- feat: add order valuation, leg resolver and account order fields
+
 ## 2.9.0-alpha.0
 
 ### Minor Changes
