@@ -26,9 +26,6 @@ importers:
       '@solana-program/token':
         specifier: ^0.16.1
         version: 0.16.1(@solana/kit@8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))
-      '@solana/buffer-layout':
-        specifier: ^4.0.1
-        version: 4.0.1
       '@solana/web3.js':
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -38,9 +35,6 @@ importers:
       bignumber.js:
         specifier: ^9.1.2
         version: 9.3.1
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -72,9 +66,6 @@ importers:
       '@solana/kit':
         specifier: ^8.3.0
         version: 8.3.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@types/bn.js':
-        specifier: ^5.1.5
-        version: 5.2.0
       '@types/node':
         specifier: ^20.11.5
         version: 20.19.27
@@ -1379,9 +1370,6 @@ packages:
 
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
-
-  '@types/bn.js@5.2.0':
-    resolution: {integrity: sha512-DLbJ1BPqxvQhIGbeu8VbUC1DiAiahHtAYvA0ZEAa4P31F7IaArc8z3C3BRQdWX4mtLQuABG4yzp76ZrS02Ui1Q==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -4740,10 +4728,6 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
-
-  '@types/bn.js@5.2.0':
-    dependencies:
-      '@types/node': 20.19.27
 
   '@types/chai@5.2.3':
     dependencies:

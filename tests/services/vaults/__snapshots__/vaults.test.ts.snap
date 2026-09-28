@@ -1,0 +1,546 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`vault actions > claims a fulfilled withdrawal 1`] = `
+[
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "2cGosKLVJug5MRzQ46Ud5eAJe22T7KpF8tueQsdCeG2a",
+        false,
+        false,
+      ],
+      [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        true,
+      ],
+      [
+        "FzbcyEZ9m8xjtergWgWDq7mfPoHEbboBF791B6cTpzbq",
+        false,
+        true,
+      ],
+      [
+        "FwZcV4DVGbq5ddHJAvQbYuXVC7nqtd2jqe1B3p17pV5f",
+        false,
+        true,
+      ],
+      [
+        "HqcAW4yZD44xN3Bcr2DCVhZcg6U3dRgbhnXyACjocXcs",
+        false,
+        true,
+      ],
+      [
+        "45NGaibPKjhp8pP7TJhArmmig8tUreqJ5Z1jVkH3reuc",
+        false,
+        true,
+      ],
+      [
+        "Eh6DLCDVnZkmGgaUoEgZsrnWo9YxfDx1fhfMqFxQ42DT",
+        false,
+        true,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+      [
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        false,
+        false,
+      ],
+    ],
+    "data": "6b6286834a78ae79",
+    "program": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+  },
+]
+`;
+
+exports[`vault actions > deposits into 2cGosKLVJug5MRzQ46Ud5eAJe22T7KpF8tueQsdCeG2a 1`] = `
+[
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        false,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+    ],
+    "data": "01",
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  },
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "2cGosKLVJug5MRzQ46Ud5eAJe22T7KpF8tueQsdCeG2a",
+        false,
+        true,
+      ],
+      [
+        "2mXGYCp8sknDJWk23o9vCzuEPuaubpuoTYLyonqzPz5i",
+        false,
+        true,
+      ],
+      [
+        "GgDHpDvwR87NntGkicnzaBb1dDhbNj3RUkzyEBtNFwc3",
+        false,
+        false,
+      ],
+      [
+        "vuC8geb3ZHtEHcJr43BqZhYpKG4pffshaa6LzSLbrWJ",
+        false,
+        true,
+      ],
+      [
+        "FzbcyEZ9m8xjtergWgWDq7mfPoHEbboBF791B6cTpzbq",
+        false,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "DJ3TKXspJu5KJv4QWiZxgvkR1zmttKkuzhBzu8zVbyne",
+        false,
+        true,
+      ],
+      [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        true,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+      [
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        false,
+        false,
+      ],
+    ],
+    "data": "f223c68952e1f2b687d6120000000000",
+    "program": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+  },
+]
+`;
+
+exports[`vault actions > deposits into So1Vau1t11111111111111111111111111111111111 1`] = `
+[
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "umiAsegEDQeKMAfqPhqNxxYDsXo8fuhQy7HHE7viKud",
+        false,
+        true,
+      ],
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        false,
+        false,
+      ],
+      [
+        "So11111111111111111111111111111111111111112",
+        false,
+        false,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+    ],
+    "data": "01",
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  },
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "umiAsegEDQeKMAfqPhqNxxYDsXo8fuhQy7HHE7viKud",
+        false,
+        true,
+      ],
+    ],
+    "data": "0200000097fd120000000000",
+    "program": "11111111111111111111111111111111",
+  },
+  {
+    "accounts": [
+      [
+        "umiAsegEDQeKMAfqPhqNxxYDsXo8fuhQy7HHE7viKud",
+        false,
+        true,
+      ],
+      [
+        "SysvarRent111111111111111111111111111111111",
+        false,
+        false,
+      ],
+    ],
+    "data": "11",
+    "program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  },
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        false,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+    ],
+    "data": "01",
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  },
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "So1Vau1t11111111111111111111111111111111111",
+        false,
+        true,
+      ],
+      [
+        "2qgy3tt657sniXhLk9Wm8StQRyntbYJRhdajgDvfvrRu",
+        false,
+        true,
+      ],
+      [
+        "HkDisozVNVEwggr26zEzRgPa5tf3Mgve54rBv4N5Hqvz",
+        false,
+        false,
+      ],
+      [
+        "vuC8geb3ZHtEHcJr43BqZhYpKG4pffshaa6LzSLbrWJ",
+        false,
+        true,
+      ],
+      [
+        "umiAsegEDQeKMAfqPhqNxxYDsXo8fuhQy7HHE7viKud",
+        false,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "EJvttFeEh74XGnMM97p99gMPU713GQj7ap2vEQmZLKLG",
+        false,
+        true,
+      ],
+      [
+        "So11111111111111111111111111111111111111112",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        true,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+      [
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        false,
+        false,
+      ],
+    ],
+    "data": "f223c68952e1f2b687d6120000000000",
+    "program": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+  },
+]
+`;
+
+exports[`vault actions > starts a withdrawal from 2cGosKLVJug5MRzQ46Ud5eAJe22T7KpF8tueQsdCeG2a 1`] = `
+[
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "2cGosKLVJug5MRzQ46Ud5eAJe22T7KpF8tueQsdCeG2a",
+        false,
+        true,
+      ],
+      [
+        "2mXGYCp8sknDJWk23o9vCzuEPuaubpuoTYLyonqzPz5i",
+        false,
+        true,
+      ],
+      [
+        "vuC8geb3ZHtEHcJr43BqZhYpKG4pffshaa6LzSLbrWJ",
+        false,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        true,
+      ],
+      [
+        "HJt8Tjdsc9ms9i4WCZEzhzr4oyf3ANcdzXrNdLPFqm3M",
+        false,
+        true,
+      ],
+      [
+        "FwZcV4DVGbq5ddHJAvQbYuXVC7nqtd2jqe1B3p17pV5f",
+        false,
+        true,
+      ],
+      [
+        "HqcAW4yZD44xN3Bcr2DCVhZcg6U3dRgbhnXyACjocXcs",
+        false,
+        true,
+      ],
+      [
+        "45NGaibPKjhp8pP7TJhArmmig8tUreqJ5Z1jVkH3reuc",
+        false,
+        true,
+      ],
+      [
+        "Eh6DLCDVnZkmGgaUoEgZsrnWo9YxfDx1fhfMqFxQ42DT",
+        false,
+        true,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+      [
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        false,
+        false,
+      ],
+      [
+        "GgDHpDvwR87NntGkicnzaBb1dDhbNj3RUkzyEBtNFwc3",
+        false,
+        false,
+      ],
+    ],
+    "data": "b712469c946da122b1cb740000000000",
+    "program": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+  },
+]
+`;
+
+exports[`vault actions > starts a withdrawal from FeeVau1t11111111111111111111111111111111111 1`] = `
+[
+  {
+    "accounts": [
+      [
+        "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+        true,
+        true,
+      ],
+      [
+        "FeeVau1t11111111111111111111111111111111111",
+        false,
+        true,
+      ],
+      [
+        "GjAZG3waRGqzPeMAj7X6HDS4WsbH4P9t2hkouvrAzgiB",
+        false,
+        true,
+      ],
+      [
+        "vuC8geb3ZHtEHcJr43BqZhYpKG4pffshaa6LzSLbrWJ",
+        false,
+        true,
+      ],
+      [
+        "EWzodugN6Fn9wRzQGPgrrmqiGqQKtJjMze2VDwcCRFc4",
+        false,
+        true,
+      ],
+      [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        false,
+        false,
+      ],
+      [
+        "9a43UdnmcrnaPemBy7F67ypzbX7A4JAhHHiWSYCCiVVx",
+        false,
+        true,
+      ],
+      [
+        "Fee1Recipient111111111111111111111111111111",
+        false,
+        true,
+      ],
+      [
+        "C7P3pPhpycPMJUFWeGoyTu3t5FdFZFfLNDoEZZQfL5wE",
+        false,
+        true,
+      ],
+      [
+        "B1ECHgs9QddarzK8FCUP1jjpS87SqEE3q15iS3s87wNY",
+        false,
+        true,
+      ],
+      [
+        "5NNGoPhJ7RpT17D39hZMBZDFMfpEJJGwNMTCHHSKKRXK",
+        false,
+        true,
+      ],
+      [
+        "GvQPQt4cSCnGhjw1y9SH78o2kqHrtEFciQG9SdECf6gi",
+        false,
+        true,
+      ],
+      [
+        "11111111111111111111111111111111",
+        false,
+        false,
+      ],
+      [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        false,
+        false,
+      ],
+      [
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        false,
+        false,
+      ],
+      [
+        "FYErZdRJuChkRfmV9Vmp5ABL7n3sWvVsRKPC7G4y3L77",
+        false,
+        false,
+      ],
+    ],
+    "data": "b712469c946da122b1cb740000000000",
+    "program": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+  },
+]
+`;

@@ -10,12 +10,12 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
+import { deriveGammaWithdrawEscrow } from "~/vendor/gamma";
 import {
-  deriveGammaWithdrawEscrow,
   makeGammaCompleteWithdrawalIx,
   makeGammaDepositIx,
   makeGammaWithdrawIx,
-} from "~/vendor/gamma";
+} from "~/vendor/gamma/instructions";
 
 // Wire format recorded from the hand-written web3.js builders these replaced; never update with `-u`.
 

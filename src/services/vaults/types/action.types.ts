@@ -1,50 +1,54 @@
-import { AddressLookupTableAccount, Connection, PublicKey } from "@solana/web3.js";
+import type {
+  Address,
+  GetAccountInfoApi,
+  GetLatestBlockhashApi,
+  Rpc,
+  TransactionSigner,
+} from "@solana/kit";
 
-import type { SwapOpts, SwapEngineRunner } from "~/services/account";
-import { Amount } from "~/types";
+import type { ActionTxParams, SwapEngineRunner, SwapFlowRpc, SwapOpts } from "~/services/account";
+import type { Amount } from "~/types";
 
-// -- Gamma Vault Actions ----
-
-/**
- * Base params shared by every Gamma vault action.
- * `lpVault` is the vault state account (`LpVault`); its on-chain fields supply
- * the asset/share mints, the vault asset token account, and the fee recipient.
- * `tokenProgram` is auto-detected from the asset mint owner when omitted.
- */
-interface VaultActionBaseParams {
-  user: PublicKey;
-  lpVault: PublicKey;
-  connection: Connection;
-  tokenProgram?: PublicKey;
+/** Shared by every Gamma vault action. */
+interface VaultActionIxParams {
+  rpc: Rpc<GetAccountInfoApi>;
+  /** The vault user; signs and pays. */
+  authority: TransactionSigner;
+  /** The vault's `LpVault` account. */
+  lpVault: Address;
+  /** Token program of the vault's mints; read from the asset mint's owner when omitted. */
+  tokenProgram?: Address;
 }
 
-interface VaultTxExtras {
-  luts?: AddressLookupTableAccount[];
-  blockhash?: string;
+interface VaultActionTxParams extends Omit<VaultActionIxParams, "rpc">, ActionTxParams {
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
 }
 
-/** `amount` is in raw base units of the vault's asset mint. */
-export interface MakeVaultDepositIxParams extends VaultActionBaseParams {
+export interface MakeVaultDepositIxParams extends VaultActionIxParams {
+  /** Asset mint base units. */
   amount: Amount;
 }
-export interface MakeVaultDepositTxParams extends MakeVaultDepositIxParams, VaultTxExtras {}
 
-/** `sharesAmount` is in raw base units of the vault's share mint. */
-export interface MakeVaultWithdrawIxParams extends VaultActionBaseParams {
+export interface MakeVaultDepositTxParams
+  extends Omit<MakeVaultDepositIxParams, "rpc">, VaultActionTxParams {}
+
+export interface MakeVaultWithdrawIxParams extends VaultActionIxParams {
+  /** Share mint base units. */
   sharesAmount: Amount;
 }
-export interface MakeVaultWithdrawTxParams extends MakeVaultWithdrawIxParams, VaultTxExtras {}
 
-export interface MakeVaultCompleteWithdrawalIxParams extends VaultActionBaseParams {}
-export interface MakeVaultCompleteWithdrawalTxParams
-  extends MakeVaultCompleteWithdrawalIxParams, VaultTxExtras {}
+export interface MakeVaultWithdrawTxParams
+  extends Omit<MakeVaultWithdrawIxParams, "rpc">, VaultActionTxParams {}
 
-/**
- * Zap-deposit: swap `inputMint` into the vault's asset mint, then deposit.
- * `inputAmount` is a UI amount of `inputMint`.
- */
-export interface MakeVaultDepositWithSwapTxParams extends VaultActionBaseParams, VaultTxExtras {
-  inputMint: string;
+export type MakeVaultCompleteWithdrawalIxParams = VaultActionIxParams;
+
+export type MakeVaultCompleteWithdrawalTxParams = VaultActionTxParams;
+
+/** Swaps `inputAmount` (UI units of `inputMint`) into the vault's asset mint, then deposits it. */
+export interface MakeVaultDepositWithSwapTxParams
+  extends Omit<VaultActionIxParams, "rpc">, Omit<ActionTxParams, "rpc"> {
+  rpc: SwapFlowRpc;
+  inputMint: Address;
   inputAmount: Amount;
   inputDecimals: number;
   swapOpts: SwapOpts;

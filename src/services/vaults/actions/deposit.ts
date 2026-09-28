@@ -1,114 +1,88 @@
-import { TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import type { Instruction } from "@solana/kit";
+import {
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+} from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
-import BN from "bn.js";
 
 import type { MakeVaultDepositIxParams, MakeVaultDepositTxParams } from "../types";
 import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
 
 import { WSOL_MINT } from "~/constants";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
+  makeTransactionMessage,
   makeWrapSolIxs,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
-import {
-  deriveGammaAta,
-  deriveGammaDepositPolicy,
-  deriveGammaDepositReceipt,
-  deriveGammaWithdrawalPolicy,
-  makeGammaDepositIx,
-} from "~/vendor/gamma";
-import { createAssociatedTokenAccountIdempotentInstruction } from "~/vendor/spl";
+import { makeGammaDepositIx } from "~/vendor/gamma/instructions";
 
 /**
- * Build the instruction to deposit into a Gamma LP vault. Instant deposit —
- * the user receives vault shares in the same transaction. The program creates
- * the user's share ATA and deposit receipt if they do not yet exist.
- *
- * `amount` is interpreted as raw base units of the vault's asset mint.
+ * Deposits `amount` (asset mint base units) into a Gamma LP vault; the shares are minted in the
+ * same transaction. A native-SOL vault first wraps the amount into the authority's wSOL ATA.
+ * @throws if `lpVault` doesn't exist or isn't an `LpVault`
  */
-export async function makeVaultDepositIx(
-  params: MakeVaultDepositIxParams
-): Promise<InstructionsWrapper> {
-  const { amount, user, lpVault, connection } = params;
+export async function makeVaultDepositIx({
+  rpc,
+  authority,
+  lpVault,
+  tokenProgram,
+  amount,
+}: MakeVaultDepositIxParams): Promise<Instruction[]> {
+  const vault = await fetchGammaLpVault(rpc, lpVault);
+  const vaultTokenProgram = tokenProgram ?? (await resolveVaultTokenProgram(rpc, vault.assetsMint));
+  const [userShareAta] = await findAssociatedTokenPda({
+    mint: vault.sharesMint,
+    owner: authority.address,
+    tokenProgram: vaultTokenProgram,
+  });
+  const amountNative = BigInt(new BigNumber(amount).toFixed(0));
 
-  const vault = await fetchGammaLpVault(connection, lpVault);
-  const tokenProgram =
-    params.tokenProgram ?? (await resolveVaultTokenProgram(connection, vault.assetsMint));
-
-  const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
-  const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
-  const [depositReceipt] = deriveGammaDepositReceipt(user, lpVault);
-  const userAssetAta = deriveGammaAta(vault.assetsMint, user, tokenProgram);
-  const userShareAta = deriveGammaAta(vault.sharesMint, user, tokenProgram);
-
-  const amountNative = new BN(new BigNumber(amount).toFixed(0));
-
-  // Native-SOL vault: the deposit spends WSOL from the user's asset ATA, but the
-  // user holds native SOL (no WSOL ATA → "AccountOwnedByWrongProgram"). Wrap the
-  // deposit amount into the WSOL ATA first (idempotent create + fund + sync).
-  // `makeWrapSolIxs` takes a UI amount; the asset is WSOL (9 decimals).
-  const wrapIxs: TransactionInstruction[] = vault.assetsMint.equals(WSOL_MINT)
-    ? makeWrapSolIxs(user, new BigNumber(amountNative.toString()).shiftedBy(-9))
-    : [];
-
-  // The Gamma deposit ix does NOT create the user's share ATA — a first-time
-  // depositor has none, so the (System-owned) account fails the deposit's token
-  // constraint with "AccountOwnedByWrongProgram". Idempotently create it first.
-  const createShareAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-    user,
-    userShareAta,
-    user,
-    vault.sharesMint,
-    tokenProgram
-  );
-
-  const ix = makeGammaDepositIx(
-    {
-      user,
+  return [
+    ...(vault.assetsMint === WSOL_MINT
+      ? await makeWrapSolIxs(authority, new BigNumber(amountNative.toString()).shiftedBy(-9))
+      : []),
+    // The deposit instruction doesn't create the share ATA a first-time depositor lacks.
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: authority,
+      ata: userShareAta,
+      owner: authority.address,
+      mint: vault.sharesMint,
+      tokenProgram: vaultTokenProgram,
+    }),
+    await makeGammaDepositIx({
+      user: authority,
       lpVault,
-      withdrawalPolicy,
-      depositPolicy,
       assetsAccount: vault.assetsAccount,
-      userAssetAta,
-      userShareAta,
-      depositReceipt,
       assetsMint: vault.assetsMint,
       sharesMint: vault.sharesMint,
-      tokenProgram,
-    },
-    amountNative
-  );
-
-  const instructions: TransactionInstruction[] = [...wrapIxs, createShareAtaIx, ix];
-
-  return { instructions, keys: [] };
+      tokenProgram: vaultTokenProgram,
+      amount: amountNative,
+    }),
+  ];
 }
 
-/** Build a versioned transaction to deposit into a Gamma LP vault. */
+/**
+ * Builds a transaction around {@link makeVaultDepositIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeVaultDepositIx}
+ */
 export async function makeVaultDepositTx(
   params: MakeVaultDepositTxParams
-): Promise<ExtendedV0Transaction> {
-  const { connection, user, luts, blockhash: providedBlockhash } = params;
+): Promise<SolanaTransaction> {
+  const { luts, latestBlockhash, ...depositIxParams } = params;
 
-  const { instructions, keys } = await makeVaultDepositIx(params);
+  const depositIxs = await makeVaultDepositIx(depositIxParams);
 
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: user,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    signers: keys,
-    addressLookupTables: luts,
+  return {
+    message: makeTransactionMessage({
+      instructions: depositIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ??
+        (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.VAULT_DEPOSIT,
-  });
+  };
 }

@@ -1,16 +1,15 @@
+import { assertAccountExists, fetchEncodedAccount } from "@solana/kit";
 import {
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
-import BN from "bn.js";
 
 import type { MakeVaultDepositWithSwapTxParams } from "../types";
 import { fetchGammaLpVault } from "../utils";
 
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, WSOL_MINT } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, TOKEN_2022_PROGRAM_ID, WSOL_MINT } from "~/constants";
 import {
   runSwapEngine,
   swapEngineProvidersFromOpts,
@@ -18,172 +17,129 @@ import {
   type SwapQuoteResult,
 } from "~/services/account";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
   getTotalAccountKeys,
   getTxSize,
+  makeTransactionMessage,
   makeWrapSolIxs,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
-import {
-  deriveGammaAta,
-  deriveGammaDepositPolicy,
-  deriveGammaDepositReceipt,
-  deriveGammaWithdrawalPolicy,
-  makeGammaDepositIx,
-} from "~/vendor/gamma";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from "~/vendor/spl";
+import { makeGammaDepositIx } from "~/vendor/gamma/instructions";
 
 /**
- * Zap-deposit into a Gamma LP vault: swap `inputMint` into the vault's asset
- * mint and deposit the swapped output — all in one transaction. Mirrors
- * `makeSwapCollateralTx`'s swap-engine composition, minus the flashloan/withdraw
- * parts (the input is wallet-funded, not borrowed).
- *
- * The deposit is sized from the swap's **minimum guaranteed output**
- * (`otherAmountThreshold`), so it can never exceed what the swap actually
- * yields; the small surplus stays in the wallet as dust.
- *
- * `inputAmount` is a UI amount of `inputMint`.
+ * Zap-deposits into a Gamma LP vault in one transaction: swaps `inputAmount` (UI units of
+ * `inputMint`) into the vault's asset mint and deposits the swap's minimum guaranteed output, so
+ * the deposit never exceeds what the swap yields (any surplus stays in the wallet). Native SOL is
+ * wrapped first. The authority pays, signs and takes the swap; `latestBlockhash` is fetched when
+ * omitted.
+ * @throws if `lpVault` or its asset mint doesn't exist, the swap has no route, or the transaction
+ * exceeds the size or account-lock limits
  */
 export async function makeVaultDepositWithSwapTx(
   params: MakeVaultDepositWithSwapTxParams
 ): Promise<{
-  transaction: ExtendedV0Transaction;
+  transaction: SolanaTransaction;
   quoteResponse: SwapQuoteResult;
-  /** Minimum vault-asset amount received (UI units) — what gets deposited. */
+  /** Minimum vault-asset amount received (UI units): what gets deposited. */
   destinationAmount: number;
 }> {
   const {
-    user,
+    rpc,
+    authority,
     lpVault,
-    connection,
     inputMint,
     inputAmount,
     inputDecimals,
     swapOpts,
     swapEngineRunner,
     luts,
-    blockhash: providedBlockhash,
+    latestBlockhash,
   } = params;
 
-  const vault = await fetchGammaLpVault(connection, lpVault);
-
-  // One account read resolves both the token program and the asset decimals
-  // (decimals is byte 44 of the SPL/Token-2022 Mint layout).
-  const mintInfo = await connection.getAccountInfo(vault.assetsMint);
-  if (!mintInfo) {
-    throw new Error(`Vault asset mint not found: ${vault.assetsMint.toBase58()}`);
-  }
+  const vault = await fetchGammaLpVault(rpc, lpVault);
+  const assetMintAccount = await fetchEncodedAccount(rpc, vault.assetsMint);
+  assertAccountExists(assetMintAccount);
   const tokenProgram =
     params.tokenProgram ??
-    (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID);
-  const assetDecimals = mintInfo.data[44];
+    (assetMintAccount.programAddress === TOKEN_2022_PROGRAM_ID
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ADDRESS);
+  // Classic and Token-2022 mints share the decimals offset.
+  const assetDecimals = assetMintAccount.data[44];
 
-  const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
-  const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
-  const [depositReceipt] = deriveGammaDepositReceipt(user, lpVault);
-  const userAssetAta = deriveGammaAta(vault.assetsMint, user, tokenProgram);
-  const userShareAta = deriveGammaAta(vault.sharesMint, user, tokenProgram);
-
-  // The Gamma deposit ix doesn't create the user's share ATA — create it
-  // (idempotent) so a first-time depositor's deposit doesn't fail with
-  // "AccountOwnedByWrongProgram" on the (System-owned) missing account.
-  const createShareAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-    user,
-    userShareAta,
-    user,
-    vault.sharesMint,
-    tokenProgram
+  const [[userAssetAta], [userShareAta]] = await Promise.all(
+    [vault.assetsMint, vault.sharesMint].map((mint) =>
+      findAssociatedTokenPda({ mint, owner: authority.address, tokenProgram })
+    )
   );
-
+  // The deposit instruction doesn't create the share ATA a first-time depositor lacks.
+  const createShareAtaIx = getCreateAssociatedTokenIdempotentInstruction({
+    payer: authority,
+    ata: userShareAta,
+    owner: authority.address,
+    mint: vault.sharesMint,
+    tokenProgram,
+  });
   const depositAccounts = {
-    user,
+    user: authority,
     lpVault,
-    withdrawalPolicy,
-    depositPolicy,
     assetsAccount: vault.assetsAccount,
-    userAssetAta,
-    userShareAta,
-    depositReceipt,
     assetsMint: vault.assetsMint,
     sharesMint: vault.sharesMint,
     tokenProgram,
   };
-
-  // Native SOL must be wrapped to wSOL before the swap can spend it (the engine
-  // builds swaps with wrapAndUnwrapSol: false). The wrap ixs are part of the
-  // non-swap footprint the engine fits its route around.
-  const inputAmountBn = new BigNumber(inputAmount);
-  const isNativeSol = new PublicKey(inputMint).equals(WSOL_MINT);
-  const wrapIxs: TransactionInstruction[] = isNativeSol ? makeWrapSolIxs(user, inputAmountBn) : [];
-
-  const amountNative = uiToNative(inputAmountBn, inputDecimals);
-
-  // Placeholder deposit ix (amount-independent byte size) so the engine can
-  // measure the combined tx footprint before the swap output is known.
-  const placeholderDepositIx = makeGammaDepositIx(depositAccounts, new BN(0));
+  // The engine builds swaps without wrapping, so native SOL is wrapped up front (and counted in the
+  // footprint the engine fits its route around).
+  const wrapIxs = inputMint === WSOL_MINT ? await makeWrapSolIxs(authority, new BigNumber(inputAmount)) : [];
 
   const runEngine = swapEngineRunner ?? runSwapEngine;
   const engineResult = await runEngine({
     inputMint,
-    outputMint: vault.assetsMint.toBase58(),
-    amountNative: amountNative.toNumber(),
+    outputMint: vault.assetsMint,
+    amountNative: Number(uiToNative(inputAmount, inputDecimals)),
     inputDecimals,
     outputDecimals: assetDecimals,
     ...swapEngineQuoteFieldsFromOpts(swapOpts),
-    taker: user,
+    taker: authority.address,
     destinationTokenAccount: userAssetAta,
-    connection,
+    rpc,
     footprint: {
-      instructions: [...wrapIxs, createShareAtaIx, placeholderDepositIx],
-      luts: luts ?? [],
-      payer: user,
-      // Non-flashloan single tx: the swap may use the full tx budget.
+      // The deposit's size doesn't depend on its amount, so a zero-amount one stands in for it.
+      instructions: [
+        ...wrapIxs,
+        createShareAtaIx,
+        await makeGammaDepositIx({ ...depositAccounts, amount: 0n }),
+      ],
+      luts,
+      payer: authority.address,
+      // No flash loan around it: the swap may use the whole transaction.
       sizeConstraint: MAX_TX_SIZE,
       maxSwapTotalAccounts: MAX_ACCOUNT_LOCKS,
     },
     providers: swapEngineProvidersFromOpts(swapOpts),
   });
 
-  // Deposit the minimum guaranteed swap output; the surplus is left as dust.
-  const depositIx = makeGammaDepositIx(depositAccounts, engineResult.outputAmountNative);
+  const message = makeTransactionMessage({
+    instructions: [
+      ...wrapIxs,
+      createShareAtaIx,
+      ...engineResult.setupInstructions,
+      ...engineResult.swapInstructions,
+      await makeGammaDepositIx({ ...depositAccounts, amount: engineResult.outputAmountNative }),
+    ],
+    feePayer: authority,
+    latestBlockhash:
+      latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+    luts: { ...luts, ...engineResult.swapLuts },
+  });
 
-  const instructions = [
-    ...wrapIxs,
-    createShareAtaIx,
-    ...engineResult.setupInstructions,
-    ...engineResult.swapInstructions,
-    depositIx,
-  ];
-  const allLuts = [...(luts ?? []), ...engineResult.swapLuts];
-
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: user,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(allLuts);
-
-  const tx = new VersionedTransaction(message);
-
-  if (getTxSize(tx) > MAX_TX_SIZE || getTotalAccountKeys(tx) > MAX_ACCOUNT_LOCKS) {
+  if (getTxSize(message) > MAX_TX_SIZE || getTotalAccountKeys(message) > MAX_ACCOUNT_LOCKS) {
     throw new Error("vault deposit-with-swap: swap route too large to fit in one transaction");
   }
 
   return {
-    transaction: addTransactionMetadata(tx, {
-      signers: [],
-      addressLookupTables: allLuts,
-      type: TransactionType.VAULT_DEPOSIT,
-    }),
+    transaction: { message, type: TransactionType.VAULT_DEPOSIT },
     quoteResponse: engineResult.quoteResponse,
     destinationAmount: nativeToUi(engineResult.outputAmountNative, assetDecimals),
   };

@@ -1,11 +1,6 @@
-import {
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import type { Instruction } from "@solana/kit";
+import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
-import BN from "bn.js";
 
 import type {
   MakeVaultCompleteWithdrawalIxParams,
@@ -15,175 +10,132 @@ import type {
 } from "../types";
 import { fetchGammaLpVault, resolveVaultTokenProgram } from "../utils";
 
-import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
-  InstructionsWrapper,
-  TransactionType,
-} from "~/services/transaction";
-import {
-  deriveGammaAta,
-  deriveGammaDepositPolicy,
-  deriveGammaWithdrawEscrow,
-  deriveGammaWithdrawReceipt,
-  deriveGammaWithdrawalPolicy,
-  makeGammaCompleteWithdrawalIx,
-  makeGammaWithdrawIx,
-} from "~/vendor/gamma";
+import { DEFAULT_ADDRESS } from "~/constants";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import { deriveGammaWithdrawEscrow } from "~/vendor/gamma";
+import { makeGammaCompleteWithdrawalIx, makeGammaWithdrawIx } from "~/vendor/gamma/instructions";
 
 /**
- * Build the instruction to initiate a withdrawal from a Gamma LP vault. Shares
- * are escrowed and a WithdrawReceipt is created/updated; the assets become
- * claimable via {@link makeVaultCompleteWithdrawalIx} once a keeper fulfills
- * the withdrawal.
- *
- * `sharesAmount` is interpreted as raw base units of the vault's share mint.
+ * Starts a withdrawal of `sharesAmount` (share mint base units) from a Gamma LP vault: the shares
+ * are escrowed and queued in the authority's withdraw receipt until a keeper fulfills them; then
+ * {@link makeVaultCompleteWithdrawalIx} claims the assets.
+ * @throws if `lpVault` doesn't exist or isn't an `LpVault`
  */
-export async function makeVaultWithdrawIx(
-  params: MakeVaultWithdrawIxParams
-): Promise<InstructionsWrapper> {
-  const { sharesAmount, user, lpVault, connection } = params;
+export async function makeVaultWithdrawIx({
+  rpc,
+  authority,
+  lpVault,
+  tokenProgram,
+  sharesAmount,
+}: MakeVaultWithdrawIxParams): Promise<Instruction[]> {
+  const vault = await fetchGammaLpVault(rpc, lpVault);
+  const vaultTokenProgram = tokenProgram ?? (await resolveVaultTokenProgram(rpc, vault.assetsMint));
 
-  const vault = await fetchGammaLpVault(connection, lpVault);
-  const tokenProgram =
-    params.tokenProgram ?? (await resolveVaultTokenProgram(connection, vault.assetsMint));
+  // `fee_recipient` is the share token account that receives fee shares and is passed as-is. With
+  // fees off it's the default address, and the program still deserializes whatever fills the slot,
+  // so the historical placeholder (the default address's asset ATA, which exists on-chain) is sent.
+  const [feeRecipientAccount] =
+    vault.feeRecipient === DEFAULT_ADDRESS
+      ? await findAssociatedTokenPda({
+          mint: vault.assetsMint,
+          owner: DEFAULT_ADDRESS,
+          tokenProgram: vaultTokenProgram,
+        })
+      : [vault.feeRecipient];
 
-  const [withdrawalPolicy] = deriveGammaWithdrawalPolicy(lpVault);
-  const [depositPolicy] = deriveGammaDepositPolicy(lpVault);
-  const [withdrawEscrow] = deriveGammaWithdrawEscrow(user, lpVault);
-  const [withdrawReceipt] = deriveGammaWithdrawReceipt(user, lpVault);
-
-  const userShareAta = deriveGammaAta(vault.sharesMint, user, tokenProgram);
-
-  // `fee_recipient` is itself the token account that receives fee shares — the
-  // program mints into it (`shares_mint` is writable "for fee mint CPI"), so it
-  // lives on the *share* mint and must be passed through as-is. Deriving an ATA
-  // from it yields an uninitialized address and the withdraw fails Anchor
-  // account validation with AccountNotInitialized (3012).
-  //
-  // When the vault has no fee config, `fee_recipient` is the default pubkey and
-  // the account is unused; the program still deserializes whatever is passed in
-  // this (non-optional in our encoding) slot, so keep sending the historical
-  // derived placeholder — those ATAs exist on-chain for the live vaults.
-  const feeRecipientAccount = vault.feeRecipient.equals(PublicKey.default)
-    ? deriveGammaAta(vault.assetsMint, vault.feeRecipient, tokenProgram)
-    : vault.feeRecipient;
-
-  const escrowAssetsAccount = deriveGammaAta(vault.assetsMint, withdrawEscrow, tokenProgram);
-  const escrowSharesAccount = deriveGammaAta(vault.sharesMint, withdrawEscrow, tokenProgram);
-
-  const sharesNative = new BN(new BigNumber(sharesAmount).toFixed(0));
-
-  const ix = makeGammaWithdrawIx(
-    {
-      user,
+  return [
+    await makeGammaWithdrawIx({
+      user: authority,
       lpVault,
-      withdrawalPolicy,
-      depositPolicy,
       assetsAccount: vault.assetsAccount,
-      userShareAta,
       assetsMint: vault.assetsMint,
       sharesMint: vault.sharesMint,
       feeRecipientAccount,
-      withdrawEscrow,
-      escrowAssetsAccount,
-      escrowSharesAccount,
-      withdrawReceipt,
-      tokenProgram,
-    },
-    sharesNative
-  );
-
-  const instructions: TransactionInstruction[] = [ix];
-
-  return { instructions, keys: [] };
-}
-
-/** Build a versioned transaction to initiate a withdrawal from a Gamma LP vault. */
-export async function makeVaultWithdrawTx(
-  params: MakeVaultWithdrawTxParams
-): Promise<ExtendedV0Transaction> {
-  const { connection, user, luts, blockhash: providedBlockhash } = params;
-
-  const { instructions, keys } = await makeVaultWithdrawIx(params);
-
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: user,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    signers: keys,
-    addressLookupTables: luts,
-    type: TransactionType.VAULT_WITHDRAW,
-  });
+      tokenProgram: vaultTokenProgram,
+      sharesAmount: BigInt(new BigNumber(sharesAmount).toFixed(0)),
+    }),
+  ];
 }
 
 /**
- * Build the instruction to claim assets from a fulfilled Gamma withdrawal.
- * Transfers the claimable assets from the escrow to the user's asset ATA
- * (created by the program if needed).
+ * Builds a transaction around {@link makeVaultWithdrawIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeVaultWithdrawIx}
  */
-export async function makeVaultCompleteWithdrawalIx(
-  params: MakeVaultCompleteWithdrawalIxParams
-): Promise<InstructionsWrapper> {
-  const { user, lpVault, connection } = params;
+export async function makeVaultWithdrawTx(
+  params: MakeVaultWithdrawTxParams
+): Promise<SolanaTransaction> {
+  const { luts, latestBlockhash, ...withdrawIxParams } = params;
 
-  const vault = await fetchGammaLpVault(connection, lpVault);
-  const tokenProgram =
-    params.tokenProgram ?? (await resolveVaultTokenProgram(connection, vault.assetsMint));
+  const withdrawIxs = await makeVaultWithdrawIx(withdrawIxParams);
 
-  const [withdrawEscrow] = deriveGammaWithdrawEscrow(user, lpVault);
-  const [withdrawReceipt] = deriveGammaWithdrawReceipt(user, lpVault);
-
-  const userAssetAta = deriveGammaAta(vault.assetsMint, user, tokenProgram);
-  const escrowAssetsAccount = deriveGammaAta(vault.assetsMint, withdrawEscrow, tokenProgram);
-  const escrowSharesAccount = deriveGammaAta(vault.sharesMint, withdrawEscrow, tokenProgram);
-
-  const ix = makeGammaCompleteWithdrawalIx({
-    user,
-    lpVault,
-    assetsMint: vault.assetsMint,
-    sharesMint: vault.sharesMint,
-    userAssetAta,
-    withdrawEscrow,
-    escrowAssetsAccount,
-    escrowSharesAccount,
-    withdrawReceipt,
-    tokenProgram,
-  });
-
-  return { instructions: [ix], keys: [] };
+  return {
+    message: makeTransactionMessage({
+      instructions: withdrawIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ??
+        (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
+    type: TransactionType.VAULT_WITHDRAW,
+  };
 }
 
-/** Build a versioned transaction to claim a fulfilled Gamma withdrawal. */
+/**
+ * Claims a fulfilled Gamma withdrawal: moves the claimable assets from the withdraw escrow to the
+ * authority's asset ATA (created by the program if needed).
+ * @throws if `lpVault` doesn't exist or isn't an `LpVault`
+ */
+export async function makeVaultCompleteWithdrawalIx({
+  rpc,
+  authority,
+  lpVault,
+  tokenProgram,
+}: MakeVaultCompleteWithdrawalIxParams): Promise<Instruction[]> {
+  const vault = await fetchGammaLpVault(rpc, lpVault);
+  const vaultTokenProgram = tokenProgram ?? (await resolveVaultTokenProgram(rpc, vault.assetsMint));
+  const [withdrawEscrow] = await deriveGammaWithdrawEscrow(authority.address, lpVault);
+  const [[escrowAssetsAccount], [escrowSharesAccount]] = await Promise.all(
+    [vault.assetsMint, vault.sharesMint].map((mint) =>
+      findAssociatedTokenPda({ mint, owner: withdrawEscrow, tokenProgram: vaultTokenProgram })
+    )
+  );
+
+  return [
+    await makeGammaCompleteWithdrawalIx({
+      user: authority,
+      lpVault,
+      assetsMint: vault.assetsMint,
+      sharesMint: vault.sharesMint,
+      escrowAssetsAccount,
+      escrowSharesAccount,
+      tokenProgram: vaultTokenProgram,
+    }),
+  ];
+}
+
+/**
+ * Builds a transaction around {@link makeVaultCompleteWithdrawalIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeVaultCompleteWithdrawalIx}
+ */
 export async function makeVaultCompleteWithdrawalTx(
   params: MakeVaultCompleteWithdrawalTxParams
-): Promise<ExtendedV0Transaction> {
-  const { connection, user, luts, blockhash: providedBlockhash } = params;
+): Promise<SolanaTransaction> {
+  const { luts, latestBlockhash, ...completeIxParams } = params;
 
-  const { instructions, keys } = await makeVaultCompleteWithdrawalIx(params);
+  const completeIxs = await makeVaultCompleteWithdrawalIx(completeIxParams);
 
-  const blockhash =
-    providedBlockhash ?? (await connection.getLatestBlockhash("confirmed")).blockhash;
-
-  const message = new TransactionMessage({
-    payerKey: user,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(luts);
-
-  const tx = new VersionedTransaction(message);
-
-  return addTransactionMetadata(tx, {
-    signers: keys,
-    addressLookupTables: luts,
+  return {
+    message: makeTransactionMessage({
+      instructions: completeIxs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ??
+        (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      luts,
+    }),
     type: TransactionType.VAULT_COMPLETE_WITHDRAWAL,
-  });
+  };
 }

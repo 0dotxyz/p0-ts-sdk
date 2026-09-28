@@ -2,6 +2,8 @@ import type { Address, ProgramDerivedAddress, ReadonlyUint8Array } from "@solana
 
 import { decodeAccountData } from "../account-data";
 
+import type { GammaLpVault, GammaWithdrawReceipt } from "./types";
+
 import {
   findCompleteWithdrawalWithdrawEscrowPda,
   findWithdrawReceiptPda,
@@ -9,8 +11,6 @@ import {
   getWithdrawReceiptDecoder,
   LP_VAULT_DISCRIMINATOR,
   WITHDRAW_RECEIPT_DISCRIMINATOR,
-  type LpVault,
-  type WithdrawReceipt,
 } from "~/generated/gamma";
 
 export { GAMMA_VAULT_PROGRAM_ADDRESS } from "~/generated/gamma";
@@ -19,7 +19,7 @@ export { GAMMA_VAULT_PROGRAM_ADDRESS } from "~/generated/gamma";
  * Decodes a Gamma `LpVault` account.
  * @throws if the discriminator doesn't match
  */
-export function decodeGammaLpVault(data: ReadonlyUint8Array): LpVault {
+export function decodeGammaLpVault(data: ReadonlyUint8Array): GammaLpVault {
   return decodeAccountData(data, LP_VAULT_DISCRIMINATOR, getLpVaultDecoder(), "Gamma LpVault");
 }
 
@@ -27,7 +27,7 @@ export function decodeGammaLpVault(data: ReadonlyUint8Array): LpVault {
  * Decodes a Gamma `WithdrawReceipt` account (a user's pending → claimable withdrawal).
  * @throws if the discriminator doesn't match
  */
-export function decodeGammaWithdrawReceipt(data: ReadonlyUint8Array): WithdrawReceipt {
+export function decodeGammaWithdrawReceipt(data: ReadonlyUint8Array): GammaWithdrawReceipt {
   return decodeAccountData(
     data,
     WITHDRAW_RECEIPT_DISCRIMINATOR,

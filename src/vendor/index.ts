@@ -5,4 +5,5 @@ export * from "./spl-stake-pool";
 export * from "./klend";
 export * from "./drift";
 export * from "./jup-lend";
+export * from "./gamma";
 export * from "./titan";
