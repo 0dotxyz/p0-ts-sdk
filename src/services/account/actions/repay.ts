@@ -1,7 +1,7 @@
-import {
-  type AddressesByLookupTableAddress,
-  type BlockhashLifetimeConstraint,
-  type Instruction,
+import type {
+  AddressesByLookupTableAddress,
+  BlockhashLifetimeConstraint,
+  Instruction,
 } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,

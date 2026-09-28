@@ -183,8 +183,7 @@ export async function makeDepositIx({
  * Builds a deposit transaction around {@link makeDepositIx}; a Kamino deposit first refreshes
  * its reserve and obligation. The authority pays and signs; `latestBlockhash` is fetched when
  * omitted.
- * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
- * integration accounts are missing
+ * @throws see {@link makeDepositIx}
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
   const { rpc, luts, latestBlockhash, ...depositIxParams } = params;

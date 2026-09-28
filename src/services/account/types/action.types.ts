@@ -90,12 +90,14 @@ export interface SwapQuoteResult {
   provider?: SwapProvider;
 }
 
-export interface MakeDepositIxOpts {
-  /** Wrap native SOL for a wSOL deposit (default true). */
+export interface WrapSolOpts {
+  /** Wrap native SOL for a wSOL deposit or repay (default true). */
   wrapAndUnwrapSol?: boolean;
   /** wSOL already in the ATA; only the rest is wrapped (default 0). */
   wSolBalanceUi?: number;
 }
+
+export interface MakeDepositIxOpts extends WrapSolOpts {}
 
 export interface MakeDepositIxParams {
   programAddress: Address;
@@ -121,6 +123,8 @@ export interface ActionTxParams {
 
 export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {}
 
+export interface MakeRepayIxOpts extends WrapSolOpts {}
+
 export interface MakeRepayIxParams {
   programAddress: Address;
   bank: BankType;
@@ -131,7 +135,7 @@ export interface MakeRepayIxParams {
   /** The account authority; signs and owns the source token account. */
   authority: TransactionSigner;
   repayAll?: boolean;
-  opts?: MakeDepositIxOpts;
+  opts?: MakeRepayIxOpts;
 }
 
 export interface MakeRepayTxParams extends MakeRepayIxParams, ActionTxParams {}

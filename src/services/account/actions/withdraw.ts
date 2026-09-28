@@ -49,6 +49,11 @@ export async function makeWithdrawIx({
   withdrawAll = false,
   opts = {},
 }: MakeWithdrawIxParams): Promise<Instruction[]> {
+  const { value: amountValue, type: amountType } = resolveAmount(amount);
+  if (amountType === "cToken" && bank.config.assetTag !== AssetTag.KAMINO) {
+    throw new Error(`cToken amounts only apply to Kamino banks (bank ${bank.address})`);
+  }
+
   const withdrawIxs: Instruction[] = [];
 
   const [destinationTokenAccount] = await findAssociatedTokenPda({
@@ -81,10 +86,6 @@ export async function makeWithdrawIx({
       )
     : computeHealthAccounts(bankMap, activeBanks);
 
-  const { value: amountValue, type: amountType } = resolveAmount(amount);
-  if (amountType === "cToken" && bank.config.assetTag !== AssetTag.KAMINO) {
-    throw new Error(`cToken amounts only apply to Kamino banks (bank ${bank.address})`);
-  }
   const accounts = {
     group: marginfiAccount.group,
     marginfiAccount: marginfiAccount.address,
@@ -93,6 +94,7 @@ export async function makeWithdrawIx({
     destinationTokenAccount,
     liquidityVault: bank.liquidityVault,
     mint: bank.mint,
+    amount: uiToNative(amountValue, bank.mintDecimals),
   };
 
   switch (bank.config.assetTag) {
@@ -182,7 +184,6 @@ export async function makeWithdrawIx({
             driftRewardMint2: userRewards[1]?.mint,
             driftSigner,
             tokenProgram,
-            amount: uiToNative(amountValue, bank.mintDecimals),
             withdrawAll,
           },
           healthAccounts
@@ -221,7 +222,6 @@ export async function makeWithdrawIx({
             liquidity,
             rewardsRateModel: jupLendingState.rewardsRateModel,
             tokenProgram,
-            amount: uiToNative(amountValue, bank.mintDecimals),
             withdrawAll,
           },
           healthAccounts
@@ -237,7 +237,6 @@ export async function makeWithdrawIx({
           {
             ...accounts,
             tokenProgram,
-            amount: uiToNative(amountValue, bank.mintDecimals),
             withdrawAll,
           },
           healthAccounts
@@ -277,7 +276,13 @@ export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<Sola
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts: selectLutsForAccountAction(luts, bank, marginfiAccount.balances, bankMap),
+      luts: selectLutsForAccountAction(
+        luts,
+        bank,
+        marginfiAccount.balances,
+        bankMap,
+        params.opts?.activeBanks
+      ),
     }),
     type: TransactionType.WITHDRAW,
   };
