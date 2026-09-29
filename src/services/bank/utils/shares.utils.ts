@@ -1,11 +1,6 @@
 import { BigNumber } from "bignumber.js";
 
-import { BankType } from "../../types";
-
-/**
- * Share ↔ Quantity Conversion Utilities
- * =====================================
- */
+import { BankType } from "../types";
 
 /**
  * Computes the total asset quantity for a bank (all deposits).

@@ -22,10 +22,10 @@ import { fetchDriftStates } from "~/vendor/drift";
 import { fetchJupLendStates } from "~/vendor/jup-lend";
 import { fetchKaminoStates } from "~/vendor/klend";
 
-export const fetchBank = async (
+export async function fetchBank(
   rpc: Rpc<GetAccountInfoApi>,
   bankAddress: Address
-): Promise<BankType> => {
+): Promise<BankType> {
   const account = await fetchEncodedAccount(rpc, bankAddress);
 
   if (!account.exists) {
@@ -35,11 +35,11 @@ export const fetchBank = async (
   return decodeBank(bankAddress, account.data);
 };
 
-export const fetchMultipleBanks = async (
+export async function fetchMultipleBanks(
   rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
   programAddress: Address,
   opts?: { bankAddresses?: Address[]; groupAddress?: Address }
-): Promise<BankType[]> => {
+): Promise<BankType[]> {
   const banks: BankType[] = [];
 
   if (opts?.bankAddresses && opts.bankAddresses.length > 0) {

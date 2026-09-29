@@ -1,50 +1,20 @@
 import { BigNumber } from "bignumber.js";
 
-import { aprToApy } from "../../../utils/accounting.utils";
-import { nativeToUi } from "../../../utils/conversion.utils";
-import { OraclePrice, PriceBias } from "../../price/types/price.types";
-import { AssetTag, BankType, OperationalState } from "../types";
+import { BankType } from "../types";
 
-import { computeUsdValue, getTotalAssetQuantity, getTotalLiabilityQuantity } from "./compute";
 import {
   computeAccrualProjectionSeconds,
-  computeInterestRates,
   computeRemainingCapacity,
-  computeUtilizationRate,
   isBorrowLimitActive,
   isDepositLimitActive,
   SECONDS_PER_YEAR,
-} from "./interest-rate.utils";
+} from "./capacity.utils";
+import { computeInterestRates, computeUtilizationRate } from "./interest-rate.utils";
+import { getTotalAssetQuantity, getTotalLiabilityQuantity } from "./shares.utils";
+import { computeUsdValue } from "./value.utils";
 
-/**
- * Whether a bank can be borrowed with the standard `lending_account_borrow` instruction.
- *
- * Only `DEFAULT`/`SOL` asset-tag banks are borrowable on-chain; the integration wrappers
- * (KAMINO/DRIFT/SOLEND/JUPLEND) reuse the same mint with `borrowLimit=0` and reject a standard
- * borrow with `6200 WrongAssetTagForStandardInstructions`. Use this when picking a bank to *borrow*
- * (e.g. the bridge bank for a debt-swap or loop double-hop).
- */
-export function isStandardBorrowable(bank: BankType): boolean {
-  const { assetTag, operationalState, borrowLimit } = bank.config;
-  return (
-    (assetTag === AssetTag.DEFAULT || assetTag === AssetTag.SOL) &&
-    operationalState === OperationalState.Operational &&
-    borrowLimit.gt(0)
-  );
-}
-
-/**
- * Whether a bank accepts standard deposits. `ReduceOnly`/`Paused` banks reject new deposits with
- * `6017 BankReduceOnly`; integration wrappers aren't standard-depositable either. Use this when
- * picking a bank to *deposit* into (e.g. the bridge bank for a collateral-swap double-hop).
- */
-export function isStandardDepositable(bank: BankType): boolean {
-  const { assetTag, operationalState } = bank.config;
-  return (
-    (assetTag === AssetTag.DEFAULT || assetTag === AssetTag.SOL) &&
-    operationalState === OperationalState.Operational
-  );
-}
+import { OraclePrice, PriceBias } from "~/services/price";
+import { aprToApy, nativeToUi } from "~/utils";
 
 /**
  * Computed metrics describing a bank's state at a given moment.

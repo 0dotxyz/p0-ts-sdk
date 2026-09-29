@@ -16,7 +16,7 @@ import {
   RiskTier,
 } from "~/services/bank/types";
 import { computeBankDepositCapRemaining } from "~/services/bank/utils/bank-metrics.utils";
-import { computeRemainingCapacity, U64_MAX } from "~/services/bank/utils/interest-rate.utils";
+import { computeRemainingCapacity, U64_MAX } from "~/services/bank/utils/capacity.utils";
 import {
   BankVenueStates,
   computeVenueAvailableLiquidity,

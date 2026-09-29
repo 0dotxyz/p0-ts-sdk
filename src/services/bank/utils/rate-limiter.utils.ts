@@ -1,7 +1,8 @@
 import { BigNumber } from "bignumber.js";
 
-import { nativeToUi } from "../../../utils/conversion.utils";
 import { BankRateLimiterType, BankType, RateLimitWindowType } from "../types";
+
+import { nativeToUi } from "~/utils";
 
 /**
  * Remaining outflow capacity of a single sliding rate-limit window at `nowSeconds`,

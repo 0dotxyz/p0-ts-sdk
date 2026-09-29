@@ -1,8 +1,8 @@
 import { BigNumber } from "bignumber.js";
 
-import { nativeToUi } from "../../../utils/conversion.utils";
 import { AssetTag, BankType } from "../types";
 
+import { nativeToUi } from "~/utils";
 import { DriftSpotMarket, getDriftTokenAmount, SpotBalanceType } from "~/vendor/drift";
 import { JUP_EXCHANGE_PRICES_PRECISION, JupTokenReserve } from "~/vendor/jup-lend";
 import { getKaminoTotalSupply, KaminoReserve } from "~/vendor/klend";

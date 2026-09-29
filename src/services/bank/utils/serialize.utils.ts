@@ -25,7 +25,7 @@ import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import type { InterestRateConfigCompactArgs } from "~/generated/marginfi";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
+export function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
   const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
   const toBigInt = (value: BigNumber | null) => value && BigInt(value.toFixed());
 
@@ -62,7 +62,7 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
   };
 }
 
-function serializeInterestRateConfig(
+export function serializeInterestRateConfig(
   interestRateConfig: InterestRateConfigOpt
 ): InterestRateConfigCompactArgs {
   return {
@@ -81,7 +81,7 @@ function serializeInterestRateConfig(
   };
 }
 
-function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
+export function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
   switch (riskTier) {
     case RiskTier.Collateral:
       return RiskTierRaw.Collateral;
@@ -92,7 +92,7 @@ function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
   }
 }
 
-function serializeOperationalState(operationalState: OperationalState): OperationalStateRaw {
+export function serializeOperationalState(operationalState: OperationalState): OperationalStateRaw {
   switch (operationalState) {
     case OperationalState.Paused:
       return OperationalStateRaw.Paused;
@@ -105,7 +105,7 @@ function serializeOperationalState(operationalState: OperationalState): Operatio
   }
 }
 
-function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
+export function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
   switch (oracleSetup) {
     case OracleSetup.None:
       return OracleSetupRaw.None;
@@ -166,7 +166,7 @@ function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
   }
 }
 
-function toBankDto(bank: BankType): BankTypeDto {
+export function toBankDto(bank: BankType): BankTypeDto {
   return {
     address: bank.address,
     group: bank.group,
@@ -229,7 +229,7 @@ export function toBankRateLimiterDto(rateLimiter: BankRateLimiterType): BankRate
   };
 }
 
-function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto {
+export function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto {
   return {
     emodeTag: emodeSettings.emodeTag,
     timestamp: emodeSettings.timestamp,
@@ -245,7 +245,7 @@ function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto 
   };
 }
 
-function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
+export function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
   return {
     assetWeightInit: bankConfig.assetWeightInit.toString(),
     assetWeightMaint: bankConfig.assetWeightMaint.toString(),
@@ -268,7 +268,7 @@ function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
   };
 }
 
-function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): InterestRateConfigDto {
+export function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): InterestRateConfigDto {
   return {
     placeholder0: interestRateConfig.placeholder0.toString(),
     placeholder1: interestRateConfig.placeholder1.toString(),
@@ -284,15 +284,3 @@ function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): Intere
     curveType: interestRateConfig.curveType,
   };
 }
-
-export {
-  serializeOracleSetup,
-  serializeBankConfigOpt,
-  serializeInterestRateConfig,
-  serializeRiskTier,
-  serializeOperationalState,
-  toBankDto,
-  toEmodeSettingsDto,
-  toBankConfigDto,
-  toInterestRateConfigDto,
-};

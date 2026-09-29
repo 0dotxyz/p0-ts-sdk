@@ -6,11 +6,11 @@ import { BalanceType, MarginfiAccountType } from "../../types";
 import { DEFAULT_ADDRESS } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
+import { requireBank } from "~/services/bank/utils/lookup.utils";
 import {
   getAssetShares,
   getLiabilityShares,
-} from "~/services/bank/utils/compute/share-conversions.utils";
-import { requireBank } from "~/services/bank/utils/lookup.utils";
+} from "~/services/bank/utils/shares.utils";
 import { composeRemainingAccounts } from "~/utils";
 
 /**

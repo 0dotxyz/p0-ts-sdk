@@ -6,7 +6,7 @@ import { BankType } from "~/services/bank/types";
 import {
   isStandardBorrowable,
   isStandardDepositable,
-} from "~/services/bank/utils/bank-metrics.utils";
+} from "~/services/bank/utils/capacity.utils";
 
 /**
  * Bridge-token candidate filtering for bridged (double-hop) swaps.
