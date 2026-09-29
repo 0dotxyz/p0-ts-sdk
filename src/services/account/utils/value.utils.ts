@@ -1,6 +1,6 @@
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType, MarginRequirementType } from "../../types";
+import { BalanceType, MarginRequirementType } from "../types";
 
 import {
   BankType,
@@ -11,11 +11,6 @@ import {
 } from "~/services/bank";
 import { OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
-
-/**
- * Balance Value & Quantity Calculations
- * =====================================
- */
 
 /**
  * Configuration for computing balance USD value

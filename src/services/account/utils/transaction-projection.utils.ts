@@ -1,7 +1,7 @@
 import { unwrapOption, type Address, type Instruction, type Option } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType, MarginfiAccountType } from "../../types";
+import { BalanceType, MarginfiAccountType } from "../types";
 
 import { DEFAULT_ADDRESS } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
@@ -12,11 +12,6 @@ import {
   getLiabilityShares,
 } from "~/services/bank/utils/shares.utils";
 import { composeRemainingAccounts } from "~/utils";
-
-/**
- * Transaction Projection & Health Check Utilities
- * ===============================================
- */
 
 /**
  * Health-check remaining accounts: each of `activeBanks` (the account's active banks when the

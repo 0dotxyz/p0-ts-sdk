@@ -1,10 +1,10 @@
 import { BigNumber } from "bignumber.js";
 
-import { MarginfiAccountType, BalanceType, MarginRequirementType } from "../../types";
+import { MarginfiAccountType, BalanceType, MarginRequirementType } from "../types";
 
-import { getBalance } from "./balance-helper.utils";
-import { computeBalanceUsdValue, computeQuantityUi } from "./balance-value-compute.utils";
-import { computeHealthComponentsFromCache } from "./health-compute.utils";
+import { getBalance } from "./balance.utils";
+import { computeHealthComponentsFromCache } from "./health.utils";
+import { computeBalanceUsdValue, computeQuantityUi } from "./value.utils";
 
 import {
   BankType,
@@ -14,11 +14,6 @@ import {
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { aprToApy, shortenAddress } from "~/utils";
-
-/**
- * Account-Level Metrics
- * ====================
- */
 
 export function computeAccountValue(marginfiAccount: MarginfiAccountType): BigNumber {
   const { assets, liabilities } = computeHealthComponentsFromCache(

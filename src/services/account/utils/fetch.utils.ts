@@ -26,12 +26,12 @@ const DISCRIMINATOR_FILTER: GetProgramAccountsMemcmpFilter = {
   },
 };
 
-export const fetchMarginfiAccountAddresses = async (
+export async function fetchMarginfiAccountAddresses(
   rpc: Rpc<GetProgramAccountsApi>,
   programAddress: Address,
   authority: Address,
   group: Address
-): Promise<Address[]> => {
+): Promise<Address[]> {
   const marginfiAccounts = (
     await rpc
       .getProgramAccounts(programAddress, {
@@ -59,7 +59,7 @@ export const fetchMarginfiAccountAddresses = async (
   ).map((a) => a.pubkey);
 
   return marginfiAccounts;
-};
+}
 
 // MarginfiAccount (bytemuck, repr(C)) byte layout — see src/idl/marginfi_0.1.11.json.
 const GROUP_OFFSET = 8n; // after the 8-byte discriminator
@@ -81,7 +81,7 @@ const MAX_BALANCES = 16; // LendingAccount holds a fixed [Balance; 16]
  * omit it to get full account data for decoding. Results are deduped by address (a bank appears
  * in at most one slot per account, but we dedupe for safety).
  */
-const scanBankSlots = async (
+async function scanBankSlots(
   rpc: Rpc<GetProgramAccountsApi>,
   programAddress: Address,
   group: Address,
@@ -90,7 +90,7 @@ const scanBankSlots = async (
     concurrency?: number;
     dataSlice?: { offset: number; length: number };
   }
-): Promise<Map<Address, EncodedAccount>> => {
+): Promise<Map<Address, EncodedAccount>> {
   const slotOffsets = Array.from(
     { length: MAX_BALANCES },
     (_, n) => BALANCES_OFFSET + BANK_PK_OFFSET_IN_BALANCE + n * BALANCE_SIZE
@@ -130,7 +130,7 @@ const scanBankSlots = async (
   }
 
   return byAddress;
-};
+}
 
 /**
  * Fetches the addresses of every marginfi account in a group that holds a position in a
@@ -147,19 +147,19 @@ const scanBankSlots = async (
  *     batch them and avoid RPC rate limits.
  * @returns Deduplicated array of account addresses holding the bank
  */
-export const fetchMarginfiAccountAddressesHoldingBank = async (
+export async function fetchMarginfiAccountAddressesHoldingBank(
   rpc: Rpc<GetProgramAccountsApi>,
   programAddress: Address,
   group: Address,
   bank: Address,
   options?: { concurrency?: number }
-): Promise<Address[]> => {
+): Promise<Address[]> {
   const byAddress = await scanBankSlots(rpc, programAddress, group, bank, {
     concurrency: options?.concurrency,
     dataSlice: { offset: 0, length: 0 },
   });
   return Array.from(byAddress.keys());
-};
+}
 
 /** One account's active balance position in a specific bank. */
 export type AccountActiveBalanceForBank = {
@@ -185,13 +185,13 @@ export type AccountActiveBalanceForBank = {
  *   - `concurrency`: max number of the 16 slot scans to run at once (see above).
  * @returns One entry per account holding the bank, with authority and the matching balance
  */
-export const fetchMarginfiAccountActiveBalancesForBank = async (
+export async function fetchMarginfiAccountActiveBalancesForBank(
   rpc: Rpc<GetProgramAccountsApi>,
   programAddress: Address,
   group: Address,
   bank: Address,
   options?: { concurrency?: number }
-): Promise<AccountActiveBalanceForBank[]> => {
+): Promise<AccountActiveBalanceForBank[]> {
   // Omit dataSlice so we get full account data to decode authority + balance shares.
   const byAddress = await scanBankSlots(rpc, programAddress, group, bank, {
     concurrency: options?.concurrency,
@@ -208,7 +208,7 @@ export const fetchMarginfiAccountActiveBalancesForBank = async (
   }
 
   return results;
-};
+}
 
 function randomDistinctIndices(count: number, maxExclusive: number): number[] {
   const chosen = new Set<number>();

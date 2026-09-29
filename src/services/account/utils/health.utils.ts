@@ -7,18 +7,13 @@ import {
   MarginRequirementType,
   HealthCacheType,
   HealthCacheStatus,
-} from "../../types";
+} from "../types";
 
-import { getBalanceUsdValueWithPriceBias } from "./balance-value-compute.utils";
+import { getBalanceUsdValueWithPriceBias } from "./value.utils";
 
 import { BankType } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { shortenAddress } from "~/utils";
-
-/**
- * Health & Free Collateral Calculations
- * =====================================
- */
 
 /**
  * Computes free collateral from an account's cached health data using Initial margin requirements.

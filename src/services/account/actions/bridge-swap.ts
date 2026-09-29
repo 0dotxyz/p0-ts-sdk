@@ -26,7 +26,7 @@ import {
  * signature). This module owns the parts that are identical across flows and encode marginfi
  * internals; per-flow leg building/sizing lives in the one-call `makeBridged*Tx` builders next to
  * their direct builders (`./loop.ts`, `./swap-collateral.ts`, `./swap-debt.ts`), backed by the
- * shared selection/iteration support in `../utils/bridge-routing.utils.ts`, with candidate
+ * shared selection/iteration support in `../utils/bridge.utils.ts`, with candidate
  * ordering still injectable per call (product policy).
  *
  * Two non-obvious invariants are baked in here so no caller has to rediscover them:

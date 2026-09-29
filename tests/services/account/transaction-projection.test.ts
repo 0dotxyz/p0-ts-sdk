@@ -16,7 +16,7 @@ import instructions from "~/instructions";
 import {
   computeProjectedActiveBalancesNoCpi,
   computeProjectedActiveBanksNoCpi,
-} from "~/services/account/utils/compute/transaction-projection.utils";
+} from "~/services/account/utils/transaction-projection.utils";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { balanceToDto } from "~/services/account/utils/serialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";

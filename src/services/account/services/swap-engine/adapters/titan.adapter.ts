@@ -1,9 +1,17 @@
-import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
+import {
+  address,
+  fetchEncodedAccount,
+  getAddressDecoder,
+  getAddressEncoder,
+  type Address,
+  type GetAccountInfoApi,
+  type Rpc,
+} from "@solana/kit";
+import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
 import { SwapApiConfig, SwapProvider } from "~/services/account/types";
-import { checkTitanFeeAccount } from "~/services/account/utils/titan.utils";
 import {
   V1Client,
   SwapMode,
@@ -27,6 +35,21 @@ import {
  * id silently drops any provider Titan adds in the future).
  */
 const TITAN_COMPOSABLE_PROVIDERS = ["Titan", "Metis", "Okx"];
+
+const TITAN_FEE_WALLET = address("FEES6XLN7dMz2iBwKab9Hri9Kwc4WJ6TmDAiT4BNhyej");
+
+async function checkTitanFeeAccount(
+  rpc: Rpc<GetAccountInfoApi>,
+  mint: Address
+): Promise<{ feeAccount: Address; hasFeeAccount: boolean; feeWallet: Address }> {
+  const [feeAccount] = await findAssociatedTokenPda({
+    mint,
+    owner: TITAN_FEE_WALLET,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const hasFeeAccount = (await fetchEncodedAccount(rpc, feeAccount)).exists;
+  return { feeAccount, hasFeeAccount, feeWallet: TITAN_FEE_WALLET };
+}
 
 /**
  * Budget for both the WS connect and the first-quote read. The stream pushes the

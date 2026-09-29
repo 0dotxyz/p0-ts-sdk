@@ -59,10 +59,6 @@ const SIZING_BLOCKHASH = {
   lastValidBlockHeight: 0n,
 };
 
-// ============================================================================
-// Flashloan swap budget estimator
-// ============================================================================
-
 export interface FlashloanSwapConstraints {
   /** Available bytes for swap instruction(s) */
   sizeConstraint: number;
@@ -116,10 +112,6 @@ export async function computeFlashLoanNonSwapBudget({
 
   return { sizeConstraint, maxSwapTotalAccounts };
 }
-
-// ============================================================================
-// Post-swap pre-check: compile full TX to verify it fits before makeFlashLoanTx
-// ============================================================================
 
 export interface FlashloanPrecheckResult {
   /** Exact serialized size of the full flashloan TX */
@@ -208,10 +200,6 @@ export function compileFlashloanPrecheck({
 
   return { fullTxSize, overshoot, writableAccounts, totalAccounts };
 }
-
-// ============================================================================
-// High-level helper: build budget IXs + compute constraints in one call
-// ============================================================================
 
 export type FlashloanBudgetIx =
   | { type: "borrow"; bank: BankType; tokenProgram: Address }

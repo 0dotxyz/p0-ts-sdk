@@ -3,14 +3,13 @@ import { BigNumber } from "bignumber.js";
 
 import { MarginfiAccountType, MarginRequirementType } from "../types";
 
+import { getActiveBalances, getBalance } from "./balance.utils";
 import {
   computeFreeCollateralFromCache,
   computeFreeCollateralFromBalances,
   computeHealthComponentsFromCache,
-  computeQuantityUi,
-  getActiveBalances,
-  getBalance,
-} from "./compute";
+} from "./health.utils";
+import { computeQuantityUi } from "./value.utils";
 
 import {
   ActiveEmodePair,

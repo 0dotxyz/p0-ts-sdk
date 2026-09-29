@@ -1,19 +1,28 @@
 import {
   address,
   fetchAddressesForLookupTables,
+  fetchEncodedAccount,
+  getAddressEncoder,
+  getBase64Encoder,
+  getProgramDerivedAddress,
+  type Address,
   type AddressesByLookupTableAddress,
+  type GetAccountInfoApi,
+  type Instruction,
+  type Rpc,
 } from "@solana/kit";
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_SWAP, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { SwapApiConfig, SwapProvider, SwapQuoteResult } from "~/services/account/types";
+import { toAccountRole } from "~/utils";
 import {
-  checkJupiterFeeAccount,
-  deserializeJupiterInstruction,
-  toJupiterConfig,
-} from "~/services/account/utils/jupiter.utils";
-import { createJupiterClient, type BuildResponse } from "~/vendor/jupiter";
+  createJupiterClient,
+  type BuildResponse,
+  type Instruction as JupiterInstruction,
+  type JupiterClientConfig,
+} from "~/vendor/jupiter";
 
 // Even when an account count fits MAX_ACCOUNT_LOCKS, Jupiter routes that use all
 // remaining slots tend to produce swap IXs large enough to blow the byte limit.
@@ -26,6 +35,45 @@ const JUPITER_MIN_MAX_ACCOUNTS = 16;
 // any bundle locking one ("bundles cannot lock any vote accounts"). Exclude it
 // explicitly until Jupiter adds it to the flag's list.
 const BUNDLE_INCOMPATIBLE_DEXES = ["GoonFi V2"];
+
+const REFERRAL_PROGRAM_ID = address("REFER4ZgmyYx9c6He5XfaTMiGfdLwRnkV4RPp9t9iF3");
+const REFERRAL_ACCOUNT_PUBKEY = address("6rQUBEfS3hASrBbviL7rXA5tRYmZmeFUgHgCYsjeDVBm");
+
+async function checkJupiterFeeAccount(
+  rpc: Rpc<GetAccountInfoApi>,
+  mint: Address
+): Promise<{ feeAccount: Address; hasFeeAccount: boolean }> {
+  const [feeAccount] = await getProgramDerivedAddress({
+    programAddress: REFERRAL_PROGRAM_ID,
+    seeds: [
+      "referral_ata",
+      getAddressEncoder().encode(REFERRAL_ACCOUNT_PUBKEY),
+      getAddressEncoder().encode(mint),
+    ],
+  });
+  const hasFeeAccount = (await fetchEncodedAccount(rpc, feeAccount)).exists;
+  return { feeAccount, hasFeeAccount };
+}
+
+function deserializeJupiterInstruction(instruction: JupiterInstruction): Instruction {
+  return {
+    programAddress: address(instruction.programId),
+    accounts: instruction.accounts.map((key) => ({
+      address: address(key.pubkey),
+      role: toAccountRole(key.isSigner, key.isWritable),
+    })),
+    data: getBase64Encoder().encode(instruction.data),
+  };
+}
+
+function toJupiterConfig(apiConfig?: SwapApiConfig): JupiterClientConfig | undefined {
+  if (!apiConfig) return undefined;
+  return {
+    basePath: apiConfig.basePath,
+    apiKey: apiConfig.apiKey,
+    headers: apiConfig.headers,
+  };
+}
 
 /** Lookup tables from the Router's inline `addressesByLookupTableAddress`. */
 function lutsFromAddressMap(

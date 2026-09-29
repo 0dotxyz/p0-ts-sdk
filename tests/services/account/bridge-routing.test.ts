@@ -11,7 +11,7 @@ import {
   resolveTokenProgramForMint,
   selectSwapBridges,
   tryBridgeCandidates,
-} from "~/services/account/utils/bridge-routing.utils";
+} from "~/services/account/utils/bridge.utils";
 import { AssetTag, OperationalState, BankType } from "~/services/bank/types";
 
 const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));

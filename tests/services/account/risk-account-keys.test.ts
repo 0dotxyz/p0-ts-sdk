@@ -1,7 +1,7 @@
 import { getAddressDecoder, type Address } from "@solana/kit";
 import { describe, it, expect } from "vitest";
 
-import { computeHealthAccounts } from "~/services/account/utils/compute/transaction-projection.utils";
+import { computeHealthAccounts } from "~/services/account/utils/transaction-projection.utils";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 
 let nextKey = 1;

@@ -19,8 +19,8 @@ import {
   MarginRequirementType,
 } from "../types";
 import type { MarginfiAccountRaw } from "../types/raw-account.types";
-import { computeHealthComponentsFromBalances } from "../utils/compute/health-compute.utils";
 import { parseMarginfiAccountRaw } from "../utils/deserialize.utils";
+import { computeHealthComponentsFromBalances } from "../utils/health.utils";
 
 import { decodeMarginfiAccountRaw } from "~/accounts";
 import { AssetTag, BankType } from "~/services/bank/types";
