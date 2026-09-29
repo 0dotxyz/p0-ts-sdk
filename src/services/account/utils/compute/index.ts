@@ -16,8 +16,5 @@ export * from "./balance-helper.utils";
 // Account Metrics
 export * from "./account-metrics.utils";
 
-// Emissions
-export * from "./emissions-compute.utils";
-
 // Transaction Projections
 export * from "./transaction-projection.utils";

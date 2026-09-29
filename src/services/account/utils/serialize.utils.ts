@@ -14,7 +14,6 @@ export function marginfiAccountToDto(marginfiAccount: MarginfiAccountType): Marg
     authority: marginfiAccount.authority,
     balances: marginfiAccount.balances.map(balanceToDto),
     accountFlags: marginfiAccount.accountFlags,
-    emissionsDestinationAccount: marginfiAccount.emissionsDestinationAccount,
     healthCache: healthCacheToDto(marginfiAccount.healthCache),
   };
 }
@@ -25,7 +24,6 @@ export function balanceToDto(balance: BalanceType): BalanceTypeDto {
     bankPk: balance.bankPk,
     assetShares: balance.assetShares.toString(),
     liabilityShares: balance.liabilityShares.toString(),
-    emissionsOutstanding: balance.emissionsOutstanding.toString(),
     lastUpdate: balance.lastUpdate,
   };
 }

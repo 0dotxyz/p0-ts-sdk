@@ -90,10 +90,6 @@ export class MarginfiAccountWrapper {
     return this.account.accountFlags;
   }
 
-  get emissionsDestinationAccount(): Address {
-    return this.account.emissionsDestinationAccount;
-  }
-
   get healthCache(): HealthCache {
     return this.account.healthCache;
   }

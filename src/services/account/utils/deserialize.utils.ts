@@ -22,7 +22,6 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const bankPk = balanceRaw.bankPk;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
-  const emissionsOutstanding = wrappedI80F48toBigNumber(balanceRaw.emissionsOutstanding);
   const lastUpdate = Number(balanceRaw.lastUpdate);
 
   return {
@@ -30,7 +29,6 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
     bankPk,
     assetShares,
     liabilityShares,
-    emissionsOutstanding,
     lastUpdate,
   };
 }
@@ -82,7 +80,6 @@ export function parseMarginfiAccountRaw(
   const authority = accountData.authority;
   const balances = accountData.lendingAccount.balances.map(parseBalanceRaw);
   const accountFlags = getActiveAccountFlags(accountData.accountFlags);
-  const emissionsDestinationAccount = accountData.emissionsDestinationAccount;
   const healthCache = parseHealthCacheRaw(accountData.healthCache);
 
   return {
@@ -91,7 +88,6 @@ export function parseMarginfiAccountRaw(
     authority,
     balances,
     accountFlags,
-    emissionsDestinationAccount,
     healthCache,
   };
 }
@@ -192,7 +188,6 @@ export function dtoToMarginfiAccount(
     authority: address(marginfiAccountDto.authority),
     balances: marginfiAccountDto.balances.map(dtoToBalance),
     accountFlags: marginfiAccountDto.accountFlags,
-    emissionsDestinationAccount: address(marginfiAccountDto.emissionsDestinationAccount),
     healthCache: dtoToHealthCache(marginfiAccountDto.healthCache),
   };
 }
@@ -203,7 +198,6 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
     bankPk: address(balanceDto.bankPk),
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
-    emissionsOutstanding: new BigNumber(balanceDto.emissionsOutstanding),
     lastUpdate: balanceDto.lastUpdate,
   };
 }

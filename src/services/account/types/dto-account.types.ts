@@ -9,7 +9,6 @@ export interface BalanceTypeDto {
   bankPk: string;
   assetShares: string;
   liabilityShares: string;
-  emissionsOutstanding: string;
   lastUpdate: number;
 }
 
@@ -32,6 +31,5 @@ export interface MarginfiAccountTypeDto {
   authority: string;
   balances: BalanceTypeDto[];
   accountFlags: AccountFlags[];
-  emissionsDestinationAccount: string;
   healthCache: HealthCacheTypeDto;
 }

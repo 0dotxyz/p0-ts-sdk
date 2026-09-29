@@ -6,7 +6,6 @@ export interface BalanceType {
   bankPk: Address;
   assetShares: BigNumber;
   liabilityShares: BigNumber;
-  emissionsOutstanding: BigNumber;
   lastUpdate: number;
 }
 
@@ -58,7 +57,6 @@ export interface MarginfiAccountType {
   authority: Address;
   balances: BalanceType[];
   accountFlags: AccountFlags[];
-  emissionsDestinationAccount: Address;
   healthCache: HealthCacheType;
 }
 

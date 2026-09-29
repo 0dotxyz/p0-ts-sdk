@@ -361,11 +361,9 @@ export function generateDummyAccount(
       bankPk: DEFAULT_ADDRESS,
       assetShares: new BigNumber(0),
       liabilityShares: new BigNumber(0),
-      emissionsOutstanding: new BigNumber(0),
       lastUpdate: 0,
     })),
     accountFlags: [],
-    emissionsDestinationAccount: DEFAULT_ADDRESS,
     healthCache: {
       assetValue: new BigNumber(0),
       liabilityValue: new BigNumber(0),

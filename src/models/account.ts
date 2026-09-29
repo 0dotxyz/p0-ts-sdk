@@ -98,7 +98,6 @@ class MarginfiAccount implements MarginfiAccountType {
     public readonly authority: Address,
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
-    public readonly emissionsDestinationAccount: Address,
     public healthCache: HealthCache
   ) {}
 
@@ -128,7 +127,6 @@ class MarginfiAccount implements MarginfiAccountType {
       account.authority,
       account.balances.map((b) => Balance.fromBalanceType(b)),
       account.accountFlags,
-      account.emissionsDestinationAccount,
       account.healthCache
     );
   }

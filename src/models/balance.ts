@@ -10,8 +10,6 @@ import {
   getBalanceUsdValueWithPriceBias,
   computeQuantity,
   computeQuantityUi,
-  computeTotalOutstandingEmissions,
-  computeClaimedEmissions,
 } from "../services";
 
 import { Bank } from "./bank";
@@ -26,7 +24,6 @@ class Balance implements BalanceType {
     public bankPk: Address,
     public assetShares: BigNumber,
     public liabilityShares: BigNumber,
-    public emissionsOutstanding: BigNumber,
     public lastUpdate: number
   ) {}
 
@@ -36,7 +33,6 @@ class Balance implements BalanceType {
       balance.bankPk,
       balance.assetShares,
       balance.liabilityShares,
-      balance.emissionsOutstanding,
       balance.lastUpdate
     );
   }
@@ -107,14 +103,6 @@ class Balance implements BalanceType {
     liabilities: BigNumber;
   } {
     return computeQuantityUi(this, bank, assetShareValueMultiplier);
-  }
-
-  computeTotalOutstandingEmissions(bank: Bank): BigNumber {
-    return computeTotalOutstandingEmissions(this, bank);
-  }
-
-  computeClaimedEmissions(bank: Bank, currentTimestamp: number): BigNumber {
-    return computeClaimedEmissions(this, bank, currentTimestamp);
   }
 }
 

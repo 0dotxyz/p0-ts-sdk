@@ -30,7 +30,6 @@ export function createEmptyBalance(bankPk: Address): BalanceType {
     bankPk,
     assetShares: new BigNumber(0),
     liabilityShares: new BigNumber(0),
-    emissionsOutstanding: new BigNumber(0),
     lastUpdate: 0,
   };
 
