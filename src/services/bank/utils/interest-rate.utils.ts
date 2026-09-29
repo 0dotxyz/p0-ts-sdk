@@ -54,40 +54,14 @@ export function computeInterestRates(bank: BankType): {
   return { lendingRate, borrowingRate };
 }
 
-/**
- * Maximum value for u32
- *
- * NOTE: AI-slop
- */
 const U32_MAX = 0xffffffff;
 
-/**
- * Convert u32 encoded rate to APR percentage (0.0 to 10.0)
- * Rate is encoded as: rate / u32::MAX * 1000%
- * Example: 100% APR = 0.1 * u32::MAX
- *
- * NOTE: AI-slop
- */
+// Rates are encoded out of 1000%, so u32::MAX is an APR of 10.
 function rateFromU32(rate: number): BigNumber {
   const ratio = new BigNumber(rate).div(U32_MAX);
   return ratio.times(10);
 }
 
-/**
- * Convert u32 encoded utilization to percentage (0.0 to 1.0)
- * Util is encoded as: util / u32::MAX * 100%
- * Example: 50% = 0.5 * u32::MAX
- *
- * NOTE: AI-slop
- */
-function utilFromU32(util: number): BigNumber {
-  return new BigNumber(util).div(U32_MAX);
-}
-
-/**
- * Linear interpolation between two points
- * Given points (startX, startY) and (endX, endY), find Y at targetX
- */
 function calculateRateBetweenPoints(
   startX: BigNumber,
   startY: BigNumber,
@@ -95,17 +69,14 @@ function calculateRateBetweenPoints(
   endY: BigNumber,
   targetX: BigNumber
 ): BigNumber {
-  // Handle edge cases
   if (endX.lte(startX)) return startY;
   if (targetX.lt(startX)) return startY;
   if (targetX.gt(endX)) return endY;
-  // Program enforces that points must be ascending (or equal)
   if (endY.lt(startY)) return startY;
 
   const deltaX = endX.minus(startX);
   if (deltaX.isZero()) return startY;
 
-  // Calculate interpolation
   const offset = targetX.minus(startX);
   const proportion = offset.div(deltaX);
   const deltaY = endY.minus(startY);
@@ -114,9 +85,6 @@ function calculateRateBetweenPoints(
   return startY.plus(scaledDelta);
 }
 
-/**
- * Compute base interest rate using the legacy 3-point curve
- */
 function computeLegacyCurve(
   utilizationRate: BigNumber,
   optimalUtilizationRate: BigNumber,
@@ -134,16 +102,6 @@ function computeLegacyCurve(
   }
 }
 
-/**
- * Compute base interest rate using the 7-point multipoint curve
- * Locates utilization on a linear function with up to 7 points:
- * - Point 1: (0%, zeroUtilRate)
- * - Points 2-6: Custom points from the points array
- * - Point 7: (100%, hundredUtilRate)
- *
- * Note: all will migrate to the new 7 point curve, the result for your normal legacy
- * curve getting migrated over is described in that test there. then we'll start creating curves with more points later
- */
 function computeMultipointCurve(
   utilizationRate: BigNumber,
   zeroUtilRate: number,
@@ -153,24 +111,18 @@ function computeMultipointCurve(
   const zeroRate = rateFromU32(zeroUtilRate);
   const hundredRate = rateFromU32(hundredUtilRate);
 
-  // clamp utilization rate to [0, 1] for safety
   const clampedUtilizationRate = BigNumber.max(0, BigNumber.min(1, utilizationRate));
 
-  // Filter out padding (where util = 0) to match on-chain behavior
-  // Program enforces: no gaps, ascending order, all padding at end
+  // Points with util = 0 are unused padding on-chain.
   const nonPaddingPoints = points.filter((point) => point.util !== 0);
 
-  // start from point (0%, zeroRate)
   let prevUtil = new BigNumber(0);
   let prevRate = zeroRate;
 
-  // Iterate through non-padding custom points
   for (const point of nonPaddingPoints) {
-    const pointUtil = utilFromU32(point.util);
+    const pointUtil = new BigNumber(point.util).div(U32_MAX);
     const pointRate = rateFromU32(point.rate);
 
-    // If current utilization is <= this point's utilization,
-    // interpolate between previous point and this point
     if (clampedUtilizationRate.lte(pointUtil)) {
       return calculateRateBetweenPoints(
         prevUtil,
@@ -181,12 +133,10 @@ function computeMultipointCurve(
       );
     }
 
-    // update previous point and continue
     prevUtil = pointUtil;
     prevRate = pointRate;
   }
 
-  // interpolate between points
   return calculateRateBetweenPoints(
     prevUtil,
     prevRate,
@@ -201,10 +151,8 @@ export function computeBaseInterestRate(bank: BankType): BigNumber {
   const utilizationRate = computeUtilizationRate(bank);
   const curveType = interestRateConfig.curveType;
 
-  // curveType 0 banks never migrated to the 7-point curve; their legacy 3-point params
-  // still live in the (now deprecated) placeholder slots. Only read the placeholders on a
-  // strict curveType === 0 check — the program team may repurpose those slots for future
-  // curve types, so any other value must take the multipoint path.
+  // curveType 0 banks never migrated to the 7-point curve; their legacy params still sit in the
+  // deprecated placeholder slots, which other curve types may reuse.
   if (curveType === 0) {
     return computeLegacyCurve(
       utilizationRate,
@@ -242,10 +190,8 @@ export const EXECUTION_HEADROOM_SECONDS = 120;
 
 /**
  * Seconds of interest accrual to project for a bank-bounded amount: the program accrues
- * `now - lastUpdate` of interest before applying its checks, and the tx lands some time after
- * `now`. Uses `max(2 * age, age + EXECUTION_HEADROOM_SECONDS)` — at least as conservative as the
- * historical "2x accrued" buffer, and never less than the execution headroom even for a bank that
- * was touched a second ago.
+ * `now - lastUpdate` before applying its checks, and the tx lands some time after `now`.
+ * Returns `max(2 * age, age + EXECUTION_HEADROOM_SECONDS)`.
  */
 export function computeAccrualProjectionSeconds(
   bank: BankType,
