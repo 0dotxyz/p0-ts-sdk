@@ -34,6 +34,20 @@ import {
   computeBaseInterestRate,
   computeUtilizationRate,
   computeRemainingCapacity,
+  computeBankSupplyApy,
+  computeBankBorrowApy,
+  computeBankMetrics,
+  ComputeBankMetricsParams,
+  BankMetrics,
+  isStandardBorrowable,
+  isStandardDepositable,
+  computeBankAvailableLiquidity,
+  computeBankProjectedAvailableLiquidity,
+  computeBankDepositCapRemaining,
+  computeBankBorrowCapRemaining,
+  computeBankRateLimitRemaining,
+  computeVenueAvailableLiquidity,
+  BankVenueStates,
   BankConfigType,
   BankRateLimiterType,
   RiskTier,
@@ -313,6 +327,64 @@ class Bank implements BankType {
     borrowCapacity: BigNumber;
   } {
     return computeRemainingCapacity(this);
+  }
+
+  /** Supply APY, compounded annually from the lending rate (0.05 = 5%). */
+  computeSupplyApy(): number {
+    return computeBankSupplyApy(this);
+  }
+
+  /** Borrow APY, compounded annually from the borrowing rate (0.05 = 5%). */
+  computeBorrowApy(): number {
+    return computeBankBorrowApy(this);
+  }
+
+  /** Every UI metric for this bank in one call; see {@link BankMetrics}. */
+  computeMetrics(params: Omit<ComputeBankMetricsParams, "bank">): BankMetrics {
+    return computeBankMetrics({ ...params, bank: this });
+  }
+
+  /** Whether the standard borrow instruction accepts this bank (DEFAULT/SOL, operational, cap > 0). */
+  get isStandardBorrowable(): boolean {
+    return isStandardBorrowable(this);
+  }
+
+  /** Whether the standard deposit instruction accepts this bank (DEFAULT/SOL, operational). */
+  get isStandardDepositable(): boolean {
+    return isStandardDepositable(this);
+  }
+
+  /** Liquidity (UI units) the vault can pay out: max(0, deposits - borrows). */
+  computeAvailableLiquidity(assetShareValueMultiplier?: BigNumber): BigNumber {
+    return computeBankAvailableLiquidity(this, assetShareValueMultiplier);
+  }
+
+  /** {@link computeAvailableLiquidity} net of the liquidity interest accrual drains before the tx lands. */
+  computeProjectedAvailableLiquidity(assetShareValueMultiplier?: BigNumber): BigNumber {
+    return computeBankProjectedAvailableLiquidity(this, assetShareValueMultiplier);
+  }
+
+  /** Remaining deposit capacity (UI units), `Infinity` when the deposit limit is inactive. */
+  computeDepositCapRemaining(): number {
+    return computeBankDepositCapRemaining(this);
+  }
+
+  /** Remaining borrow capacity (UI units), `Infinity` when the borrow limit is inactive. */
+  computeBorrowCapRemaining(): number {
+    return computeBankBorrowCapRemaining(this);
+  }
+
+  /** Remaining rate-limit outflow (UI units), or `null` when the bank has no rate limiter. */
+  computeRateLimitRemaining(nowSeconds?: number): BigNumber | null {
+    return computeBankRateLimitRemaining(this, nowSeconds);
+  }
+
+  /**
+   * Idle liquidity (UI units) of the external venue backing an integrated bank, or `undefined`
+   * for non-integrated banks or missing venue state.
+   */
+  computeVenueAvailableLiquidity(venueStates?: BankVenueStates): BigNumber | undefined {
+    return computeVenueAvailableLiquidity(this, venueStates);
   }
 }
 

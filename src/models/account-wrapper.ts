@@ -28,7 +28,7 @@ import {
   MakeWithdrawIxOpts,
   MarginRequirementType,
 } from "~/services/account";
-import { ActionEmodeImpact, BankType, EmodePair } from "~/services/bank";
+import { ActionEmodeImpact, BankType, EmodePair, requireBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
 import { Amount, MintData } from "~/types";
@@ -485,6 +485,22 @@ export class MarginfiAccountWrapper {
   /** Collateral (USD) not backing liabilities, from the health cache. */
   computeFreeCollateralFromCache(opts?: { clamped?: boolean }): BigNumber {
     return this.account.computeFreeCollateralFromCache(opts);
+  }
+
+  /**
+   * Oracle price at which the position in `bankAddress` gets liquidated, or `null` if none.
+   * @throws if the client has no bank or oracle price for `bankAddress`
+   */
+  computeLiquidationPriceForBank(bankAddress: Address): number | null {
+    const oraclePrice = this.client.oraclePriceByBank.get(bankAddress);
+    if (!oraclePrice) throw new Error(`oracle price for bank ${bankAddress} not found`);
+
+    return this.account.computeLiquidationPriceForBank({
+      bank: requireBank(this.client.bankMap, bankAddress),
+      oraclePrice,
+      assetShareValueMultiplier: this.client.assetShareValueMultiplierByBank.get(bankAddress),
+      activeEmodeWeights: this.getActiveEmodeWeightsByBank().get(bankAddress),
+    });
   }
 
   /**

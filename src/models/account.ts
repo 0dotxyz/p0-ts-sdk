@@ -24,6 +24,8 @@ import {
   computeHealthComponentsFromBalances,
   ComputeHealthComponentsFromBalancesParams,
   computeHealthComponentsFromCache,
+  computeLiquidationPriceForBank,
+  ComputeLiquidationPriceForBankParams,
   computeMaxBorrowForBank,
   ComputeMaxBorrowForBankParams,
   computeMaxDepositForBank,
@@ -220,6 +222,13 @@ class MarginfiAccount implements MarginfiAccountType {
       marginfiAccount: this,
       activeBalances: this.activeBalances,
     });
+  }
+
+  /** Oracle price at which this account's position in `bank` gets liquidated, or `null` if none. */
+  computeLiquidationPriceForBank(
+    params: Omit<ComputeLiquidationPriceForBankParams, "marginfiAccount">
+  ): number | null {
+    return computeLiquidationPriceForBank({ ...params, marginfiAccount: this });
   }
 
   /**
