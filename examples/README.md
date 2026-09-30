@@ -111,7 +111,7 @@ npx tsx examples/04-repay.ts
 
 #### 5. Oracle Prices (`05-oracle-prices.ts`)
 
-Fetch and update oracle prices for all banks.
+Fetch and refresh oracle prices for all banks.
 
 ```bash
 npx tsx examples/05-oracle-prices.ts
@@ -120,98 +120,53 @@ npx tsx examples/05-oracle-prices.ts
 **What you'll learn:**
 
 - Access real-time oracle prices
-- Manually refresh price data
-- Work with Pyth and Switchboard oracles
+- Refresh price data with `fetchOracleData` (Pyth, Scope, share multipliers)
 - Understand price confidence intervals
 
 ### Account Health
 
-#### 6. Account Health (`06-account-health.ts`)
+#### 6a. Simulated Health (`06a-account-health-simulated.ts`)
 
-Monitor your account's health and risk metrics.
+Refresh the account's health cache by simulation and read its metrics.
 
 ```bash
-npx tsx examples/06-account-health.ts
+npx tsx examples/06a-account-health-simulated.ts
 ```
 
 **What you'll learn:**
 
-- Compute health components (assets vs liabilities)
-- Calculate health factor
-- Monitor free collateral
-- Track net APY
-- Access health cache
+- Simulate the on-chain health cache (needs an RPC with `simulateBundle`)
+- Compute health components, free collateral, account value and net APY
 
-#### 7. Remaining Collateral (`07-remaining-collateral.ts`)
+#### 6b. Calculated Health (`06b-account-health-calculated.ts`)
 
-Calculate borrowing capacity and available collateral.
+Calculate health from balances and oracle prices, and compare it with the on-chain cache.
 
 ```bash
-npx tsx examples/07-remaining-collateral.ts
+npx tsx examples/06b-account-health-calculated.ts
 ```
 
-**What you'll learn:**
+### Flash-Loan Flows
 
-- Calculate free collateral in USD
-- Determine max borrow per bank
-- Check max withdraw per position
-- Monitor account utilization
+These build atomic flash-loan transactions around a swap (Titan/Jupiter swap engine, see
+`getSwapConfig` in `config.ts`) and simulate them as a Jito bundle.
 
-### Bank Management
-
-#### 10. Bank Filtering (`10-bank-filtering.ts`)
-
-Filter banks by mint address and asset tag.
-
-```bash
-npx tsx examples/10-bank-filtering.ts
-```
-
-**What you'll learn:**
-
-- Use `getBanksByMint()` to get all banks matching a mint
-- Filter by AssetTag (DEFAULT, KAMINO, STAKED)
-- Distinguish between main protocol and Kamino banks
-- Handle cases where multiple banks exist for the same mint
-- Select specific banks from the returned array
-
-### Advanced Operations
-
-#### 8. Repay with Collateral (`08-repay-with-collateral.ts`)
-
-Repay debt by swapping collateral assets.
-
-```bash
-npx tsx examples/08-repay-with-collateral.ts
-```
-
-**What you'll learn:**
-
-- Withdraw collateral
-- Swap via Jupiter
-- Repay debt in one transaction
-- Handle complex multi-step operations
-
-#### 9. Loop/Leverage (`09-loop-leverage.ts`)
-
-Create leveraged positions by looping deposits and borrows.
-
-```bash
-npx tsx examples/09-loop-leverage.ts
-```
-
-**What you'll learn:**
-
-- Build leveraged positions
-- Use Jupiter swaps for leverage
-- Deposit → Borrow → Swap → Deposit loops
-- Maximize capital efficiency
+- **`10-swap-collateral.ts`** - swap one collateral position into another (`makeBridgedSwapCollateralTx`)
+- **`11-swap-debt.ts`** - swap one debt position into another (`makeBridgedSwapDebtTx`)
+- **`15-roll-pt.ts`** - roll a matured Exponent PT position into its successor PT (`makeRollPtTx`);
+  `create-pt-roll-lut.ts` creates the lookup table for a roll (sends transactions, needs `LUT_KEYPAIR`)
+- **`16a-loop.ts`** - leverage loop with a direct swap (`makeLoopTx`)
+- **`16b-loop-bridged.ts`** - leverage loop with a bridged double-hop fallback (`makeBridgedLoopTx`)
+- **`16c-loop-pinned-route.ts`** - inspect or pin the swap route (`swapEngineRunner`, `swapOpts.swapIxs`)
+- **`99-bridged-loop-forced.ts`** - forces the bridged fallback to test it
+- **`swap-engine.ts`** - runs the swap engine alone for a token pair
 
 ### Native Stake Operations
 
 #### 12. Mint Staked LST (`12-mint-staked-lst.ts`)
 
-Convert a native stake account into LST tokens via the single-validator pool.
+Convert a native stake account into LST tokens via the single-validator pool. Needs
+`WALLET_ADDRESS` (the stake authority) and the stake/vote accounts set in the file.
 
 ```bash
 pnpm exec tsx 12-mint-staked-lst.ts
@@ -251,6 +206,17 @@ pnpm exec tsx 14-merge-stake-accounts.ts
 - Merge a source stake account into a destination
 - Requirements: same authority, same validator, both active
 
+### Accounts
+
+#### 18. Mint Holders (`18-mint-holders.ts`)
+
+List every account holding a mint and its balances (`getAccountAddressesHoldingBank`,
+`getAuthorityBalancesForMint`).
+
+```bash
+pnpm exec tsx 18-mint-holders.ts [MINT]
+```
+
 ## 🏗️ Architecture
 
 ### Project0Client
@@ -258,11 +224,15 @@ pnpm exec tsx 14-merge-stake-accounts.ts
 The central client that manages all marginfi interactions:
 
 ```typescript
-const client = await Project0Client.initialize(connection, {
-  environment: "production",
-  groupPk: new PublicKey("YOUR_GROUP_ADDRESS"),
-  programId: new PublicKey("YOUR_PROGRAM_ID"),
-});
+const rpcEndpoint = "YOUR_RPC_URL";
+const client = await Project0Client.initialize(
+  { rpc: createSolanaRpc(rpcEndpoint), rpcEndpoint },
+  {
+    environment: "production",
+    groupPk: address("YOUR_GROUP_ADDRESS"),
+    programId: address("YOUR_PROGRAM_ID"),
+  }
+);
 
 // Access preloaded data
 client.bankMap              // Map of all banks
@@ -273,6 +243,7 @@ client.addressLookupTables // For transaction optimization
 // Get banks
 client.getBank(address)             // Get bank by address
 client.getBanksByMint(mint, tag?)   // Get all banks by mint (+ optional tag filter)
+client.fetchAccount(address)        // Fetch an account, simulate its health cache, wrap it
 ```
 
 ### MarginfiAccountWrapper
@@ -280,12 +251,12 @@ client.getBanksByMint(mint, tag?)   // Get all banks by mint (+ optional tag fil
 Clean API wrapper around MarginfiAccount:
 
 ```typescript
-// Create wrapper
-const wrappedAccount = new MarginfiAccountWrapper(account, client);
+// Create wrapper; transactions are built for `signer` (default: a noop signer for the authority)
+const wrappedAccount = new MarginfiAccountWrapper(account, client, signer);
 
 // Clean method calls - no need to pass banks, oracles, etc.
 await wrappedAccount.makeDepositIx(bankAddress, amount);
-const health = wrappedAccount.computeFreeCollateral();
+const health = wrappedAccount.computeFreeCollateralFromCache();
 const maxBorrow = wrappedAccount.computeMaxBorrowForBank(bankAddress);
 ```
 
@@ -296,8 +267,8 @@ const maxBorrow = wrappedAccount.computeMaxBorrowForBank(bankAddress);
 Before any operation, check your account health:
 
 ```typescript
-const freeCollateral = wrappedAccount.computeFreeCollateral();
-const healthComponents = wrappedAccount.computeHealthComponents(
+const freeCollateral = wrappedAccount.computeFreeCollateralFromCache();
+const healthComponents = wrappedAccount.computeHealthComponentsFromCache(
   MarginRequirementType.Maintenance
 );
 ```
@@ -329,8 +300,8 @@ For critical operations, refresh prices first:
 
 ```typescript
 const { bankOraclePriceMap } = await fetchOracleData(client.banks, {
-  pythOpts: { mode: "on-chain", connection },
-  swbOpts: { mode: "on-chain", connection },
+  pythOpts: { mode: "on-chain", rpc },
+  scopeOpts: { mode: "on-chain", rpc },
 });
 ```
 
@@ -340,12 +311,11 @@ const { bankOraclePriceMap } = await fetchOracleData(client.banks, {
 
 ```typescript
 // Initialize at app startup
-const client = await Project0Client.initialize(connection, config);
+const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
 // Reuse throughout your app
-function depositHandler() {
-  const account = await MarginfiAccount.fetch(userAddress, client.program);
-  const wrapped = new MarginfiAccountWrapper(account, client);
+async function depositHandler() {
+  const wrapped = await client.fetchAccount(userAddress, false, walletSigner);
   // ... perform operations
 }
 ```
@@ -361,7 +331,7 @@ const impacts = wrappedAccount.computeEmodeImpacts(emodePairs, bankAddresses);
 ### Safe Amount Handling
 
 ```typescript
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 // Always use BigNumber for precision
 const amount = new BigNumber(userInput);
@@ -384,7 +354,7 @@ import {
   MarginRequirementType,
   Bank,
   OraclePrice,
-} from "p0-ts-sdk";
+} from "@0dotxyz/p0-ts-sdk";
 ```
 
 ## 🐛 Troubleshooting
@@ -406,24 +376,21 @@ const bank = banks[0]; // Use first matching bank
 Check your account health before borrowing:
 
 ```typescript
-const freeCollateral = wrappedAccount.computeFreeCollateral();
+const freeCollateral = wrappedAccount.computeFreeCollateralFromCache();
 console.log("Free collateral:", freeCollateral.toString());
 ```
 
 ### Transaction Size Issues
 
-For complex transactions (loop, repay with collat), you may need to use versioned transactions with lookup tables:
-
-```typescript
-// Lookup tables are automatically loaded in client.addressLookupTables
-const tx = new VersionedTransaction(message);
-```
+Transactions are v0 messages compressed with the group's lookup tables
+(`client.addressLookupTables`, passed automatically by the wrapper). Flash-loan flows size the swap
+to what fits and fall back to bridged bundles (`makeBridged*Tx`) when a route doesn't fit.
 
 ## 📚 Additional Resources
 
 - [Marginfi Documentation](https://docs.marginfi.com)
 - [TypeScript SDK Reference](../README.md)
-- [Solana Web3.js Docs](https://solana-labs.github.io/solana-web3.js/)
+- [Solana Kit](https://github.com/anza-xyz/kit)
 
 ## 🤝 Contributing
 

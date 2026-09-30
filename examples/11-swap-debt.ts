@@ -27,16 +27,15 @@ import {
   MarginfiAccountWrapper,
   MarginfiAccount,
   simulateBundle,
-  Bank,
+  type Bank,
   isStandardBorrowable,
   isBridgeConflictError,
 } from "../src";
-import { PublicKey } from "@solana/web3.js";
+import { address, compileTransaction, type Address } from "@solana/kit";
 import {
-  getConnection,
+  getRpc,
   getMarginfiConfig,
   getAccountAddress,
-  getWalletPubkey,
   getSwapConfig,
   MINTS,
   UNIVERSAL_BRIDGE_MINTS,
@@ -47,13 +46,13 @@ import {
 // ============================================================================
 
 // Source debt: null = use first active debt position (override with SOURCE_MINT env)
-const SOURCE_MINT: PublicKey | null = process.env.SOURCE_MINT
-  ? new PublicKey(process.env.SOURCE_MINT)
+const SOURCE_MINT: Address | null = process.env.SOURCE_MINT
+  ? address(process.env.SOURCE_MINT)
   : null;
 
 // Destination debt: the mint to swap into, becomes your new debt (override with DESTINATION_MINT env)
 const DESTINATION_MINT = process.env.DESTINATION_MINT
-  ? new PublicKey(process.env.DESTINATION_MINT)
+  ? address(process.env.DESTINATION_MINT)
   : MINTS.SOL;
 
 // ============================================================================
@@ -66,20 +65,18 @@ async function swapDebtExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -90,10 +87,11 @@ async function swapDebtExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const account = await MarginfiAccount.fetch(accountAddress, rpc);
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Find Source Debt Position
@@ -118,22 +116,22 @@ async function swapDebtExample() {
   if (SOURCE_MINT) {
     // Find balance matching the specified mint
     for (const balance of debtBalances) {
-      const bank = client.bankMap.get(balance.bankPk.toBase58());
-      if (bank && bank.mint.equals(SOURCE_MINT)) {
+      const bank = client.getBank(balance.bankPk);
+      if (bank && bank.mint === SOURCE_MINT) {
         sourceBank = bank;
         sourceBalance = balance;
         break;
       }
     }
     if (!sourceBank) {
-      throw new Error(`No debt position found for mint: ${SOURCE_MINT.toBase58()}`);
+      throw new Error(`No debt position found for mint: ${SOURCE_MINT}`);
     }
   } else {
     // Use first debt position
     sourceBalance = debtBalances[0];
-    sourceBank = client.bankMap.get(sourceBalance.bankPk.toBase58());
+    sourceBank = client.getBank(sourceBalance.bankPk);
     if (!sourceBank) {
-      throw new Error(`Bank not found: ${sourceBalance.bankPk.toBase58()}`);
+      throw new Error(`Bank not found: ${sourceBalance.bankPk}`);
     }
   }
 
@@ -141,14 +139,13 @@ async function swapDebtExample() {
     throw new Error("Failed to resolve source debt balance");
   }
 
-  // Calculate the token amount from liability shares
-  const sourceTokenAmount = sourceBank.getLiabilityQuantity(sourceBalance.liabilityShares);
-  const sourceUiAmount = sourceTokenAmount.div(Math.pow(10, sourceBank.mintDecimals)).toNumber();
+  // Token amount (UI units) from liability shares
+  const sourceUiAmount = sourceBalance.computeQuantityUi(sourceBank).liabilities.toNumber();
 
   console.log(`\n✅ Source debt selected:`);
-  console.log(`   Bank: ${sourceBank.address.toBase58()}`);
+  console.log(`   Bank: ${sourceBank.address}`);
   console.log(`   Symbol: ${sourceBank.tokenSymbol || "Unknown"}`);
-  console.log(`   Mint: ${sourceBank.mint.toBase58()}`);
+  console.log(`   Mint: ${sourceBank.mint}`);
   console.log(`   Debt: ${sourceUiAmount.toFixed(6)} tokens`);
 
   // --------------------------------------------------------------------------
@@ -160,12 +157,12 @@ async function swapDebtExample() {
   // invariant: only DEFAULT/SOL asset-tag, Operational banks with a borrow limit can be borrowed
   // (excludes Kamino/Drift/JupLend wrappers and ReduceOnly banks).
   const destinationBanks = client.banks.filter(
-    (bank) => bank.mint.equals(DESTINATION_MINT) && isStandardBorrowable(bank)
+    (bank) => bank.mint === DESTINATION_MINT && isStandardBorrowable(bank)
   );
 
   if (destinationBanks.length === 0) {
     throw new Error(
-      `No borrowable P0 bank found for destination mint: ${DESTINATION_MINT.toBase58()}. ` +
+      `No borrowable P0 bank found for destination mint: ${DESTINATION_MINT}. ` +
         `Only standard (DEFAULT/SOL) operational banks with a borrow limit support borrowing.`
     );
   }
@@ -173,18 +170,18 @@ async function swapDebtExample() {
   const destinationBank = destinationBanks[0];
 
   console.log(`✅ Destination bank selected:`);
-  console.log(`   Bank: ${destinationBank.address.toBase58()}`);
+  console.log(`   Bank: ${destinationBank.address}`);
   console.log(`   Symbol: ${destinationBank.tokenSymbol || "Unknown"}`);
-  console.log(`   Mint: ${destinationBank.mint.toBase58()}`);
+  console.log(`   Mint: ${destinationBank.mint}`);
 
   // Check if source and destination banks are the same
-  if (sourceBank.address.equals(destinationBank.address)) {
+  if (sourceBank.address === destinationBank.address) {
     console.log("\n⚠️  Source and destination banks are the same - nothing to do.");
     return;
   }
 
   // Determine if this is a swap (different mints) or transfer (same mint, different banks)
-  const isSameMint = sourceBank.mint.equals(destinationBank.mint);
+  const isSameMint = sourceBank.mint === destinationBank.mint;
 
   // --------------------------------------------------------------------------
   // Step 6: Build Swap Debt Transaction (direct, with bridged fallback)
@@ -194,14 +191,14 @@ async function swapDebtExample() {
   console.log(
     `   Swapping ${sourceUiAmount.toFixed(6)} ${sourceBank.tokenSymbol || "tokens"} debt`
   );
-  console.log(`   From bank: ${sourceBank.address.toBase58()}`);
-  console.log(`   To bank: ${destinationBank.address.toBase58()}`);
+  console.log(`   From bank: ${sourceBank.address}`);
+  console.log(`   To bank: ${destinationBank.address}`);
 
   if (isSameMint) {
     console.log(`   (Same mint - no swap needed)`);
   } else {
-    console.log(`   From mint: ${sourceBank.mint.toBase58()}`);
-    console.log(`   To mint: ${destinationBank.mint.toBase58()}`);
+    console.log(`   From mint: ${sourceBank.mint}`);
+    console.log(`   To mint: ${destinationBank.mint}`);
     console.log(`   Slippage: per swap-engine config (see getSwapConfig / .env)`);
   }
 
@@ -214,10 +211,10 @@ async function swapDebtExample() {
   // client's realtime oracle prices (same source as 05-oracle-prices.ts). Bridge legs price
   // themselves from the same oracle map automatically.
   const repayMarketPrice = client.oraclePriceByBank
-    .get(sourceBank.address.toBase58())
+    .get(sourceBank.address)
     ?.priceRealtime.price.toNumber();
   const borrowMarketPrice = client.oraclePriceByBank
-    .get(destinationBank.address.toBase58())
+    .get(destinationBank.address)
     ?.priceRealtime.price.toNumber();
   if (repayMarketPrice === undefined || borrowMarketPrice === undefined) {
     throw new Error("Missing oracle price for the source or destination bank");
@@ -231,7 +228,6 @@ async function swapDebtExample() {
   // example's universal list to also try JitoSOL.
   const result = await wrappedAccount
     .makeBridgedSwapDebtTx({
-      connection,
       repayOpts: {
         totalPositionAmount: sourceUiAmount,
         repayBank: sourceBank,
@@ -262,10 +258,10 @@ async function swapDebtExample() {
 
   const isBridged = result.bridgeMint !== undefined;
   if (isBridged) {
-    const bridgeBank = client.banks.find((b) => b.mint.equals(result.bridgeMint!));
+    const bridgeBank = client.getBanksByMint(result.bridgeMint!)[0];
     console.log(
       `✅ Direct route didn't fit — bridged double-hop built via ` +
-        `${bridgeBank?.tokenSymbol ?? result.bridgeMint!.toBase58()} (${result.transactions.length} txs, 2 legs)`
+        `${bridgeBank?.tokenSymbol ?? result.bridgeMint} (${result.transactions.length} txs, 2 legs)`
     );
   } else {
     console.log(
@@ -296,7 +292,12 @@ async function swapDebtExample() {
   console.log("\n🔄 Simulating transaction bundle...");
 
   try {
-    const simulationResults = await simulateBundle(connection.rpcEndpoint, result.transactions);
+    // Compile the messages (fee payer, blockhash and lookup tables are already set) and simulate
+    // them as one bundle without signatures.
+    const simulationResults = await simulateBundle(
+      rpcEndpoint,
+      result.transactions.map((tx) => compileTransaction(tx.message))
+    );
 
     console.log("\n✅ Bundle simulation results:");
     let allSuccessful = true;

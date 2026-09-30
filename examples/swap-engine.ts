@@ -7,24 +7,29 @@
  * engine logs the candidate comparison (`[swap-engine] selected {...}`) so you
  * can watch which provider wins.
  *
- * Run (after `pnpm build`):
+ * Run:
  *   RPC_ENDPOINT=https://... \
  *   TITAN_GATEWAY_URL=https://<host>/api/v1 TITAN_API_KEY=... \
  *   JUPITER_API_KEY=... \
  *   npx tsx examples/swap-engine.ts
  *
- * Optional overrides: INPUT_MINT, OUTPUT_MINT, AMOUNT (native), TAKER (pubkey).
+ * Optional overrides: INPUT_MINT, OUTPUT_MINT, AMOUNT (native), TAKER (address), TITAN_WS_URL
+ * (default: the gateway URL with ws(s) and a `/ws` suffix).
  * Only the providers you supply credentials for are queried.
  */
-import { ComputeBudgetProgram, Connection, PublicKey } from "@solana/web3.js";
+import { address, createSolanaRpc } from "@solana/kit";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
 import {
   runSwapEngine,
   SwapProvider,
   type SwapEngineRequest,
   type SwapProviderEntry,
-} from "../dist/index.js";
-import { getAssociatedTokenAddressSync } from "../dist/vendor.js";
+} from "../src";
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const WSOL = "So11111111111111111111111111111111111111112";
@@ -39,23 +44,24 @@ async function main() {
   const inputMint = process.env.INPUT_MINT || USDC;
   const outputMint = process.env.OUTPUT_MINT || WSOL;
   const amountNative = Number(process.env.AMOUNT || 100_000_000); // 100 USDC
-  const taker = new PublicKey(
-    process.env.TAKER || "Affd7LDkUY9fjWjjQSr9bvises1Cku4WSwdLNGBhgVW3"
-  );
+  const taker = address(process.env.TAKER || "Affd7LDkUY9fjWjjQSr9bvises1Cku4WSwdLNGBhgVW3");
 
-  const connection = new Connection(rpc, "confirmed");
-  const destinationTokenAccount = getAssociatedTokenAddressSync(
-    new PublicKey(outputMint),
-    taker,
-    true
-  );
+  const [destinationTokenAccount] = await findAssociatedTokenPda({
+    mint: address(outputMint),
+    owner: taker,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
 
   // Only query providers we have credentials for.
   const providers: SwapProviderEntry[] = [];
   if (process.env.TITAN_GATEWAY_URL) {
     providers.push({
       provider: SwapProvider.TITAN,
-      apiConfig: { basePath: process.env.TITAN_GATEWAY_URL, apiKey: process.env.TITAN_API_KEY },
+      apiConfig: {
+        basePath: process.env.TITAN_GATEWAY_URL,
+        wsUrl: process.env.TITAN_WS_URL || `${process.env.TITAN_GATEWAY_URL.replace(/^http/, "ws")}/ws`,
+        apiKey: process.env.TITAN_API_KEY,
+      },
     });
   }
   if (process.env.JUPITER_API_KEY) {
@@ -71,8 +77,8 @@ async function main() {
   // Stand in for the rest of the flashloan tx. A couple of compute-budget ixs +
   // a generous budget is enough to exercise route selection.
   const footprintIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
+    getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
   const req: SwapEngineRequest = {
@@ -86,10 +92,10 @@ async function main() {
     platformFeeBps: 0,
     taker,
     destinationTokenAccount,
-    connection,
+    rpc: createSolanaRpc(rpc),
     footprint: {
       instructions: footprintIxs,
-      luts: [],
+      luts: {},
       payer: taker,
       sizeConstraint: 900,
       maxSwapTotalAccounts: 40,
@@ -109,7 +115,7 @@ async function main() {
   console.log("min out (patched): ", result.outputAmountNative.toString());
   console.log("swap ixs:          ", result.swapInstructions.length);
   console.log("setup ixs:         ", result.setupInstructions.length);
-  console.log("luts:              ", result.swapLuts.length);
+  console.log("luts:              ", Object.keys(result.swapLuts).length);
 }
 
 main().catch((err) => {

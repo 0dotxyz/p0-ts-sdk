@@ -4,7 +4,7 @@
  * This example shows how to:
  * 1. Initialize the Project0Client from config
  * 2. Access oracle prices for all banks
- * 3. Crank/update oracle prices
+ * 3. Re-fetch oracle prices
  *
  * Setup:
  * 1. Copy .env.example to .env
@@ -12,9 +12,8 @@
  * 3. Run: tsx 05-oracle-prices.ts
  */
 
-import { PublicKey } from "@solana/web3.js";
 import { Project0Client, fetchOracleData } from "../src";
-import { getConnection, getMarginfiConfig } from "./config";
+import { getRpc, getMarginfiConfig, MINTS } from "./config";
 
 // ============================================================================
 // Main Example
@@ -26,10 +25,10 @@ async function oraclePricesExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
 
   // --------------------------------------------------------------------------
@@ -37,7 +36,7 @@ async function oraclePricesExample() {
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log("✅ Client initialized with oracle prices");
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -51,7 +50,7 @@ async function oraclePricesExample() {
     const oraclePrice = client.oraclePriceByBank.get(bankAddress);
 
     if (oraclePrice) {
-      console.log(`Bank: ${bank.mint.toBase58()}`);
+      console.log(`Bank: ${bank.tokenSymbol ?? bank.mint} (${bankAddress})`);
       console.log(
         `   Realtime price: $${oraclePrice.priceRealtime.price.toNumber()}`
       );
@@ -73,17 +72,10 @@ async function oraclePricesExample() {
   const updatedOracleData = await fetchOracleData(
     client.banks, // Array of all banks
     {
-      pythOpts: {
-        mode: "on-chain", // or "api" for faster lookups
-        connection,
-      },
-      swbOpts: {
-        mode: "on-chain",
-        connection,
-      },
-      isolatedBanksOpts: {
-        fetchPrices: true,
-      },
+      pythOpts: { mode: "on-chain", rpc }, // or "api" for faster lookups
+      scopeOpts: { mode: "on-chain", rpc },
+      oracleMultiplierOpts: { mode: "on-chain", rpc },
+      isolatedBanksOpts: { fetchPrices: true },
     }
   );
 
@@ -96,12 +88,7 @@ async function oraclePricesExample() {
   // --------------------------------------------------------------------------
   console.log("\n💵 Accessing specific bank oracle price...");
 
-  const usdcMint = new PublicKey(
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-  );
-  const usdcOraclePrice = updatedOracleData.mintOraclePriceMap.get(
-    usdcMint.toBase58()
-  );
+  const usdcOraclePrice = updatedOracleData.mintOraclePriceMap.get(MINTS.USDC);
 
   if (usdcOraclePrice) {
     console.log(

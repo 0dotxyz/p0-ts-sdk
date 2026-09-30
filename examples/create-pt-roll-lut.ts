@@ -12,93 +12,126 @@
  */
 import { readFileSync } from "fs";
 import {
-  AddressLookupTableProgram,
-  ComputeBudgetProgram,
-  Keypair,
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
-import { Project0Client, MarginfiAccount, MarginfiAccountWrapper } from "../src";
-import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "../src/vendor/spl";
+  address,
+  assertIsTransactionWithBlockhashLifetime,
+  createKeyPairSignerFromBytes,
+  createSolanaRpcSubscriptions,
+  getSignatureFromTransaction,
+  sendAndConfirmTransactionFactory,
+  signTransactionMessageWithSigners,
+  type Address,
+  type Instruction,
+} from "@solana/kit";
 import {
-  resolveExponentMergeContext,
+  findAddressLookupTablePda,
+  getCreateLookupTableInstruction,
+  getExtendLookupTableInstruction,
+} from "@solana-program/address-lookup-table";
+import { getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
+import { findAssociatedTokenPda } from "@solana-program/token";
+
+import {
+  Project0Client,
+  MarginfiAccount,
+  MarginfiAccountWrapper,
+  makeTransactionMessage,
+} from "../src";
+import {
+  makeExponentClmmTradePtIx,
   makeExponentMergeIx,
   resolveExponentClmmTradePtContext,
-  makeExponentClmmTradePtIx,
-  exponentClmmBuyPtArgs,
+  resolveExponentMergeContext,
+  SwapDirection,
 } from "../src/vendor/exponent";
-import { makeWithdrawIx } from "../src/services/account/actions/withdraw";
-import { makeDepositIx } from "../src/services/account/actions/deposit";
+import { getRpc, getMarginfiConfig, getAccountAddress } from "./config";
 
-const MATURED_MARKET = new PublicKey(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
-const MATURED_PT_BANK = new PublicKey(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
-const PT_NEW = new PublicKey(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
-const SUCCESSOR_MARKET = new PublicKey(process.env.SUCCESSOR_PT_MARKET ?? "7NSpRqs1ZNiZharyTwKyprfanQsaPprZSm1z84nVsbKn");
+const MATURED_MARKET = address(process.env.MATURED_PT_MARKET ?? "scSc4o3AkRoW6uooY3M54GUstZnYb4fADieeWz8AYco");
+const MATURED_PT_BANK = address(process.env.MATURED_PT_BANK ?? "9ThXmfwhNzc6qbkRLuSGHwKS7mxjn6QcuRD644Pjn4F");
+const PT_NEW = address(process.env.SUCCESSOR_PT_MINT ?? "HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6");
+const SUCCESSOR_MARKET = address(process.env.SUCCESSOR_PT_MARKET ?? "7NSpRqs1ZNiZharyTwKyprfanQsaPprZSm1z84nVsbKn");
 
-function loadKeypair(): Keypair {
-  const p = process.env.LUT_KEYPAIR ?? "/home/kobe/develop/p0/aatGhKor24nSnf1hPYbzRCPD2YWLfFLC2X6G69a2Rzw.json";
-  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(p, "utf8"))));
+async function loadPayer() {
+  const path = process.env.LUT_KEYPAIR;
+  if (!path) throw new Error("Set LUT_KEYPAIR to a funded keypair file (JSON byte array)");
+  return createKeyPairSignerFromBytes(Uint8Array.from(JSON.parse(readFileSync(path, "utf8"))));
 }
 
 async function main() {
-  const connection = getConnection();
-  const payer = loadKeypair();
-  const client = await Project0Client.initialize(connection, getMarginfiConfig());
-  const account = await MarginfiAccount.fetch(getAccountAddress(), client.program);
+  const { rpc, rpcEndpoint } = getRpc();
+  const payer = await loadPayer();
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, getMarginfiConfig());
+  const account = await MarginfiAccount.fetch(getAccountAddress(), rpc);
   const wrapper = new MarginfiAccountWrapper(account, client);
-  const authority = account.authority;
-  const maturedBank = client.bankMap.get(MATURED_PT_BANK.toBase58())!;
-  const successorBank = [...client.bankMap.values()].find((b) => b.mint.equals(PT_NEW))!;
+  const authority = wrapper.signer;
+  const maturedBank = client.getBank(MATURED_PT_BANK)!;
+  const successorBank = client.getBanksByMint(PT_NEW)[0]!;
   const mMint = await wrapper.getMintDataFromBank(maturedBank);
   const sMint = await wrapper.getMintDataFromBank(successorBank);
 
   // Build the exact flash-loan footprint and harvest its accounts.
-  const merge = await resolveExponentMergeContext({ connection, owner: authority, market: MATURED_MARKET, ptYtTokenProgram: mMint.tokenProgram });
-  const clmm = await resolveExponentClmmTradePtContext({ connection, owner: authority, market: SUCCESSOR_MARKET, ptTokenProgram: sMint.tokenProgram });
-  const mergeIx = makeExponentMergeIx(merge.mergeAccounts, 1n);
-  const tradeIx = makeExponentClmmTradePtIx(clmm.tradePtAccounts, exponentClmmBuyPtArgs({ amountInSyNative: 1n, minPtOutNative: 1n }));
-  const withdraw = await makeWithdrawIx({ program: client.program, bank: maturedBank, bankMap: client.bankMap, tokenProgram: mMint.tokenProgram, amount: 1, marginfiAccount: account, authority, withdrawAll: false, bankMetadataMap: client.bankIntegrationMap, isSync: true, opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
-  const deposit = await makeDepositIx({ program: client.program, bank: successorBank, tokenProgram: sMint.tokenProgram, amount: 1, accountAddress: account.address, authority, group: account.group, isSync: true, opts: { wrapAndUnwrapSol: false, overrideInferAccounts: { authority, group: account.group } } });
+  const merge = await resolveExponentMergeContext({ rpc, owner: authority.address, market: MATURED_MARKET, ptYtTokenProgram: mMint.tokenProgram });
+  const clmm = await resolveExponentClmmTradePtContext({ rpc, owner: authority.address, market: SUCCESSOR_MARKET, ptTokenProgram: sMint.tokenProgram });
+  const mergeIx = await makeExponentMergeIx({ ...merge.mergeInput, owner: authority, amount: 1n }, merge.remainingAccounts);
+  const tradeIx = await makeExponentClmmTradePtIx(
+    { ...clmm.tradePtInput, trader: authority, amountIn: 1n, swapDirection: SwapDirection.SyToPt, amountOutConstraint: 1n, priceSpotLimit: null },
+    clmm.remainingAccounts
+  );
+  const withdrawIxs = await wrapper.makeWithdrawIx(maturedBank.address, 1, false, { createAtas: false, wrapAndUnwrapSol: false });
+  const depositIxs = await wrapper.makeDepositIx(successorBank.address, 1, { wrapAndUnwrapSol: false });
 
-  const keys = new Set<string>();
-  for (const ix of [...withdraw.instructions, mergeIx, tradeIx, ...deposit.instructions]) {
-    keys.add(ix.programId.toBase58());
-    for (const k of ix.keys) keys.add(k.pubkey.toBase58());
+  const keys = new Set<Address>();
+  for (const ix of [...withdrawIxs, mergeIx, tradeIx, ...depositIxs]) {
+    keys.add(ix.programAddress);
+    for (const meta of ix.accounts ?? []) keys.add(meta.address);
   }
   // Exclude per-USER accounts so the LUT is SHAREABLE across all rollers of this pair: the
   // signer, the marginfi account, and the owner's ATAs (these differ per user / stay static).
   // Everything else (banks, the matured vault + merge accounts, the CLMM pool + its escrows /
   // ticks / fee treasuries, SY-CPI accounts, mints, programs) is shared per matured→successor pair.
-  const ata = (mint: PublicKey) => getAssociatedTokenAddressSync(mint, authority, true).toBase58();
-  const perUser = new Set<string>([
-    authority.toBase58(),
-    account.address.toBase58(),
-    ata(maturedBank.mint),
-    ata(successorBank.mint),
-    ata(merge.underlying.mint), // shared SY
+  const ata = async (mint: Address, tokenProgram: Address) =>
+    (await findAssociatedTokenPda({ mint, owner: authority.address, tokenProgram }))[0];
+  const perUser = new Set<Address>([
+    authority.address,
+    account.address,
+    await ata(maturedBank.mint, mMint.tokenProgram),
+    await ata(merge.vault.mintYt, mMint.tokenProgram),
+    await ata(successorBank.mint, sMint.tokenProgram),
+    await ata(merge.underlying.mint, merge.underlying.tokenProgram), // shared SY
   ]);
-  const addresses = [...keys].filter((k) => !perUser.has(k)).map((k) => new PublicKey(k));
+  const addresses = [...keys].filter((k) => !perUser.has(k));
   console.log(`LUT will hold ${addresses.length} SHARED accounts (per-user accounts excluded)`);
 
-  const slot = await connection.getSlot("finalized");
-  const [createIx, lutAddress] = AddressLookupTableProgram.createLookupTable({ authority: payer.publicKey, payer: payer.publicKey, recentSlot: slot });
-  console.log("LUT address:", lutAddress.toBase58());
+  const recentSlot = await rpc.getSlot({ commitment: "finalized" }).send();
+  const [lutAddress, bump] = await findAddressLookupTablePda({ authority: payer.address, recentSlot });
+  console.log("LUT address:", lutAddress);
 
-  const send = async (ixs: any[], label: string) => {
-    const bh = (await connection.getLatestBlockhash("confirmed")).blockhash;
-    const tx = new VersionedTransaction(new TransactionMessage({ payerKey: payer.publicKey, recentBlockhash: bh, instructions: [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }), ...ixs] }).compileToV0Message());
-    tx.sign([payer]);
-    const sig = await connection.sendTransaction(tx, { skipPreflight: false });
-    await connection.confirmTransaction(sig, "confirmed");
-    console.log(`  ${label}: ${sig}`);
+  const sendAndConfirm = sendAndConfirmTransactionFactory({
+    rpc,
+    rpcSubscriptions: createSolanaRpcSubscriptions(rpcEndpoint.replace(/^http/, "ws")),
+  });
+  const send = async (instructions: Instruction[], label: string) => {
+    const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: "confirmed" }).send();
+    const tx = await signTransactionMessageWithSigners(
+      makeTransactionMessage({
+        instructions: [getSetComputeUnitPriceInstruction({ microLamports: 50_000 }), ...instructions],
+        feePayer: payer,
+        latestBlockhash,
+      })
+    );
+    assertIsTransactionWithBlockhashLifetime(tx);
+    await sendAndConfirm(tx, { commitment: "confirmed" });
+    console.log(`  ${label}: ${getSignatureFromTransaction(tx)}`);
   };
+  const extend = (chunk: Address[]) =>
+    getExtendLookupTableInstruction({ address: lutAddress, authority: payer, payer, addresses: chunk });
 
-  await send([createIx, AddressLookupTableProgram.extendLookupTable({ payer: payer.publicKey, authority: payer.publicKey, lookupTable: lutAddress, addresses: addresses.slice(0, 20) })], "create + extend");
+  await send(
+    [getCreateLookupTableInstruction({ address: lutAddress, authority: payer, payer, recentSlot, bump }), extend(addresses.slice(0, 20))],
+    "create + extend"
+  );
   for (let i = 20; i < addresses.length; i += 20) {
-    await send([AddressLookupTableProgram.extendLookupTable({ payer: payer.publicKey, authority: payer.publicKey, lookupTable: lutAddress, addresses: addresses.slice(i, i + 20) })], `extend ${i}`);
+    await send([extend(addresses.slice(i, i + 20))], `extend ${i}`);
   }
-  console.log("\n✅ PT-roll LUT:", lutAddress.toBase58());
+  console.log("\n✅ PT-roll LUT:", lutAddress);
 }
 main().catch((e) => { console.error("ERR", e?.stack ?? e?.message ?? e); process.exit(1); });

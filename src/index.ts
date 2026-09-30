@@ -11,7 +11,6 @@ export * from "./models/client";
 export * from "./models/emode-settings";
 export * from "./models/health-cache";
 export * from "./services";
-export * from "./idl";
 export * from "./types";
 // Vendor exports moved to separate entry point: p0-ts-sdk/vendor
 // This prevents bundling massive oracle/protocol integrations when not needed

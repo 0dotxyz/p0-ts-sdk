@@ -15,9 +15,7 @@ export default defineConfig({
   treeshake: true,
   minify: false,
   external: [
-    "@coral-xyz/anchor",
     "@solana/kit",
-    "@solana/web3.js",
     "bignumber.js",
     "decimal.js",
     "superstruct",
