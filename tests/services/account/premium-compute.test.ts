@@ -9,6 +9,8 @@ import {
   BalanceType,
   computeBalancePremium,
   computeNetApy,
+  computePremiumImpact,
+  computePremiumRatesByBank,
   computeProjectedActiveBalancesNoCpi,
   computeQuantity,
   getBalanceUsdValueWithPriceBias,
@@ -17,6 +19,7 @@ import {
   MarginRequirementType,
 } from "~/services/account";
 import { BankType, OperationalState, RiskTier } from "~/services/bank";
+import { PremiumEntry } from "~/services/group";
 import { OraclePrice } from "~/services/price";
 import syncInstructions from "~/sync-instructions";
 import type { MarginfiProgram } from "~/types";
@@ -281,5 +284,252 @@ describe("repay projection", () => {
     expect(projected.active).toBe(false);
     expect(projected.premiumOutstanding.isZero()).toBe(true);
     expect(projected.premiumRate.isZero()).toBe(true);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Rates and impacts
+// ----------------------------------------------------------------------------
+
+const STABLE = 1;
+const SOL = 2;
+const VOLATILE = 4;
+
+const entry = (collateralTag: number, liabilityTag: number, rate: number): PremiumEntry => ({
+  collateralTag,
+  liabilityTag,
+  rate: new BigNumber(rate),
+});
+
+function taggedBank(
+  premiumTag: number,
+  opts: {
+    premiumActive?: boolean;
+    riskTier?: RiskTier;
+    assetWeightMaint?: number;
+  } = {}
+): BankType {
+  const b = bank({ premiumActive: opts.premiumActive ?? true });
+  return {
+    ...b,
+    premiumTag,
+    config: {
+      ...b.config,
+      riskTier: opts.riskTier ?? RiskTier.Collateral,
+      assetWeightMaint: new BigNumber(opts.assetWeightMaint ?? 0.9),
+    },
+  } as BankType;
+}
+
+function deposit(b: BankType, ui: number): BalanceType {
+  return {
+    active: true,
+    bankPk: b.address,
+    assetShares: usdc(ui),
+    liabilityShares: new BigNumber(0),
+    premiumRate: new BigNumber(0),
+    premiumOutstanding: new BigNumber(0),
+    lastUpdate: NOW,
+  };
+}
+
+function state(banks: BankType[], activeBalances: BalanceType[], premiumEntries: PremiumEntry[]) {
+  return {
+    activeBalances,
+    banksMap: new Map(banks.map((b) => [b.address.toBase58(), b])),
+    oraclePricesByBank: new Map(banks.map((b) => [b.address.toBase58(), oraclePrice(1)])),
+    premiumEntries,
+  };
+}
+
+describe("computePremiumRatesByBank", () => {
+  it("vb02: single tagged collateral pays the pair rate, mixing in untagged halves it, untagged pays 0", () => {
+    const usdcBank = taggedBank(STABLE);
+    const solBank = taggedBank(SOL);
+    const solUntagged = taggedBank(0);
+    const banks = [usdcBank, solBank, solUntagged];
+    const entries = [entry(SOL, STABLE, 0.01)];
+    const rate = (balances: BalanceType[]) =>
+      computePremiumRatesByBank(state(banks, balances, entries))
+        .get(usdcBank.address.toBase58())
+        ?.toNumber();
+
+    expect(rate([deposit(solBank, 10)])).toBeCloseTo(0.01, 12);
+    expect(rate([deposit(solBank, 10), deposit(solUntagged, 10)])).toBeCloseTo(0.005, 12);
+    expect(rate([deposit(solUntagged, 10)])).toBe(0);
+  });
+
+  it("release notes: USDC 0%, BONK 10%, USDC + BONK 5% when borrowing a STABLE bank", () => {
+    const usdt = taggedBank(STABLE);
+    const usdcBank = taggedBank(STABLE);
+    const bonk = taggedBank(VOLATILE);
+    const banks = [usdt, usdcBank, bonk];
+    const entries = [entry(VOLATILE, STABLE, 0.1)];
+    const rate = (balances: BalanceType[]) =>
+      computePremiumRatesByBank(state(banks, balances, entries))
+        .get(usdt.address.toBase58())
+        ?.toNumber();
+
+    expect(rate([deposit(usdcBank, 10)])).toBe(0);
+    expect(rate([deposit(bonk, 10)])).toBeCloseTo(0.1, 12);
+    expect(rate([deposit(usdcBank, 10), deposit(bonk, 10)])).toBeCloseTo(0.05, 12);
+  });
+
+  it("vb05: 8x8 table with equal collateral averages each liability's column", () => {
+    const N = 8;
+    const step = 0.0005;
+    const collateralBanks = Array.from({ length: N }, (_, i) => taggedBank(1000 + i));
+    const liabilityBanks = Array.from({ length: N }, (_, j) => taggedBank(2000 + j));
+    const entries = collateralBanks.flatMap((_, i) =>
+      liabilityBanks.map((__, j) => entry(1000 + i, 2000 + j, (i * N + j + 1) * step))
+    );
+    const rates = computePremiumRatesByBank(
+      state(
+        [...collateralBanks, ...liabilityBanks],
+        collateralBanks.map((b) => deposit(b, 1000)),
+        entries
+      )
+    );
+
+    liabilityBanks.forEach((b, j) => {
+      expect(rates.get(b.address.toBase58())?.toNumber()).toBeCloseTo(
+        step * (j + 1 + (N * (N - 1)) / 2),
+        12
+      );
+    });
+  });
+
+  it("leaves out isolated and zero-maintenance-weight collateral and omits premium-inactive banks", () => {
+    const usdcBank = taggedBank(STABLE);
+    const inactive = taggedBank(STABLE, { premiumActive: false });
+    const bonk = taggedBank(VOLATILE);
+    const isolated = taggedBank(0, { riskTier: RiskTier.Isolated });
+    const zeroWeight = taggedBank(0, { assetWeightMaint: 0 });
+    const banks = [usdcBank, inactive, bonk, isolated, zeroWeight];
+    const rates = computePremiumRatesByBank(
+      state(
+        banks,
+        [deposit(bonk, 10), deposit(isolated, 1000), deposit(zeroWeight, 1000)],
+        [entry(VOLATILE, STABLE, 0.5)]
+      )
+    );
+
+    expect(rates.get(usdcBank.address.toBase58())?.toNumber()).toBeCloseTo(0.5, 12);
+    expect(rates.has(inactive.address.toBase58())).toBe(false);
+  });
+
+  it("values integration collateral through its share multiplier", () => {
+    const usdcBank = taggedBank(STABLE);
+    const kaminoSol = taggedBank(SOL);
+    const wif = taggedBank(VOLATILE);
+    const banks = [usdcBank, kaminoSol, wif];
+    const rates = computePremiumRatesByBank({
+      ...state(banks, [deposit(kaminoSol, 10), deposit(wif, 20)], [
+        entry(SOL, STABLE, 0.05),
+        entry(VOLATILE, STABLE, 0.5),
+      ]),
+      assetShareValueMultiplierByBank: new Map([[kaminoSol.address.toBase58(), new BigNumber(2)]]),
+    });
+
+    // 20 USD of Kamino SOL at 5% and 20 USD of WIF at 50%
+    expect(rates.get(usdcBank.address.toBase58())?.toNumber()).toBeCloseTo(0.275, 12);
+  });
+});
+
+describe("computePremiumImpact", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW * 1000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const usdcBank = taggedBank(STABLE);
+  const usdtBank = taggedBank(STABLE);
+  const solBank = taggedBank(SOL);
+  const wif = taggedBank(VOLATILE);
+  const banks = [usdcBank, usdtBank, solBank, wif];
+  const entries = [entry(VOLATILE, STABLE, 0.5), entry(SOL, STABLE, 0.05)];
+  const usdcDebt = debt({ bankPk: usdcBank.address, principal: 10_000, rate: 0.5, lastUpdate: NOW });
+  const key = (b: BankType) => b.address.toBase58();
+
+  it("a stable deposit lowers the rate of existing debt, and the SDK pulse applies it now", () => {
+    const impact = computePremiumImpact({
+      ...state(banks, [deposit(wif, 10_000), usdcDebt], entries),
+      actions: [{ type: "deposit", bank: usdtBank.address, amount: 10_000 }],
+    });
+
+    expect(impact.refreshes).toBe(true);
+    expect(impact.liabilities.get(key(usdcBank))?.before?.toNumber()).toBe(0.5);
+    expect(impact.liabilities.get(key(usdcBank))?.after.toNumber()).toBeCloseTo(0.25, 12);
+    expect(impact.annualPremiumUsd.before.toNumber()).toBeCloseTo(5000, 6);
+    expect(impact.annualPremiumUsd.after.toNumber()).toBeCloseTo(2500, 6);
+  });
+
+  it("a withdrawal raises it", () => {
+    const impact = computePremiumImpact({
+      ...state(banks, [deposit(wif, 10_000), deposit(usdtBank, 10_000), usdcDebt], entries),
+      actions: [{ type: "withdraw", bank: usdtBank.address, amount: 5_000 }],
+    });
+
+    // 10k WIF at 50% and 5k USDT at 0%
+    expect(impact.liabilities.get(key(usdcBank))?.after.toNumber()).toBeCloseTo(1 / 3, 12);
+  });
+
+  it("a new borrow has no stored rate and pays the current-mix rate", () => {
+    const impact = computePremiumImpact({
+      ...state(banks, [deposit(solBank, 1_000)], entries),
+      actions: [{ type: "borrow", bank: usdtBank.address, amount: 100 }],
+    });
+
+    expect(impact.refreshes).toBe(true);
+    expect(impact.liabilities.get(key(usdtBank))?.before).toBeUndefined();
+    expect(impact.liabilities.get(key(usdtBank))?.after.toNumber()).toBeCloseTo(0.05, 12);
+    expect(impact.annualPremiumUsd.after.toNumber()).toBeCloseTo(5, 9);
+  });
+
+  it("repaying the whole debt removes it, and a deposit without debt refreshes nothing", () => {
+    const repaid = computePremiumImpact({
+      ...state(banks, [deposit(wif, 10_000), usdcDebt], entries),
+      actions: [{ type: "repay", bank: usdcBank.address, amount: 10_000 }],
+    });
+    expect(repaid.liabilities.size).toBe(0);
+    expect(repaid.annualPremiumUsd.after.isZero()).toBe(true);
+
+    const noDebt = computePremiumImpact({
+      ...state(banks, [deposit(wif, 10_000)], entries),
+      actions: [{ type: "deposit", bank: usdtBank.address, amount: 1 }],
+    });
+    expect(noDebt.refreshes).toBe(false);
+    expect(noDebt.liabilities.size).toBe(0);
+  });
+
+  it("a partial repay pays premium first, so only the rest lowers principal", () => {
+    const owing = debt({
+      bankPk: usdcBank.address,
+      principal: 10_000,
+      rate: 0.5,
+      outstanding: 100,
+      lastUpdate: NOW,
+    });
+    const impact = computePremiumImpact({
+      ...state(banks, [deposit(wif, 10_000), owing], entries),
+      actions: [{ type: "repay", bank: usdcBank.address, amount: 1_100 }],
+    });
+
+    expect(impact.annualPremiumUsd.after.toNumber()).toBeCloseTo(9_000 * 0.5, 6);
+  });
+
+  it("previews a loop's end state from all its legs", () => {
+    const impact = computePremiumImpact({
+      ...state(banks, [deposit(solBank, 1_000)], entries),
+      actions: [
+        { type: "deposit", bank: wif.address, amount: 1_000 },
+        { type: "borrow", bank: usdcBank.address, amount: 500 },
+      ],
+    });
+
+    expect(impact.liabilities.get(key(usdcBank))?.after.toNumber()).toBeCloseTo(0.275, 12);
   });
 });
