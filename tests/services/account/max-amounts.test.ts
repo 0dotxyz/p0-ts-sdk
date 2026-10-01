@@ -4,6 +4,7 @@ import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
 import {
+  computeBankOutflowRateLimit,
   computeMaxBorrowForBank,
   computeMaxDepositForBank,
   computeMaxWithdrawForBank,
@@ -309,10 +310,9 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     expect(max.toNumber()).toBeCloseTo(70, 6);
   });
 
-  // The program's Kamino withdraw records the rate-limit outflow in cToken
-  // collateral units, so the SDK converts the remaining capacity to underlying
-  // via the exchange-rate multiplier before clamping.
-  it("converts a KAMINO bank's rate-limit remaining from cToken to underlying units", () => {
+  // Since 0.1.10 the program's Kamino withdraw records the redeemed liquidity
+  // (`expected_liquidity_amount`) on the bank limiter, not the cToken amount.
+  it("leaves a KAMINO bank's rate-limit remaining in underlying units", () => {
     const b = bank({
       totalDeposits: 1000,
       totalBorrows: 0,
@@ -331,8 +331,7 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
       ...ctx(b),
       assetShareValueMultiplierByBank: new Map([[b.address.toBase58(), multiplier]]),
     });
-    // 70 cTokens remaining * 1.5 underlying-per-cToken
-    expect(max.toNumber()).toBeCloseTo(105, 6);
+    expect(max.toNumber()).toBeCloseTo(70, 6);
   });
 
   // Staked-bank limiters record LST amounts (the bank mint); the SDK's unit
@@ -391,6 +390,40 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     });
     const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b), ignoreBankLimits: true });
     expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+});
+
+describe("computeBankOutflowRateLimit", () => {
+  const limits = { totalDeposits: 1e6, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 };
+
+  it("returns null when the bank has no limiter", () => {
+    expect(computeBankOutflowRateLimit(bank(limits))).toBeNull();
+  });
+
+  it("returns the hourly window when it is the only one enabled", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 30 } });
+    const limit = computeBankOutflowRateLimit(b);
+    expect(limit?.window).toBe("hourly");
+    expect(limit?.remaining.toNumber()).toBeCloseTo(70, 6);
+  });
+
+  it("returns the daily window when it is tighter than the hourly one", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 30 } });
+    b.rateLimiter!.daily = {
+      maxOutflow: ui(500),
+      windowDuration: 86400,
+      windowStart: Math.floor(Date.now() / 1000) - 60,
+      prevWindowOutflow: new BigNumber(0),
+      curWindowOutflow: ui(460),
+    };
+    const limit = computeBankOutflowRateLimit(b);
+    expect(limit?.window).toBe("daily");
+    expect(limit?.remaining.toNumber()).toBeCloseTo(40, 6);
+  });
+
+  it("clamps an overdrawn window at 0", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 130 } });
+    expect(computeBankOutflowRateLimit(b)?.remaining.toNumber()).toBe(0);
   });
 });
 
