@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType, MarginRequirementType } from "../../types";
+import { BalanceType, MarginfiAccountType, MarginRequirementType } from "../../types";
 
 import {
   BankType,
@@ -44,6 +44,30 @@ export function computeBalancePremium(
       .times(balance.premiumRate)
       .times(elapsedSeconds)
       .div(SECONDS_PER_YEAR)
+  );
+}
+
+/**
+ * Whether a deposit or repay should be followed by `pulse_health`: the account has debt in a
+ * premium-active bank that the action doesn't repay in full. Deposits and repays don't refresh
+ * premium rates on-chain, so the transaction builders refresh them after the action.
+ *
+ * @param marginfiAccount - The account before the action
+ * @param bankMap - Map of bank addresses to bank data
+ * @param closedBanks - Banks the action repays in full
+ * @returns True when premium-bearing debt remains after the action
+ */
+export function needsPremiumRefresh(
+  marginfiAccount: MarginfiAccountType,
+  bankMap: Map<string, BankType>,
+  closedBanks: PublicKey[]
+): boolean {
+  return marginfiAccount.balances.some(
+    (balance) =>
+      balance.active &&
+      balance.liabilityShares.gt(0) &&
+      !closedBanks.some((bank) => bank.equals(balance.bankPk)) &&
+      bankMap.get(balance.bankPk.toBase58())?.premiumActive
   );
 }
 

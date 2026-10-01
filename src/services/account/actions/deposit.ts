@@ -18,6 +18,9 @@ import {
   MakeJuplendDepositIxParams,
   MakeJuplendDepositTxParams,
 } from "../types";
+import { needsPremiumRefresh } from "../utils";
+
+import { makePremiumRefreshIxs } from "./account-lifecycle";
 
 import { SYSTEM_PROGRAM_ID } from "~/constants";
 import instructions from "~/instructions";
@@ -27,6 +30,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForAccountAction,
   selectLutsForBanks,
   TransactionType,
 } from "~/services/transaction";
@@ -186,8 +190,6 @@ export async function makeDriftDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
-
   if (!depositIxParams.bank.driftIntegrationAccounts) {
     throw new Error("Bank has no drift integration accounts");
   }
@@ -196,6 +198,14 @@ export async function makeDriftDepositTx(
     amount,
     ...depositIxParams,
   });
+  const premiumIxs =
+    !params.opts?.skipPremiumRefresh &&
+    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
+      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
+      : [];
+  const selectedLuts = premiumIxs.length
+    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
+    : selectLutsForBanks(luts, [params.bank]);
 
   const blockhash =
     params.blockhash ??
@@ -204,7 +214,7 @@ export async function makeDriftDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions],
+        instructions: [...depositIxs.instructions, ...premiumIxs],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -391,8 +401,6 @@ export async function makeKaminoDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
-
   if (!depositIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
   }
@@ -424,6 +432,14 @@ export async function makeKaminoDepositTx(
     amount,
     ...depositIxParams,
   });
+  const premiumIxs =
+    !params.opts?.skipPremiumRefresh &&
+    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
+      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
+      : [];
+  const selectedLuts = premiumIxs.length
+    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
+    : selectLutsForBanks(luts, [params.bank]);
 
   const blockhash =
     params.blockhash ??
@@ -432,7 +448,7 @@ export async function makeKaminoDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs, ...depositIxs.instructions],
+        instructions: [...refreshIxs, ...depositIxs.instructions, ...premiumIxs],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -571,11 +587,16 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Extend
   const { luts, ...depositIxParams } = params;
 
   const ixs = await makeDepositIx(depositIxParams);
-  const tx = new Transaction().add(...ixs.instructions);
+  const premiumIxs =
+    !params.opts?.skipPremiumRefresh &&
+    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
+      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
+      : [];
+  const selectedLuts = premiumIxs.length
+    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
+    : selectLutsForBanks(luts, [params.bank]);
+  const tx = new Transaction().add(...ixs.instructions, ...premiumIxs);
   tx.feePayer = params.authority;
-
-  // Deposits don't add health remaining-accounts, so only the target bank matters.
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
 
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.DEPOSIT,
@@ -714,8 +735,6 @@ export async function makeJuplendDepositTx(
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
 
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
-
   if (!depositIxParams.bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
   }
@@ -724,6 +743,14 @@ export async function makeJuplendDepositTx(
     amount,
     ...depositIxParams,
   });
+  const premiumIxs =
+    !params.opts?.skipPremiumRefresh &&
+    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
+      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
+      : [];
+  const selectedLuts = premiumIxs.length
+    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
+    : selectLutsForBanks(luts, [params.bank]);
 
   const blockhash =
     params.blockhash ??
@@ -732,7 +759,7 @@ export async function makeJuplendDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions],
+        instructions: [...depositIxs.instructions, ...premiumIxs],
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)

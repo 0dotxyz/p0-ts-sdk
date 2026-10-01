@@ -22,9 +22,10 @@ import {
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
+  needsPremiumRefresh,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
 import {
   makeDriftWithdrawIx,
@@ -44,6 +45,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForAccountAction,
   selectLutsForBanks,
   splitInstructionsToFitTransactions,
   TransactionType,
@@ -173,14 +175,20 @@ export async function makeRepayIx({
  * @returns Promise resolving to an ExtendedTransaction with metadata
  */
 export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTransaction> {
-  const { luts, ...depositIxParams } = params;
+  const { luts, ...repayIxParams } = params;
 
-  const ixs = await makeRepayIx(depositIxParams);
-  const tx = new Transaction().add(...ixs.instructions);
+  const ixs = await makeRepayIx(repayIxParams);
+  const closedBanks = params.repayAll ? [params.bank.address] : [];
+  const premiumIxs =
+    !params.opts?.skipPremiumRefresh &&
+    needsPremiumRefresh(params.marginfiAccount, params.bankMap, closedBanks)
+      ? await makePremiumRefreshIxs(params.program, params, [], closedBanks)
+      : [];
+  const selectedLuts = premiumIxs.length
+    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
+    : selectLutsForBanks(luts, [params.bank]);
+  const tx = new Transaction().add(...ixs.instructions, ...premiumIxs);
   tx.feePayer = params.authority;
-
-  // Repays don't add health remaining-accounts, so only the target bank matters.
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
 
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.REPAY,
