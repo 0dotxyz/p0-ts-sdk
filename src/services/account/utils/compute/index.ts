@@ -16,5 +16,8 @@ export * from "./balance-helper.utils";
 // Account Metrics
 export * from "./account-metrics.utils";
 
+// Variable Borrow Premium
+export * from "./premium-compute.utils";
+
 // Transaction Projections
 export * from "./transaction-projection.utils";
