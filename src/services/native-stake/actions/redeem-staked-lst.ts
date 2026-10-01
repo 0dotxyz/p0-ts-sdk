@@ -74,7 +74,7 @@ export async function makeRedeemStakedLstIx({
 export async function makeRedeemStakedLstTx(
   params: MakeRedeemStakedLstTxParams
 ): Promise<SolanaTransaction> {
-  const { luts, latestBlockhash, ...redeemIxParams } = params;
+  const { luts, latestBlockhash, version, ...redeemIxParams } = params;
 
   const redeemIxs = await makeRedeemStakedLstIx(redeemIxParams);
 
@@ -86,6 +86,7 @@ export async function makeRedeemStakedLstTx(
         latestBlockhash ??
         (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       luts,
+      version,
     }),
     type: TransactionType.WITHDRAW_STAKE,
   };

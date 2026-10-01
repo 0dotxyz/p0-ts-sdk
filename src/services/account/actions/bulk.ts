@@ -52,6 +52,7 @@ export async function makeBulkWithdrawTx(
     bankMetadataMap,
     tokenProgramsByBank,
     luts,
+    version,
   } = params;
 
   if (bankAddresses.length === 0) throw new Error("no banks to withdraw");
@@ -121,6 +122,7 @@ export async function makeBulkWithdrawTx(
     latestBlockhash,
     feePayer: authority,
     luts: selectedLuts,
+    version,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
   }).map((message) => ({ message, type: TransactionType.WITHDRAW }));
@@ -139,6 +141,7 @@ export async function makeBulkWithdrawTx(
       latestBlockhash,
       feePayer: authority,
       luts: selectedLuts,
+      version,
     });
     additionalTxs.push(
       ...setupTxs.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
@@ -159,6 +162,7 @@ export async function makeBulkWithdrawTx(
       latestBlockhash,
       feePayer: authority,
       luts: selectedLuts,
+      version,
     });
     additionalTxs.push(...refreshTxs.map((message) => ({ message, type: TransactionType.CRANK })));
   }
@@ -185,6 +189,7 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     bankMap,
     tokenProgramsByBank,
     luts = {},
+    version,
   } = params;
 
   if (bankAddresses.length === 0) throw new Error("no banks to repay");
@@ -225,6 +230,7 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     latestBlockhash,
     feePayer: authority,
     luts,
+    version,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
   }).map((message) => ({ message, type: TransactionType.REPAY }));

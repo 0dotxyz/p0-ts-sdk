@@ -191,10 +191,17 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
   },
 };
 
+/** Message version option shared by the transaction builders. */
+export interface TransactionVersionParams {
+  /** Transaction message version; 1 builds a v1 message without lookup tables (default 0). */
+  version?: 0 | 1;
+}
+
 /**
- * A transaction built by the SDK: a v0 message with fee payer, blockhash lifetime and lookup
- * tables applied, and every signer embedded in its account metas. Sign it with
- * `signTransactionMessageWithSigners`, or compile it for a wallet with `compileTransaction`.
+ * A transaction built by the SDK: a v0 message with lookup tables applied, or a v1 message with
+ * its resource limits set, with fee payer and blockhash lifetime and every signer embedded in its
+ * account metas. Sign it with `signTransactionMessageWithSigners`, or compile it for a wallet with
+ * `compileTransaction`.
  */
 export type SolanaTransaction = {
   message: TransactionMessage &

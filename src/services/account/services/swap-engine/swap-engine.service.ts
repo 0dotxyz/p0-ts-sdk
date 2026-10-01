@@ -137,6 +137,7 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
     sizeConstraint: footprint.sizeConstraint,
     swapIxCount: route.swapInstructions.length,
     swapLutCount: Object.keys(route.luts).length,
+    version: footprint.version,
   });
 
   const fits = precheck.overshoot <= 0 && precheck.totalAccounts <= MAX_ACCOUNT_LOCKS;

@@ -81,6 +81,32 @@ describe("swap engine request serialization", () => {
     expect(back.rpc).toBe(dummyRpc);
     expect(back.providers[0].apiConfig?.apiKey).toBe("server-key");
   });
+
+  it("round-trips the footprint version when it is 1", () => {
+    const v1Req: SwapEngineRequest = {
+      ...req,
+      footprint: req.footprint && { ...req.footprint, version: 1 },
+    };
+
+    const s = serializeSwapEngineRequest(v1Req);
+    const back = deserializeSwapEngineRequest(JSON.parse(JSON.stringify(s)), { rpc: dummyRpc });
+
+    expect(s.footprint?.version).toBe(1);
+    expect(back.footprint).toBeDefined();
+    expect(back.footprint?.version).toBe(1);
+    // the rest of the footprint is untouched by the version
+    expect(back.footprint?.instructions).toEqual([footprintIx]);
+    expect(back.footprint?.sizeConstraint).toBe(800);
+  });
+
+  it("leaves the footprint version undefined when the request has none", () => {
+    const wire = JSON.parse(JSON.stringify(serializeSwapEngineRequest(req)));
+    const back = deserializeSwapEngineRequest(wire, { rpc: dummyRpc });
+
+    expect(wire.footprint).not.toHaveProperty("version");
+    expect(back.footprint).toBeDefined();
+    expect(back.footprint?.version).toBeUndefined();
+  });
 });
 
 describe("swap engine result serialization", () => {

@@ -122,6 +122,103 @@ describe("transaction messages", () => {
   });
 });
 
+describe("version 1 transaction messages", () => {
+  const V1_SIZE_LIMIT = 4096;
+  const wireSize = (message: ReturnType<typeof makeTransactionMessage>) =>
+    getTransactionEncoder().encode(compileTransaction(message)).length;
+
+  it("builds a version 0 message when no version is given", () => {
+    const message = makeTransactionMessage({
+      instructions: [ix(10, 4)],
+      feePayer,
+      latestBlockhash,
+    });
+    const [split] = splitInstructionsToFitTransactions([], [ix(10, 4)], {
+      latestBlockhash,
+      feePayer,
+      luts: {},
+    });
+
+    expect(message.version).toBe(0);
+    expect(split.version).toBe(0);
+  });
+
+  it("keeps every account static, ignoring lookup tables, and sets the default resource limits", () => {
+    const message = makeTransactionMessage({
+      instructions: [ix(10, 4)],
+      feePayer,
+      latestBlockhash,
+      luts: { [key(100)]: [key(10), key(11)] },
+      version: 1,
+    });
+
+    expect(message.version).toBe(1);
+
+    const compiled = compileTransactionMessage(message);
+    expect(compiled.version).toBe(1);
+    expect("addressTableLookups" in compiled).toBe(false);
+    // fee payer + program + the 4 instruction accounts, lookup-table ones included
+    expect(new Set(compiled.staticAccounts)).toEqual(
+      new Set([feePayer.address, programAddress, key(10), key(11), key(12), key(13)])
+    );
+    expect(compiled.staticAccounts).toHaveLength(6);
+    expect(getTotalAccountKeys(message)).toBe(6);
+
+    expect("config" in message && message.config).toEqual({
+      computeUnitLimit: 1_400_000,
+      loadedAccountsDataSizeLimit: 67_108_864,
+      priorityFeeLamports: 0n,
+    });
+  });
+
+  it("measures the exact wire size", () => {
+    const message = makeTransactionMessage({
+      instructions: [ix(10, 4, 100), ix(20, 2, 7)],
+      feePayer,
+      latestBlockhash,
+      version: 1,
+    });
+
+    expect(getTxSize(message)).toBe(wireSize(message));
+  });
+
+  it("fits a single instruction that is too large for version 0", () => {
+    const large = ix(20, 1, 1300);
+    const opts = { latestBlockhash, feePayer, luts: {} };
+
+    expect(() => splitInstructionsToFitTransactions([], [large], opts)).toThrow(
+      "Single instruction too large"
+    );
+
+    const messages = splitInstructionsToFitTransactions([], [large], { ...opts, version: 1 });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].version).toBe(1);
+    expect(messages[0].instructions).toEqual([large]);
+    expect(wireSize(messages[0])).toBeGreaterThan(1232);
+    expect(wireSize(messages[0])).toBeLessThanOrEqual(V1_SIZE_LIMIT);
+  });
+
+  it("splits instructions against the 4096-byte limit", () => {
+    // 5 x 1300 bytes of instruction data: over one version 1 message, under two
+    const big = [10, 20, 30, 40, 50].map((firstKey) => ix(firstKey, 2, 1300));
+
+    const messages = splitInstructionsToFitTransactions([], big, {
+      latestBlockhash,
+      feePayer,
+      luts: {},
+      version: 1,
+    });
+
+    expect(messages.length).toBeGreaterThan(1);
+    expect(messages.flatMap((m) => m.instructions)).toEqual(big);
+    for (const message of messages) {
+      expect(message.version).toBe(1);
+      expect(wireSize(message)).toBeLessThanOrEqual(V1_SIZE_LIMIT);
+    }
+  });
+});
+
 describe("selectLutsForBanks", () => {
   const nativeStakeLut = ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE[banks.staked.group][0];
   const generalLut = key(150);

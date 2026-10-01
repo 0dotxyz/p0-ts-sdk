@@ -4,6 +4,7 @@ import {
   fetchAddressesForLookupTables,
   getBase64EncodedWireTransaction,
   getBase64Encoder,
+  getTransactionMessageSizeLimit,
   type Address,
   type BlockhashLifetimeConstraint,
   type ReadonlyUint8Array,
@@ -38,7 +39,7 @@ import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import {
   getTxSize,
@@ -87,7 +88,8 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
 }> {
-  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, luts } = params;
+  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, luts, version } =
+    params;
 
   // Resolve the matured vault's `merge` (redeem PT → SY) accounts and the successor CLMM pool's
   // `trade_pt` (buy SY → PT) accounts up front. The merge's SY is exactly the CLMM pool's quote
@@ -145,6 +147,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
       latestBlockhash,
       feePayer: authority,
       luts: luts ?? {},
+      version,
     });
     additionalTxs.push(
       ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
@@ -183,6 +186,7 @@ async function buildRollPtFlashloanTx({
     withdrawOpts,
     depositOpts,
     luts: accountLuts,
+    version,
     rollOpts,
   } = params;
   const {
@@ -322,6 +326,7 @@ async function buildRollPtFlashloanTx({
     sizeConstraint,
     swapIxCount: 0,
     swapLutCount: 0,
+    version,
   });
 
   const flashloanTx = await makeFlashLoanTx({
@@ -330,13 +335,17 @@ async function buildRollPtFlashloanTx({
     authority,
     bankMap,
     luts,
+    version,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
 
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(txSize, totalKeys, undefined);
   }
 

@@ -186,7 +186,7 @@ export async function makeDepositIx({
  * @throws see {@link makeDepositIx}
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
-  const { rpc, luts, latestBlockhash, ...depositIxParams } = params;
+  const { rpc, luts, latestBlockhash, version, ...depositIxParams } = params;
   const { bank, bankMetadataMap } = params;
 
   const depositIxs = await makeDepositIx(depositIxParams);
@@ -206,6 +206,7 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       // Deposits don't add health remaining-accounts, so only the target bank matters.
       luts: selectLutsForBanks(luts, [bank]),
+      version,
     }),
     type: TransactionType.DEPOSIT,
   };

@@ -2,7 +2,9 @@ import {
   appendTransactionMessageInstructions,
   compressTransactionMessageUsingAddressLookupTables,
   createTransactionMessage,
+  getTransactionMessageSizeLimit,
   pipe,
+  setTransactionMessageConfig,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   type Address,
@@ -12,11 +14,11 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SolanaTransaction } from "../types";
+import { SolanaTransaction, TransactionVersionParams } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
-import { MAX_TX_SIZE, ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
+import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
@@ -102,14 +104,26 @@ export function isFlashloan(tx: SolanaTransaction): boolean {
   });
 }
 
+// A v1 message has no implicit limits: unset means zero compute units and zero loaded bytes. These
+// are the maximum compute budget and the loaded-accounts size a v0 message gets by default. The
+// zero priority fee reserves its config bytes, so setting the real fee cannot outgrow a checked size.
+const V1_DEFAULT_CONFIG = {
+  computeUnitLimit: 1_400_000,
+  loadedAccountsDataSizeLimit: 64 * 1024 * 1024,
+  priorityFeeLamports: 0n,
+};
+
 /**
- * Builds a v0 transaction message: `feePayer` pays and signs, `latestBlockhash` sets the lifetime
- * and accounts found in `luts` are compressed into lookups.
+ * Builds a transaction message: `feePayer` pays and signs and `latestBlockhash` sets the lifetime.
+ * A v0 message compresses accounts found in `luts` into lookups. A v1 message inlines every
+ * account (`luts` is ignored), is limited to 4096 bytes instead of 1232, and carries its compute
+ * budget in the message config rather than in ComputeBudget instructions, which it ignores.
  *
  * @param params.instructions - Instructions in execution order
  * @param params.feePayer - Fee payer signer
  * @param params.latestBlockhash - Blockhash lifetime (e.g. from `getLatestBlockhash`)
- * @param params.luts - Lookup tables to compress accounts with
+ * @param params.luts - Lookup tables to compress accounts with (v0 only)
+ * @param params.version - Message version (default 0)
  * @returns The compilable, lifetime-bound transaction message
  */
 export function makeTransactionMessage({
@@ -117,12 +131,23 @@ export function makeTransactionMessage({
   feePayer,
   latestBlockhash,
   luts = {},
+  version = 0,
 }: {
   instructions: Instruction[];
   feePayer: TransactionSigner;
   latestBlockhash: BlockhashLifetimeConstraint;
   luts?: AddressesByLookupTableAddress;
-}): SolanaTransaction["message"] {
+} & TransactionVersionParams): SolanaTransaction["message"] {
+  if (version === 1) {
+    return pipe(
+      createTransactionMessage({ version: 1 }),
+      (message) => setTransactionMessageFeePayerSigner(feePayer, message),
+      (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
+      (message) => appendTransactionMessageInstructions(instructions, message),
+      (message) => setTransactionMessageConfig(V1_DEFAULT_CONFIG, message)
+    );
+  }
+
   return pipe(
     createTransactionMessage({ version: 0 }),
     (message) => setTransactionMessageFeePayerSigner(feePayer, message),
@@ -134,7 +159,7 @@ export function makeTransactionMessage({
 
 /**
  * Splits your instructions into as many transaction messages as needed
- * so that none exceed MAX_TX_SIZE (minus `sizeMargin`, if given) nor
+ * so that none exceed the size limit of their version (minus `sizeMargin`, if given) nor
  * `maxAccountLocks` account locks (if given).
  */
 export function splitInstructionsToFitTransactions(
@@ -144,15 +169,14 @@ export function splitInstructionsToFitTransactions(
     latestBlockhash: BlockhashLifetimeConstraint;
     feePayer: TransactionSigner;
     luts: AddressesByLookupTableAddress;
-    /** Bytes reserved below MAX_TX_SIZE, e.g. for compute-budget ixs appended at send time. */
+    /** Bytes reserved below the size limit, e.g. for compute-budget ixs appended at send time. */
     sizeMargin?: number;
     /** Also cap the total account locks per transaction (e.g. MAX_ACCOUNT_LOCKS). */
     maxAccountLocks?: number;
-  }
+  } & TransactionVersionParams
 ): SolanaTransaction["message"][] {
   const result: SolanaTransaction["message"][] = [];
   let buffer: Instruction[] = [];
-  const maxSize = MAX_TX_SIZE - (opts.sizeMargin ?? 0);
 
   function buildTx(extraIxs: Instruction[]): SolanaTransaction["message"] {
     return makeTransactionMessage({
@@ -160,6 +184,7 @@ export function splitInstructionsToFitTransactions(
       feePayer: opts.feePayer,
       latestBlockhash: opts.latestBlockhash,
       luts: opts.luts,
+      version: opts.version,
     });
   }
 
@@ -167,7 +192,7 @@ export function splitInstructionsToFitTransactions(
   function fits(extraIxs: Instruction[]): boolean {
     try {
       const tx = buildTx(extraIxs);
-      if (getTxSize(tx) > maxSize) return false;
+      if (getTxSize(tx) > getTransactionMessageSizeLimit(tx) - (opts.sizeMargin ?? 0)) return false;
       if (opts.maxAccountLocks !== undefined && getTotalAccountKeys(tx) > opts.maxAccountLocks) {
         return false;
       }

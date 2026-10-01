@@ -13,6 +13,7 @@ import {
   SwapProviderEntry,
   SwapQuoteResult,
 } from "~/services/account/types";
+import { TransactionVersionParams } from "~/services/transaction";
 
 /**
  * The footprint of everything in the flashloan transaction *except* the swap.
@@ -21,13 +22,13 @@ import {
  * (CU + primary + secondary), with NO begin/end-flashloan wrapper — the wrapper
  * is optional context for Titan template accuracy only.
  */
-export interface TxFootprint {
+export interface TxFootprint extends TransactionVersionParams {
   instructions: Instruction[];
   luts: AddressesByLookupTableAddress;
   /** Begin/end-flashloan ixs, for Titan template sizing only (optional). */
   wrapperInstructions?: Instruction[];
   payer: Address;
-  /** Available swap byte budget (net of the flashloan wrapper). */
+  /** Available swap byte budget of a v0 transaction (net of the flashloan wrapper); log-only. */
   sizeConstraint: number;
   /** Available swap account-slot budget (net of the flashloan wrapper). */
   maxSwapTotalAccounts: number;

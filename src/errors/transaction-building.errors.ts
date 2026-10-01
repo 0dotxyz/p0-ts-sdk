@@ -294,7 +294,7 @@ export class TransactionBuildingError<
   }
 
   /**
-   * The built transfer transaction exceeds the v0 size / account-lock limits even at the position
+   * The built transfer transaction exceeds the size / account-lock limits even at the position
    * cap (most likely several integration positions whose reserve accounts overflow the 64-lock cap).
    * Retry with fewer positions in the selection.
    */

@@ -1,9 +1,10 @@
-import type {
-  Address,
-  AddressesByLookupTableAddress,
-  BlockhashLifetimeConstraint,
-  Instruction,
-  TransactionSigner,
+import {
+  getTransactionMessageSizeLimit,
+  type Address,
+  type AddressesByLookupTableAddress,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
+  type TransactionSigner,
 } from "@solana/kit";
 import {
   getSetComputeUnitLimitInstruction,
@@ -27,7 +28,7 @@ import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
@@ -437,6 +438,7 @@ async function buildTransferFlashloanTx(args: {
   preIxs: Instruction[];
   latestBlockhash: BlockhashLifetimeConstraint;
   luts: AddressesByLookupTableAddress;
+  version?: 0 | 1;
 }): Promise<SolanaTransaction> {
   const {
     programAddress,
@@ -448,6 +450,7 @@ async function buildTransferFlashloanTx(args: {
     preIxs,
     latestBlockhash,
     luts,
+    version,
   } = args;
 
   const endIndex = preIxs.length + innerIxs.length + 1;
@@ -467,6 +470,7 @@ async function buildTransferFlashloanTx(args: {
       feePayer: authority,
       latestBlockhash,
       luts,
+      version,
     }),
     type: TransactionType.FLASHLOAN,
   };
@@ -495,7 +499,7 @@ function destPreexistingBanksOf(
  * unsigned transactions ordered for sequential execution (setup/refresh + crank first, then the
  * flashloan); the caller signs and sends them.
  *
- * The whole transfer must fit one v0 transaction — the selection is capped at `maxPositions`
+ * The whole transfer must fit one transaction — the selection is capped at `maxPositions`
  * (default 5), and the built flashloan is size-checked, throwing `TRANSFER_POSITIONS_UNSPLITTABLE`
  * if it still overflows (possible with several integration positions). Transfer larger sets in
  * batches. Correctness (both accounts staying healthy) is enforced on-chain: `endFL(A)` checks A's
@@ -528,6 +532,7 @@ export async function makeTransferPositionsTx(
     bankMetadataMap,
     assetShareValueMultiplierByBank,
     luts = {},
+    version,
   } = params;
 
   const borrowPaddingBps = params.borrowPaddingBps ?? DEFAULT_BORROW_PADDING_BPS;
@@ -594,11 +599,12 @@ export async function makeTransferPositionsTx(
     preIxs,
     latestBlockhash,
     luts,
+    version,
   });
 
   const size = getTxSize(flashloanTx.message);
   const keys = getTotalAccountKeys(flashloanTx.message);
-  if (size > MAX_TX_SIZE || keys > MAX_ACCOUNT_LOCKS) {
+  if (size > getTransactionMessageSizeLimit(flashloanTx.message) || keys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.transferPositionsUnsplittable(
       `built transaction exceeds size limits (${size} bytes, ${keys} accounts); transfer fewer positions`,
       size,
@@ -628,6 +634,7 @@ export async function makeTransferPositionsTx(
       latestBlockhash,
       feePayer: authority,
       luts,
+      version,
     });
     additionalTxs.push(
       ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
