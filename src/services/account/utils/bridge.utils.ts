@@ -244,6 +244,7 @@ export type SharedBridgeLegContext = Pick<
   | "swapOpts"
   | "luts"
   | "swapEngineRunner"
+  | "version"
 >;
 
 export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBridgeLegContext {
@@ -258,5 +259,6 @@ export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBr
     swapOpts: params.swapOpts,
     luts: params.luts,
     swapEngineRunner: params.swapEngineRunner,
+    version: params.version,
   };
 }

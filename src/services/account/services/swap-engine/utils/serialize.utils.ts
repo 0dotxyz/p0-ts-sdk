@@ -37,6 +37,7 @@ export interface SerializedTxFootprint {
   payer: string;
   sizeConstraint: number;
   maxSwapTotalAccounts: number;
+  version?: 0 | 1;
 }
 
 export interface SerializedSwapEngineRequest {
@@ -130,6 +131,7 @@ function serializeFootprint(f: TxFootprint): SerializedTxFootprint {
     payer: f.payer,
     sizeConstraint: f.sizeConstraint,
     maxSwapTotalAccounts: f.maxSwapTotalAccounts,
+    version: f.version,
   };
 }
 
@@ -176,6 +178,7 @@ function deserializeFootprint(s: SerializedTxFootprint): TxFootprint {
     payer: address(s.payer),
     sizeConstraint: s.sizeConstraint,
     maxSwapTotalAccounts: s.maxSwapTotalAccounts,
+    version: s.version,
   };
 }
 

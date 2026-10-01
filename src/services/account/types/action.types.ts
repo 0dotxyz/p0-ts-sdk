@@ -18,7 +18,7 @@ import type { SwapEngineRunner } from "../services/swap-engine/types";
 import { MarginfiAccountType } from "./account.types";
 
 import { BankType } from "~/services/bank";
-import { SolanaTransaction } from "~/services/transaction";
+import { SolanaTransaction, TransactionVersionParams } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap } from "~/types";
 
 export enum SwapProvider {
@@ -114,7 +114,7 @@ export interface MakeDepositIxParams {
 }
 
 /** Transaction options shared by the single-action builders. */
-export interface ActionTxParams {
+export interface ActionTxParams extends TransactionVersionParams {
   rpc: Rpc<GetLatestBlockhashApi>;
   luts: AddressesByLookupTableAddress;
   /** Fetched from `rpc` when omitted. */
@@ -223,11 +223,12 @@ export interface MakeCloseAccountIxParams {
   authority: TransactionSigner;
 }
 
-export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
+export interface MakeCloseAccountTxParams
+  extends MakeCloseAccountIxParams, TransactionVersionParams {
   rpc: Rpc<GetLatestBlockhashApi>;
 }
 
-export interface MakeAccountTransferToNewAccountTxParams {
+export interface MakeAccountTransferToNewAccountTxParams extends TransactionVersionParams {
   rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
   programAddress: Address;
   /** The account being transferred. */
@@ -252,7 +253,7 @@ export interface FlashloanActionResult extends TransactionBuilderResult {
   txOverflown: boolean;
 }
 
-export interface MakeFlashLoanTxParams {
+export interface MakeFlashLoanTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   authority: TransactionSigner;
@@ -264,7 +265,7 @@ export interface MakeFlashLoanTxParams {
 
 export type TransferPositionSide = "collateral" | "debt";
 
-export interface MakeTransferPositionsTxParams {
+export interface MakeTransferPositionsTxParams extends TransactionVersionParams {
   programAddress: Address;
   /** The authority of both accounts; signs and pays. */
   authority: TransactionSigner;
@@ -302,7 +303,7 @@ export interface TransferPositionsResult {
   mustBeAtomicBundle: boolean;
 }
 
-export interface MakeBulkWithdrawTxParams {
+export interface MakeBulkWithdrawTxParams extends TransactionVersionParams {
   programAddress: Address;
   /** The account authority; signs and pays. */
   authority: TransactionSigner;
@@ -317,7 +318,7 @@ export interface MakeBulkWithdrawTxParams {
   luts: AddressesByLookupTableAddress;
 }
 
-export interface MakeBulkRepayTxParams {
+export interface MakeBulkRepayTxParams extends TransactionVersionParams {
   programAddress: Address;
   /** The account authority; signs and pays. */
   authority: TransactionSigner;
@@ -343,7 +344,7 @@ export interface BulkLendTxsResult {
 /** RPC methods the swap flows use: blockhash, ATA and mint lookups, swap lookup tables. */
 export type SwapFlowRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
 
-export interface MakeLoopTxParams {
+export interface MakeLoopTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
@@ -412,7 +413,7 @@ export interface LoopFlashloanDescriptor {
   luts: AddressesByLookupTableAddress;
 }
 
-export interface MakeRepayWithCollatTxParams {
+export interface MakeRepayWithCollatTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
@@ -441,7 +442,7 @@ export interface MakeRepayWithCollatTxParams {
   swapEngineRunner?: SwapEngineRunner;
 }
 
-export interface MakeSwapCollateralTxParams {
+export interface MakeSwapCollateralTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
@@ -481,7 +482,7 @@ export interface MakeSwapCollateralTxParams {
  * vault's `pt_redemption_rate`; the SY → PT price is quoted by simulating a standalone
  * `trade_pt`, so the deposit is sized to the guaranteed minimum out.
  */
-export interface MakeRollPtTxParams {
+export interface MakeRollPtTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs, pays and owns the PT/SY token accounts. */
@@ -568,7 +569,7 @@ export interface RollPtOpts {
   lookupTable?: Address;
 }
 
-export interface MakeSwapDebtTxParams {
+export interface MakeSwapDebtTxParams extends TransactionVersionParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
