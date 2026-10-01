@@ -58,7 +58,8 @@ export interface ComputeNetApyParams {
  * **Calculation:**
  * 1. Computes weighted APR contributions from each position:
  *    - **Lending positions**: Positive contribution (earning interest)
- *    - **Borrowing positions**: Negative contribution (paying interest)
+ *    - **Borrowing positions**: Negative contribution (paying interest plus the balance's stored
+ *      variable borrow premium rate)
  * 2. Weights each position by its USD value relative to total account value
  * 3. Converts the final APR to APY (accounts for compounding)
  *
@@ -119,10 +120,13 @@ export function computeNetApy(params: ComputeNetApyParams): number {
       const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankKey);
       const activeEmodeWeights = activeEmodeWeightsByBank?.get(bankKey);
 
+      const premiumRate = bank.premiumActive ? balance.premiumRate : new BigNumber(0);
+
       return weightedApr
         .minus(
           computeInterestRates(bank)
-            .borrowingRate.times(
+            .borrowingRate.plus(premiumRate)
+            .times(
               computeBalanceUsdValue({
                 balance,
                 bank,

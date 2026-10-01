@@ -4,6 +4,8 @@ import BigNumber from "bignumber.js";
 
 import { BalanceType, MarginfiAccountType } from "../../types";
 
+import { computeBalancePremium } from "./premium-compute.utils";
+
 import {
   BankType,
   getAssetShares,
@@ -518,6 +520,8 @@ export function computeProjectedActiveBalancesNoCpi({
         // Check if this is a full repay
         if (ixArgs.repayAll) {
           targetBalance.liabilityShares = new BigNumber(0);
+          targetBalance.premiumOutstanding = new BigNumber(0);
+          targetBalance.premiumRate = new BigNumber(0);
 
           // If no assets and no liabilities, close the balance
           if (targetBalance.assetShares.eq(0)) {
@@ -531,7 +535,12 @@ export function computeProjectedActiveBalancesNoCpi({
           if (!bank) {
             throw Error(`Bank ${targetBank.toBase58()} not found in bankMap`);
           }
-          const repayShares = getLiabilityShares(bank, repayTokenAmount);
+          const nowSeconds = Date.now() / 1000;
+          const premium = computeBalancePremium(targetBalance, bank, nowSeconds);
+          const premiumSettled = BigNumber.min(premium, repayTokenAmount);
+          targetBalance.premiumOutstanding = premium.minus(premiumSettled);
+          targetBalance.lastUpdate = nowSeconds;
+          const repayShares = getLiabilityShares(bank, repayTokenAmount.minus(premiumSettled));
           targetBalance.liabilityShares = BigNumber.max(
             0,
             targetBalance.liabilityShares.minus(repayShares)
