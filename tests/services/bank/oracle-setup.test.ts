@@ -38,18 +38,21 @@ const SETUP_INDICES: [OracleSetup, number][] = [
   [OracleSetup.JuplendLST, 24],
   [OracleSetup.PTPyth, 25],
   [OracleSetup.PTFixed, 26],
+  [OracleSetup.ScopeKamino, 27],
+  [OracleSetup.ScopeJuplend, 28],
 ];
 
 const typesCoder = new BorshCoder(MARGINFI_IDL as any).types;
 
 describe("OracleSetup (de)serialization", () => {
-  it("uses the 0.1.11 IDL", () => {
-    expect(MARGINFI_IDL.metadata.version).toBe("0.1.11");
+  it("uses the 0.1.12 IDL", () => {
+    expect(MARGINFI_IDL.metadata.version).toBe("0.1.12");
 
     const instructionNames = MARGINFI_IDL.instructions.map((instruction) => instruction.name);
     expect(instructionNames).toContain("lending_pool_configure_bank_oracle_scope");
     expect(instructionNames).toContain("lending_pool_set_oracle_price");
     expect(instructionNames).not.toContain("lending_pool_set_fixed_oracle_price");
+    expect(instructionNames).toContain("lending_pool_configure_bank_premium");
   });
 
   it("round-trips every real variant through raw and index", () => {
@@ -73,7 +76,7 @@ describe("OracleSetup (de)serialization", () => {
   });
 
   it("decodes future discriminants via the reserved padding instead of throwing", () => {
-    for (const index of [27, 40, 63]) {
+    for (const index of [29, 40, 63]) {
       const decoded = typesCoder.decode("OracleSetup", Buffer.from([index]));
       expect(parseOracleSetup(decoded)).toBe(OracleSetup.Unknown);
     }

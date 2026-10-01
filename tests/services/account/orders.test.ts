@@ -135,7 +135,8 @@ const balance = (
     tag,
     assetShares: new BigNumber(side.assets ?? 0),
     liabilityShares: new BigNumber(side.liabilities ?? 0),
-    emissionsOutstanding: new BigNumber(0),
+    premiumRate: new BigNumber(0),
+    premiumOutstanding: new BigNumber(0),
     lastUpdate: 0,
   }) as BalanceType;
 

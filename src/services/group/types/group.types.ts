@@ -1,10 +1,21 @@
 import { PublicKey } from "@solana/web3.js";
+import { BigNumber } from "bignumber.js";
 
 import { BankRateLimiterType, BankRateLimiterDto } from "~/services/bank";
+
+/** One pair of the group's premium table: the extra borrow APR for debt in `liabilityTag` banks backed by `collateralTag` collateral. */
+export type PremiumEntry = {
+  collateralTag: number;
+  liabilityTag: number;
+  /** APR fraction (0.05 = 5%) */
+  rate: BigNumber;
+};
 
 export type MarginfiGroupType = {
   admin: PublicKey;
   address: PublicKey;
+  /** Live entries of the variable borrow premium table; empty when the group has no premium configured */
+  premiumEntries: PremiumEntry[];
   /**
    * Group-level net-outflow rate limiter (windows denominated in USD, unlike bank
    * rate limiters which use native tokens). When any window is enabled, every
@@ -17,6 +28,7 @@ export type MarginfiGroupType = {
 export type MarginfiGroupTypeDto = {
   admin: string;
   address: string;
+  premiumEntries?: { collateralTag: number; liabilityTag: number; rate: string }[];
   rateLimiter?: BankRateLimiterDto;
 };
 
