@@ -70,13 +70,11 @@ class MarginfiGroup implements MarginfiGroupType {
   // ----------------------------------------------------------------------------
 
   static fromAccountParsed(address: PublicKey, accountData: MarginfiGroupRaw): MarginfiGroup {
-    // rateLimiter and the premium table are camelCased by anchor's Program account client;
-    // decoding via the raw BorshCoder (fromBuffer) yields snake_case fields and leaves them unset.
     const rateLimiter = accountData.rateLimiter
       ? parseBankRateLimiterRaw(accountData.rateLimiter)
       : undefined;
-    const premiumEntries = (accountData.premiumEntries ?? [])
-      .slice(0, accountData.premiumSettings?.entryCount ?? 0)
+    const premiumEntries = accountData.premiumEntries
+      .slice(0, accountData.premiumSettings.entryCount)
       .map((entry) => ({ ...entry, rate: rateFromU32(entry.rate) }));
     return new MarginfiGroup(accountData.admin, address, rateLimiter, premiumEntries);
   }
