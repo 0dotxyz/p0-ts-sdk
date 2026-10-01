@@ -29,10 +29,12 @@ import {
   TransactionBuilderResult,
   TransferPositionsResult,
   computeLowestEmodeWeights,
+  computePremiumBreakdown,
   computePremiumImpact,
   computePremiumRatesByBank,
   createActiveEmodePairFromPairs,
   PremiumAction,
+  PremiumCollateralBreakdown,
   PremiumImpact,
 } from "~/services/account";
 import { BankType, EmodePair, ActionEmodeImpact, fetchBank } from "~/services/bank";
@@ -1178,6 +1180,14 @@ export class MarginfiAccountWrapper {
    */
   getPremiumRatesByBank(): Map<string, BigNumber> {
     return computePremiumRatesByBank(this.premiumRateParams());
+  }
+
+  /**
+   * Per-collateral breakdown of the premium rate `liabilityBank` would charge this account.
+   * See {@link computePremiumBreakdown}.
+   */
+  getPremiumBreakdown(liabilityBank: PublicKey): PremiumCollateralBreakdown[] {
+    return computePremiumBreakdown(this.premiumRateParams(), liabilityBank);
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   BalanceType,
   computeBalancePremium,
   computeNetApy,
+  computePremiumBreakdown,
   computePremiumImpact,
   computePremiumRatesByBank,
   computeProjectedActiveBalancesNoCpi,
@@ -436,6 +437,43 @@ describe("computePremiumRatesByBank", () => {
   });
 });
 
+describe("computePremiumBreakdown", () => {
+  const usdt = taggedBank(STABLE);
+  const usdcBank = taggedBank(STABLE);
+  const bonk = taggedBank(VOLATILE);
+  const isolated = taggedBank(VOLATILE, { riskTier: RiskTier.Isolated });
+  const inactive = taggedBank(STABLE, { premiumActive: false });
+  const banks = [usdt, usdcBank, bonk, isolated, inactive];
+  const params = state(
+    banks,
+    [deposit(usdcBank, 10), deposit(bonk, 10), deposit(isolated, 100)],
+    [entry(VOLATILE, STABLE, 0.1)]
+  );
+
+  it("gives one row per counted collateral, summing to the rate (release notes: USDC + BONK = 5%)", () => {
+    const rows = computePremiumBreakdown(params, usdt.address);
+    const row = (b: BankType) => rows.find((r) => r.bank.equals(b.address));
+
+    expect(rows).toHaveLength(2);
+    expect(row(usdcBank)).toMatchObject({ tag: STABLE });
+    expect(row(usdcBank)?.pairRate.toNumber()).toBe(0);
+    expect(row(usdcBank)?.contributionApr.toNumber()).toBe(0);
+    expect(row(bonk)?.usd.toNumber()).toBeCloseTo(10, 9);
+    expect(row(bonk)?.pairRate.toNumber()).toBeCloseTo(0.1, 12);
+    expect(row(bonk)?.contributionApr.toNumber()).toBeCloseTo(0.05, 12);
+
+    const total = rows.reduce((sum, r) => sum + r.contributionApr.toNumber(), 0);
+    expect(total).toBeCloseTo(
+      computePremiumRatesByBank(params).get(usdt.address.toBase58())?.toNumber() ?? NaN,
+      12
+    );
+  });
+
+  it("is empty for a bank without premium", () => {
+    expect(computePremiumBreakdown(params, inactive.address)).toEqual([]);
+  });
+});
+
 describe("computePremiumImpact", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -462,6 +500,14 @@ describe("computePremiumImpact", () => {
 
     expect(impact.refreshes).toBe(true);
     expect(impact.liabilities.get(key(usdcBank))?.before?.toNumber()).toBe(0.5);
+    expect(
+      impact.liabilities
+        .get(key(usdcBank))
+        ?.breakdown.map((row) => [row.bank.toBase58(), row.contributionApr.toNumber()])
+    ).toEqual([
+      [key(wif), 0.25],
+      [key(usdtBank), 0],
+    ]);
     expect(impact.liabilities.get(key(usdcBank))?.after.toNumber()).toBeCloseTo(0.25, 12);
     expect(impact.annualPremiumUsd.before.toNumber()).toBeCloseTo(5000, 6);
     expect(impact.annualPremiumUsd.after.toNumber()).toBeCloseTo(2500, 6);

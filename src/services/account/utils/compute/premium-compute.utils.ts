@@ -107,10 +107,50 @@ export function computePremiumRatesByBank(
   const rates = new Map<string, BigNumber>();
   for (const [bankKey, bank] of params.banksMap) {
     if (bank.premiumActive) {
-      rates.set(bankKey, computePremiumRate(collateral, params.premiumEntries, bank.premiumTag));
+      rates.set(
+        bankKey,
+        breakdownPremium(collateral, params.premiumEntries, bank.premiumTag).reduce(
+          (rate, row) => rate.plus(row.contributionApr),
+          new BigNumber(0)
+        )
+      );
     }
   }
   return rates;
+}
+
+/**
+ * One collateral's part in a liability's premium rate
+ */
+export interface PremiumCollateralBreakdown {
+  /** Collateral bank address */
+  bank: PublicKey;
+  /** The collateral bank's premium tag (0 = untagged) */
+  tag: number;
+  /** Collateral USD counted toward the rate: unweighted, at the Initial-requirement low price */
+  usd: BigNumber;
+  /** Rate of this collateral's tag against the liability's tag (APR fraction); 0 without a pair */
+  pairRate: BigNumber;
+  /** usd x pairRate / total collateral USD; the rows sum to the liability's rate */
+  contributionApr: BigNumber;
+}
+
+/**
+ * Per-collateral breakdown of the rate {@link computePremiumRatesByBank} gives `liabilityBank`:
+ * one row per collateral that counts toward premium. Isolated, zero-maintenance-weight and unpriced
+ * collateral are left out, as on-chain.
+ *
+ * @param params - Account state and the group's premium table
+ * @param liabilityBank - The premium-active bank borrowed from (or to be borrowed from)
+ * @returns Rows whose `contributionApr` sums to the rate; empty when the bank has no premium
+ */
+export function computePremiumBreakdown(
+  params: ComputePremiumRatesParams,
+  liabilityBank: PublicKey
+): PremiumCollateralBreakdown[] {
+  const bank = params.banksMap.get(liabilityBank.toBase58());
+  if (!bank?.premiumActive) return [];
+  return breakdownPremium(computePremiumCollateral(params), params.premiumEntries, bank.premiumTag);
 }
 
 /**
@@ -135,9 +175,13 @@ export interface PremiumImpact {
   refreshes: boolean;
   /**
    * Every premium-active debt after the actions, by bank address: the stored rate before (absent
-   * for a new borrow) and the refreshed rate after. APR fractions.
+   * for a new borrow), the refreshed rate after (APR fractions), and the per-collateral breakdown
+   * of the rate after.
    */
-  liabilities: Map<string, { before?: BigNumber; after: BigNumber }>;
+  liabilities: Map<
+    string,
+    { before?: BigNumber; after: BigNumber; breakdown: PremiumCollateralBreakdown[] }
+  >;
   /** Yearly premium in USD across those debts: principal x rate, before and after */
   annualPremiumUsd: { before: BigNumber; after: BigNumber };
 }
@@ -194,6 +238,7 @@ export function computePremiumImpact(
         );
         const usd = collateral.get(bankKey)?.usd ?? new BigNumber(0);
         collateral.set(bankKey, {
+          bank: action.bank,
           tag: bank.premiumTag,
           usd: action.type === "deposit" ? usd.plus(delta) : BigNumber.max(0, usd.minus(delta)),
         });
@@ -229,11 +274,12 @@ export function computePremiumImpact(
     }
   }
 
-  const liabilities = new Map<string, { before?: BigNumber; after: BigNumber }>();
+  const liabilities: PremiumImpact["liabilities"] = new Map();
   const debtsAfter = [];
   for (const [bankKey, debt] of debts) {
-    const after = computePremiumRate(collateral, premiumEntries, debt.bank.premiumTag);
-    liabilities.set(bankKey, { before: debt.storedRate, after });
+    const breakdown = breakdownPremium(collateral, premiumEntries, debt.bank.premiumTag);
+    const after = breakdown.reduce((rate, row) => rate.plus(row.contributionApr), new BigNumber(0));
+    liabilities.set(bankKey, { before: debt.storedRate, after, breakdown });
     debtsAfter.push({ ...debt, rate: after });
   }
 
@@ -258,8 +304,8 @@ function computePremiumCollateral({
   banksMap,
   oraclePricesByBank,
   assetShareValueMultiplierByBank,
-}: ComputePremiumRatesParams): Map<string, { tag: number; usd: BigNumber }> {
-  const collateral = new Map<string, { tag: number; usd: BigNumber }>();
+}: ComputePremiumRatesParams): Map<string, Pick<PremiumCollateralBreakdown, "bank" | "tag" | "usd">> {
+  const collateral = new Map<string, Pick<PremiumCollateralBreakdown, "bank" | "tag" | "usd">>();
   for (const balance of activeBalances) {
     const bankKey = balance.bankPk.toBase58();
     const bank = banksMap.get(bankKey);
@@ -268,6 +314,7 @@ function computePremiumCollateral({
       continue;
     }
     collateral.set(bankKey, {
+      bank: balance.bankPk,
       tag: bank.premiumTag,
       usd: computeUsdValue({
         bank,
@@ -282,21 +329,20 @@ function computePremiumCollateral({
   return collateral;
 }
 
-function computePremiumRate(
-  collateral: Map<string, { tag: number; usd: BigNumber }>,
+function breakdownPremium(
+  collateral: Map<string, Pick<PremiumCollateralBreakdown, "bank" | "tag" | "usd">>,
   premiumEntries: PremiumEntry[],
   liabilityTag: number
-): BigNumber {
-  let totalUsd = new BigNumber(0);
-  let weightedUsd = new BigNumber(0);
-  for (const { tag, usd } of collateral.values()) {
-    const pairRate = premiumEntries.find(
-      (entry) => entry.collateralTag === tag && entry.liabilityTag === liabilityTag
-    )?.rate;
-    totalUsd = totalUsd.plus(usd);
-    if (pairRate) weightedUsd = weightedUsd.plus(usd.times(pairRate));
-  }
-  return totalUsd.gt(0) ? weightedUsd.div(totalUsd) : new BigNumber(0);
+): PremiumCollateralBreakdown[] {
+  const counted = [...collateral.values()].filter(({ usd }) => usd.gt(0));
+  const totalUsd = counted.reduce((sum, { usd }) => sum.plus(usd), new BigNumber(0));
+  return counted.map(({ bank, tag, usd }) => {
+    const pairRate =
+      premiumEntries.find(
+        (entry) => entry.collateralTag === tag && entry.liabilityTag === liabilityTag
+      )?.rate ?? new BigNumber(0);
+    return { bank, tag, usd, pairRate, contributionApr: usd.times(pairRate).div(totalUsd) };
+  });
 }
 
 function sumAnnualPremiumUsd(
