@@ -77,6 +77,8 @@ export enum OracleSetup {
   JuplendLST = "JuplendLST",
   PTPyth = "PTPyth",
   PTFixed = "PTFixed",
+  ScopeKamino = "ScopeKamino",
+  ScopeJuplend = "ScopeJuplend",
   Unknown = "Unknown",
 }
 export enum AssetTag {
@@ -191,6 +193,12 @@ export interface BankType {
 
   oracleKey: PublicKey;
   emode: EmodeSettingsType;
+  /** Variable borrow premium tag (0 = untagged), matched against the group's premium table */
+  premiumTag: number;
+  /** Flags bit 13: liabilities in this bank accrue the variable borrow premium */
+  premiumActive: boolean;
+  /** Unix seconds of the last premium activation; accrual never starts before it */
+  premiumActivatedAt: number;
   rateLimiter?: BankRateLimiterType;
   feesDestinationAccount?: PublicKey;
   lendingPositionCount?: BigNumber;

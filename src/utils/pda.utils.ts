@@ -12,6 +12,7 @@ export const PDA_BANK_EMISSIONS_AUTH_SEED = Buffer.from("emissions_auth_seed");
 export const PDA_BANK_EMISSIONS_VAULT_SEED = Buffer.from("emissions_vault");
 
 export const PDA_MARGINFI_ACCOUNT_SEED = Buffer.from("marginfi_account");
+export const PDA_REBALANCE_FEE_POOL_SEED = Buffer.from("rebalance_fee_pool");
 
 /**
  * Derives the liquidity vault authority PDA for a bank
@@ -153,6 +154,20 @@ export function deriveMarginfiAccount(
       accountIndexBuf,
       thirdPartyIdBuf,
     ],
+    programId
+  );
+}
+
+/**
+ * Derives the auto-rebalance fee pool PDA of a marginfi account (required by account close since 0.1.12)
+ * Seeds: ["rebalance_fee_pool", marginfiAccount]
+ */
+export function deriveRebalanceFeePool(
+  programId: PublicKey,
+  marginfiAccount: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [PDA_REBALANCE_FEE_POOL_SEED, marginfiAccount.toBuffer()],
     programId
   );
 }

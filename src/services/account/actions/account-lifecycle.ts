@@ -19,6 +19,7 @@ import {
   MakeSetupIxParams,
   MarginfiAccountRaw,
   MarginfiAccountType,
+  PremiumRefreshParams,
 } from "../types";
 import {
   computeHealthAccountMetas,
@@ -28,6 +29,7 @@ import {
 
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -417,6 +419,7 @@ export async function makePulseHealthIx(
     program,
     {
       marginfiAccount: marginfiAccount.address,
+      group: marginfiAccount.group,
     },
     accountMetas.map((account) => ({
       pubkey: account,
@@ -426,6 +429,40 @@ export async function makePulseHealthIx(
   );
 
   return { instructions: [ix], keys: [] };
+}
+
+/**
+ * Integration refreshes plus `pulse_health`, placed after a deposit or repay so the program
+ * rewrites the account's variable borrow premium rates from its collateral after the action.
+ * See {@link needsPremiumRefresh} for when it's needed.
+ *
+ * @param program - The Marginfi program instance
+ * @param state - The account (before the action), bank map and venue state
+ * @param mandatoryBanks - Banks the action opens (the deposited bank)
+ * @param excludedBanks - Banks the action closes (fully repaid banks)
+ * @returns Instructions to append after the action
+ */
+export async function makePremiumRefreshIxs(
+  program: MarginfiProgram,
+  { marginfiAccount, bankMap, bankMetadataMap }: PremiumRefreshParams,
+  mandatoryBanks: PublicKey[],
+  excludedBanks: PublicKey[]
+): Promise<TransactionInstruction[]> {
+  const refreshIxs = makeRefreshIntegrationBanksIxs(
+    marginfiAccount,
+    bankMap,
+    [],
+    bankMetadataMap,
+    mandatoryBanks
+  );
+  const pulseIxs = await makePulseHealthIx(
+    program,
+    marginfiAccount,
+    bankMap,
+    mandatoryBanks,
+    excludedBanks
+  );
+  return [...refreshIxs.instructions, ...pulseIxs.instructions];
 }
 
 export function generateDummyAccount(
@@ -440,7 +477,8 @@ export function generateDummyAccount(
     bankPk: new PublicKey("11111111111111111111111111111111"),
     assetShares: dummyWrappedI80F48,
     liabilityShares: dummyWrappedI80F48,
-    emissionsOutstanding: dummyWrappedI80F48,
+    premiumRateSnapshot: 0,
+    premiumOutstanding: dummyWrappedI80F48,
     lastUpdate: new BN(0),
   });
   const rawAccount: MarginfiAccountRaw = {

@@ -121,11 +121,11 @@ interface MarginfiGroupRaw {
    */
   rateLimiter?: BankRateLimiterRaw;
 
-  /** Reserved for future use */
-  padding0: BN[][];
+  /** Variable borrow premium table header; the first `entryCount` of `premiumEntries` are live */
+  premiumSettings: { timestamp: BN; entryCount: number; entryCapacity: number };
 
-  /** Reserved for future use */
-  padding1: BN[][];
+  /** Premium rate per (collateral tag, liability tag), sorted by that pair */
+  premiumEntries: { collateralTag: number; liabilityTag: number; rate: number }[];
 }
 
 export type {

@@ -74,6 +74,8 @@ interface BankRaw {
   rateLimiter?: BankRateLimiterRaw;
 
   emode: EmodeSettingsRaw;
+  premiumTag: number;
+  premiumActivatedAt: BN;
   feesDestinationAccount?: PublicKey;
   cache?: BankCacheRaw;
   lendingPositionCount?: number;
@@ -250,7 +252,9 @@ type OracleSetupRaw =
   | { kaminoLst: Record<string, never> }
   | { juplendLst: Record<string, never> }
   | { ptPyth: Record<string, never> }
-  | { ptFixed: Record<string, never> };
+  | { ptFixed: Record<string, never> }
+  | { scopeKamino: Record<string, never> }
+  | { scopeJuplend: Record<string, never> };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;
