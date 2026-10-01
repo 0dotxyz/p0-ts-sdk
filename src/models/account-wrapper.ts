@@ -754,6 +754,8 @@ export class MarginfiAccountWrapper {
       amount,
       luts: this.client.addressLookupTables,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -790,6 +792,8 @@ export class MarginfiAccountWrapper {
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -825,6 +829,8 @@ export class MarginfiAccountWrapper {
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -983,6 +989,8 @@ export class MarginfiAccountWrapper {
       repayAll,
       luts: this.client.addressLookupTables,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 

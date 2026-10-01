@@ -1,9 +1,14 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
-import { computeHealthAccountMetas, computeHealthCheckAccounts, computeQuantityUi } from "../utils";
+import {
+  computeHealthAccountMetas,
+  computeHealthCheckAccounts,
+  computeQuantityUi,
+  needsPremiumRefresh,
+} from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
 import { makeRepayIx } from "./repay";
 import {
   makeWithdrawIx,
@@ -300,6 +305,20 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
       },
     });
     repayIxs.push(...repay.instructions);
+  }
+
+  if (
+    !params.skipPremiumRefresh &&
+    needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
+  ) {
+    repayIxs.push(
+      ...(await makePremiumRefreshIxs(
+        program,
+        { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
+        [],
+        bankAddresses
+      ))
+    );
   }
 
   const { blockhash } = await connection.getLatestBlockhash("confirmed");

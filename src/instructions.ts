@@ -966,6 +966,7 @@ async function makePulseHealthIx(
   mfProgram: MarginfiProgram,
   accounts: {
     marginfiAccount: PublicKey;
+    group: PublicKey;
   },
   /**
    * The remaining accounts required for this instruction. Should include:
@@ -975,8 +976,9 @@ async function makePulseHealthIx(
 ) {
   return mfProgram.methods
     .lendingAccountPulseHealth()
-    .accounts({
+    .accountsPartial({
       marginfiAccount: accounts.marginfiAccount,
+      group: accounts.group,
     })
     .remainingAccounts(remainingAccounts)
     .instruction();

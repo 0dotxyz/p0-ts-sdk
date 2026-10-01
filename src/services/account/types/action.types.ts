@@ -100,6 +100,8 @@ export interface SwapIxsResult {
 export interface MakeDepositIxOpts {
   wrapAndUnwrapSol?: boolean;
   wSolBalanceUi?: number;
+  /** Transaction builders only: don't add `pulse_health` (see {@link PremiumRefreshParams}) */
+  skipPremiumRefresh?: boolean;
   overrideInferAccounts?: {
     group?: PublicKey;
     authority?: PublicKey;
@@ -158,24 +160,37 @@ export interface MakeKaminoDepositIxParams {
   opts?: MakeDepositIxOpts;
 }
 
-export interface MakeDepositTxParams extends MakeDepositIxParams {
+/**
+ * Account state the deposit and repay transaction builders use to add `pulse_health` after the
+ * action while the account has premium-bearing debt, so the program rewrites its variable borrow
+ * premium rates as the transaction lands (deposits and repays don't refresh them on their own).
+ * Opt out with `opts.skipPremiumRefresh`.
+ */
+export interface PremiumRefreshParams {
+  /** The account before the action */
+  marginfiAccount: MarginfiAccountType;
+  bankMap: Map<string, BankType>;
+  bankMetadataMap: BankIntegrationMetadataMap;
+}
+
+export interface MakeDepositTxParams extends MakeDepositIxParams, PremiumRefreshParams {
   luts: AddressLookupTableAccount[];
   blockhash?: string;
 }
 
-export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams {
+export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams, PremiumRefreshParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
 }
 
-export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams {
+export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams, PremiumRefreshParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
 }
 
-export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams {
+export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams, PremiumRefreshParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
@@ -184,6 +199,8 @@ export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams {
 export interface MakeRepayIxOpts {
   wrapAndUnwrapSol?: boolean;
   wSolBalanceUi?: number;
+  /** Transaction builders only: don't add `pulse_health` (see {@link PremiumRefreshParams}) */
+  skipPremiumRefresh?: boolean;
   overrideInferAccounts?: {
     group?: PublicKey;
     authority?: PublicKey;
@@ -203,7 +220,7 @@ export interface MakeRepayIxParams {
   opts?: MakeRepayIxOpts;
 }
 
-export interface MakeRepayTxParams extends MakeRepayIxParams {
+export interface MakeRepayTxParams extends MakeRepayIxParams, PremiumRefreshParams {
   luts: AddressLookupTableAccount[];
 }
 
@@ -458,6 +475,10 @@ export interface MakeBulkRepayTxParams {
   tokenProgramsByBank: Map<string, PublicKey>;
   addressLookupTableAccounts?: AddressLookupTableAccount[];
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
+  /** Venue state for the refreshes before `pulse_health`; see {@link PremiumRefreshParams} */
+  bankMetadataMap: BankIntegrationMetadataMap;
+  /** Don't add `pulse_health` after the repays */
+  skipPremiumRefresh?: boolean;
 }
 
 export interface BulkLendTxsResult {
