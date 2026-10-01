@@ -1,4 +1,4 @@
-import type { BlockhashLifetimeConstraint } from "@solana/kit";
+import { getTransactionMessageSizeLimit, type BlockhashLifetimeConstraint } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
@@ -31,7 +31,7 @@ import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
@@ -80,6 +80,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     borrowOpts,
     bankMetadataMap,
     luts,
+    version,
     additionalIxs = [],
   } = params;
 
@@ -141,6 +142,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
       latestBlockhash,
       feePayer: authority,
       luts: luts ?? {},
+      version,
     });
 
     additionalTxs.push(
@@ -168,6 +170,7 @@ async function buildSwapDebtFlashloanTx({
   swapOpts,
   bankMetadataMap,
   luts,
+  version,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -260,6 +263,7 @@ async function buildSwapDebtFlashloanTx({
     footprint: {
       instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
       luts: luts ?? {},
+      version,
       payer: authority.address,
       sizeConstraint: swapConstraints.sizeConstraint,
       maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -311,6 +315,7 @@ async function buildSwapDebtFlashloanTx({
     sizeConstraint: swapConstraints.sizeConstraint,
     swapIxCount: engineResult.swapInstructions.length,
     swapLutCount: Object.keys(engineResult.swapLuts).length,
+    version,
   });
 
   // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
@@ -322,6 +327,7 @@ async function buildSwapDebtFlashloanTx({
     authority,
     bankMap,
     luts: flashloanLuts,
+    version,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
@@ -329,7 +335,10 @@ async function buildSwapDebtFlashloanTx({
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,

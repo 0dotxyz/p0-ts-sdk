@@ -72,6 +72,7 @@ export async function makeCloseMarginfiAccountIx({
  */
 export async function makeCloseMarginfiAccountTx({
   rpc,
+  version,
   ...closeIxParams
 }: MakeCloseAccountTxParams): Promise<SolanaTransaction> {
   const closeIx = await makeCloseMarginfiAccountIx(closeIxParams);
@@ -84,6 +85,7 @@ export async function makeCloseMarginfiAccountTx({
       instructions: [closeIx],
       feePayer: closeIxParams.authority,
       latestBlockhash,
+      version,
     }),
     type: TransactionType.CLOSE_ACCOUNT,
   };
@@ -116,6 +118,7 @@ export async function makeAccountTransferToNewAccountTx({
   newMarginfiAccount,
   newAuthority,
   feePayer = authority,
+  version,
 }: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
   const [feeStateAddress] = await deriveFeeState(programAddress);
   const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
@@ -137,7 +140,12 @@ export async function makeAccountTransferToNewAccountTx({
     .send();
 
   return {
-    message: makeTransactionMessage({ instructions: [transferIx], feePayer, latestBlockhash }),
+    message: makeTransactionMessage({
+      instructions: [transferIx],
+      feePayer,
+      latestBlockhash,
+      version,
+    }),
     type: TransactionType.TRANSFER_AUTH,
   };
 }
@@ -228,6 +236,7 @@ export async function makeCreateMarginfiAccountTx({
   rpc,
   luts,
   latestBlockhash,
+  version,
   accountIndex,
   ...createIxParams
 }: MakeCreateAccountTxParams): Promise<SolanaTransaction> {
@@ -251,6 +260,7 @@ export async function makeCreateMarginfiAccountTx({
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       luts,
+      version,
     }),
     type: TransactionType.CREATE_ACCOUNT,
   };

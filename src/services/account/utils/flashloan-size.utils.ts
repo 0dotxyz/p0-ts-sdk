@@ -16,6 +16,7 @@ import {
   compileTransactionMessage,
   createNoopSigner,
   getTransactionMessageSize,
+  getTransactionMessageSizeLimit,
   type Address,
   type AddressesByLookupTableAddress,
   type Instruction,
@@ -34,7 +35,11 @@ import { MarginfiAccountType } from "../types";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { BankType } from "~/services/bank";
-import { getTotalAccountKeys, makeTransactionMessage } from "~/services/transaction";
+import {
+  getTotalAccountKeys,
+  makeTransactionMessage,
+  TransactionVersionParams,
+} from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
 
 // V0 message compilation is non-additive: merging swap LUTs with non-swap LUTs
@@ -116,7 +121,7 @@ export async function computeFlashLoanNonSwapBudget({
 export interface FlashloanPrecheckResult {
   /** Exact serialized size of the full flashloan TX */
   fullTxSize: number;
-  /** How many bytes over MAX_TX_SIZE (negative = under budget) */
+  /** How many bytes over the version's size limit (negative = under budget) */
   overshoot: number;
   /** Total writable accounts in the full TX */
   writableAccounts: number;
@@ -138,6 +143,7 @@ export function compileFlashloanPrecheck({
   sizeConstraint,
   swapIxCount,
   swapLutCount,
+  version,
 }: {
   allIxs: Instruction[];
   payer: Address;
@@ -145,12 +151,13 @@ export function compileFlashloanPrecheck({
   sizeConstraint: number;
   swapIxCount: number;
   swapLutCount: number;
-}): FlashloanPrecheckResult {
+} & TransactionVersionParams): FlashloanPrecheckResult {
   const msg = makeTransactionMessage({
     instructions: allIxs,
     feePayer: createNoopSigner(payer),
     latestBlockhash: SIZING_BLOCKHASH,
     luts,
+    version,
   });
 
   // A message too large to even encode (e.g. more than 256 accounts) throws; that just means the
@@ -170,7 +177,7 @@ export function compileFlashloanPrecheck({
     };
   }
   const fullTxSize = rawSize + FL_IX_OVERHEAD;
-  const overshoot = fullTxSize - MAX_TX_SIZE;
+  const overshoot = fullTxSize - getTransactionMessageSizeLimit(msg);
 
   const { header, staticAccounts } = compiled;
   const addressTableLookups =

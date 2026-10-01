@@ -1,8 +1,10 @@
-import { compileTransactionMessage, getTransactionMessageSize } from "@solana/kit";
+import {
+  compileTransactionMessage,
+  getTransactionMessageSize,
+  getTransactionMessageSizeLimit,
+} from "@solana/kit";
 
 import { SolanaTransaction } from "../types";
-
-import { MAX_TX_SIZE } from "~/constants";
 
 type Message = SolanaTransaction["message"];
 
@@ -31,10 +33,11 @@ function countAccounts(message: Message) {
 export function getTxSize(message: Message): number {
   try {
     const totalSize = getTransactionMessageSize(message);
-    if (totalSize > MAX_TX_SIZE) {
+    const sizeLimit = getTransactionMessageSizeLimit(message);
+    if (totalSize > sizeLimit) {
       console.warn("[getTxSize] oversized TX", {
         totalSize,
-        overshoot: totalSize - MAX_TX_SIZE,
+        overshoot: totalSize - sizeLimit,
         ...countAccounts(message),
       });
     }

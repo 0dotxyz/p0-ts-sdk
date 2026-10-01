@@ -13,6 +13,7 @@ export async function makeMergeStakeAccountsTx({
   rpc,
   luts,
   latestBlockhash,
+  version,
   authority,
   sourceStakeAccount,
   destinationStakeAccount,
@@ -30,6 +31,7 @@ export async function makeMergeStakeAccountsTx({
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       luts,
+      version,
     }),
     type: TransactionType.MERGE_STAKE_ACCOUNTS,
   };

@@ -1,7 +1,8 @@
-import type {
-  AddressesByLookupTableAddress,
-  BlockhashLifetimeConstraint,
-  Instruction,
+import {
+  getTransactionMessageSizeLimit,
+  type AddressesByLookupTableAddress,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
 } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
@@ -37,7 +38,7 @@ import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -86,6 +87,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     depositOpts,
     bankMetadataMap,
     luts,
+    version,
   } = params;
 
   const { value: latestBlockhash } = await rpc
@@ -145,6 +147,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
       latestBlockhash,
       feePayer: authority,
       luts: luts ?? {},
+      version,
     });
 
     additionalTxs.push(
@@ -173,6 +176,7 @@ async function buildSwapCollateralFlashloanTx({
   bankMetadataMap,
   assetShareValueMultiplierByBank,
   luts,
+  version,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -289,6 +293,7 @@ async function buildSwapCollateralFlashloanTx({
       footprint: {
         instructions: [...cuRequestIxs, ...withdrawIxs, ...depositIxs],
         luts: luts ?? {},
+        version,
         payer: authority.address,
         sizeConstraint: swapConstraints.sizeConstraint,
         maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -324,6 +329,7 @@ async function buildSwapCollateralFlashloanTx({
       sizeConstraint: sizeConstraintUsed,
       swapIxCount: swapInstructions.length,
       swapLutCount: Object.keys(swapLookupTables).length,
+      version,
     });
   }
 
@@ -336,6 +342,7 @@ async function buildSwapCollateralFlashloanTx({
     authority,
     bankMap,
     luts: flashloanLuts,
+    version,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
@@ -343,7 +350,10 @@ async function buildSwapCollateralFlashloanTx({
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,
