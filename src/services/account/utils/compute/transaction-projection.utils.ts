@@ -393,7 +393,8 @@ export function computeProjectedActiveBalancesNoCpi({
     bankPk: b.bankPk,
     assetShares: new BigNumber(b.assetShares),
     liabilityShares: new BigNumber(b.liabilityShares),
-    emissionsOutstanding: new BigNumber(b.emissionsOutstanding),
+    premiumRate: new BigNumber(b.premiumRate),
+    premiumOutstanding: new BigNumber(b.premiumOutstanding),
     lastUpdate: b.lastUpdate,
   }));
 

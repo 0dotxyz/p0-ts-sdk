@@ -25,7 +25,11 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
+import {
+  deriveBankLiquidityVault,
+  deriveBankLiquidityVaultAuthority,
+  deriveRebalanceFeePool,
+} from "./utils";
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
@@ -677,6 +681,11 @@ function makeCloseAccountIx(
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
+    {
+      pubkey: deriveRebalanceFeePool(programId, accounts.marginfiAccount)[0],
+      isSigner: false,
+      isWritable: false,
+    },
   ];
 
   return new TransactionInstruction({

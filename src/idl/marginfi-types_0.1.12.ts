@@ -8,7 +8,7 @@ export type Marginfi = {
   "address": string,
   "metadata": {
     "name": "marginfi",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "spec": "0.1.0",
     "description": "Borrow Lending Prime Broker"
   },
@@ -43,6 +43,43 @@ export type Marginfi = {
         {
           "name": "globalFeeWallet",
           "writable": true
+        },
+        {
+          "name": "rebalanceFeePool",
+          "docs": [
+            "`withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -98,6 +135,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -138,6 +179,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -178,6 +223,10 @@ export type Marginfi = {
         {
           "name": "admin",
           "signer": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -212,6 +261,10 @@ export type Marginfi = {
         {
           "name": "admin",
           "signer": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -232,7 +285,8 @@ export type Marginfi = {
     {
       "name": "disableStakedOracles",
       "docs": [
-        "(admin only) Disable stake pricing, i.e. effectively forbidding all operations involving stake banks.",
+        "(slow governance_admin only) Disable stake pricing, i.e. effectively forbidding all operations",
+        "involving stake banks.",
         "To be used during the rollout of the SVSP upgrade.",
         "To be removed once SVSP update is rolled out (likely in 1.10)"
       ],
@@ -251,7 +305,7 @@ export type Marginfi = {
           "name": "group"
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -288,6 +342,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -1482,6 +1540,65 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "editFeeStatePremium",
+      "docs": [
+        "(global fee admin only) Adjust the variable-borrow premium wallet on the fee state."
+      ],
+      "discriminator": [
+        159,
+        148,
+        85,
+        109,
+        94,
+        212,
+        93,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "globalFeeAdmin",
+          "docs": [
+            "Admin of the global FeeState"
+          ],
+          "signer": true,
+          "relations": [
+            "feeState"
+          ]
+        },
+        {
+          "name": "feeState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "premiumWallet",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "editGlobalFeeState",
       "docs": [
         "(global fee admin only) Adjust fees, admin, wallet, or pause delegate admin"
@@ -1527,6 +1644,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -1617,7 +1738,7 @@ export type Marginfi = {
     {
       "name": "editStakedSettings",
       "docs": [
-        "(admin only) Edit the staked collateral settings for the group."
+        "(slow governance_admin only) Edit the staked collateral settings for the group."
       ],
       "discriminator": [
         11,
@@ -1637,7 +1758,7 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "marginfiGroup"
@@ -1646,6 +1767,10 @@ export type Marginfi = {
         {
           "name": "stakedSettings",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -1662,7 +1787,8 @@ export type Marginfi = {
     {
       "name": "enableStakedOracleOnramp",
       "docs": [
-        "(admin only) Enable SPL single-pool on-ramp lamports in staked-collateral oracle pricing.",
+        "(slow governance_admin only) Enable SPL single-pool on-ramp lamports in staked-collateral oracle",
+        "pricing.",
         "To be removed once SVSP update is rolled out (likely in 1.10)",
         "This flips a per-group config flag so that every staked oracle uses the canonical single-pool NAV",
         "formula."
@@ -1682,7 +1808,7 @@ export type Marginfi = {
           "name": "group"
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -1719,6 +1845,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -1762,6 +1892,10 @@ export type Marginfi = {
           "relations": [
             "group"
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -2034,7 +2168,7 @@ export type Marginfi = {
     {
       "name": "initStakedSettings",
       "docs": [
-        "(group admin only) Init the Staked Settings account, which is used to create staked",
+        "(slow governance_admin only) Init the Staked Settings account, which is used to create staked",
         "collateral banks, and must run before any staked collateral bank can be created with",
         "`add_pool_permissionless`. Running this ix effectively opts the group into the staked",
         "collateral feature."
@@ -2054,7 +2188,7 @@ export type Marginfi = {
           "name": "marginfiGroup"
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "marginfiGroup"
@@ -2103,6 +2237,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -3752,6 +3890,10 @@ export type Marginfi = {
         },
         {
           "name": "group",
+          "docs": [
+            "Needed for the same-asset emode checks and the premium snapshot recompute; validated by",
+            "the `has_one = group` on `marginfi_account`."
+          ],
           "relations": [
             "marginfiAccount"
           ]
@@ -3961,6 +4103,9 @@ export type Marginfi = {
         },
         {
           "name": "group",
+          "docs": [
+            "Needed for same-asset emode checks and the premium snapshot recompute"
+          ],
           "relations": [
             "marginfiAccount"
           ]
@@ -4218,7 +4363,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBank",
       "docs": [
-        "(admin only) Add a new bank to the lending pool"
+        "(governance_admin only) Add a new bank to the lending pool"
       ],
       "discriminator": [
         215,
@@ -4236,7 +4381,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "marginfiGroup"
@@ -4483,6 +4628,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -4499,7 +4648,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBankDrift",
       "docs": [
-        "(group admin only) Add a Drift bank to the group."
+        "(governance_admin only) Add a Drift bank to the group."
       ],
       "discriminator": [
         62,
@@ -4517,7 +4666,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -4911,6 +5060,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -4931,7 +5084,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBankJuplend",
       "docs": [
-        "(admin) Add a JupLend bank to the marginfi group.",
+        "(slow governance_admin) Add a JupLend bank to the marginfi group.",
         "",
         "Remaining accounts (for oracle validation):",
         "0. underlying oracle feed (pyth push or switchboard pull)",
@@ -4953,7 +5106,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -5251,6 +5404,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -5271,7 +5428,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBankKamino",
       "docs": [
-        "(group admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining",
+        "(governance_admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining",
         "accounts 0 and 1 respectively."
       ],
       "discriminator": [
@@ -5290,7 +5447,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -5559,6 +5716,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -5869,7 +6030,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBankSolend",
       "docs": [
-        "(admin) Add a Solend bank to the marginfi group"
+        "(slow governance_admin) Add a Solend bank to the marginfi group"
       ],
       "discriminator": [
         81,
@@ -5887,7 +6048,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -6185,6 +6346,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -6205,7 +6370,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolAddBankWithSeed",
       "docs": [
-        "(admin only) A copy of lending_pool_add_bank with an additional bank seed.",
+        "(governance_admin only) A copy of lending_pool_add_bank with an additional bank seed.",
         "This seed is used to create a PDA for the bank's signature.",
         "lending_pool_add_bank is preserved for backwards compatibility."
       ],
@@ -6225,7 +6390,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "marginfiGroup"
@@ -6487,6 +6652,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -6610,6 +6779,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -6622,7 +6795,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolCloneBank",
       "docs": [
-        "(admin only) Staging or localnet only, panics on mainnet",
+        "(governance_admin only) Staging or localnet only, panics on mainnet",
         "This instruction is used to clone a bank to a new PDA."
       ],
       "discriminator": [
@@ -6641,7 +6814,7 @@ export type Marginfi = {
           "writable": true
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "writable": true,
           "signer": true,
           "relations": [
@@ -6881,6 +7054,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -6893,7 +7070,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolCloneEmode",
       "docs": [
-        "(admin or emode_admin) Copies emode settings from one bank to another. Useful when applying",
+        "(governance_admin only) Copies emode settings from one bank to another. Useful when applying",
         "emode settings from e.g. one LST to another."
       ],
       "discriminator": [
@@ -6915,8 +7092,11 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "signer",
-          "signer": true
+          "name": "governanceAdmin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
         },
         {
           "name": "copyFromBank"
@@ -6924,6 +7104,10 @@ export type Marginfi = {
         {
           "name": "copyToBank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -6975,6 +7159,10 @@ export type Marginfi = {
           "relations": [
             "group"
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7174,10 +7362,141 @@ export type Marginfi = {
       "args": []
     },
     {
+      "name": "lendingPoolCollectBankPremiumFees",
+      "docs": [
+        "(permissionless) Sweep realized variable-borrow premium from the liquidity vault to the",
+        "canonical ATA of `FeeState.premium_wallet` for the bank's mint."
+      ],
+      "discriminator": [
+        193,
+        168,
+        164,
+        176,
+        80,
+        191,
+        33,
+        180
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "bank"
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        },
+        {
+          "name": "liquidityVaultAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bank"
+              }
+            ]
+          }
+        },
+        {
+          "name": "liquidityVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  113,
+                  117,
+                  105,
+                  100,
+                  105,
+                  116,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bank"
+              }
+            ]
+          }
+        },
+        {
+          "name": "feeState",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "premiumAta",
+          "docs": [
+            "Canonical ATA of the `FeeState.premium_wallet` for the mint used by this bank",
+            "(validated in handler). Must already exist."
+          ],
+          "writable": true
+        },
+        {
+          "name": "tokenProgram"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "lendingPoolConfigureBank",
       "docs": [
-        "(admin only) Configure bank parameters. If the bank has `FREEZE_SETTINGS`, only",
-        "deposit/borrow limits are updated and all other config changes are silently ignored."
+        "Configure fast-admin bank parameters. Operational banks may be paused, set to",
+        "ReduceOnly, or set to ReduceOnlyWithBorrowingPower; the latter may subsequently be set to",
+        "ReduceOnly. The fast admin may pause a bank from any state. Restoring a bank to",
+        "Operational requires `lending_pool_configure_bank_gov`."
       ],
       "discriminator": [
         121,
@@ -7206,6 +7525,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7213,7 +7536,7 @@ export type Marginfi = {
           "name": "bankConfigOpt",
           "type": {
             "defined": {
-              "name": "bankConfigOpt"
+              "name": "bankConfigFast"
             }
           }
         }
@@ -7222,7 +7545,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolConfigureBankEmode",
       "docs": [
-        "(emode_admin only)"
+        "(governance_admin only)"
       ],
       "discriminator": [
         17,
@@ -7242,7 +7565,7 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "emodeAdmin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -7251,6 +7574,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7269,6 +7596,56 @@ export type Marginfi = {
               },
               10
             ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "lendingPoolConfigureBankGov",
+      "docs": [
+        "Configure slow, timelocked governance bank parameters, including risk settings,",
+        "freezing bank settings, and restoring a bank to Operational."
+      ],
+      "discriminator": [
+        122,
+        87,
+        141,
+        86,
+        182,
+        34,
+        146,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "bank"
+          ]
+        },
+        {
+          "name": "governanceAdmin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bankConfigOpt",
+          "type": {
+            "defined": {
+              "name": "bankConfigGov"
+            }
           }
         }
       ]
@@ -7306,6 +7683,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7351,6 +7732,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7377,7 +7762,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolConfigureBankOracle",
       "docs": [
-        "(admin only)"
+        "(governance_admin only)"
       ],
       "discriminator": [
         209,
@@ -7397,7 +7782,7 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -7406,6 +7791,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7422,7 +7811,9 @@ export type Marginfi = {
     {
       "name": "lendingPoolConfigureBankOracleScope",
       "docs": [
-        "(admin only) Point a bank at a Scope feed entry.",
+        "(governance_admin only) Point a bank at a Scope feed entry. Picks `Scope`, `ScopeKamino`, or",
+        "`ScopeJuplend` from the bank's asset tag; Kamino/JupLend banks pass their reserve/lending",
+        "account after the feed in remaining accounts.",
         "* oracle - the feed's `OraclePrices` account",
         "* entry_index - which of the 512 entries in that account prices this bank"
       ],
@@ -7444,7 +7835,7 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -7453,6 +7844,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7463,6 +7858,103 @@ export type Marginfi = {
         {
           "name": "entryIndex",
           "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "lendingPoolConfigureBankPremium",
+      "docs": [
+        "(fast group admin only) Set a bank's premium tag and toggle premium accrual for its borrowers."
+      ],
+      "discriminator": [
+        216,
+        82,
+        134,
+        217,
+        11,
+        240,
+        78,
+        42
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "bank"
+          ]
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "premiumTag",
+          "type": "u16"
+        },
+        {
+          "name": "active",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "lendingPoolConfigureGroupPremium",
+      "docs": [
+        "(fast group admin only) Set one pair of the group's variable-borrow premium matrix:",
+        "`rate > 0` inserts or updates the pair, `rate == 0` removes it."
+      ],
+      "discriminator": [
+        184,
+        196,
+        245,
+        41,
+        203,
+        77,
+        75,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "collateralTag",
+          "type": "u16"
+        },
+        {
+          "name": "liabilityTag",
+          "type": "u16"
+        },
+        {
+          "name": "rate",
+          "type": "u32"
         }
       ]
     },
@@ -7564,6 +8056,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -7711,6 +8207,10 @@ export type Marginfi = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -7718,7 +8218,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolInitSameAssetEmodeRegistry",
       "docs": [
-        "(admin or emode_admin only) Initialize the per-group same-asset e-mode registry."
+        "(governance_admin only) Initialize the per-group same-asset e-mode registry."
       ],
       "discriminator": [
         217,
@@ -7735,9 +8235,12 @@ export type Marginfi = {
           "name": "group"
         },
         {
-          "name": "signer",
+          "name": "governanceAdmin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "group"
+          ]
         },
         {
           "name": "sameAssetEmodeRegistry",
@@ -7784,6 +8287,10 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -7813,6 +8320,45 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "lendingPoolResizeBankAccount",
+      "docs": [
+        "(permissionless) Resize a v1-sized bank account to the current struct size; `payer`",
+        "funds the added rent."
+      ],
+      "discriminator": [
+        44,
+        109,
+        34,
+        113,
+        110,
+        33,
+        139,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "bank",
+          "docs": [
+            "undersized bank can still be resized under the future (larger-struct) program."
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Funds the rent for the added account space."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -7859,7 +8405,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolSetBankSameAssetEmodeEligibility",
       "docs": [
-        "(admin or emode_admin only) Opt a bank in/out of same-asset e-mode participation."
+        "(governance_admin only) Opt a bank in/out of same-asset e-mode participation."
       ],
       "discriminator": [
         149,
@@ -7880,8 +8426,11 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "signer",
-          "signer": true
+          "name": "governanceAdmin",
+          "signer": true,
+          "relations": [
+            "group"
+          ]
         },
         {
           "name": "bank",
@@ -7928,6 +8477,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -7940,7 +8493,7 @@ export type Marginfi = {
     {
       "name": "lendingPoolSetOraclePrice",
       "docs": [
-        "(admin only)"
+        "(governance_admin only)"
       ],
       "discriminator": [
         234,
@@ -7960,7 +8513,7 @@ export type Marginfi = {
           ]
         },
         {
-          "name": "admin",
+          "name": "governanceAdmin",
           "signer": true,
           "relations": [
             "group"
@@ -7969,6 +8522,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -8024,6 +8581,10 @@ export type Marginfi = {
           "docs": [
             "Bank fees will be sent to this account which must be an ATA of the bank's mint."
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -8122,6 +8683,10 @@ export type Marginfi = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -8336,6 +8901,10 @@ export type Marginfi = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -8377,6 +8946,43 @@ export type Marginfi = {
           "name": "feePayer",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "rebalanceFeePool",
+          "docs": [
+            "`withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -8472,6 +9078,54 @@ export type Marginfi = {
       "args": []
     },
     {
+      "name": "marginfiAccountCloseRebalanceOrder",
+      "docs": [
+        "Close an auto-rebalance order. The authority may cancel their own order at any time; anyone",
+        "may permissionlessly close a stale order once the account was closed or it no longer holds a",
+        "position in any allowed venue. Rent goes to `fee_recipient`."
+      ],
+      "discriminator": [
+        218,
+        239,
+        199,
+        221,
+        92,
+        158,
+        134,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "marginfiAccount",
+          "docs": [
+            "are validated in the handler."
+          ],
+          "writable": true,
+          "relations": [
+            "rebalanceOrder"
+          ]
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Signs to close an order that still holds a position; omitted for the permissionless close of a",
+            "dead order."
+          ],
+          "signer": true,
+          "optional": true
+        },
+        {
+          "name": "feeRecipient",
+          "writable": true
+        },
+        {
+          "name": "rebalanceOrder",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "marginfiAccountEndExecuteOrder",
       "docs": [
         "(permissionless keeper) End Order execution",
@@ -8558,6 +9212,95 @@ export type Marginfi = {
               }
             ]
           }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "marginfiAccountEndRebalance",
+      "docs": [
+        "(permissionless keeper) End an auto-rebalance. Re-checks dst >= src post-move, value",
+        "conservation, untouched balances, and health; the order persists. The keeper tip is escrowed",
+        "into the record and paid later via `settle_rebalance_tip`."
+      ],
+      "discriminator": [
+        47,
+        225,
+        163,
+        216,
+        213,
+        214,
+        225,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "marginfiAccount"
+          ]
+        },
+        {
+          "name": "marginfiAccount",
+          "writable": true,
+          "relations": [
+            "rebalanceOrder"
+          ]
+        },
+        {
+          "name": "rebalanceOrder",
+          "writable": true
+        },
+        {
+          "name": "rebalanceRecord",
+          "writable": true
+        },
+        {
+          "name": "executor",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "rebalanceRecord"
+          ]
+        },
+        {
+          "name": "feePool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -8908,10 +9651,130 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "marginfiAccountPlaceRebalanceOrder",
+      "docs": [
+        "(user) Create a persistent same-mint auto-rebalance order: keep `mint` in the highest-yield",
+        "bank among `allowed_banks`. Persists until cancelled."
+      ],
+      "discriminator": [
+        161,
+        48,
+        11,
+        214,
+        229,
+        132,
+        192,
+        149
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "marginfiAccount"
+          ]
+        },
+        {
+          "name": "marginfiAccount",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "marginfiAccount"
+          ]
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "rebalanceOrder",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "feePayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "allowedBanks",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
+        {
+          "name": "minImprovement",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          }
+        },
+        {
+          "name": "cooldownSeconds",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "amount",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "keeperTip",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
       "name": "marginfiAccountSetFreeze",
       "docs": [
-        "(admin only) Freeze or unfreeze a marginfi account. Frozen accounts can only be operated on",
-        "by the group admin."
+        "Freeze a marginfi account with the fast admin, or unfreeze it with the slow governance",
+        "admin. A frozen account can only be operated on by the slow governance admin."
       ],
       "discriminator": [
         199,
@@ -8936,7 +9799,15 @@ export type Marginfi = {
         },
         {
           "name": "admin",
+          "docs": [
+            "Fast admin when freezing; governance admin when unfreezing. The legacy account name is",
+            "retained for instruction compatibility."
+          ],
           "signer": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -8989,6 +9860,95 @@ export type Marginfi = {
           }
         }
       ]
+    },
+    {
+      "name": "marginfiAccountSettleRebalanceTip",
+      "docs": [
+        "(permissionless) Settle a rebalance's escrowed keeper tip after the settlement delay. Pays the",
+        "recorded keeper only if the destinations realized more yield than the sources over the window",
+        "(defeats cross-tx rate manipulation); otherwise refunds the tip to the fee pool. Closes the",
+        "record, returning its rent to the recorded keeper."
+      ],
+      "discriminator": [
+        198,
+        13,
+        185,
+        127,
+        7,
+        105,
+        88,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "group"
+        },
+        {
+          "name": "marginfiAccount",
+          "docs": [
+            "record's `has_one` pins this key; `group` is pinned by the recorded banks, which must belong",
+            "to it."
+          ],
+          "relations": [
+            "rebalanceRecord"
+          ]
+        },
+        {
+          "name": "rebalanceRecord",
+          "writable": true
+        },
+        {
+          "name": "executor",
+          "docs": [
+            "`record.executor`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "feePool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "docs": [
+            "The permissionless caller; pays the tx."
+          ],
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "marginfiAccountStartExecuteOrder",
@@ -9092,6 +10052,213 @@ export type Marginfi = {
       "args": []
     },
     {
+      "name": "marginfiAccountStartRebalance",
+      "docs": [
+        "(permissionless keeper) Begin an auto-rebalance. `moves` declares each value relocation as",
+        "`(src_index, dst_index, amount)` over the banks passed in remaining_accounts; validates",
+        "same-mint, allowed venues, and every move's dst APR > src + min_improvement. Opens the",
+        "start/end sandwich; `end_rebalance` must be the last ix; CPI forbidden."
+      ],
+      "discriminator": [
+        251,
+        122,
+        91,
+        161,
+        219,
+        98,
+        5,
+        236
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "relations": [
+            "marginfiAccount"
+          ]
+        },
+        {
+          "name": "marginfiAccount",
+          "writable": true,
+          "relations": [
+            "rebalanceOrder"
+          ]
+        },
+        {
+          "name": "rebalanceOrder"
+        },
+        {
+          "name": "executor"
+        },
+        {
+          "name": "rebalanceRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  114,
+                  101,
+                  99,
+                  111,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              },
+              {
+                "kind": "arg",
+                "path": "executionSeq"
+              }
+            ]
+          }
+        },
+        {
+          "name": "feePayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "moves",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "rebalanceMove"
+              }
+            }
+          }
+        },
+        {
+          "name": "executionSeq",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "marginfiAccountTagLiqRecord",
+      "docs": [
+        "(permissionless) Tag an unhealthy account, growing the allowed liquidation premium over",
+        "time. Calling it on an account that is healthy again clears its existing tag."
+      ],
+      "discriminator": [
+        12,
+        189,
+        215,
+        239,
+        231,
+        122,
+        220,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "marginfiAccount",
+          "writable": true
+        },
+        {
+          "name": "group",
+          "relations": [
+            "marginfiAccount"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "marginfiAccountTopUpRebalanceFeePool",
+      "docs": [
+        "(permissionless) Fund an account's rebalance fee pool with SOL, used to pay keeper tips."
+      ],
+      "discriminator": [
+        83,
+        123,
+        125,
+        204,
+        200,
+        119,
+        247,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "marginfiAccount"
+        },
+        {
+          "name": "feePool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "marginfiAccountUpdateEmissionsDestinationAccount",
       "docs": [
         "(account authority) Set the wallet whose canonical ATA will receive off-chain emissions."
@@ -9125,13 +10292,161 @@ export type Marginfi = {
       "args": []
     },
     {
+      "name": "marginfiAccountUpdateRebalanceOrder",
+      "docs": [
+        "(user) Update an existing auto-rebalance order's allowlist and/or policy in place; `None`",
+        "fields are left unchanged."
+      ],
+      "discriminator": [
+        175,
+        230,
+        251,
+        122,
+        168,
+        128,
+        207,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "marginfiAccount",
+          "relations": [
+            "rebalanceOrder"
+          ]
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "marginfiAccount",
+            "rebalanceOrder"
+          ]
+        },
+        {
+          "name": "rebalanceOrder",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "allowedBanks",
+          "type": {
+            "option": {
+              "vec": "pubkey"
+            }
+          }
+        },
+        {
+          "name": "minImprovement",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          }
+        },
+        {
+          "name": "cooldownSeconds",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "amount",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "keeperTip",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "marginfiAccountWithdrawRebalanceFeePool",
+      "docs": [
+        "(user) Withdraw SOL from an account's rebalance fee pool back to the authority."
+      ],
+      "discriminator": [
+        121,
+        157,
+        246,
+        242,
+        240,
+        63,
+        254,
+        16
+      ],
+      "accounts": [
+        {
+          "name": "marginfiAccount"
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "marginfiAccount"
+          ]
+        },
+        {
+          "name": "feePool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  101,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "marginfiAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "marginfiGroupConfigure",
       "docs": [
-        "(admin only) Configure group admin keys and emode leverage caps. All admin keys must be",
-        "provided on every call. Emode leverage caps are set if provided, otherwise the existing",
-        "(non-zero) values are kept. Pass `Some(value)` to update, `None` to leave unchanged.",
-        "Same-asset emode leverage is disabled by configuring both init and maint leverage to `1`;",
-        "values below `1`, including `0`, are invalid.",
+        "Configure fast-admin group roles. `None` leaves a field unchanged.",
         "",
         "Note: `new_emissions_admin` is deprecated and currently has no on-chain effect."
       ],
@@ -9156,17 +10471,15 @@ export type Marginfi = {
           "relations": [
             "marginfiGroup"
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
         {
           "name": "newAdmin",
-          "type": {
-            "option": "pubkey"
-          }
-        },
-        {
-          "name": "newEmodeAdmin",
           "type": {
             "option": "pubkey"
           }
@@ -9197,6 +10510,56 @@ export type Marginfi = {
         },
         {
           "name": "newMetadataAdmin",
+          "type": {
+            "option": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "marginfiGroupConfigureGov",
+      "docs": [
+        "Configure slow, timelocked governance group roles, the fast admin, and e-mode leverage",
+        "caps. `None` leaves a field unchanged.",
+        "Same-asset emode leverage is disabled by configuring both init and maint leverage to `1`;",
+        "values below `1`, including `0`, are invalid."
+      ],
+      "discriminator": [
+        3,
+        33,
+        122,
+        31,
+        239,
+        33,
+        35,
+        5
+      ],
+      "accounts": [
+        {
+          "name": "marginfiGroup",
+          "writable": true
+        },
+        {
+          "name": "governanceAdmin",
+          "signer": true,
+          "relations": [
+            "marginfiGroup"
+          ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "newAdmin",
+          "type": {
+            "option": "pubkey"
+          }
+        },
+        {
+          "name": "newEmodeAdmin",
           "type": {
             "option": "pubkey"
           }
@@ -9298,9 +10661,136 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
+    },
+    {
+      "name": "marginfiGroupSetGovernanceAdmin",
+      "docs": [
+        "Bootstrap or rotate the slow governance admin. When the stored value is zero on a resized",
+        "legacy group, the fast admin may bootstrap it once; thereafter only the current governance",
+        "admin may rotate it."
+      ],
+      "discriminator": [
+        87,
+        57,
+        22,
+        85,
+        152,
+        57,
+        23,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "marginfiGroup",
+          "writable": true
+        },
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "newGovernanceAdmin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "monitorArchiveInitialize",
+      "docs": [
+        "(snapshot manager only) Initialize the monitor snapshot archive account metadata."
+      ],
+      "discriminator": [
+        5,
+        144,
+        117,
+        234,
+        36,
+        188,
+        147,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "archive",
+          "docs": [
+            "`MAX_ACCOUNT_DATA_LEN`. `MintSnapshotsArchive::initialize` rejects it unless it is",
+            "large enough and its discriminator is still zero."
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "snapshotManager",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "monitorArchiveUpsertBatch",
+      "docs": [
+        "(snapshot manager only) Upsert a batch of monitor snapshots into the archive account.",
+        "",
+        "Mints are sourced positionally from `remaining_accounts`: `updates[i]` maps to",
+        "`remaining_accounts[i]`."
+      ],
+      "discriminator": [
+        203,
+        39,
+        50,
+        74,
+        141,
+        37,
+        14,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "snapshotManager",
+          "docs": [
+            "Dedicated signer for monitor snapshot archive writes. Must match",
+            "`ArchiveMeta.authority`."
+          ],
+          "signer": true
+        },
+        {
+          "name": "archive",
+          "docs": [
+            "[8-byte discriminator][ArchiveMeta][index_map][payload]."
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "updates",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "snapshotUpdateInput"
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "name": "panicPause",
@@ -9349,6 +10839,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -9400,6 +10894,10 @@ export type Marginfi = {
               }
             ]
           }
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -9491,6 +10989,43 @@ export type Marginfi = {
       "args": []
     },
     {
+      "name": "propagateKaminoMarketEmergency",
+      "docs": [
+        "(permissionless) Copy the emergency flag of a Kamino lending market onto a bank in that",
+        "market. While set, the bank backs no new borrowing, exactly as a bank on a reserve in",
+        "emergency mode does. Clearing the flag works the same way, once Kamino resumes the market."
+      ],
+      "discriminator": [
+        252,
+        182,
+        246,
+        73,
+        108,
+        118,
+        102,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "reserve",
+          "docs": [
+            "The reserve `bank` deposits into. Read only to reach its market."
+          ]
+        },
+        {
+          "name": "lendingMarket",
+          "docs": [
+            "The market that owns `reserve`, and the source of the propagated flag."
+          ]
+        },
+        {
+          "name": "bank",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "propagateStakedSettings",
       "docs": [
         "(permissionless) Propagate updated staked settings to a staked collateral bank."
@@ -9563,6 +11098,10 @@ export type Marginfi = {
         {
           "name": "bank",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -10355,6 +11894,10 @@ export type Marginfi = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -10447,6 +11990,10 @@ export type Marginfi = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -10723,6 +12270,10 @@ export type Marginfi = {
           "relations": [
             "marginfiGroup"
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -10773,6 +12324,10 @@ export type Marginfi = {
           "relations": [
             "marginfiGroup"
           ]
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -10846,6 +12401,10 @@ export type Marginfi = {
         {
           "name": "metadata",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -10919,6 +12478,10 @@ export type Marginfi = {
         {
           "name": "metadata",
           "writable": true
+        },
+        {
+          "name": "instructionSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -11044,6 +12607,32 @@ export type Marginfi = {
         86,
         28,
         51
+      ]
+    },
+    {
+      "name": "rebalanceOrder",
+      "discriminator": [
+        51,
+        5,
+        186,
+        251,
+        144,
+        119,
+        75,
+        197
+      ]
+    },
+    {
+      "name": "rebalanceRecord",
+      "discriminator": [
+        190,
+        69,
+        228,
+        114,
+        34,
+        217,
+        70,
+        102
       ]
     },
     {
@@ -11205,6 +12794,19 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "keeperCloseRebalanceOrderEvent",
+      "discriminator": [
+        162,
+        156,
+        215,
+        175,
+        216,
+        69,
+        165,
+        208
+      ]
+    },
+    {
       "name": "lendingAccountBorrowEvent",
       "discriminator": [
         223,
@@ -11241,6 +12843,19 @@ export type Marginfi = {
         39,
         23,
         242
+      ]
+    },
+    {
+      "name": "lendingAccountPremiumSettledEvent",
+      "discriminator": [
+        4,
+        26,
+        72,
+        83,
+        55,
+        79,
+        238,
+        25
       ]
     },
     {
@@ -11361,6 +12976,19 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "lendingPoolBankPremiumConfigureEvent",
+      "discriminator": [
+        147,
+        142,
+        111,
+        159,
+        48,
+        210,
+        62,
+        226
+      ]
+    },
+    {
       "name": "lendingPoolBankSetOraclePriceEvent",
       "discriminator": [
         92,
@@ -11384,6 +13012,32 @@ export type Marginfi = {
         215,
         15,
         79
+      ]
+    },
+    {
+      "name": "lendingPoolGroupPremiumConfigureEvent",
+      "discriminator": [
+        44,
+        126,
+        109,
+        163,
+        173,
+        83,
+        73,
+        169
+      ]
+    },
+    {
+      "name": "lendingPoolPremiumFeesCollectedEvent",
+      "discriminator": [
+        81,
+        224,
+        49,
+        3,
+        197,
+        4,
+        10,
+        84
       ]
     },
     {
@@ -11426,6 +13080,19 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "liquidationTagEvent",
+      "discriminator": [
+        81,
+        203,
+        83,
+        137,
+        115,
+        26,
+        217,
+        86
+      ]
+    },
+    {
       "name": "marginfiAccountCloseOrderEvent",
       "discriminator": [
         158,
@@ -11436,6 +13103,19 @@ export type Marginfi = {
         146,
         229,
         212
+      ]
+    },
+    {
+      "name": "marginfiAccountCloseRebalanceOrderEvent",
+      "discriminator": [
+        187,
+        136,
+        207,
+        156,
+        141,
+        155,
+        230,
+        172
       ]
     },
     {
@@ -11478,6 +13158,19 @@ export type Marginfi = {
       ]
     },
     {
+      "name": "marginfiAccountPlaceRebalanceOrderEvent",
+      "discriminator": [
+        136,
+        247,
+        221,
+        216,
+        15,
+        232,
+        108,
+        141
+      ]
+    },
+    {
       "name": "marginfiAccountTransferToNewAccount",
       "discriminator": [
         59,
@@ -11488,6 +13181,19 @@ export type Marginfi = {
         136,
         80,
         89
+      ]
+    },
+    {
+      "name": "marginfiAccountUpdateRebalanceOrderEvent",
+      "discriminator": [
+        128,
+        90,
+        140,
+        155,
+        175,
+        56,
+        233,
+        99
       ]
     },
     {
@@ -11527,6 +13233,71 @@ export type Marginfi = {
         107,
         105,
         109
+      ]
+    },
+    {
+      "name": "rebalanceExecutedEvent",
+      "discriminator": [
+        114,
+        34,
+        215,
+        49,
+        130,
+        101,
+        33,
+        2
+      ]
+    },
+    {
+      "name": "rebalanceFeePoolTopUpEvent",
+      "discriminator": [
+        180,
+        200,
+        130,
+        239,
+        91,
+        99,
+        253,
+        49
+      ]
+    },
+    {
+      "name": "rebalanceFeePoolWithdrawEvent",
+      "discriminator": [
+        198,
+        221,
+        159,
+        93,
+        100,
+        193,
+        147,
+        180
+      ]
+    },
+    {
+      "name": "rebalanceTipSettledEvent",
+      "discriminator": [
+        180,
+        146,
+        87,
+        198,
+        207,
+        186,
+        254,
+        203
+      ]
+    },
+    {
+      "name": "setGovernanceAdminEvent",
+      "discriminator": [
+        232,
+        208,
+        132,
+        193,
+        42,
+        110,
+        80,
+        234
       ]
     },
     {
@@ -11816,8 +13587,8 @@ export type Marginfi = {
     },
     {
       "code": 6054,
-      "name": "vacated3",
-      "msg": "vacated3"
+      "name": "accountAlreadyTagged",
+      "msg": "Account is already tagged for liquidation"
     },
     {
       "code": 6055,
@@ -11911,8 +13682,8 @@ export type Marginfi = {
     },
     {
       "code": 6073,
-      "name": "integrationPositionLimitExceeded",
-      "msg": "Exceeded the maximum allowed integration positions"
+      "name": "costlyPositionLimitExceeded",
+      "msg": "Exceeded the maximum allowed integration or staked positions"
     },
     {
       "code": 6074,
@@ -12243,6 +14014,31 @@ export type Marginfi = {
       "code": 6139,
       "name": "stakePoolStale",
       "msg": "Stake pool balance has not been updated recently enough"
+    },
+    {
+      "code": 6140,
+      "name": "mixedBankConfigAuthority",
+      "msg": "Deprecated: bank configuration now uses explicit fast and governance instructions"
+    },
+    {
+      "code": 6141,
+      "name": "invalidGovernanceAdmin",
+      "msg": "Governance admin cannot be set to the default pubkey (all zeros); this would disable slow-authority operations"
+    },
+    {
+      "code": 6142,
+      "name": "mixedGroupConfigAuthority",
+      "msg": "Deprecated: group configuration now uses explicit fast and governance instructions"
+    },
+    {
+      "code": 6143,
+      "name": "invalidFastBankOperationalState",
+      "msg": "Fast bank configuration may only make a risk-reducing operational-state transition"
+    },
+    {
+      "code": 6144,
+      "name": "invalidGovernanceBankOperationalState",
+      "msg": "Governance bank configuration may only transition a bank to Operational"
     },
     {
       "code": 6200,
@@ -12635,6 +14431,146 @@ export type Marginfi = {
       "msg": "Oracle price deviates too far from the circuit breaker reference; action rejected"
     },
     {
+      "code": 6605,
+      "name": "durableNonceNotAllowed",
+      "msg": "Durable nonce cannot be used for this instruction"
+    },
+    {
+      "code": 6610,
+      "name": "premiumEntryInvalid",
+      "msg": "Premium entry has a zero collateral or liability tag"
+    },
+    {
+      "code": 6611,
+      "name": "premiumMatrixFull",
+      "msg": "Too many premium entries for the group's capacity"
+    },
+    {
+      "code": 6612,
+      "name": "invalidPremiumAta",
+      "msg": "Premium ATA does not match the canonical ATA of the premium wallet"
+    },
+    {
+      "code": 6613,
+      "name": "premiumWalletNotSet",
+      "msg": "Premium wallet is not configured on the fee state"
+    },
+    {
+      "code": 6614,
+      "name": "premiumEntryNotFound",
+      "msg": "Premium (collateral, liability) pair is not in the matrix"
+    },
+    {
+      "code": 6615,
+      "name": "premiumSnapshotUnavailable",
+      "msg": "Premium rate cannot be computed (a collateral oracle failed); retry with valid oracles"
+    },
+    {
+      "code": 6700,
+      "name": "rebalanceVenueUnsupported",
+      "msg": "Rebalance venue not supported for on-chain rate verification"
+    },
+    {
+      "code": 6701,
+      "name": "rebalanceCooldown",
+      "msg": "Rebalance cooldown has not elapsed"
+    },
+    {
+      "code": 6702,
+      "name": "rebalanceIncompleteMove",
+      "msg": "Rebalance moved no value"
+    },
+    {
+      "code": 6703,
+      "name": "rebalanceNotImproving",
+      "msg": "Rebalance destination rate not better than source by the required margin"
+    },
+    {
+      "code": 6704,
+      "name": "rebalanceOvershoot",
+      "msg": "Rebalance improvement did not survive the move's own market impact"
+    },
+    {
+      "code": 6705,
+      "name": "rebalanceValueLeak",
+      "msg": "Rebalance leaked value beyond the allowed dust tolerance"
+    },
+    {
+      "code": 6706,
+      "name": "rebalanceMintMismatch",
+      "msg": "Rebalance bank mint does not match the order mint"
+    },
+    {
+      "code": 6707,
+      "name": "rebalanceBankNotAllowed",
+      "msg": "Rebalance bank not in the order's allowed venue set"
+    },
+    {
+      "code": 6708,
+      "name": "rebalanceInvalidMinImprovement",
+      "msg": "Rebalance min improvement must be non-negative"
+    },
+    {
+      "code": 6709,
+      "name": "rebalanceExceedsAmount",
+      "msg": "Rebalance moved more than the order's amount"
+    },
+    {
+      "code": 6710,
+      "name": "rebalanceMalformedSandwich",
+      "msg": "Rebalance sandwich must contain exactly one start and one end instruction"
+    },
+    {
+      "code": 6711,
+      "name": "rebalanceSettleTooEarly",
+      "msg": "Rebalance tip cannot be settled until the settlement delay has elapsed"
+    },
+    {
+      "code": 6712,
+      "name": "rebalanceForeignAccountLeg",
+      "msg": "Rebalance deposit/withdraw legs must all act on the rebalanced marginfi account"
+    },
+    {
+      "code": 6713,
+      "name": "rebalanceNoAllowlistPosition",
+      "msg": "Rebalance order requires a deposit in at least one allowed bank"
+    },
+    {
+      "code": 6714,
+      "name": "rebalanceUntrackedBalance",
+      "msg": "Rebalance opened a balance outside the referenced bank set"
+    },
+    {
+      "code": 6715,
+      "name": "rebalanceNotBestVenue",
+      "msg": "Rebalance passed over a higher-rate bank that still has deposit capacity"
+    },
+    {
+      "code": 6716,
+      "name": "rebalanceStaleExecutionSeq",
+      "msg": "Rebalance execution sequence does not match the account's next value"
+    },
+    {
+      "code": 6717,
+      "name": "rebalanceAllowlistLiability",
+      "msg": "Rebalance allowlist contains a bank the account owes into"
+    },
+    {
+      "code": 6718,
+      "name": "rebalanceBankSourceAndDestination",
+      "msg": "Rebalance moves use a bank as both a source and a destination"
+    },
+    {
+      "code": 6719,
+      "name": "rebalanceForeignBankLeg",
+      "msg": "Rebalance deposit/withdraw legs must all act on a bank the order allows"
+    },
+    {
+      "code": 6720,
+      "name": "rebalanceTaggedBalanceSplit",
+      "msg": "Rebalance must move an order-tagged balance whole, alone, into an empty bank"
+    },
+    {
       "code": 6800,
       "name": "scopeInvalidAccount",
       "msg": "Scope oracle account is not owned by the Scope program or is malformed"
@@ -12642,7 +14578,7 @@ export type Marginfi = {
     {
       "code": 6801,
       "name": "scopeInvalidEntry",
-      "msg": "Scope entry index is out of range or the entry has never been refreshed"
+      "msg": "Scope entry is out of range, never refreshed, or dated in the future"
     },
     {
       "code": 6802,
@@ -12741,13 +14677,14 @@ export type Marginfi = {
             "type": "u16"
           },
           {
-            "name": "pad0",
-            "type": {
-              "array": [
-                "u8",
-                4
-              ]
-            }
+            "name": "premiumRateSnapshot",
+            "docs": [
+              "Collateral-weighted variable-borrow premium APR snapshot for this liability position,",
+              "encoded like interest-curve points via `milli_to_u32` (0-1000%). Recomputed by every",
+              "oracle-carrying ix (borrow, withdraw, liquidation, order end, `pulse_health`) but not",
+              "deposit/repay, which carry no oracles. 0 = no premium."
+            ],
+            "type": "u32"
           },
           {
             "name": "assetShares",
@@ -12774,9 +14711,11 @@ export type Marginfi = {
             }
           },
           {
-            "name": "emissionsOutstanding",
+            "name": "premiumOutstanding",
             "docs": [
-              "Unclaimed emissions rewards for this position"
+              "Accrued (materialized) variable-borrow premium owed on this liability position, in native",
+              "token units. Settled (with real tokens) only on repay; written off on bankruptcy,",
+              "tokenless repayment, or a liability→asset flip."
             ],
             "type": {
               "defined": {
@@ -12787,7 +14726,8 @@ export type Marginfi = {
           {
             "name": "lastUpdate",
             "docs": [
-              "Unix timestamp (u64) of the last emissions calculation for this position"
+              "Unix timestamp (u64) of the last premium accrual (claim) for this position. Set at",
+              "balance creation and bumped on every `claim_premium`."
             ],
             "type": "u64"
           },
@@ -13041,7 +14981,11 @@ export type Marginfi = {
               "- Bit 10 (1024): `STAKED_ORACLE_PRICE_USES_ONRAMP` — staked oracle pricing includes the SPL",
               "single-pool on-ramp account in NAV.",
               "- Bit 11 (2048): `CIRCUIT_BREAKER_ENABLED` — oracle deviation breaker active on this bank",
-              "- Bit 12 (4096): `BANK_SAME_ASSET_EMODE_ELIGIBLE` — bank may participate in same-asset e-mode."
+              "- Bit 12 (4096): `BANK_SAME_ASSET_EMODE_ELIGIBLE` — bank may participate in same-asset e-mode.",
+              "- Bit 13 (8192): `PREMIUM_ACTIVE` — a liability-bank flag: balances borrowing from this",
+              "bank accrue the pairwise variable-borrow premium and project it in health checks.",
+              "- Bit 14 (16384): `KAMINO_MARKET_EMERGENCY` — the Kamino lending market behind this bank is",
+              "in emergency mode, so the bank backs no new borrowing."
             ],
             "type": "u64"
           },
@@ -13211,12 +15155,16 @@ export type Marginfi = {
             }
           },
           {
-            "name": "pad0",
+            "name": "collectedPremiumOutstanding",
+            "docs": [
+              "Realized variable-borrow premium sitting in the liquidity vault, pending sweep to the",
+              "protocol premium wallet's canonical ATA for `mint`. Only incremented when premium tokens",
+              "are actually received (repay); never by mere accrual."
+            ],
             "type": {
-              "array": [
-                "u8",
-                16
-              ]
+              "defined": {
+                "name": "wrappedI80f48"
+              }
             }
           },
           {
@@ -13334,11 +15282,45 @@ export type Marginfi = {
             "type": "u64"
           },
           {
+            "name": "premiumTag",
+            "docs": [
+              "Tag for the group's pairwise variable-borrow premium matrix. Determines the rate other",
+              "accounts pay when this bank is offered as collateral (as `collateral_tag`) and the rate",
+              "this bank's borrowers pay (as `liability_tag`).",
+              "* 0 = untagged: never matches any premium entry."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "pad3",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          },
+          {
+            "name": "premiumActivatedAt",
+            "docs": [
+              "Unix timestamp of the most recent inactive->active `PREMIUM_ACTIVE` transition. Premium",
+              "accrual is clamped to start no earlier than this, so toggling the flag off and back on",
+              "can never charge for (or health-project) the deactivated window.",
+              "* 0 on banks that never activated premium."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "padding1",
             "type": {
               "array": [
-                "u64",
-                2
+                {
+                  "array": [
+                    "u64",
+                    8
+                  ]
+                },
+                32
               ]
             }
           }
@@ -13744,8 +15726,8 @@ export type Marginfi = {
           {
             "name": "scopeEntryIndex",
             "docs": [
-              "Entry index into the Scope `OraclePrices` price list. Only read when",
-              "`oracle_setup == OracleSetup::Scope`; ignored (and zero) for every other setup.",
+              "Entry index into the Scope `OraclePrices` price list. Only read by the Scope setups",
+              "(`Scope`, `ScopeKamino`, `ScopeJuplend`); ignored (and zero) for every other setup.",
               "Occupies what was previously `_padding0`, so the layout is unchanged."
             ],
             "type": "u16"
@@ -13964,6 +15946,240 @@ export type Marginfi = {
               "- Clamped to MAX_CONF_INTERVAL (5% of price)."
             ],
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bankConfigFast",
+      "docs": [
+        "Configuration fields controlled by the fast operational admin.",
+        "",
+        "`operational_state`, when present, may only make a risk-reducing transition: Operational",
+        "to `Paused`, `ReduceOnly`, or `ReduceOnlyWithBorrowingPower`; or",
+        "`ReduceOnlyWithBorrowingPower` to `ReduceOnly`. It may also set a bank to `Paused` from",
+        "any administratively configurable state. Restoring a bank to `Operational` is governed by",
+        "[`BankConfigGov`]."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "depositLimit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "borrowLimit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "operationalState",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "bankOperationalState"
+                }
+              }
+            }
+          },
+          {
+            "name": "interestRateConfig",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "interestRateConfigOpt"
+                }
+              }
+            }
+          },
+          {
+            "name": "totalAssetValueInitLimit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "permissionlessBadDebtSettlement",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "liquidationLiquidatorFee",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "liquidationInsuranceFee",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "circuitBreakerEnabled",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "cbDeviationBpsTiers",
+            "type": {
+              "option": {
+                "array": [
+                  "u16",
+                  3
+                ]
+              }
+            }
+          },
+          {
+            "name": "cbTierDurationsSeconds",
+            "type": {
+              "option": {
+                "array": [
+                  "u16",
+                  3
+                ]
+              }
+            }
+          },
+          {
+            "name": "cbEscalationWindowMult",
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "cbEmaAlphaBps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "cbWindowSeconds",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "cbWindowMaxUpBps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "cbWindowMaxDownBps",
+            "type": {
+              "option": "u16"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bankConfigGov",
+      "docs": [
+        "Configuration fields controlled by the slow, timelocked governance admin.",
+        "",
+        "`operational_state`, when present, may only restore a bank to `Operational`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "assetWeightInit",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "wrappedI80f48"
+                }
+              }
+            }
+          },
+          {
+            "name": "assetWeightMaint",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "wrappedI80f48"
+                }
+              }
+            }
+          },
+          {
+            "name": "liabilityWeightInit",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "wrappedI80f48"
+                }
+              }
+            }
+          },
+          {
+            "name": "liabilityWeightMaint",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "wrappedI80f48"
+                }
+              }
+            }
+          },
+          {
+            "name": "operationalState",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "bankOperationalState"
+                }
+              }
+            }
+          },
+          {
+            "name": "riskTier",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "riskTier"
+                }
+              }
+            }
+          },
+          {
+            "name": "assetTag",
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "oracleMaxConfidence",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "oracleMaxAge",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "tokenlessRepaymentsAllowed",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "freezeSettings",
+            "type": {
+              "option": "bool"
+            }
           }
         ]
       }
@@ -14338,6 +16554,35 @@ export type Marginfi = {
       }
     },
     {
+      "name": "borrowRateCurve",
+      "docs": [
+        "Mirrors Kamino's `BorrowRateCurve`: a fixed 11-point curve.",
+        "https://github.com/Kamino-Finance/klend/blob/master/programs/klend/src/utils/borrow_rate_curve.rs#L23-L25"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "points",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "curvePoint"
+                  }
+                },
+                11
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "circuitBreakerAutoBrokenEvent",
       "docs": [
         "Emitted when consecutive tier-3 trips force a bank into `CircuitBroken`."
@@ -14405,6 +16650,30 @@ export type Marginfi = {
           {
             "name": "haltEndedAt",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "curvePoint",
+      "docs": [
+        "Mirrors Kamino's `CurvePoint` (`BorrowRateCurve` point). bps: 10_000 = 100%.",
+        "https://github.com/Kamino-Finance/klend/blob/master/programs/klend/src/utils/borrow_rate_curve.rs#L74-L91"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "utilizationRateBps",
+            "type": "u32"
+          },
+          {
+            "name": "borrowRateBps",
+            "type": "u32"
           }
         ]
       }
@@ -15049,17 +17318,26 @@ export type Marginfi = {
             "type": "pubkey"
           },
           {
+            "name": "premiumWallet",
+            "docs": [
+              "Destination wallet for swept variable-borrow premium fees. Premium collected by banks is",
+              "swept (permissionlessly) to the canonical ATA of this wallet for the bank's mint.",
+              "* `Pubkey::default()` = unset (sweeps are rejected until the fee admin configures it),",
+              "which is what v1-sized accounts hold after `resize_global_fee_state` zero-fills them."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "reserved0",
             "docs": [
-              "Reserved for future use (e.g. the variable-borrow premium settings). Accounts created",
-              "before the struct grew to this size are v1-sized (`8 + V1_LEN` bytes) and must be",
-              "grown via `resize_global_fee_state` before this program version can load them; the new",
-              "bytes are zero-filled."
+              "Reserved for future use. Accounts created before the struct grew to this size are",
+              "v1-sized (`8 + V1_LEN` bytes) and must be grown via `resize_global_fee_state` before",
+              "this program version can load them; the new bytes are zero-filled."
             ],
             "type": {
               "array": [
                 "u64",
-                32
+                28
               ]
             }
           }
@@ -15296,7 +17574,9 @@ export type Marginfi = {
               "oracle cranks ran recently enough. Check `internal_err` and `err_index` for more details",
               "in some circumstances. Invalid if generated after borrow/withdraw (these instructions will",
               "ignore oracle issues if health is still satisfactory with some balance zeroed out).",
-              "* 8, 16, 32, 64, 128, etc - reserved for future use"
+              "* EMODE BOOSTED = 8 - If set, an emode or same-asset entry weights every collateral balance",
+              "above its own bank's maintenance weight. Only written by maintenance passes.",
+              "* 16, 32, 64, 128, etc - reserved for future use"
             ],
             "type": "u32"
           },
@@ -15556,6 +17836,77 @@ export type Marginfi = {
                 8
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "insuranceFund",
+      "docs": [
+        "Mirrors Drift's `SpotMarket.insurance_fund` field-for-field (`struct InsuranceFund`). u128 fields",
+        "are stored as raw bytes to preserve 8-byte alignment.",
+        "https://github.com/drift-labs/protocol-v2/blob/master/programs/drift/src/state/spot_market.rs#L689-L702"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "totalShares",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "userShares",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "sharesBase",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "unstakingPeriod",
+            "type": "i64"
+          },
+          {
+            "name": "lastRevenueSettleTs",
+            "type": "i64"
+          },
+          {
+            "name": "revenueSettlePeriod",
+            "type": "i64"
+          },
+          {
+            "name": "totalFactor",
+            "docs": [
+              "Percentage of interest taken by the insurance fund (PERCENTAGE_PRECISION = 1e6)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "userFactor",
+            "type": "u32"
           }
         ]
       }
@@ -16138,6 +18489,26 @@ export type Marginfi = {
       }
     },
     {
+      "name": "keeperCloseRebalanceOrderEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "lending",
       "docs": [
         "Minimal representation of the on-chain JupLend `Lending` account.",
@@ -16412,6 +18783,53 @@ export type Marginfi = {
                 "name": "liquidationBalances"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "lendingAccountPremiumSettledEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "bank",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "premiumSettled",
+            "docs": [
+              "Premium moved into `bank.collected_premium_outstanding` with this repayment (tokens",
+              "arrived in the liquidity vault), in native token units."
+            ],
+            "type": "f64"
+          },
+          {
+            "name": "premiumWrittenOff",
+            "docs": [
+              "Premium receivable written off with no tokens (tokenless risk-admin repayment), in",
+              "native token units."
+            ],
+            "type": "f64"
+          },
+          {
+            "name": "premiumOutstandingRemaining",
+            "docs": [
+              "Premium receivable still outstanding on the balance after this repayment."
+            ],
+            "type": "f64"
           }
         ]
       }
@@ -16720,6 +19138,46 @@ export type Marginfi = {
           {
             "name": "socializedAmount",
             "type": "f64"
+          },
+          {
+            "name": "premiumWrittenOff",
+            "docs": [
+              "Uncollectable premium receivable written off with the bad debt (never socialized,",
+              "never covered by insurance, never credited to the bank)."
+            ],
+            "type": "f64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "lendingPoolBankPremiumConfigureEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "groupEventHeader"
+              }
+            }
+          },
+          {
+            "name": "bank",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "premiumTag",
+            "type": "u16"
+          },
+          {
+            "name": "active",
+            "type": "bool"
           }
         ]
       }
@@ -16776,6 +19234,76 @@ export type Marginfi = {
           {
             "name": "enabled",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "lendingPoolGroupPremiumConfigureEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "groupEventHeader"
+              }
+            }
+          },
+          {
+            "name": "collateralTag",
+            "type": "u16"
+          },
+          {
+            "name": "liabilityTag",
+            "type": "u16"
+          },
+          {
+            "name": "oldRate",
+            "type": "u32"
+          },
+          {
+            "name": "newRate",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "lendingPoolPremiumFeesCollectedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "groupEventHeader"
+              }
+            }
+          },
+          {
+            "name": "bank",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "premiumCollected",
+            "docs": [
+              "Realized premium swept from the liquidity vault to the premium wallet ATA this call."
+            ],
+            "type": "f64"
+          },
+          {
+            "name": "premiumOutstanding",
+            "docs": [
+              "Realized premium still awaiting sweep after this call."
+            ],
+            "type": "f64"
           }
         ]
       }
@@ -17138,6 +19666,25 @@ export type Marginfi = {
       }
     },
     {
+      "name": "liquidationTagEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "marginfiAccount",
+            "type": "pubkey"
+          },
+          {
+            "name": "taggedAt",
+            "docs": [
+              "0 when the tag was cleared"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "marginfiAccount",
       "serialization": "bytemuck",
       "repr": {
@@ -17288,11 +19835,29 @@ export type Marginfi = {
             }
           },
           {
+            "name": "rebalanceExecutionSeq",
+            "docs": [
+              "Monotonic counter. seeding each rebalance execution's `RebalanceRecord`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "liquidationTaggedAt",
+            "docs": [
+              "Unix timestamp when this account was tagged as unhealthy, growing the allowed liquidation",
+              "premium over time. Cleared once an instruction proves the account healthy again (deposit",
+              "and repay do not), restarted when a liquidation erases a material share of the health",
+              "deficit or repays a material share of the debt.",
+              "* 0 if not tagged"
+            ],
+            "type": "i64"
+          },
+          {
             "name": "padding0",
             "type": {
               "array": [
                 "u64",
-                4
+                2
               ]
             }
           }
@@ -17314,6 +19879,26 @@ export type Marginfi = {
           },
           {
             "name": "order",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "marginfiAccountCloseRebalanceOrderEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
             "type": "pubkey"
           }
         ]
@@ -17409,6 +19994,56 @@ export type Marginfi = {
       }
     },
     {
+      "name": "marginfiAccountPlaceRebalanceOrderEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "allowedBanks",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "minImprovement",
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          },
+          {
+            "name": "cooldownSeconds",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "keeperTip",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "marginfiAccountTransferToNewAccount",
       "type": {
         "kind": "struct",
@@ -17437,6 +20072,52 @@ export type Marginfi = {
       }
     },
     {
+      "name": "marginfiAccountUpdateRebalanceOrderEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
+            "type": "pubkey"
+          },
+          {
+            "name": "allowedBanks",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "minImprovement",
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          },
+          {
+            "name": "cooldownSeconds",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "keeperTip",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "marginfiGroup",
       "serialization": "bytemuck",
       "repr": {
@@ -17448,7 +20129,11 @@ export type Marginfi = {
           {
             "name": "admin",
             "docs": [
-              "Broadly able to modify anything, and can set/remove other admins at will."
+              "Broadly able to modify anything, and can set/remove other admins at will.",
+              "",
+              "Subsequent to the release of the `governance_admin`, this role can be considered the \"fast\" admin,",
+              "it can perform various tasks that do not require timelock sensitivity. High-risk activities",
+              "like changing oracles or bank weights are now under the control of the \"slow\" governance admin."
             ],
             "type": "pubkey"
           },
@@ -17566,7 +20251,7 @@ export type Marginfi = {
             "name": "emodeMaxInitLeverage",
             "docs": [
               "Maximum leverage allowed for emode positions (initial margin), stored as u32 basis.",
-              "Use `u32_to_basis` to convert to I80F48. Range: 1-100."
+              "Use `u32_to_basis` to convert to I80F48. Range: 1-100; 0 is unset and bounds nothing."
             ],
             "type": "u32"
           },
@@ -17574,7 +20259,7 @@ export type Marginfi = {
             "name": "emodeMaxMaintLeverage",
             "docs": [
               "Maximum leverage allowed for emode positions (maintenance margin), stored as u32 basis.",
-              "Must be > emode_max_init_leverage. Range: 1-100."
+              "Must be > emode_max_init_leverage. Range: 1-100; 0 is unset and bounds nothing."
             ],
             "type": "u32"
           },
@@ -17591,7 +20276,10 @@ export type Marginfi = {
             "name": "sameAssetEmodeMaintLeverage",
             "docs": [
               "Encoded same-asset automatic emode leverage for maintenance margin.",
-              "Decode with `u32_to_basis`. Ordering is validated in decoded space."
+              "Decode with `u32_to_basis`. Ordering is validated in decoded space.",
+              "Eligible banks have their liquidation fees checked against this value only when they opt in",
+              "while it is enabled or when they change fees. Enabling or raising it does not re-check them,",
+              "so verify every eligible bank off-chain first."
             ],
             "type": "u32"
           },
@@ -17648,32 +20336,47 @@ export type Marginfi = {
             "type": "pubkey"
           },
           {
-            "name": "padding0",
+            "name": "premiumSettings",
+            "docs": [
+              "Header for the pairwise variable-borrow premium matrix stored in `premium_entries`.",
+              "Occupies the former `_padding_0`/`_padding_1` region of the v1 layout, so v1 accounts",
+              "resize to a zeroed header (matrix off)."
+            ],
+            "type": {
+              "defined": {
+                "name": "premiumSettings"
+              }
+            }
+          },
+          {
+            "name": "premiumEntries",
+            "docs": [
+              "Pairwise variable-borrow premium rates, keyed by (collateral `premium_tag`, liability",
+              "`premium_tag`). Live entries occupy the first `premium_settings.entry_count` slots.",
+              "Read only via `find_premium_rate`. Future capacity growth carves from `_padding_2`."
+            ],
             "type": {
               "array": [
                 {
-                  "array": [
-                    "u64",
-                    2
-                  ]
+                  "defined": {
+                    "name": "premiumEntry"
+                  }
                 },
-                2
+                64
               ]
             }
           },
           {
-            "name": "padding1",
-            "type": {
-              "array": [
-                {
-                  "array": [
-                    "u64",
-                    2
-                  ]
-                },
-                32
-              ]
-            }
+            "name": "governanceAdmin",
+            "docs": [
+              "Also called the \"slow\" admin. Dedicated authority for time-locked configuration. Legacy",
+              "groups have this field zeroed after resize and must be bootstrapped by the fast admin with",
+              "`marginfi_group_set_governance_admin` before slow-authority operations are available.",
+              "",
+              "This is the first 32 bytes of post-v1 reserved space; renaming the field does not alter",
+              "any serialized account bytes."
+            ],
+            "type": "pubkey"
           },
           {
             "name": "padding2",
@@ -17685,7 +20388,16 @@ export type Marginfi = {
                     32
                   ]
                 },
-                32
+                31
+              ]
+            }
+          },
+          {
+            "name": "padding3",
+            "type": {
+              "array": [
+                "u64",
+                28
               ]
             }
           }
@@ -17729,6 +20441,148 @@ export type Marginfi = {
               "defined": {
                 "name": "groupEventHeader"
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "minimalLendingMarket",
+      "docs": [
+        "Kamino's `LendingMarket`, mirrored only as far as `reserve_rewards_max_apr_bps`, which caps",
+        "every reserve's rewards emission. Size matches klend's `LENDING_MARKET_SIZE`.",
+        "https://github.com/Kamino-Finance/klend/blob/master/programs/klend/src/state/lending_market.rs#L230"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u64"
+          },
+          {
+            "name": "bumpSeed",
+            "type": "u64"
+          },
+          {
+            "name": "lendingMarketOwner",
+            "type": "pubkey"
+          },
+          {
+            "name": "lendingMarketOwnerCached",
+            "type": "pubkey"
+          },
+          {
+            "name": "quoteCurrency",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "referralFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "emergencyMode",
+            "docs": [
+              "Non-zero when Kamino has halted the entire market, the market-wide counterpart of",
+              "`ReserveConfig.emergency_mode`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "padding1",
+            "type": {
+              "array": [
+                "u8",
+                2048
+              ]
+            }
+          },
+          {
+            "name": "padding2",
+            "type": {
+              "array": [
+                "u8",
+                1024
+              ]
+            }
+          },
+          {
+            "name": "padding3",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "padding4",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "padding5",
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          },
+          {
+            "name": "padding6",
+            "type": {
+              "array": [
+                "u8",
+                1
+              ]
+            }
+          },
+          {
+            "name": "reserveRewardsMaxAprBps",
+            "docs": [
+              "Ceiling on the APR a reserve may emit as rewards, in bps."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "padding7",
+            "type": {
+              "array": [
+                "u8",
+                1024
+              ]
+            }
+          },
+          {
+            "name": "padding8",
+            "type": {
+              "array": [
+                "u8",
+                256
+              ]
+            }
+          },
+          {
+            "name": "padding9",
+            "type": {
+              "array": [
+                "u8",
+                24
+              ]
             }
           }
         ]
@@ -17832,38 +20686,11 @@ export type Marginfi = {
             }
           },
           {
-            "name": "paddingPart1",
+            "name": "padding1",
             "type": {
               "array": [
                 "u8",
-                512
-              ]
-            }
-          },
-          {
-            "name": "paddingPart2",
-            "type": {
-              "array": [
-                "u8",
-                512
-              ]
-            }
-          },
-          {
-            "name": "paddingPart3",
-            "type": {
-              "array": [
-                "u8",
-                512
-              ]
-            }
-          },
-          {
-            "name": "paddingPart4",
-            "type": {
-              "array": [
-                "u8",
-                512
+                2048
               ]
             }
           },
@@ -18144,7 +20971,24 @@ export type Marginfi = {
             "type": "pubkey"
           },
           {
-            "name": "padding2Part1",
+            "name": "rewardsAmountAvailable",
+            "docs": [
+              "Undistributed reward tokens, native mint units. `distribute_rewards` moves these into",
+              "`available_amount`, raising the cToken exchange rate."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "padding1",
+            "type": {
+              "array": [
+                "u8",
+                512
+              ]
+            }
+          },
+          {
+            "name": "padding2",
             "type": {
               "array": [
                 "u8",
@@ -18153,52 +20997,34 @@ export type Marginfi = {
             }
           },
           {
-            "name": "padding2Part2",
-            "type": {
-              "array": [
-                "u8",
-                128
-              ]
-            }
-          },
-          {
-            "name": "padding2Part3",
-            "type": {
-              "array": [
-                "u8",
-                24
-              ]
-            }
-          },
-          {
             "name": "padding3",
             "type": {
               "array": [
                 "u8",
-                512
+                128
               ]
             }
           },
           {
-            "name": "paddingPart1",
+            "name": "padding4",
             "type": {
               "array": [
                 "u8",
-                512
+                16
               ]
             }
           },
           {
-            "name": "paddingPart2",
+            "name": "padding5",
             "type": {
               "array": [
                 "u8",
-                512
+                1024
               ]
             }
           },
           {
-            "name": "paddingPart3",
+            "name": "padding6",
             "type": {
               "array": [
                 "u8",
@@ -18207,7 +21033,7 @@ export type Marginfi = {
             }
           },
           {
-            "name": "paddingPart4",
+            "name": "padding7",
             "type": {
               "array": [
                 "u8",
@@ -18241,7 +21067,60 @@ export type Marginfi = {
             "type": "pubkey"
           },
           {
-            "name": "padding1ReserveCollateral",
+            "name": "padding8",
+            "type": {
+              "array": [
+                "u8",
+                1024
+              ]
+            }
+          },
+          {
+            "name": "padding9",
+            "type": {
+              "array": [
+                "u8",
+                1024
+              ]
+            }
+          },
+          {
+            "name": "padding10",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "padding11",
+            "type": {
+              "array": [
+                "u8",
+                48
+              ]
+            }
+          },
+          {
+            "name": "config",
+            "type": {
+              "defined": {
+                "name": "reserveConfig"
+              }
+            }
+          },
+          {
+            "name": "padding12",
+            "type": {
+              "array": [
+                "u8",
+                2048
+              ]
+            }
+          },
+          {
+            "name": "padding13",
             "type": {
               "array": [
                 "u8",
@@ -18250,65 +21129,11 @@ export type Marginfi = {
             }
           },
           {
-            "name": "padding2ReserveCollateral",
-            "type": {
-              "array": [
-                "u8",
-                512
-              ]
-            }
-          },
-          {
-            "name": "padding4Part1",
-            "type": {
-              "array": [
-                "u8",
-                4096
-              ]
-            }
-          },
-          {
-            "name": "padding4Part2",
-            "type": {
-              "array": [
-                "u8",
-                512
-              ]
-            }
-          },
-          {
-            "name": "padding4Part3",
+            "name": "padding14",
             "type": {
               "array": [
                 "u8",
                 256
-              ]
-            }
-          },
-          {
-            "name": "padding4Part4",
-            "type": {
-              "array": [
-                "u8",
-                64
-              ]
-            }
-          },
-          {
-            "name": "padding4Part5",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "padding4Part6",
-            "type": {
-              "array": [
-                "u8",
-                8
               ]
             }
           }
@@ -18320,7 +21145,7 @@ export type Marginfi = {
       "docs": [
         "Minimal representation of Drift's SpotMarket account",
         "Only includes the fields we actually need for marginfi integration",
-        "https://github.com/drift-labs/protocol-v2/tree/master/programs/drift/src/state/spot_market.rs#L35"
+        "https://github.com/drift-labs/protocol-v2/blob/master/programs/drift/src/state/spot_market.rs#L33-L211"
       ],
       "serialization": "bytemuck",
       "repr": {
@@ -18358,25 +21183,68 @@ export type Marginfi = {
             "type": "pubkey"
           },
           {
-            "name": "padding1",
+            "name": "name",
+            "docs": [
+              "SpotMarket fields between `vault` and `insurance_fund`; unused by marginfi, sized to match",
+              "upstream."
+            ],
             "type": {
               "array": [
-                {
-                  "array": [
-                    "u64",
-                    4
-                  ]
-                },
-                9
+                "u8",
+                32
               ]
             }
           },
           {
-            "name": "padding2",
+            "name": "historicalOracleData",
             "type": {
               "array": [
-                "u8",
-                8
+                "u64",
+                6
+              ]
+            }
+          },
+          {
+            "name": "historicalIndexData",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "revenuePool",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "spotFeePool",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "insuranceFund",
+            "type": {
+              "defined": {
+                "name": "insuranceFund"
+              }
+            }
+          },
+          {
+            "name": "totalSpotFee",
+            "type": {
+              "array": [
+                "u64",
+                2
               ]
             }
           },
@@ -18420,11 +21288,27 @@ export type Marginfi = {
             }
           },
           {
-            "name": "padding3",
+            "name": "padding1",
             "type": {
               "array": [
                 "u64",
-                9
+                5
+              ]
+            }
+          },
+          {
+            "name": "maxTokenDeposits",
+            "docs": [
+              "Deposit ceiling in native mint precision; `0` is uncapped."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "padding2",
+            "type": {
+              "array": [
+                "u64",
+                3
               ]
             }
           },
@@ -18437,13 +21321,37 @@ export type Marginfi = {
             "type": "u64"
           },
           {
-            "name": "padding4",
+            "name": "padding3",
             "type": {
               "array": [
                 "u64",
-                13
+                11
               ]
             }
+          },
+          {
+            "name": "padding4",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "optimalUtilization",
+            "docs": [
+              "Drift spot interest-rate curve params (`SpotMarket`), precision 1e6."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "optimalBorrowRate",
+            "type": "u32"
+          },
+          {
+            "name": "maxBorrowRate",
+            "type": "u32"
           },
           {
             "name": "decimals",
@@ -18458,9 +21366,17 @@ export type Marginfi = {
             "type": {
               "array": [
                 "u16",
-                24
+                1
               ]
             }
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`MarketStatus`; `0` is `Initialized`, the warm-up state that rejects deposits, and `1` is",
+              "`Active`."
+            ],
+            "type": "u8"
           },
           {
             "name": "padding6",
@@ -18472,11 +21388,52 @@ export type Marginfi = {
             }
           },
           {
-            "name": "poolId",
+            "name": "pausedOperations",
+            "docs": [
+              "`SpotOperation` pause bitmask; bit 0 (`UpdateCumulativeInterest`) stops interest accrual."
+            ],
             "type": "u8"
           },
           {
             "name": "padding7",
+            "type": {
+              "array": [
+                "u8",
+                30
+              ]
+            }
+          },
+          {
+            "name": "padding8",
+            "type": {
+              "array": [
+                "u8",
+                7
+              ]
+            }
+          },
+          {
+            "name": "minBorrowRate",
+            "docs": [
+              "Borrow-rate floor, in units of `PERCENTAGE_PRECISION / 200`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "padding9",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          },
+          {
+            "name": "poolId",
+            "type": "u8"
+          },
+          {
+            "name": "padding10",
             "docs": [
               "Padding to reach 776 bytes total (including discriminator)"
             ],
@@ -18726,6 +21683,12 @@ export type Marginfi = {
           },
           {
             "name": "ptFixed"
+          },
+          {
+            "name": "scopeKamino"
+          },
+          {
+            "name": "scopeJuplend"
           }
         ]
       }
@@ -19065,6 +22028,102 @@ export type Marginfi = {
       }
     },
     {
+      "name": "premiumEntry",
+      "docs": [
+        "One pairwise variable-borrow premium rate: accounts lending collateral tagged",
+        "`collateral_tag` pay an extra `rate` APR (proportional to that collateral's share of their",
+        "total collateral) when borrowing from banks tagged `liability_tag`."
+      ],
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "collateralTag",
+            "docs": [
+              "`premium_tag` of the collateral bank(s) this surcharge applies to. 0 = empty slot."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "liabilityTag",
+            "docs": [
+              "`premium_tag` of the liability bank(s) this surcharge applies to. 0 = empty slot."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "rate",
+            "docs": [
+              "Premium APR for this pair, encoded like interest-curve points via `milli_to_u32`",
+              "(0-1000%)."
+            ],
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "premiumSettings",
+      "docs": [
+        "Header for the group's pairwise variable-borrow premium matrix.",
+        "* `entry_count > 0` is the single source of truth for whether the matrix is configured."
+      ],
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "timestamp",
+            "docs": [
+              "Unix timestamp from the system clock when the premium matrix was last updated."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "entryCount",
+            "docs": [
+              "Number of live entries at the start of `premium_entries`. 0 = matrix off."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "entryCapacity",
+            "docs": [
+              "Storage capacity for entries. `MAX_PREMIUM_ENTRIES` for groups at the current account",
+              "size; a future group-account resize may raise this."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "pad0",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "reserved0",
+            "docs": [
+              "Reserved for future use"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "rateLimitFlowEvent",
       "docs": [
         "Emitted when a bank-level inflow or outflow is recorded.",
@@ -19194,6 +22253,643 @@ export type Marginfi = {
               "* a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX"
             ],
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
+            "type": "pubkey"
+          },
+          {
+            "name": "executor",
+            "type": "pubkey"
+          },
+          {
+            "name": "bankCount",
+            "type": "u8"
+          },
+          {
+            "name": "valueMoved",
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          },
+          {
+            "name": "tipEscrowed",
+            "docs": [
+              "Lamports escrowed into the rebalance record, released later by `settle_rebalance_tip`."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceFeePoolTopUpEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "feePool",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "newBalance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceFeePoolWithdrawEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "feePool",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "newBalance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceMove",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "srcIndex",
+            "type": "u8"
+          },
+          {
+            "name": "dstIndex",
+            "type": "u8"
+          },
+          {
+            "name": "pad0",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          },
+          {
+            "name": "amount",
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceOrder",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "marginfiAccount",
+            "docs": [
+              "The marginfi account this order belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "The account authority (may cancel the order)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "docs": [
+              "The single SPL mint this order rotates across venues; every referenced bank must hold this mint."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "allowedBanks",
+            "docs": [
+              "Venue allowlist: the first `allowed_bank_count` entries are the banks this order may rotate",
+              "across; the rest are zero. Stored in full (not a hash) so a keeper discovers the set from a",
+              "single account read and `start_rebalance` validates that every referenced bank ∈ list against",
+              "on-chain state."
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "minImprovement",
+            "docs": [
+              "Minimum required APR improvement (dst - src) to move, I80F48 (1.0 = 100%)."
+            ],
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          },
+          {
+            "name": "cooldownSeconds",
+            "docs": [
+              "Minimum wall-clock seconds between executions (anti-ping-pong cooldown)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Per-execution token budget: each execution may relocate at most this many underlying tokens",
+              "(raw native units of the shared mint) summed across all referenced banks. `0` means no cap."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "lastExecTimestamp",
+            "docs": [
+              "Unix timestamp (seconds) of the last successful rebalance."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "allowedBankCount",
+            "docs": [
+              "Number of populated entries in `allowed_banks` (2..=MAX_ALLOWED_BANKS)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "pad0",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          },
+          {
+            "name": "keeperTip",
+            "docs": [
+              "Lamport tip a keeper earns for relocating the order's full target, paid proportionally to the",
+              "tokens actually moved and drawn from the account's rebalance fee pool. 0 = no tip."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceRecord",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "marginfiAccount",
+            "docs": [
+              "The account the record belongs to; `settle_rebalance_tip` pays from and refunds to this",
+              "account's fee pool."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "executor",
+            "type": "pubkey"
+          },
+          {
+            "name": "refBanks",
+            "docs": [
+              "The distinct banks this execution touches (first `ref_bank_count` entries), with start",
+              "amounts and order tags."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "rebalanceRefBank"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "moves",
+            "docs": [
+              "The declared token moves (first `move_count` entries), referencing `ref_banks` by index."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "rebalanceMove"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "balanceStates",
+            "docs": [
+              "Snapshot of every active balance NOT in the referenced set; end verifies these unchanged."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "executeOrderBalanceRecord"
+                  }
+                },
+                15
+              ]
+            }
+          },
+          {
+            "name": "preRate",
+            "docs": [
+              "Per-referenced-bank supply rate captured at `start_rebalance`, before the move. `end_rebalance`",
+              "requires each move's post-deposit destination rate to still beat its source's rate from here."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "wrappedI80f48"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "moveYieldIndex",
+            "docs": [
+              "Per-referenced-bank yield index (`asset_share_value` × venue multiplier) captured at",
+              "`end_rebalance`. `settle_rebalance_tip` compares current indices against these to require the",
+              "destinations actually out-yielded the sources over the settlement window."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "wrappedI80f48"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "moveTimestamp",
+            "docs": [
+              "Unix seconds when the move completed (`end_rebalance`); the settlement window opens",
+              "`move_timestamp + settle_delay`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pendingTip",
+            "docs": [
+              "Keeper tip escrowed into this record at `end_rebalance`, paid to `executor` on a realized",
+              "settlement or refunded to the fee pool otherwise (lamports)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "settleDelay",
+            "docs": [
+              "Settlement delay in seconds, captured at `end_rebalance` from the order's cooldown at move",
+              "time (clamped to [SETTLE_DELAY_MIN, SETTLE_DELAY_MAX]);"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "refBankCount",
+            "type": "u8"
+          },
+          {
+            "name": "moveCount",
+            "type": "u8"
+          },
+          {
+            "name": "activeBalanceCount",
+            "type": "u8"
+          },
+          {
+            "name": "pad0",
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceRefBank",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bank",
+            "type": "pubkey"
+          },
+          {
+            "name": "preUnderlying",
+            "type": {
+              "defined": {
+                "name": "wrappedI80f48"
+              }
+            }
+          },
+          {
+            "name": "tag",
+            "type": "u16"
+          },
+          {
+            "name": "pad0",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebalanceTipSettledEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "accountEventHeader"
+              }
+            }
+          },
+          {
+            "name": "rebalanceOrder",
+            "type": "pubkey"
+          },
+          {
+            "name": "executor",
+            "type": "pubkey"
+          },
+          {
+            "name": "realized",
+            "docs": [
+              "Whether every move's destination out-yielded its source over the settlement window."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "tipPaid",
+            "docs": [
+              "Lamports the executor received. Nonzero without `realized` when the escrow was forfeited",
+              "because the fee pool had been drained below its rent-exempt reserve."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reserveConfig",
+      "docs": [
+        "Mirrors Kamino's `ReserveConfig` through `borrow_rate_curve`; the remaining trailing fields are",
+        "grouped as `_rest`. Total size matches Kamino's `RESERVE_CONFIG_SIZE` (952).",
+        "https://github.com/Kamino-Finance/klend/blob/master/programs/klend/src/state/reserve.rs#L1573-L1602"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "assetTier",
+            "type": "u8"
+          },
+          {
+            "name": "hostFixedInterestRateBps",
+            "type": "u16"
+          },
+          {
+            "name": "minDeleveragingBonusBps",
+            "type": "u16"
+          },
+          {
+            "name": "blockCtokenUsage",
+            "type": "u8"
+          },
+          {
+            "name": "earlyRepayRemainingInterestPct",
+            "type": "u8"
+          },
+          {
+            "name": "emergencyMode",
+            "type": "u8"
+          },
+          {
+            "name": "padding1",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "protocolOrderExecutionFeePct",
+            "type": "u8"
+          },
+          {
+            "name": "protocolTakeRatePct",
+            "docs": [
+              "Percentage of interest taken by the protocol (0..100). Read as `from_percent(pct)`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "padding2",
+            "type": {
+              "array": [
+                "u8",
+                48
+              ]
+            }
+          },
+          {
+            "name": "padding3",
+            "type": {
+              "array": [
+                "u8",
+                1
+              ]
+            }
+          },
+          {
+            "name": "borrowRateCurve",
+            "type": {
+              "defined": {
+                "name": "borrowRateCurve"
+              }
+            }
+          },
+          {
+            "name": "borrowFactorPct",
+            "type": "u64"
+          },
+          {
+            "name": "depositLimit",
+            "docs": [
+              "Total liquidity ceiling in native mint units; `u64::MAX` is unlimited."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "borrowLimit",
+            "type": "u64"
+          },
+          {
+            "name": "padding4",
+            "type": {
+              "array": [
+                "u8",
+                512
+              ]
+            }
+          },
+          {
+            "name": "padding5",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "padding6",
+            "type": {
+              "array": [
+                "u8",
+                96
+              ]
+            }
+          },
+          {
+            "name": "padding7",
+            "type": {
+              "array": [
+                "u8",
+                24
+              ]
+            }
+          },
+          {
+            "name": "rewardsAmountPerSlot",
+            "docs": [
+              "Reward tokens emitted per slot, native mint units."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "padding8",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
           }
         ]
       }
@@ -19385,6 +23081,30 @@ export type Marginfi = {
       }
     },
     {
+      "name": "setGovernanceAdminEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": {
+                "name": "groupEventHeader"
+              }
+            }
+          },
+          {
+            "name": "previousGovernanceAdmin",
+            "type": "pubkey"
+          },
+          {
+            "name": "newGovernanceAdmin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "setKeeperCloseFlagsEvent",
       "type": {
         "kind": "struct",
@@ -19404,6 +23124,26 @@ export type Marginfi = {
                 "vec": "pubkey"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "snapshotUpdateInput",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "snapshotHour",
+            "type": "u64"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "nativeApy",
+            "type": "u64"
           }
         ]
       }
@@ -19615,22 +23355,54 @@ export type Marginfi = {
             "type": "u8"
           },
           {
-            "name": "paddingToFees64",
+            "name": "configMinBorrowRate",
+            "type": "u8"
+          },
+          {
+            "name": "configOptimalBorrowRate",
+            "type": "u8"
+          },
+          {
+            "name": "configMaxBorrowRate",
+            "type": "u8"
+          },
+          {
+            "name": "padding1",
             "type": {
               "array": [
                 "u8",
-                64
+                17
               ]
             }
           },
           {
-            "name": "paddingToFees6",
+            "name": "configDepositLimit",
+            "docs": [
+              "Total liquidity ceiling in native mint units; `u64::MAX` is unlimited."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "padding2",
             "type": {
               "array": [
                 "u8",
-                6
+                32
               ]
             }
+          },
+          {
+            "name": "padding3",
+            "type": {
+              "array": [
+                "u8",
+                9
+              ]
+            }
+          },
+          {
+            "name": "configProtocolTakeRate",
+            "type": "u8"
           },
           {
             "name": "liquidityAccumulatedProtocolFeesWads",
@@ -19642,16 +23414,7 @@ export type Marginfi = {
             }
           },
           {
-            "name": "paddingFinal128",
-            "type": {
-              "array": [
-                "u8",
-                128
-              ]
-            }
-          },
-          {
-            "name": "paddingFinal64",
+            "name": "padding4",
             "type": {
               "array": [
                 "u8",
@@ -19660,20 +23423,37 @@ export type Marginfi = {
             }
           },
           {
-            "name": "paddingFinal32",
+            "name": "padding5",
             "type": {
               "array": [
                 "u8",
-                32
+                17
               ]
             }
           },
           {
-            "name": "paddingFinal6",
+            "name": "configMaxUtilizationRate",
+            "type": "u8"
+          },
+          {
+            "name": "configSuperMaxBorrowRate",
+            "type": "u64"
+          },
+          {
+            "name": "padding6",
             "type": {
               "array": [
                 "u8",
-                6
+                128
+              ]
+            }
+          },
+          {
+            "name": "padding7",
+            "type": {
+              "array": [
+                "u8",
+                12
               ]
             }
           }

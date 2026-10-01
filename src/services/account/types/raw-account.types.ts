@@ -12,7 +12,8 @@ export interface BalanceRaw {
   bankPk: PublicKey;
   assetShares: WrappedI80F48;
   liabilityShares: WrappedI80F48;
-  emissionsOutstanding: WrappedI80F48;
+  premiumRateSnapshot: number;
+  premiumOutstanding: WrappedI80F48;
   lastUpdate: BN;
 }
 

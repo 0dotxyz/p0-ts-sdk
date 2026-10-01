@@ -19,6 +19,7 @@ import {
 } from "../types";
 
 import { MarginfiIdlType } from "~/idl";
+import { rateFromU32 } from "~/services/bank";
 import { AccountType } from "~/types";
 import { bigNumberToWrappedI80F48, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
@@ -54,7 +55,8 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const bankPk = balanceRaw.bankPk;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
-  const emissionsOutstanding = wrappedI80F48toBigNumber(balanceRaw.emissionsOutstanding);
+  const premiumRate = rateFromU32(balanceRaw.premiumRateSnapshot);
+  const premiumOutstanding = wrappedI80F48toBigNumber(balanceRaw.premiumOutstanding);
   const lastUpdate = balanceRaw.lastUpdate.toNumber();
 
   return {
@@ -62,7 +64,8 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
     bankPk,
     assetShares,
     liabilityShares,
-    emissionsOutstanding,
+    premiumRate,
+    premiumOutstanding,
     lastUpdate,
   };
 }
@@ -224,7 +227,8 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
     bankPk: new PublicKey(balanceDto.bankPk),
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
-    emissionsOutstanding: new BigNumber(balanceDto.emissionsOutstanding),
+    premiumRate: new BigNumber(balanceDto.premiumRate),
+    premiumOutstanding: new BigNumber(balanceDto.premiumOutstanding),
     lastUpdate: balanceDto.lastUpdate,
   };
 }

@@ -192,6 +192,10 @@ function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
       return 25;
     case OracleSetup.PTFixed:
       return 26;
+    case OracleSetup.ScopeKamino:
+      return 27;
+    case OracleSetup.ScopeJuplend:
+      return 28;
     default:
       throw new Error(`Cannot serialize oracle setup "${oracleSetup}"`);
   }
@@ -253,6 +257,10 @@ function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
       return { ptPyth: {} };
     case OracleSetup.PTFixed:
       return { ptFixed: {} };
+    case OracleSetup.ScopeKamino:
+      return { scopeKamino: {} };
+    case OracleSetup.ScopeJuplend:
+      return { scopeJuplend: {} };
     default:
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);
   }
@@ -291,6 +299,9 @@ function toBankDto(bank: BankType): BankTypeDto {
     collectedProgramFeesOutstanding: bank.collectedProgramFeesOutstanding.toString(),
     oracleKey: bank.oracleKey.toBase58(),
     emode: toEmodeSettingsDto(bank.emode),
+    premiumTag: bank.premiumTag,
+    premiumActive: bank.premiumActive,
+    premiumActivatedAt: bank.premiumActivatedAt,
     rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
     feesDestinationAccount: bank.feesDestinationAccount?.toBase58(),
@@ -442,6 +453,8 @@ export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
     feesDestinationAccount: bankRaw?.feesDestinationAccount?.toBase58(),
     lendingPositionCount: bankRaw?.lendingPositionCount?.toString(),
     borrowingPositionCount: bankRaw?.borrowingPositionCount?.toString(),
+    premiumTag: bankRaw.premiumTag,
+    premiumActivatedAt: bankRaw.premiumActivatedAt.toString(),
 
     emode: emodeSettingsRawToDto(bankRaw.emode),
     integrationAcc1: bankRaw.integrationAcc1.toBase58(),

@@ -440,7 +440,8 @@ export function generateDummyAccount(
     bankPk: new PublicKey("11111111111111111111111111111111"),
     assetShares: dummyWrappedI80F48,
     liabilityShares: dummyWrappedI80F48,
-    emissionsOutstanding: dummyWrappedI80F48,
+    premiumRateSnapshot: 0,
+    premiumOutstanding: dummyWrappedI80F48,
     lastUpdate: new BN(0),
   });
   const rawAccount: MarginfiAccountRaw = {

@@ -38,7 +38,8 @@ export function balanceToDto(balance: BalanceType): BalanceTypeDto {
     bankPk: balance.bankPk.toBase58(),
     assetShares: balance.assetShares.toString(),
     liabilityShares: balance.liabilityShares.toString(),
-    emissionsOutstanding: balance.emissionsOutstanding.toString(),
+    premiumRate: balance.premiumRate.toString(),
+    premiumOutstanding: balance.premiumOutstanding.toString(),
     lastUpdate: balance.lastUpdate,
   };
 }

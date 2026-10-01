@@ -9,7 +9,8 @@ export interface BalanceTypeDto {
   bankPk: string;
   assetShares: string;
   liabilityShares: string;
-  emissionsOutstanding: string;
+  premiumRate: string;
+  premiumOutstanding: string;
   lastUpdate: number;
 }
 
