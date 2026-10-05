@@ -135,6 +135,33 @@ describe("titan WS adapter", () => {
     expect(typeof req.swap.transactionTemplate).toBe("object");
     expect(req.swap.transactionTemplate).toHaveProperty("i");
     expect(req.swap.transactionTemplate).toHaveProperty("a");
+    // A v0 footprint keeps the default transaction format.
+    expect(req.transaction).not.toHaveProperty("transactionFormat");
+    expect(req.swap.transactionTemplate).not.toHaveProperty("c");
+  });
+
+  it("sizes a v1 footprint as a Titan transaction v1 with the message's compute budget", async () => {
+    hoisted.quotes = { quotes: { Titan: route(100) }, metadata: { ExpectedWinner: "Titan" } };
+    const request = makeRequest();
+    const footprint = request.footprint && {
+      ...request.footprint,
+      txFormat: { version: 1 as const },
+    };
+
+    await titanAdapter.buildCandidates({ ...request, footprint }, apiConfig);
+
+    const req = hoisted.request as {
+      swap: { transactionTemplate: { a: unknown[]; c: unknown } };
+      transaction: { titanSwapVersion: number; transactionFormat: number };
+    };
+    expect(req.transaction.transactionFormat).toBe(1);
+    expect(req.transaction.titanSwapVersion).toBe(3);
+    expect(req.swap.transactionTemplate.a).toEqual([]);
+    expect(req.swap.transactionTemplate.c).toEqual({
+      computeUnitLimit: 1_400_000,
+      loadedAccountsDataSizeLimit: 67_108_864,
+      priorityFee: 0,
+    });
   });
 
   it("honors metadata.ExpectedWinner over raw outAmount", async () => {

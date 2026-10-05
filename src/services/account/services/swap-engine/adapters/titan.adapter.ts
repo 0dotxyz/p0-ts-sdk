@@ -11,6 +11,7 @@ import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/t
 
 import { ProviderSwapRoute, SwapAdapter, SwapEngineRequest } from "../types";
 
+import { V1_TRANSACTION_CONFIG } from "~/constants";
 import { SwapApiConfig, SwapProvider } from "~/services/account/types";
 import {
   V1Client,
@@ -79,11 +80,21 @@ async function buildCandidates(
 
   const { fee, feeAccount } = await resolveFee(req);
 
-  // Full-footprint template: the non-swap inner ixs + (optional) FL wrapper + loop LUTs.
-  const template = buildTitanTemplate({
-    instructions: [...(footprint.wrapperInstructions ?? []), ...footprint.instructions],
-    luts: footprint.txFormat.version === 1 ? {} : footprint.txFormat.luts,
-  });
+  // Full-footprint template: the non-swap inner ixs + (optional) FL wrapper + loop LUTs. A v1
+  // transaction has no LUTs and carries its compute budget in the message, which Titan sizes from `c`.
+  const { txFormat } = footprint;
+  const instructions = [...(footprint.wrapperInstructions ?? []), ...footprint.instructions];
+  const template =
+    txFormat.version === 1
+      ? {
+          ...buildTitanTemplate({ instructions, luts: {} }),
+          c: {
+            computeUnitLimit: V1_TRANSACTION_CONFIG.computeUnitLimit,
+            loadedAccountsDataSizeLimit: V1_TRANSACTION_CONFIG.loadedAccountsDataSizeLimit,
+            priorityFee: Number(V1_TRANSACTION_CONFIG.priorityFeeLamports),
+          },
+        }
+      : buildTitanTemplate({ instructions, luts: txFormat.luts });
 
   const client = await withTimeout(
     V1Client.connect(authedWsUrl(wsUrl, apiConfig?.apiKey)),
@@ -118,6 +129,7 @@ async function buildCandidates(
         // by Titan when the output mint isn't wSOL.
         outputWsol: true,
         titanSwapVersion: SwapVersion.V3,
+        ...(txFormat.version === 1 ? { transactionFormat: 1 } : {}),
         ...(fee !== undefined && feeAccount
           ? { feeBps: fee, feeAccount: addressBytes(feeAccount) }
           : {}),

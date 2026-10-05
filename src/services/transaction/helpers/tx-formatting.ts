@@ -18,7 +18,7 @@ import { SolanaTransaction, TransactionFormat } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
-import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
+import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE, V1_TRANSACTION_CONFIG } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
@@ -118,15 +118,6 @@ export function isFlashloan(tx: SolanaTransaction): boolean {
   });
 }
 
-// A v1 message has no implicit limits: unset means zero compute units and zero loaded bytes. These
-// are the maximum compute budget and the loaded-accounts size a v0 message gets by default. The
-// zero priority fee reserves its config bytes, so setting the real fee cannot outgrow a checked size.
-const V1_DEFAULT_CONFIG = {
-  computeUnitLimit: 1_400_000,
-  loadedAccountsDataSizeLimit: 64 * 1024 * 1024,
-  priorityFeeLamports: 0n,
-};
-
 /**
  * Builds a transaction message: `feePayer` pays and signs and `latestBlockhash` sets the lifetime.
  * A v0 message compresses accounts found in the format's `luts` into lookups. A v1 message inlines
@@ -156,7 +147,7 @@ export function makeTransactionMessage({
       (message) => setTransactionMessageFeePayerSigner(feePayer, message),
       (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
       (message) => appendTransactionMessageInstructions(instructions, message),
-      (message) => setTransactionMessageConfig(V1_DEFAULT_CONFIG, message)
+      (message) => setTransactionMessageConfig(V1_TRANSACTION_CONFIG, message)
     );
   }
 

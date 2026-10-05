@@ -46,6 +46,15 @@ export interface TransactionTemplate {
   i: Instruction[];
   a: TransactionTemplateLut[];
   m: AccountMeta[];
+  /** Transaction-level compute budget; required with `transactionFormat: 1`, ignored for v0. */
+  c?: TransactionConfigParams;
+}
+
+/** Compute budget a v1 transaction carries in its message; omitted fields use the runtime default. */
+export interface TransactionConfigParams {
+  priorityFee?: number;
+  computeUnitLimit?: number;
+  loadedAccountsDataSizeLimit?: number;
 }
 
 export enum SwapMode {
@@ -117,6 +126,12 @@ export interface TransactionParams {
    * `outputMint == wSOL`; ignored otherwise. Requires `titanSwapVersion=3`.
    */
   outputWsol?: boolean;
+  /**
+   * Transaction format routes are sized for: `0` (default) a v0 transaction of 1232 bytes, `1` a
+   * v1 transaction of 4096 bytes without ALTs, which needs the template's `c` and
+   * `titanSwapVersion=3`.
+   */
+  transactionFormat?: 0 | 1;
 }
 
 export enum SwapVersion {
