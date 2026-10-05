@@ -153,6 +153,16 @@ describe("resolveOrderLegs", () => {
     expect(legs.debtBank?.equals(BANK_B)).toBe(true);
   });
 
+  it("ignores dust liability shares left on the collateral balance", () => {
+    const account = accountWith([
+      balance(BANK_A, 3, { assets: 10, liabilities: 0.5 }),
+      balance(BANK_B, 4, { liabilities: 5 }),
+    ]);
+    const legs = resolveOrderLegs(account, { tags: [3, 4] });
+    expect(legs.collateralBank?.equals(BANK_A)).toBe(true);
+    expect(legs.debtBank?.equals(BANK_B)).toBe(true);
+  });
+
   it("returns null for a closed leg", () => {
     const account = accountWith([balance(BANK_A, 3, { assets: 10 })]);
     const order = { address: ACCOUNT, tags: [3, 4] as [number, number] };

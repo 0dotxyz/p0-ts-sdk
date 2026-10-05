@@ -256,29 +256,6 @@ export const fetchOrdersForAccount = async (
 };
 
 /**
- * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
- * account that owns it, without throwing: a leg whose tagged balance was closed comes back null
- * (the order is orphaned and can no longer execute). The tag order in `order.tags` follows the
- * caller-supplied bank key order at placement time, so the side is inferred from the balances.
- *
- * @param marginfiAccount - The parsed marginfi account that owns the order
- * @param order - The order whose bank pair to resolve
- */
-export const resolveOrderLegs = (
-  marginfiAccount: MarginfiAccountType,
-  order: Pick<OrderType, "tags">
-): { collateralBank: PublicKey | null; debtBank: PublicKey | null } => {
-  const taggedBalances = marginfiAccount.balances.filter(
-    (balance) => balance.active && balance.tag !== 0 && order.tags.includes(balance.tag)
-  );
-
-  return {
-    collateralBank: taggedBalances.find((balance) => balance.assetShares.gt(0))?.bankPk ?? null,
-    debtBank: taggedBalances.find((balance) => balance.liabilityShares.gt(0))?.bankPk ?? null,
-  };
-};
-
-/**
  * Fetches the order fees from the program's global `FeeState`.
  *
  * - `placementFeeLamports`: flat SOL fee charged by `place_order` (and again on every update).
