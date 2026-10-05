@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
+import { TransactionFormat } from "~/services/transaction";
 
 const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const payer = key(1);
@@ -22,15 +23,14 @@ const ix = (firstKey: number, accounts: number, dataLength: number): Instruction
 // 26 accounts (payer + program + 3 x 8) and 3 x 450 data bytes: roughly 2.3 KB compiled, so over
 // the version 0 limit without lookup tables and well under the version 1 limit.
 const allIxs = [ix(10, 8, 450), ix(30, 8, 450), ix(50, 8, 450)];
-const precheck = (version?: 0 | 1) =>
+const precheck = (txFormat: TransactionFormat) =>
   compileFlashloanPrecheck({
     allIxs,
     payer,
-    luts: {},
+    txFormat,
     sizeConstraint: 0,
     swapIxCount: 1,
     swapLutCount: 0,
-    version,
   });
 
 describe("compileFlashloanPrecheck", () => {
@@ -39,11 +39,9 @@ describe("compileFlashloanPrecheck", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("measures the overshoot against the 1232-byte limit by default and for version 0", () => {
-    const byDefault = precheck();
-    const v0 = precheck(0);
+  it("measures the overshoot against the 1232-byte limit for version 0", () => {
+    const v0 = precheck({ version: 0, luts: {} });
 
-    expect(byDefault).toEqual(v0);
     expect(v0.totalAccounts).toBe(26);
     expect(v0.totalAccounts).toBeLessThanOrEqual(MAX_ACCOUNT_LOCKS);
     expect(v0.fullTxSize).toBeGreaterThan(MAX_TX_SIZE);
@@ -53,7 +51,7 @@ describe("compileFlashloanPrecheck", () => {
   });
 
   it("measures the overshoot against the 4096-byte limit for version 1", () => {
-    const v1 = precheck(1);
+    const v1 = precheck({ version: 1 });
 
     expect(v1.totalAccounts).toBe(26);
     expect(v1.writableAccounts).toBe(25);

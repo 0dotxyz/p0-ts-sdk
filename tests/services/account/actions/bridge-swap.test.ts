@@ -40,7 +40,7 @@ const setupIx = (firstKey: number): Instruction => ({
 });
 
 // Both legs' accounts are in the lookup table, so a version 0 leg's instruction carries
-// lookup-table account metas (a version 1 leg ignores the table).
+// lookup-table account metas (a version 1 leg has no table).
 const luts = { [lookupTable]: [10, 11, 12, 20, 21, 22].map(key) };
 
 // The setup program + the two read-only accounts of each leg.
@@ -54,8 +54,7 @@ const setupLeg = (firstKey: number, version: 0 | 1) => ({
         instructions: [setupIx(firstKey)],
         feePayer,
         latestBlockhash,
-        luts,
-        version,
+        txFormat: version === 1 ? { version: 1 } : { version: 0, luts },
       }),
       type: TransactionType.CREATE_ATA,
     },

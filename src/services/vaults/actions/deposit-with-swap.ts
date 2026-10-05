@@ -27,6 +27,7 @@ import {
   makeWrapSolIxs,
   SolanaTransaction,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 import { makeGammaDepositIx } from "~/vendor/gamma/instructions";
@@ -57,8 +58,7 @@ export async function makeVaultDepositWithSwapTx(
     inputDecimals,
     swapOpts,
     swapEngineRunner,
-    luts,
-    version,
+    txFormat,
     latestBlockhash,
   } = params;
 
@@ -116,8 +116,7 @@ export async function makeVaultDepositWithSwapTx(
         createShareAtaIx,
         await makeGammaDepositIx({ ...depositAccounts, amount: 0n }),
       ],
-      luts,
-      version,
+      txFormat,
       payer: authority.address,
       // No flash loan around it: the swap may use the whole transaction.
       sizeConstraint: MAX_TX_SIZE,
@@ -137,8 +136,7 @@ export async function makeVaultDepositWithSwapTx(
     feePayer: authority,
     latestBlockhash:
       latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-    luts: { ...luts, ...engineResult.swapLuts },
-    version,
+    txFormat: withLookupTables(txFormat, engineResult.swapLuts),
   });
 
   if (

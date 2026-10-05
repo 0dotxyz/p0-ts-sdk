@@ -18,7 +18,6 @@ import {
   getTransactionMessageSize,
   getTransactionMessageSizeLimit,
   type Address,
-  type AddressesByLookupTableAddress,
   type Instruction,
 } from "@solana/kit";
 import {
@@ -38,7 +37,7 @@ import { BankType } from "~/services/bank";
 import {
   getTotalAccountKeys,
   makeTransactionMessage,
-  TransactionVersionParams,
+  TransactionFormat,
 } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
 
@@ -73,7 +72,7 @@ export interface FlashloanSwapConstraints {
 
 /**
  * Compute the available byte budget and account budget for swap instructions
- * in a flashloan TX. Compiles a real V0 message and serializes it for an exact
+ * in a flashloan TX. Compiles a real message in `txFormat` and serializes it for an exact
  * non-swap byte count.
  *
  * @param ixs - The non-swap IXs (CU requests + primary + secondary).
@@ -84,13 +83,13 @@ export async function computeFlashLoanNonSwapBudget({
   marginfiAccount,
   ixs,
   bankMap,
-  addressLookupTableAccounts,
+  txFormat,
 }: {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   ixs: Instruction[];
   bankMap: Map<string, BankType>;
-  addressLookupTableAccounts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }): Promise<FlashloanSwapConstraints> {
   const { message: nonSwapMsg } = await makeFlashLoanTx({
     programAddress,
@@ -99,12 +98,13 @@ export async function computeFlashLoanNonSwapBudget({
     bankMap,
     ixs,
     latestBlockhash: SIZING_BLOCKHASH,
-    luts: addressLookupTableAccounts,
+    txFormat,
   });
   const nonSwapSize = getTransactionMessageSize(nonSwapMsg);
   const nonSwapTotal = getTotalAccountKeys(nonSwapMsg);
 
-  const sizeConstraint = MAX_TX_SIZE - nonSwapSize - SWAP_MERGE_OVERHEAD;
+  const sizeConstraint =
+    getTransactionMessageSizeLimit(nonSwapMsg) - nonSwapSize - SWAP_MERGE_OVERHEAD;
   const maxSwapTotalAccounts = MAX_ACCOUNT_LOCKS - nonSwapTotal;
 
   console.log("[flashloan-budget]", {
@@ -139,25 +139,23 @@ export interface FlashloanPrecheckResult {
 export function compileFlashloanPrecheck({
   allIxs,
   payer,
-  luts,
+  txFormat,
   sizeConstraint,
   swapIxCount,
   swapLutCount,
-  version,
 }: {
   allIxs: Instruction[];
   payer: Address;
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   sizeConstraint: number;
   swapIxCount: number;
   swapLutCount: number;
-} & TransactionVersionParams): FlashloanPrecheckResult {
+}): FlashloanPrecheckResult {
   const msg = makeTransactionMessage({
     instructions: allIxs,
     feePayer: createNoopSigner(payer),
     latestBlockhash: SIZING_BLOCKHASH,
-    luts,
-    version,
+    txFormat,
   });
 
   // A message too large to even encode (e.g. more than 256 accounts) throws; that just means the
@@ -262,7 +260,7 @@ export async function computeFlashloanSwapConstraints({
   programAddress,
   marginfiAccount,
   bankMap,
-  luts,
+  txFormat,
   bankMetadataMap,
   primaryIx,
   secondaryIx,
@@ -270,7 +268,7 @@ export async function computeFlashloanSwapConstraints({
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   bankMap: Map<string, BankType>;
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   bankMetadataMap: BankIntegrationMetadataMap;
   primaryIx: FlashloanBudgetIx;
   secondaryIx: FlashloanBudgetIx;
@@ -289,7 +287,7 @@ export async function computeFlashloanSwapConstraints({
     programAddress,
     marginfiAccount,
     bankMap,
-    addressLookupTableAccounts: luts,
+    txFormat,
     ixs: [...cuRequestIxs, ...primaryIxs, ...secondaryIxs],
   });
 }

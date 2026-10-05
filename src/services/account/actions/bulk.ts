@@ -51,8 +51,7 @@ export async function makeBulkWithdrawTx(
     bankMap,
     bankMetadataMap,
     tokenProgramsByBank,
-    luts,
-    version,
+    txFormat,
   } = params;
 
   if (bankAddresses.length === 0) throw new Error("no banks to withdraw");
@@ -64,7 +63,7 @@ export async function makeBulkWithdrawTx(
     ...bankAddresses.map((pk) => requireBank(bankMap, pk)),
     ...activeBalances.flatMap((b) => bankMap.get(b.bankPk) ?? []),
   ];
-  const selectedLuts = selectLutsForBanks(luts, involvedBanks);
+  const selectedFormat = selectLutsForBanks(txFormat, involvedBanks);
 
   // Build every position's instructions once. Withdraw N sees the account without
   // the banks withdrawn before it (the builder drops its own bank: a withdraw-all
@@ -121,8 +120,7 @@ export async function makeBulkWithdrawTx(
   const withdrawTxs: SolanaTransaction[] = splitInstructionsToFitTransactions([], withdrawIxs, {
     latestBlockhash,
     feePayer: authority,
-    luts: selectedLuts,
-    version,
+    txFormat: selectedFormat,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
   }).map((message) => ({ message, type: TransactionType.WITHDRAW }));
@@ -140,8 +138,7 @@ export async function makeBulkWithdrawTx(
     const setupTxs = splitInstructionsToFitTransactions([], setupIxs, {
       latestBlockhash,
       feePayer: authority,
-      luts: selectedLuts,
-      version,
+      txFormat: selectedFormat,
     });
     additionalTxs.push(
       ...setupTxs.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
@@ -161,8 +158,7 @@ export async function makeBulkWithdrawTx(
     const refreshTxs = splitInstructionsToFitTransactions([], refreshIxs, {
       latestBlockhash,
       feePayer: authority,
-      luts: selectedLuts,
-      version,
+      txFormat: selectedFormat,
     });
     additionalTxs.push(...refreshTxs.map((message) => ({ message, type: TransactionType.CRANK })));
   }
@@ -188,8 +184,7 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     bankAddresses,
     bankMap,
     tokenProgramsByBank,
-    luts = {},
-    version,
+    txFormat,
   } = params;
 
   if (bankAddresses.length === 0) throw new Error("no banks to repay");
@@ -229,8 +224,7 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
   const transactions = splitInstructionsToFitTransactions([], repayIxs, {
     latestBlockhash,
     feePayer: authority,
-    luts,
-    version,
+    txFormat,
     sizeMargin: BULK_TX_SIZE_MARGIN,
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
   }).map((message) => ({ message, type: TransactionType.REPAY }));

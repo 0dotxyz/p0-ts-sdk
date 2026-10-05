@@ -41,6 +41,7 @@ import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
@@ -79,8 +80,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     repayOpts,
     borrowOpts,
     bankMetadataMap,
-    luts,
-    version,
+    txFormat,
     additionalIxs = [],
   } = params;
 
@@ -141,8 +141,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
-      version,
+      txFormat,
     });
 
     additionalTxs.push(
@@ -169,8 +168,7 @@ async function buildSwapDebtFlashloanTx({
   borrowOpts,
   swapOpts,
   bankMetadataMap,
-  luts,
-  version,
+  txFormat,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -219,7 +217,7 @@ async function buildSwapDebtFlashloanTx({
     marginfiAccount,
     bankMap,
     bankMetadataMap,
-    luts: luts ?? {},
+    txFormat,
     primaryIx: { type: "borrow", bank: borrowBank, tokenProgram: borrowTokenProgram },
     secondaryIx: { type: "repay", bank: repayBank, tokenProgram: repayTokenProgram },
   });
@@ -262,8 +260,7 @@ async function buildSwapDebtFlashloanTx({
     rpc,
     footprint: {
       instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
-      luts: luts ?? {},
-      version,
+      txFormat,
       payer: authority.address,
       sizeConstraint: swapConstraints.sizeConstraint,
       maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -299,7 +296,7 @@ async function buildSwapDebtFlashloanTx({
     ),
   });
 
-  const flashloanLuts = { ...luts, ...engineResult.swapLuts };
+  const flashloanFormat = withLookupTables(txFormat, engineResult.swapLuts);
 
   const allNonFlIxs = [
     ...cuRequestIxs,
@@ -311,11 +308,10 @@ async function buildSwapDebtFlashloanTx({
   compileFlashloanPrecheck({
     allIxs: allNonFlIxs,
     payer: authority.address,
-    luts: flashloanLuts,
+    txFormat: flashloanFormat,
     sizeConstraint: swapConstraints.sizeConstraint,
     swapIxCount: engineResult.swapInstructions.length,
     swapLutCount: Object.keys(engineResult.swapLuts).length,
-    version,
   });
 
   // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
@@ -326,8 +322,7 @@ async function buildSwapDebtFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts: flashloanLuts,
-    version,
+    txFormat: flashloanFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });

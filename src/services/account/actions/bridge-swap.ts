@@ -137,8 +137,9 @@ function mergeSetupTxs(
   const split = splitInstructionsToFitTransactions([], ixs, {
     latestBlockhash,
     feePayer: payer,
-    luts: {},
-    version: txs.every((tx) => tx.message.version === 1) ? 1 : 0,
+    txFormat: txs.every((tx) => tx.message.version === 1)
+      ? { version: 1 }
+      : { version: 0, luts: {} },
   });
   if (split.length !== 1) return null; // merged setup spilled to >1 tx
   return { message: split[0], type: TransactionType.CREATE_ATA };

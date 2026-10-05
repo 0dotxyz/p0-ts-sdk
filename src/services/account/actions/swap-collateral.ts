@@ -48,6 +48,7 @@ import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
@@ -86,8 +87,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     withdrawOpts,
     depositOpts,
     bankMetadataMap,
-    luts,
-    version,
+    txFormat,
   } = params;
 
   const { value: latestBlockhash } = await rpc
@@ -146,8 +146,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
-      version,
+      txFormat,
     });
 
     additionalTxs.push(
@@ -175,8 +174,7 @@ async function buildSwapCollateralFlashloanTx({
   swapOpts,
   bankMetadataMap,
   assetShareValueMultiplierByBank,
-  luts,
-  version,
+  txFormat,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -273,7 +271,7 @@ async function buildSwapCollateralFlashloanTx({
       marginfiAccount,
       bankMap,
       bankMetadataMap,
-      luts: luts ?? {},
+      txFormat,
       primaryIx: { type: "withdraw", bank: withdrawBank, tokenProgram: withdrawTokenProgram },
       secondaryIx: { type: "deposit", bank: depositBank, tokenProgram: depositTokenProgram },
     });
@@ -292,8 +290,7 @@ async function buildSwapCollateralFlashloanTx({
       rpc,
       footprint: {
         instructions: [...cuRequestIxs, ...withdrawIxs, ...depositIxs],
-        luts: luts ?? {},
-        version,
+        txFormat,
         payer: authority.address,
         sizeConstraint: swapConstraints.sizeConstraint,
         maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -317,7 +314,7 @@ async function buildSwapCollateralFlashloanTx({
     swapQuote = engineResult.quoteResponse;
   }
 
-  const flashloanLuts = { ...luts, ...swapLookupTables };
+  const flashloanFormat = withLookupTables(txFormat, swapLookupTables);
 
   const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, ...swapInstructions, ...depositIxs];
 
@@ -325,11 +322,10 @@ async function buildSwapCollateralFlashloanTx({
     compileFlashloanPrecheck({
       allIxs: allNonFlIxs,
       payer: authority.address,
-      luts: flashloanLuts,
+      txFormat: flashloanFormat,
       sizeConstraint: sizeConstraintUsed,
       swapIxCount: swapInstructions.length,
       swapLutCount: Object.keys(swapLookupTables).length,
-      version,
     });
   }
 
@@ -341,8 +337,7 @@ async function buildSwapCollateralFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts: flashloanLuts,
-    version,
+    txFormat: flashloanFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });

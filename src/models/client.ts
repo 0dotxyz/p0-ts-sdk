@@ -105,7 +105,7 @@ export class Project0Client {
       programAddress: this.programAddress,
       authority,
       group: this.group.address,
-      luts: this.addressLookupTables,
+      txFormat: { version: 0, luts: this.addressLookupTables },
       accountIndex,
       thirdPartyId,
     });

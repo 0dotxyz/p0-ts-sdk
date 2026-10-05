@@ -1,7 +1,6 @@
 import {
   getTransactionMessageSizeLimit,
   type Address,
-  type AddressesByLookupTableAddress,
   type BlockhashLifetimeConstraint,
   type Instruction,
   type TransactionSigner,
@@ -38,6 +37,7 @@ import {
   makeTransactionMessage,
   SolanaTransaction,
   splitInstructionsToFitTransactions,
+  TransactionFormat,
   TransactionType,
 } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
@@ -437,8 +437,7 @@ async function buildTransferFlashloanTx(args: {
   innerIxs: Instruction[];
   preIxs: Instruction[];
   latestBlockhash: BlockhashLifetimeConstraint;
-  luts: AddressesByLookupTableAddress;
-  version?: 0 | 1;
+  txFormat: TransactionFormat;
 }): Promise<SolanaTransaction> {
   const {
     programAddress,
@@ -449,8 +448,7 @@ async function buildTransferFlashloanTx(args: {
     innerIxs,
     preIxs,
     latestBlockhash,
-    luts,
-    version,
+    txFormat,
   } = args;
 
   const endIndex = preIxs.length + innerIxs.length + 1;
@@ -469,8 +467,7 @@ async function buildTransferFlashloanTx(args: {
       instructions: [...preIxs, ...begin, ...innerIxs, ...end],
       feePayer: authority,
       latestBlockhash,
-      luts,
-      version,
+      txFormat,
     }),
     type: TransactionType.FLASHLOAN,
   };
@@ -531,8 +528,7 @@ export async function makeTransferPositionsTx(
     bankMap,
     bankMetadataMap,
     assetShareValueMultiplierByBank,
-    luts = {},
-    version,
+    txFormat,
   } = params;
 
   const borrowPaddingBps = params.borrowPaddingBps ?? DEFAULT_BORROW_PADDING_BPS;
@@ -598,8 +594,7 @@ export async function makeTransferPositionsTx(
     innerIxs,
     preIxs,
     latestBlockhash,
-    luts,
-    version,
+    txFormat,
   });
 
   const size = getTxSize(flashloanTx.message);
@@ -633,8 +628,7 @@ export async function makeTransferPositionsTx(
     const messages = splitInstructionsToFitTransactions([], preludeIxs, {
       latestBlockhash,
       feePayer: authority,
-      luts,
-      version,
+      txFormat,
     });
     additionalTxs.push(
       ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))

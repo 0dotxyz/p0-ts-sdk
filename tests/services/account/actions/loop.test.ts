@@ -26,7 +26,7 @@ import type { SwapEngineRequest } from "~/services/account/services/swap-engine"
 import { SwapProvider } from "~/services/account/types";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
-import { TransactionType } from "~/services/transaction";
+import { TransactionFormat, TransactionType } from "~/services/transaction";
 
 const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
@@ -90,6 +90,7 @@ describe("makeLoopTx", () => {
       },
       borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
       swapOpts: {},
+      txFormat: { version: 0, luts: {} },
       swapEngineRunner: async (request) => {
         requests.push(request);
         const payer = createNoopSigner(request.taker);
@@ -193,10 +194,10 @@ describe("makeLoopTx", () => {
     expect(unwrapOption(deposit.data.depositUpToLimit)).toBeNull();
   });
 
-  it("builds version 1 messages with the same flashloan layout and tells the swap engine the version", async () => {
+  it("builds version 1 messages with the same flashloan layout and tells the swap engine the format", async () => {
     const minOutNative = 426_000_000n;
 
-    const build = async (version?: 0 | 1) => {
+    const build = async (txFormat: TransactionFormat) => {
       const requests: SwapEngineRequest[] = [];
       const result = await makeLoopTx({
         programAddress,
@@ -215,7 +216,7 @@ describe("makeLoopTx", () => {
         },
         borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
         swapOpts: {},
-        version,
+        txFormat,
         swapEngineRunner: async (request) => {
           requests.push(request);
           const [routeAta] = await findAssociatedTokenPda({
@@ -266,8 +267,8 @@ describe("makeLoopTx", () => {
       };
     };
 
-    const v0 = await build();
-    const v1 = await build(1);
+    const v0 = await build({ version: 0, luts: {} });
+    const v1 = await build({ version: 1 });
 
     expect(v0.result.transactions.map((tx) => tx.message.version)).toEqual([0, 0]);
     expect(v1.result.transactions.map((tx) => tx.message.version)).toEqual([1, 1]);
@@ -291,8 +292,8 @@ describe("makeLoopTx", () => {
     expect(v1.endIndex).toBe(v0.endIndex);
 
     expect(v0.requests).toHaveLength(1);
-    expect(v0.requests[0].footprint?.version).toBeUndefined();
+    expect(v0.requests[0].footprint?.txFormat).toEqual({ version: 0, luts: {} });
     expect(v1.requests).toHaveLength(1);
-    expect(v1.requests[0].footprint?.version).toBe(1);
+    expect(v1.requests[0].footprint?.txFormat).toEqual({ version: 1 });
   });
 });

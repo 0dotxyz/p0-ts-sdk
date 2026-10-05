@@ -258,7 +258,7 @@ export async function makeWithdrawIx({
  * @throws see {@link makeWithdrawIx}
  */
 export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<SolanaTransaction> {
-  const { rpc, luts, latestBlockhash, version, ...withdrawIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, ...withdrawIxParams } = params;
   const { bank, bankMap, marginfiAccount, bankMetadataMap } = params;
 
   const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
@@ -276,14 +276,13 @@ export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<Sola
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts: selectLutsForAccountAction(
-        luts,
+      txFormat: selectLutsForAccountAction(
+        txFormat,
         bank,
         marginfiAccount.balances,
         bankMap,
         params.opts?.activeBanks
       ),
-      version,
     }),
     type: TransactionType.WITHDRAW,
   };

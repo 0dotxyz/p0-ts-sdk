@@ -11,6 +11,7 @@ import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { SwapApiConfig } from "~/services/account/types";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
+import { withLookupTables } from "~/services/transaction";
 
 interface ResolvedAdapter {
   adapter: SwapAdapter;
@@ -128,16 +129,14 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
   const { footprint } = req;
   if (!footprint) throw new Error("runSwapEngine requires a footprint");
   const allIxs = [...footprint.instructions, ...route.swapInstructions];
-  const luts = { ...footprint.luts, ...route.luts };
 
   const precheck = compileFlashloanPrecheck({
     allIxs,
     payer: footprint.payer,
-    luts,
+    txFormat: withLookupTables(footprint.txFormat, route.luts),
     sizeConstraint: footprint.sizeConstraint,
     swapIxCount: route.swapInstructions.length,
     swapLutCount: Object.keys(route.luts).length,
-    version: footprint.version,
   });
 
   const fits = precheck.overshoot <= 0 && precheck.totalAccounts <= MAX_ACCOUNT_LOCKS;

@@ -242,9 +242,8 @@ export type SharedBridgeLegContext = Pick<
   | "bankMetadataMap"
   | "assetShareValueMultiplierByBank"
   | "swapOpts"
-  | "luts"
+  | "txFormat"
   | "swapEngineRunner"
-  | "version"
 >;
 
 export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBridgeLegContext {
@@ -257,8 +256,7 @@ export function sharedBridgeLegContext(params: SharedBridgeLegContext): SharedBr
     bankMetadataMap: params.bankMetadataMap,
     assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
     swapOpts: params.swapOpts,
-    luts: params.luts,
+    txFormat: params.txFormat,
     swapEngineRunner: params.swapEngineRunner,
-    version: params.version,
   };
 }

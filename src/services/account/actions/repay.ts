@@ -47,6 +47,7 @@ import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
@@ -102,7 +103,7 @@ export async function makeRepayIx({
  * `latestBlockhash` is fetched when omitted.
  */
 export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTransaction> {
-  const { rpc, luts, latestBlockhash, version, ...repayIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, ...repayIxParams } = params;
 
   const repayIxs = await makeRepayIx(repayIxParams);
 
@@ -113,8 +114,7 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       // Repays don't add health remaining-accounts, so only the target bank matters.
-      luts: selectLutsForBanks(luts, [params.bank]),
-      version,
+      txFormat: selectLutsForBanks(txFormat, [params.bank]),
     }),
     type: TransactionType.REPAY,
   };
@@ -139,8 +139,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     withdrawOpts,
     repayOpts,
     bankMetadataMap,
-    luts,
-    version,
+    txFormat,
     rpc,
   } = params;
 
@@ -203,8 +202,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
-      version,
+      txFormat,
     });
 
     additionalTxs.push(
@@ -230,8 +228,7 @@ async function buildRepayWithCollatFlashloanTx({
   repayOpts,
   bankMetadataMap,
   assetShareValueMultiplierByBank,
-  luts,
-  version,
+  txFormat,
   rpc,
   swapOpts,
   latestBlockhash,
@@ -312,7 +309,7 @@ async function buildRepayWithCollatFlashloanTx({
       marginfiAccount,
       bankMap,
       bankMetadataMap,
-      luts: luts ?? {},
+      txFormat,
       primaryIx: {
         type: "withdraw",
         bank: withdrawOpts.withdrawBank,
@@ -348,8 +345,7 @@ async function buildRepayWithCollatFlashloanTx({
       rpc,
       footprint: {
         instructions: [...cuRequestIxs, ...withdrawIxs, ...footprintRepayIxs],
-        luts: luts ?? {},
-        version,
+        txFormat,
         payer: authority.address,
         sizeConstraint: swapConstraints.sizeConstraint,
         maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -388,7 +384,7 @@ async function buildRepayWithCollatFlashloanTx({
     ),
   });
 
-  const flashloanLuts = { ...luts, ...swapLookupTables };
+  const flashloanFormat = withLookupTables(txFormat, swapLookupTables);
 
   const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, ...swapInstructions, ...repayIxs];
 
@@ -396,11 +392,10 @@ async function buildRepayWithCollatFlashloanTx({
     compileFlashloanPrecheck({
       allIxs: allNonFlIxs,
       payer: authority.address,
-      luts: flashloanLuts,
+      txFormat: flashloanFormat,
       sizeConstraint: sizeConstraintUsed,
       swapIxCount: swapInstructions.length,
       swapLutCount: Object.keys(swapLookupTables).length,
-      version,
     });
   }
 
@@ -413,8 +408,7 @@ async function buildRepayWithCollatFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts: flashloanLuts,
-    version,
+    txFormat: flashloanFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });

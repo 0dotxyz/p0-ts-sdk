@@ -126,12 +126,12 @@ export function serializeSwapEngineRequest(req: SwapEngineRequest): SerializedSw
 function serializeFootprint(f: TxFootprint): SerializedTxFootprint {
   return {
     instructions: f.instructions.map(serializeInstruction),
-    luts: serializeLuts(f.luts),
+    luts: serializeLuts(f.txFormat.version === 1 ? {} : f.txFormat.luts),
     wrapperInstructions: f.wrapperInstructions?.map(serializeInstruction),
     payer: f.payer,
     sizeConstraint: f.sizeConstraint,
     maxSwapTotalAccounts: f.maxSwapTotalAccounts,
-    version: f.version,
+    version: f.txFormat.version,
   };
 }
 
@@ -173,12 +173,11 @@ export function deserializeSwapEngineRequest(
 function deserializeFootprint(s: SerializedTxFootprint): TxFootprint {
   return {
     instructions: s.instructions.map(deserializeInstruction),
-    luts: deserializeLuts(s.luts),
+    txFormat: s.version === 1 ? { version: 1 } : { version: 0, luts: deserializeLuts(s.luts) },
     wrapperInstructions: s.wrapperInstructions?.map(deserializeInstruction),
     payer: address(s.payer),
     sizeConstraint: s.sizeConstraint,
     maxSwapTotalAccounts: s.maxSwapTotalAccounts,
-    version: s.version,
   };
 }
 

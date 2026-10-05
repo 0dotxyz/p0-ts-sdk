@@ -11,9 +11,8 @@ import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/se
  */
 export async function makeMergeStakeAccountsTx({
   rpc,
-  luts,
+  txFormat,
   latestBlockhash,
-  version,
   authority,
   sourceStakeAccount,
   destinationStakeAccount,
@@ -30,8 +29,7 @@ export async function makeMergeStakeAccountsTx({
       feePayer: authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
-      version,
+      txFormat,
     }),
     type: TransactionType.MERGE_STAKE_ACCOUNTS,
   };

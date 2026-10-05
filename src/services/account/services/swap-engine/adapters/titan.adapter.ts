@@ -82,7 +82,7 @@ async function buildCandidates(
   // Full-footprint template: the non-swap inner ixs + (optional) FL wrapper + loop LUTs.
   const template = buildTitanTemplate({
     instructions: [...(footprint.wrapperInstructions ?? []), ...footprint.instructions],
-    luts: footprint.luts,
+    luts: footprint.txFormat.version === 1 ? {} : footprint.txFormat.luts,
   });
 
   const client = await withTimeout(

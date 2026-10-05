@@ -41,6 +41,7 @@ describe("classifyAndValidate (position cap)", () => {
       bankMetadataMap: {} as BankIntegrationMetadataMap,
       assetShareValueMultiplierByBank: new Map(),
       tokenProgramsByBank: new Map(),
+      txFormat: { version: 0, luts: {} },
       maxPositions,
     }) as MakeTransferPositionsTxParams;
 

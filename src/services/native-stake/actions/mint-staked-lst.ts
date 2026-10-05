@@ -111,7 +111,7 @@ export async function makeMintStakedLstIx({
 export async function makeMintStakedLstTx(
   params: MakeMintStakedLstTxParams
 ): Promise<SolanaTransaction> {
-  const { luts, latestBlockhash, version, ...mintIxParams } = params;
+  const { txFormat, latestBlockhash, ...mintIxParams } = params;
 
   const mintIxs = await makeMintStakedLstIx(mintIxParams);
 
@@ -122,8 +122,7 @@ export async function makeMintStakedLstTx(
       latestBlockhash:
         latestBlockhash ??
         (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
-      version,
+      txFormat,
     }),
     type: TransactionType.DEPOSIT_STAKE,
   };

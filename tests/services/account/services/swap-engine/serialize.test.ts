@@ -49,7 +49,7 @@ describe("swap engine request serialization", () => {
     rpc: dummyRpc,
     footprint: {
       instructions: [footprintIx],
-      luts: { [lutAddress]: lutEntries },
+      txFormat: { version: 0, luts: { [lutAddress]: lutEntries } },
       payer,
       sizeConstraint: 800,
       maxSwapTotalAccounts: 30,
@@ -77,35 +77,34 @@ describe("swap engine request serialization", () => {
     expect(back.footprint?.payer).toBe(payer);
     expect(back.footprint?.sizeConstraint).toBe(800);
     expect(back.footprint?.instructions).toEqual([footprintIx]);
-    expect(back.footprint?.luts).toEqual({ [lutAddress]: lutEntries });
+    expect(back.footprint?.txFormat).toEqual({ version: 0, luts: { [lutAddress]: lutEntries } });
     expect(back.rpc).toBe(dummyRpc);
     expect(back.providers[0].apiConfig?.apiKey).toBe("server-key");
   });
 
-  it("round-trips the footprint version when it is 1", () => {
+  it("round-trips a version 1 footprint as version 1 without lookup tables", () => {
     const v1Req: SwapEngineRequest = {
       ...req,
-      footprint: req.footprint && { ...req.footprint, version: 1 },
+      footprint: req.footprint && { ...req.footprint, txFormat: { version: 1 } },
     };
 
     const s = serializeSwapEngineRequest(v1Req);
     const back = deserializeSwapEngineRequest(JSON.parse(JSON.stringify(s)), { rpc: dummyRpc });
 
     expect(s.footprint?.version).toBe(1);
-    expect(back.footprint).toBeDefined();
-    expect(back.footprint?.version).toBe(1);
+    expect(s.footprint?.luts).toEqual([]);
+    expect(back.footprint?.txFormat).toEqual({ version: 1 });
     // the rest of the footprint is untouched by the version
     expect(back.footprint?.instructions).toEqual([footprintIx]);
     expect(back.footprint?.sizeConstraint).toBe(800);
   });
 
-  it("leaves the footprint version undefined when the request has none", () => {
+  it("reads a footprint without a version as version 0", () => {
     const wire = JSON.parse(JSON.stringify(serializeSwapEngineRequest(req)));
+    delete wire.footprint.version;
     const back = deserializeSwapEngineRequest(wire, { rpc: dummyRpc });
 
-    expect(wire.footprint).not.toHaveProperty("version");
-    expect(back.footprint).toBeDefined();
-    expect(back.footprint?.version).toBeUndefined();
+    expect(back.footprint?.txFormat).toEqual({ version: 0, luts: { [lutAddress]: lutEntries } });
   });
 });
 

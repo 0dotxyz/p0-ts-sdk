@@ -72,7 +72,7 @@ export async function makeCloseMarginfiAccountIx({
  */
 export async function makeCloseMarginfiAccountTx({
   rpc,
-  version,
+  txFormat,
   ...closeIxParams
 }: MakeCloseAccountTxParams): Promise<SolanaTransaction> {
   const closeIx = await makeCloseMarginfiAccountIx(closeIxParams);
@@ -85,7 +85,7 @@ export async function makeCloseMarginfiAccountTx({
       instructions: [closeIx],
       feePayer: closeIxParams.authority,
       latestBlockhash,
-      version,
+      txFormat,
     }),
     type: TransactionType.CLOSE_ACCOUNT,
   };
@@ -118,7 +118,7 @@ export async function makeAccountTransferToNewAccountTx({
   newMarginfiAccount,
   newAuthority,
   feePayer = authority,
-  version,
+  txFormat,
 }: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
   const [feeStateAddress] = await deriveFeeState(programAddress);
   const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
@@ -144,7 +144,7 @@ export async function makeAccountTransferToNewAccountTx({
       instructions: [transferIx],
       feePayer,
       latestBlockhash,
-      version,
+      txFormat,
     }),
     type: TransactionType.TRANSFER_AUTH,
   };
@@ -161,7 +161,7 @@ export async function makeAccountTransferToNewAccountTx({
  * @param params.programAddress - The marginfi program address
  * @param params.authority - Owner of the new account; signs and pays
  * @param params.group - The Marginfi group address
- * @param params.luts - Address lookup tables for the transaction
+ * @param params.txFormat - Message version, with the lookup tables for v0
  * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
  * @param params.accountIndex - Optional index in the account PDA seeds; a random free one when
  * omitted
@@ -234,9 +234,8 @@ export async function makeCreateAccountIxWithProjection(
  */
 export async function makeCreateMarginfiAccountTx({
   rpc,
-  luts,
+  txFormat,
   latestBlockhash,
-  version,
   accountIndex,
   ...createIxParams
 }: MakeCreateAccountTxParams): Promise<SolanaTransaction> {
@@ -259,8 +258,7 @@ export async function makeCreateMarginfiAccountTx({
       feePayer: createIxParams.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
-      version,
+      txFormat,
     }),
     type: TransactionType.CREATE_ACCOUNT,
   };

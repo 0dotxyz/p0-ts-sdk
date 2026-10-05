@@ -14,7 +14,7 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SolanaTransaction, TransactionVersionParams } from "../types";
+import { SolanaTransaction, TransactionFormat } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
@@ -36,16 +36,19 @@ const NATIVE_STAKE_LUT_KEYS = new Set<string>(
  * Native-stake accounts can only supply native-stake positions and borrow SOL, so such
  * transactions are fully served by the lean set; any non-(STAKED|SOL) bank falls back to
  * the general set. Degrades gracefully: if the map wasn't split (e.g. only the general
- * set was provided), it returns the input unchanged.
+ * set was provided), it returns the input unchanged. A v1 format has no tables and is
+ * returned unchanged.
  *
- * @param luts - Combined lookup tables available to the transaction
+ * @param txFormat - The transaction format, carrying the combined lookup tables when v0
  * @param banks - Every bank the transaction touches (target bank + health-check banks)
  */
 export function selectLutsForBanks(
-  luts: AddressesByLookupTableAddress,
+  txFormat: TransactionFormat,
   banks: BankType[]
-): AddressesByLookupTableAddress {
-  const entries = Object.entries(luts);
+): TransactionFormat {
+  if (txFormat.version === 1) return txFormat;
+
+  const entries = Object.entries(txFormat.luts);
   const nativeStakeLuts = Object.fromEntries(
     entries.filter(([key]) => NATIVE_STAKE_LUT_KEYS.has(key))
   );
@@ -60,9 +63,9 @@ export function selectLutsForBanks(
     );
 
   if (allStakedOrSol && Object.keys(nativeStakeLuts).length > 0) {
-    return nativeStakeLuts;
+    return { version: 0, luts: nativeStakeLuts };
   }
-  return Object.keys(generalLuts).length > 0 ? generalLuts : luts;
+  return Object.keys(generalLuts).length > 0 ? { version: 0, luts: generalLuts } : txFormat;
 }
 
 /**
@@ -72,12 +75,12 @@ export function selectLutsForBanks(
  * typing for `balances` to avoid an import cycle with the account module.
  */
 export function selectLutsForAccountAction(
-  luts: AddressesByLookupTableAddress,
+  txFormat: TransactionFormat,
   targetBank: BankType,
   balances: { active: boolean; bankPk: Address }[],
   bankMap: Map<string, BankType>,
   extraBankAddresses: Address[] = []
-): AddressesByLookupTableAddress {
+): TransactionFormat {
   const banks: BankType[] = [targetBank];
   for (const balance of balances) {
     if (!balance.active) continue;
@@ -88,7 +91,18 @@ export function selectLutsForAccountAction(
     const bank = bankMap.get(address);
     if (bank) banks.push(bank);
   }
-  return selectLutsForBanks(luts, banks);
+  return selectLutsForBanks(txFormat, banks);
+}
+
+/**
+ * Adds `luts` (e.g. a swap route's tables) to a v0 format. A v1 format has no tables and is
+ * returned unchanged.
+ */
+export function withLookupTables(
+  txFormat: TransactionFormat,
+  luts: AddressesByLookupTableAddress
+): TransactionFormat {
+  return txFormat.version === 1 ? txFormat : { version: 0, luts: { ...txFormat.luts, ...luts } };
 }
 
 /**
@@ -115,30 +129,28 @@ const V1_DEFAULT_CONFIG = {
 
 /**
  * Builds a transaction message: `feePayer` pays and signs and `latestBlockhash` sets the lifetime.
- * A v0 message compresses accounts found in `luts` into lookups. A v1 message inlines every
- * account (`luts` is ignored), is limited to 4096 bytes instead of 1232, and carries its compute
- * budget in the message config rather than in ComputeBudget instructions, which it ignores.
+ * A v0 message compresses accounts found in the format's `luts` into lookups. A v1 message inlines
+ * every account, is limited to 4096 bytes instead of 1232, and carries its compute budget in the
+ * message config rather than in ComputeBudget instructions, which it ignores.
  *
  * @param params.instructions - Instructions in execution order
  * @param params.feePayer - Fee payer signer
  * @param params.latestBlockhash - Blockhash lifetime (e.g. from `getLatestBlockhash`)
- * @param params.luts - Lookup tables to compress accounts with (v0 only)
- * @param params.version - Message version (default 0)
+ * @param params.txFormat - Message version, with the lookup tables to compress accounts with for v0
  * @returns The compilable, lifetime-bound transaction message
  */
 export function makeTransactionMessage({
   instructions,
   feePayer,
   latestBlockhash,
-  luts = {},
-  version = 0,
+  txFormat,
 }: {
   instructions: Instruction[];
   feePayer: TransactionSigner;
   latestBlockhash: BlockhashLifetimeConstraint;
-  luts?: AddressesByLookupTableAddress;
-} & TransactionVersionParams): SolanaTransaction["message"] {
-  if (version === 1) {
+  txFormat: TransactionFormat;
+}): SolanaTransaction["message"] {
+  if (txFormat.version === 1) {
     return pipe(
       createTransactionMessage({ version: 1 }),
       (message) => setTransactionMessageFeePayerSigner(feePayer, message),
@@ -153,7 +165,7 @@ export function makeTransactionMessage({
     (message) => setTransactionMessageFeePayerSigner(feePayer, message),
     (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
     (message) => appendTransactionMessageInstructions(instructions, message),
-    (message) => compressTransactionMessageUsingAddressLookupTables(message, luts)
+    (message) => compressTransactionMessageUsingAddressLookupTables(message, txFormat.luts)
   );
 }
 
@@ -168,12 +180,12 @@ export function splitInstructionsToFitTransactions(
   opts: {
     latestBlockhash: BlockhashLifetimeConstraint;
     feePayer: TransactionSigner;
-    luts: AddressesByLookupTableAddress;
+    txFormat: TransactionFormat;
     /** Bytes reserved below the size limit, e.g. for compute-budget ixs appended at send time. */
     sizeMargin?: number;
     /** Also cap the total account locks per transaction (e.g. MAX_ACCOUNT_LOCKS). */
     maxAccountLocks?: number;
-  } & TransactionVersionParams
+  }
 ): SolanaTransaction["message"][] {
   const result: SolanaTransaction["message"][] = [];
   let buffer: Instruction[] = [];
@@ -183,8 +195,7 @@ export function splitInstructionsToFitTransactions(
       instructions: [...mandatoryIxs, ...extraIxs],
       feePayer: opts.feePayer,
       latestBlockhash: opts.latestBlockhash,
-      luts: opts.luts,
-      version: opts.version,
+      txFormat: opts.txFormat,
     });
   }
 
