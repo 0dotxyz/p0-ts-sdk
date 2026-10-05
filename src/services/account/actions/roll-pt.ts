@@ -31,6 +31,7 @@ import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
@@ -85,10 +86,14 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   transactions: ExtendedV0Transaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot) */
+  mustBeAtomicBundle: boolean;
 }> {
   const {
     marginfiAccount,
     connection,
+    bankMap,
+    bankMetadataMap,
     withdrawOpts,
     depositOpts,
     rollOpts,
@@ -135,6 +140,15 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     ],
   });
 
+  // end_flashloan prices every collateral leg, and with premium-bearing debt an unpriceable
+  // (stale) Kamino/Drift/JupLend leg reverts it (6615), so every integration bank is refreshed.
+  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
+    marginfiAccount,
+    bankMap,
+    [withdrawOpts.withdrawBank.address, depositOpts.depositBank.address],
+    bankMetadataMap
+  );
+
   const { flashloanTx, swapQuote } = await buildRollPtFlashloanTx({
     params,
     merge,
@@ -145,12 +159,16 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
 
   const additionalTxs: ExtendedV0Transaction[] = [];
 
-  if (setupIxs.length > 0) {
-    const txs = splitInstructionsToFitTransactions([], setupIxs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
-    });
+  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
+    const txs = splitInstructionsToFitTransactions(
+      [],
+      [...setupIxs, ...refreshIntegrationIxs.instructions],
+      {
+        blockhash,
+        payerKey: marginfiAccount.authority,
+        luts: addressLookupTableAccounts ?? [],
+      }
+    );
     additionalTxs.push(
       ...txs.map((tx) =>
         addTransactionMetadata(tx, {
@@ -167,6 +185,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
   };
 }
 

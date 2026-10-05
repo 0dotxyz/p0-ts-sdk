@@ -3,49 +3,41 @@ import BigNumber from "bignumber.js";
 
 import { InstructionsWrapper } from "../transaction";
 
-import { BankConfigOpt, BankConfigOptRaw, OracleSetup } from "./types";
-import { serializeBankConfigOpt, serializeOracleSetupToIndex } from "./utils";
+import { OracleSetup } from "./types";
+import { serializeOracleSetupToIndex } from "./utils";
 
 import instructions from "~/instructions";
 import { MarginfiProgram } from "~/types";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
+/**
+ * Freezes a bank's settings so they can no longer be changed. Signed by the group's governance
+ * admin.
+ *
+ * @param program - The marginfi program
+ * @param bankAddress - The bank to freeze
+ * @returns The `lending_pool_configure_bank_gov` instruction
+ */
 export async function freezeBankConfigIx(
   program: MarginfiProgram,
-  bankAddress: PublicKey,
-  bankConfigOpt: BankConfigOpt
+  bankAddress: PublicKey
 ): Promise<InstructionsWrapper> {
-  // todo: make bankConfigOpt optional and create function to get bankConfigOptRaw from bank
-  const bankConfigRaw: BankConfigOptRaw = serializeBankConfigOpt(bankConfigOpt);
-
-  const ix = await instructions.makePoolConfigureBankIx(
+  const ix = await instructions.makePoolConfigureBankGovIx(
     program,
-    {
-      bank: bankAddress,
-    },
+    { bank: bankAddress },
     {
       bankConfigOpt: {
-        ...bankConfigRaw,
         assetWeightInit: null,
         assetWeightMaint: null,
-
         liabilityWeightInit: null,
         liabilityWeightMaint: null,
-
-        depositLimit: null,
-        borrowLimit: null,
+        operationalState: null,
         riskTier: null,
         assetTag: null,
-        totalAssetValueInitLimit: null,
-
-        interestRateConfig: null,
-        operationalState: null,
-
-        oracleMaxAge: null,
-        permissionlessBadDebtSettlement: null,
-        freezeSettings: true,
         oracleMaxConfidence: null,
+        oracleMaxAge: null,
         tokenlessRepaymentsAllowed: null,
+        freezeSettings: true,
       },
     }
   );
@@ -66,7 +58,7 @@ type AddOracleToBanksIxArgs = {
   oracleAccounts?: PublicKey[];
   setup: OracleSetup;
   groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  governanceAdminAddress?: PublicKey;
 };
 
 export async function addOracleToBanksIx({
@@ -77,10 +69,14 @@ export async function addOracleToBanksIx({
   oracleAccounts,
   setup,
   groupAddress,
-  adminAddress,
+  governanceAdminAddress,
 }: AddOracleToBanksIxArgs): Promise<InstructionsWrapper> {
-  if (
+  const isScope =
     setup === OracleSetup.Scope ||
+    setup === OracleSetup.ScopeKamino ||
+    setup === OracleSetup.ScopeJuplend;
+  if (
+    isScope ||
     setup === OracleSetup.PTPyth ||
     setup === OracleSetup.PTFixed ||
     setup === OracleSetup.Fixed ||
@@ -89,9 +85,7 @@ export async function addOracleToBanksIx({
     setup === OracleSetup.FixedJuplend
   ) {
     throw new Error(
-      `${setup} must be configured with ${
-        setup === OracleSetup.Scope ? "configureScopeOracleIx" : "setOraclePriceIx"
-      }`
+      `${setup} must be configured with ${isScope ? "configureScopeOracleIx" : "setOraclePriceIx"}`
     );
   }
 
@@ -123,7 +117,7 @@ export async function addOracleToBanksIx({
     {
       bank: bankAddress,
       group: groupAddress,
-      admin: adminAddress,
+      governanceAdmin: governanceAdminAddress,
     },
     {
       setup: serializeOracleSetupToIndex(setup),
@@ -150,10 +144,10 @@ type SetOraclePriceIxArgs = {
   /** Fixed venue account, [Pyth, Exponent vault], or [Exponent vault], depending on setup. */
   oracleAccounts?: PublicKey[];
   groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  governanceAdminAddress?: PublicKey;
 };
 
-/** Configure a flat fixed price or an Exponent PT price using the 0.1.11 instruction. */
+/** Configure a flat fixed price or an Exponent PT price, signed by the group's governance admin. */
 export async function setOraclePriceIx({
   program,
   bankAddress,
@@ -161,7 +155,7 @@ export async function setOraclePriceIx({
   setup,
   oracleAccounts = [],
   groupAddress,
-  adminAddress,
+  governanceAdminAddress,
 }: SetOraclePriceIxArgs): Promise<InstructionsWrapper> {
   const expectedAccountCount =
     setup === OracleSetup.PTPyth ? 2 : setup === OracleSetup.PTFixed ? 1 : undefined;
@@ -174,7 +168,7 @@ export async function setOraclePriceIx({
     {
       bank: bankAddress,
       group: groupAddress,
-      admin: adminAddress,
+      governanceAdmin: governanceAdminAddress,
     },
     {
       price: bigNumberToWrappedI80F48(price),
@@ -194,8 +188,10 @@ type ConfigureScopeOracleIxArgs = {
   bankAddress: PublicKey;
   oracle: PublicKey;
   entryIndex: number;
+  /** Kamino reserve or JupLend lending account (the bank's `oracleKeys[1]`); required for Kamino and JupLend banks */
+  integrationAccount?: PublicKey;
   groupAddress?: PublicKey;
-  adminAddress?: PublicKey;
+  governanceAdminAddress?: PublicKey;
 };
 
 export async function configureScopeOracleIx({
@@ -203,19 +199,21 @@ export async function configureScopeOracleIx({
   bankAddress,
   oracle,
   entryIndex,
+  integrationAccount,
   groupAddress,
-  adminAddress,
+  governanceAdminAddress,
 }: ConfigureScopeOracleIxArgs): Promise<InstructionsWrapper> {
   const ix = await instructions.makeLendingPoolConfigureBankOracleScopeIx(
     program,
     {
       bank: bankAddress,
       group: groupAddress,
-      admin: adminAddress,
+      governanceAdmin: governanceAdminAddress,
     },
     {
       oracle,
       entryIndex,
+      integrationAccount,
     }
   );
 

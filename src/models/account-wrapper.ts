@@ -563,6 +563,7 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeRollPtTxParams = {
       ...params,

@@ -1,7 +1,7 @@
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
-import type { BankConfigCompactRaw, BankConfigOptRaw } from "./services";
+import type { BankConfigCompactRaw, BankConfigFastRaw, BankConfigGovRaw } from "./services";
 import { MarginfiProgram, OrderTrigger, WrappedI80F48 } from "./types";
 import { TOKEN_PROGRAM_ID } from "./vendor/spl";
 
@@ -598,6 +598,14 @@ function makeLendingAccountLiquidateIx(
     .instruction();
 }
 
+/**
+ * Configure a bank's risk-reducing settings (limits, interest rates, fees, circuit breaker,
+ * operational state toward paused/reduce-only), signed by the group admin. Weights, risk tier,
+ * oracle limits and freezing go through {@link makePoolConfigureBankGovIx}.
+ * @param mfiProgram The marginfi program
+ * @param accounts The bank, plus optional group/admin overrides
+ * @param args The settings to change; `null` leaves a setting unchanged
+ */
 function makePoolConfigureBankIx(
   mfiProgram: MarginfiProgram,
   accounts: {
@@ -608,7 +616,7 @@ function makePoolConfigureBankIx(
     admin?: PublicKey;
   },
   args: {
-    bankConfigOpt: BankConfigOptRaw;
+    bankConfigOpt: BankConfigFastRaw;
   }
 ) {
   const { bank, ...optionalAccounts } = accounts;
@@ -618,6 +626,34 @@ function makePoolConfigureBankIx(
     .accounts({
       bank,
     })
+    .accountsPartial(optionalAccounts)
+    .instruction();
+}
+
+/**
+ * Configure a bank's risk-increasing settings (weights, risk tier, asset tag, oracle limits,
+ * tokenless repayments, freezing, returning to operational), signed by the group's governance
+ * admin.
+ * @param mfiProgram The marginfi program
+ * @param accounts The bank, plus optional group/governance admin overrides
+ * @param args The settings to change; `null` leaves a setting unchanged
+ */
+function makePoolConfigureBankGovIx(
+  mfiProgram: MarginfiProgram,
+  accounts: {
+    bank: PublicKey;
+    group?: PublicKey;
+    governanceAdmin?: PublicKey;
+  },
+  args: {
+    bankConfigOpt: BankConfigGovRaw;
+  }
+) {
+  const { bank, ...optionalAccounts } = accounts;
+
+  return mfiProgram.methods
+    .lendingPoolConfigureBankGov(args.bankConfigOpt)
+    .accounts({ bank })
     .accountsPartial(optionalAccounts)
     .instruction();
 }
@@ -736,7 +772,7 @@ async function makeLendingPoolConfigureBankOracleIx(
     bank: PublicKey;
     // Optional accounts - to override inference
     group?: PublicKey;
-    admin?: PublicKey;
+    governanceAdmin?: PublicKey;
   },
   args: {
     /**
@@ -766,21 +802,24 @@ async function makeLendingPoolConfigureBankOracleIx(
 }
 
 /**
- * Configure a bank to use an entry in a Scope OraclePrices account.
+ * Configure a bank to use an entry in a Scope OraclePrices account. The program picks Scope,
+ * ScopeKamino or ScopeJuplend from the bank's asset tag.
  * @param mfProgram The marginfi program
- * @param accounts The group, admin, and bank accounts required by the instruction
- * @param args The Scope OraclePrices account and its entry index
+ * @param accounts The bank, plus optional group/governance admin overrides
+ * @param args The Scope OraclePrices account, its entry index, and for Kamino/JupLend banks the
+ *   bank's Kamino reserve or JupLend lending account (its `oracleKeys[1]`)
  */
 async function makeLendingPoolConfigureBankOracleScopeIx(
   mfProgram: MarginfiProgram,
   accounts: {
     bank: PublicKey;
     group?: PublicKey;
-    admin?: PublicKey;
+    governanceAdmin?: PublicKey;
   },
   args: {
     oracle: PublicKey;
     entryIndex: number;
+    integrationAccount?: PublicKey;
   }
 ) {
   const { bank, ...optionalAccounts } = accounts;
@@ -789,17 +828,21 @@ async function makeLendingPoolConfigureBankOracleScopeIx(
     .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
     .accounts({ bank })
     .accountsPartial(optionalAccounts)
-    .remainingAccounts([{ pubkey: args.oracle, isSigner: false, isWritable: false }])
+    .remainingAccounts(
+      [args.oracle, args.integrationAccount]
+        .filter((pubkey) => pubkey !== undefined)
+        .map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }))
+    )
     .instruction();
 }
 
-/** Configure a fixed or Exponent PT oracle through the 0.1.11 set-oracle-price instruction. */
+/** Configure a fixed or Exponent PT oracle through the set-oracle-price instruction. */
 async function makeLendingPoolSetOraclePriceIx(
   mfProgram: MarginfiProgram,
   accounts: {
     bank: PublicKey;
     group?: PublicKey;
-    admin?: PublicKey;
+    governanceAdmin?: PublicKey;
   },
   args: {
     price: WrappedI80F48;
@@ -900,7 +943,7 @@ async function makePoolAddBankIx(
     bank: PublicKey;
     tokenProgram: PublicKey;
     // Optional accounts - to override inference
-    admin?: PublicKey;
+    governanceAdmin?: PublicKey;
     globalFeeWallet?: PublicKey;
   },
   args: {
@@ -1075,6 +1118,7 @@ const instructions = {
   makeLendingAccountLiquidateIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
+  makePoolConfigureBankGovIx,
   makeBeginFlashLoanIx,
   makeEndFlashLoanIx,
   makeAccountTransferToNewAccountIx,

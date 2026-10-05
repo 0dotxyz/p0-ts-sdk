@@ -1042,6 +1042,7 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    mustBeAtomicBundle: boolean;
   }> {
     return makeRollPtTx({
       ...params,

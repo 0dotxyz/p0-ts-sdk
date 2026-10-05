@@ -18,11 +18,12 @@ import {
   MakeJuplendDepositIxParams,
   MakeJuplendDepositTxParams,
 } from "../types";
-import { needsPremiumRefresh } from "../utils";
+import { exceedsCostlyPositionLimit, needsPremiumRefresh } from "../utils";
 
 import { makePremiumRefreshIxs } from "./account-lifecycle";
 
 import { SYSTEM_PROGRAM_ID } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import {
   addTransactionMetadata,
@@ -189,6 +190,9 @@ export async function makeDriftDepositTx(
   params: MakeDriftDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.driftIntegrationAccounts) {
     throw new Error("Bank has no drift integration accounts");
@@ -400,6 +404,9 @@ export async function makeKaminoDepositTx(
   params: MakeKaminoDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
@@ -585,6 +592,9 @@ export async function makeDepositIx({
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<ExtendedTransaction> {
   const { luts, ...depositIxParams } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   const ixs = await makeDepositIx(depositIxParams);
   const premiumIxs =
@@ -734,6 +744,9 @@ export async function makeJuplendDepositTx(
   params: MakeJuplendDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");

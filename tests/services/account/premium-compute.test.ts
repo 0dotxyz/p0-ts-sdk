@@ -80,6 +80,7 @@ function debt(opts: {
   return {
     active: true,
     bankPk: opts.bankPk,
+    tag: 0,
     assetShares: new BigNumber(0),
     liabilityShares: usdc(opts.principal),
     premiumRate: new BigNumber(opts.rate),
@@ -326,6 +327,7 @@ function deposit(b: BankType, ui: number): BalanceType {
   return {
     active: true,
     bankPk: b.address,
+    tag: 0,
     assetShares: usdc(ui),
     liabilityShares: new BigNumber(0),
     premiumRate: new BigNumber(0),

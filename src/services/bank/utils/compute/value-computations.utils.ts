@@ -99,11 +99,11 @@ export function getAssetWeight(params: GetAssetWeightParams): BigNumber {
     return new BigNumber(0);
   }
 
-  // ReduceOnly banks should not be counted as collateral for Initial checks.
-  // Mirrors the program ((ReduceOnly, Initial) => Ok((ZERO, ...))). Maintenance/Equity keep normal weights.
+  // ReduceOnly banks and Kamino banks in emergency mode (no borrow power on-chain) should not be
+  // counted as collateral for Initial checks. Maintenance/Equity keep normal weights.
   if (
     marginRequirement === MarginRequirementType.Initial &&
-    bank.config.operationalState === OperationalState.ReduceOnly
+    (bank.config.operationalState === OperationalState.ReduceOnly || bank.kaminoEmergency)
   ) {
     return new BigNumber(0);
   }

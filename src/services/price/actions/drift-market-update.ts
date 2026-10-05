@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
@@ -19,6 +20,7 @@ import { makeUpdateSpotMarketIx } from "~/vendor/drift";
  * @param banksToExclude - Public keys of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (Drift spot market states)
  * @returns InstructionsWrapper containing Drift spot market update instructions
+ * @throws TransactionBuildingError (DRIFT_STATE_NOT_FOUND) when a Drift bank has no spot market state in `bankMetadataMap`
  */
 export function makeUpdateDriftMarketIxs(
   marginfiAccount: MarginfiAccountType,
@@ -42,19 +44,17 @@ export function makeUpdateDriftMarketIxs(
   const driftBanks = allActiveBanks.filter((bank) => bank.config.assetTag === 4);
 
   if (driftBanks.length > 0) {
-    const refreshReserveData = driftBanks
-      .map((driftBank) => {
-        const bankMetadata = bankMetadataMap?.[driftBank.address.toBase58()];
-        if (!bankMetadata?.driftStates) return;
-        const driftSpotMarket = bankMetadata.driftStates.spotMarketState;
-        return driftSpotMarket;
-      })
-      .filter((bank): bank is NonNullable<typeof bank> => !!bank);
-
-    //refresh obligations
-    const updateDriftMarketIxs = refreshReserveData.map((market) =>
-      makeUpdateSpotMarketIx({ spotMarket: market })
-    );
+    const updateDriftMarketIxs = driftBanks.map((driftBank) => {
+      const driftStates = bankMetadataMap[driftBank.address.toBase58()]?.driftStates;
+      if (!driftStates) {
+        throw TransactionBuildingError.driftStateNotFound(
+          driftBank.address.toBase58(),
+          driftBank.mint.toBase58(),
+          driftBank.tokenSymbol
+        );
+      }
+      return makeUpdateSpotMarketIx({ spotMarket: driftStates.spotMarketState });
+    });
 
     ixs.push(...updateDriftMarketIxs);
   }

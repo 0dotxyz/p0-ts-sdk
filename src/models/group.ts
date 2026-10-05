@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { MarginfiIdlType } from "../idl";
 import {
   BankConfigOpt,
-  BankConfigOptRaw,
+  BankConfigFastRaw,
   BankRateLimiterType,
   fetchMultipleBanks,
   InstructionsWrapper,
@@ -104,7 +104,7 @@ class MarginfiGroup implements MarginfiGroupType {
   public async makePoolConfigureBankIx(
     program: MarginfiProgram,
     bank: PublicKey,
-    args: BankConfigOptRaw
+    args: BankConfigFastRaw
   ): Promise<InstructionsWrapper> {
     return makePoolConfigureBankIx(program, bank, args);
   }

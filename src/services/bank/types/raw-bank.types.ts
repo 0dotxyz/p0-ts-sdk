@@ -176,6 +176,43 @@ interface BankConfigOptRaw {
   cbWindowMaxDownBps: number | null;
 }
 
+/** `lending_pool_configure_bank` args: the admin's risk-reducing settings */
+type BankConfigFastRaw = Pick<
+  BankConfigOptRaw,
+  | "depositLimit"
+  | "borrowLimit"
+  | "operationalState"
+  | "interestRateConfig"
+  | "totalAssetValueInitLimit"
+  | "permissionlessBadDebtSettlement"
+  | "liquidationLiquidatorFee"
+  | "liquidationInsuranceFee"
+  | "circuitBreakerEnabled"
+  | "cbDeviationBpsTiers"
+  | "cbTierDurationsSeconds"
+  | "cbEscalationWindowMult"
+  | "cbEmaAlphaBps"
+  | "cbWindowSeconds"
+  | "cbWindowMaxUpBps"
+  | "cbWindowMaxDownBps"
+>;
+
+/** `lending_pool_configure_bank_gov` args: the governance admin's risk-increasing settings */
+type BankConfigGovRaw = Pick<
+  BankConfigOptRaw,
+  | "assetWeightInit"
+  | "assetWeightMaint"
+  | "liabilityWeightInit"
+  | "liabilityWeightMaint"
+  | "operationalState"
+  | "riskTier"
+  | "assetTag"
+  | "oracleMaxConfidence"
+  | "oracleMaxAge"
+  | "tokenlessRepaymentsAllowed"
+  | "freezeSettings"
+>;
+
 interface BankConfigCompactRaw extends Omit<
   BankConfigRaw,
   "oracleKeys" | "oracleSetup" | "fixedPrice" | "interestRateConfig"
@@ -308,4 +345,6 @@ export type {
   OperationalStateRaw,
   OracleConfigOptRaw,
   BankConfigOptRaw,
+  BankConfigFastRaw,
+  BankConfigGovRaw,
 };

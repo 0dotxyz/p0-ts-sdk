@@ -14,7 +14,7 @@ import {
   TransferPositionsResult,
 } from "../types";
 import { MarginfiAccountType } from "../types/account.types";
-import { computeHealthAccountMetas, computeQuantityUi } from "../utils";
+import { computeHealthAccountMetas, computeQuantityUi, isCostlyBank } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
 import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
@@ -24,7 +24,7 @@ import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_COSTLY_POSITIONS, MAX_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
@@ -176,6 +176,16 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
         positions.map((p) => p.bankAddress.toBase58())
       );
     }
+  }
+
+  const costlyCountB =
+    destPreexistingBanksOf(accountB, bankMap).filter(isCostlyBank).length +
+    positions.filter((p) => p.side === "collateral" && isCostlyBank(p.bank)).length;
+  if (costlyCountB > MAX_COSTLY_POSITIONS) {
+    throw TransactionBuildingError.transferPositionsInvalidSelection(
+      `destination account cannot hold ${costlyCountB} integration and staked positions (max ${MAX_COSTLY_POSITIONS})`,
+      positions.map((p) => p.bankAddress.toBase58())
+    );
   }
 
   return positions;

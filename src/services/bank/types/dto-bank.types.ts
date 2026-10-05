@@ -150,6 +150,7 @@ export interface BankTypeDto {
   premiumTag?: number;
   premiumActive?: boolean;
   premiumActivatedAt?: number;
+  kaminoEmergency?: boolean;
   rateLimiter?: BankRateLimiterDto;
   feesDestinationAccount?: string;
   lendingPositionCount?: string;

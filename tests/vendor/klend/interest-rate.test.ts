@@ -53,6 +53,7 @@ const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReser
     protocolTakeRatePct: 0,
     hostFixedInterestRateBps: 0,
     interestRateBasis: KaminoInterestRateBasis.Legacy,
+    emergencyMode: 0,
     depositLimit: new BN("10000000000000000"),
     borrowLimit: new BN("9000000000000000"),
     borrowRateCurve: {

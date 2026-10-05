@@ -12,6 +12,7 @@ import BigNumber from "bignumber.js";
 import BN from "bn.js";
 
 import {
+  AccountFlags,
   BalanceRaw,
   MakeAccountTransferToNewAccountTxParams,
   MakeCloseAccountIxParams,
@@ -27,6 +28,7 @@ import {
   parseMarginfiAccountRaw,
 } from "../utils";
 
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -134,6 +136,7 @@ export async function makeCloseMarginfiAccountTx({
  *   wallet adapter; a `Keypair` is a separate fee payer that signs directly.
  *   Defaults to the account's current authority.
  * @returns Versioned transaction to transfer the account
+ * @throws TransactionBuildingError (ACCOUNT_DISABLED) when the account is disabled, e.g. already transferred
  */
 export async function makeAccountTransferToNewAccountTx({
   connection,
@@ -143,6 +146,10 @@ export async function makeAccountTransferToNewAccountTx({
   newAuthority,
   feePayer,
 }: MakeAccountTransferToNewAccountTxParams): Promise<ExtendedV0Transaction> {
+  if (marginfiAccount.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED)) {
+    throw TransactionBuildingError.accountDisabled(marginfiAccount.address.toBase58());
+  }
+
   const feePayerKey =
     feePayer instanceof Keypair ? feePayer.publicKey : (feePayer ?? marginfiAccount.authority);
 

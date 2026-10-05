@@ -20,6 +20,7 @@ import {
   selectSwapBridges,
   sharedBridgeLegContext,
   tryBridgeCandidates,
+  exceedsCostlyPositionLimit,
 } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -66,12 +67,19 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 }> {
   const {
     marginfiAccount,
+    bankMap,
     depositOpts,
     borrowOpts,
     addressLookupTableAccounts,
     connection,
     additionalIxs = [],
   } = params;
+
+  if (exceedsCostlyPositionLimit(marginfiAccount.balances, bankMap, depositOpts.depositBank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(
+      depositOpts.depositBank.address.toBase58()
+    );
+  }
 
   // Get blockhash
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;

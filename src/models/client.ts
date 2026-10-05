@@ -404,6 +404,12 @@ export class Project0Client {
             bank.address.toBase58(),
             getKaminoCTokenMultiplier(reserve)
           );
+          if (reserve.config.emergencyMode !== 0) {
+            bankMap.set(
+              bank.address.toBase58(),
+              Bank.fromBankType({ ...bank, kaminoEmergency: true })
+            );
+          }
           break;
         }
 

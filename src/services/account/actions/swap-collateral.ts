@@ -23,6 +23,7 @@ import {
   selectSwapBridges,
   sharedBridgeLegContext,
   tryBridgeCandidates,
+  exceedsCostlyPositionLimit,
 } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -214,6 +215,13 @@ async function buildSwapCollateralFlashloanTx({
     actualWithdrawAmount,
     withdrawBank.mintDecimals
   );
+  // A full withdraw closes its balance before the deposit opens one, freeing that position.
+  const balancesAtDeposit = isFullWithdraw
+    ? marginfiAccount.balances.filter((balance) => !balance.bankPk.equals(withdrawBank.address))
+    : marginfiAccount.balances;
+  if (exceedsCostlyPositionLimit(balancesAtDeposit, bankMap, depositBank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(depositBank.address.toBase58());
+  }
 
   const cuRequestIxs = [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
