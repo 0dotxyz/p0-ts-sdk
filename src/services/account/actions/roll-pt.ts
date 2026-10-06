@@ -33,13 +33,11 @@ import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
   ExtendedV0Transaction,
   getTxSize,
   getTotalAccountKeys,
   InstructionsWrapper,
-  splitInstructionsToFitTransactions,
-  TransactionType,
+  makePreludeTxs,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
 import {
@@ -157,27 +155,11 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     blockhash,
   });
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
-  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
-    const txs = splitInstructionsToFitTransactions(
-      [],
-      [...setupIxs, ...refreshIntegrationIxs.instructions],
-      {
-        blockhash,
-        payerKey: marginfiAccount.authority,
-        luts: addressLookupTableAccounts ?? [],
-      }
-    );
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs.instructions, {
+    blockhash,
+    payerKey: marginfiAccount.authority,
+    luts: addressLookupTableAccounts ?? [],
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
 

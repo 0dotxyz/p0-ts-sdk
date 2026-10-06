@@ -33,8 +33,8 @@ import {
   ExtendedV0Transaction,
   getTotalAccountKeys,
   getTxSize,
-  splitInstructionsToFitTransactions,
   TransactionType,
+  makePreludeTxs,
 } from "~/services/transaction";
 import { MarginfiProgram, BankIntegrationMetadataMap } from "~/types";
 
@@ -718,20 +718,11 @@ export async function makeTransferPositionsTx(
     bankMetadataMap,
   });
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-  const preludeIxs = [...setupIxs, ...refreshIxs];
-  if (preludeIxs.length > 0) {
-    const txs = splitInstructionsToFitTransactions([], preludeIxs, {
-      blockhash,
-      payerKey: accountA.authority,
-      luts,
-    });
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, { type: TransactionType.CREATE_ATA, addressLookupTables: luts })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    blockhash,
+    payerKey: accountA.authority,
+    luts: luts,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

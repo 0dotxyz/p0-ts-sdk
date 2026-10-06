@@ -8,7 +8,12 @@ import {
   Blockhash,
 } from "@solana/web3.js";
 
-import { ExtendedTransactionProperties, SolanaTransaction } from "../types";
+import {
+  ExtendedTransactionProperties,
+  ExtendedV0Transaction,
+  SolanaTransaction,
+  TransactionType,
+} from "../types";
 
 import { decodeInstruction, decompileV0Transaction } from "./decode";
 import { getTxSize } from "./tx-size";
@@ -230,6 +235,25 @@ export function splitInstructionsToFitTransactions(
   }
 
   return result;
+}
+
+/**
+ * Builds the transactions that run before an action: setup (ATA creation and the like) tagged
+ * `CREATE_ATA`, then venue refreshes tagged `CRANK`, each split to fit.
+ */
+export function makePreludeTxs(
+  setupIxs: TransactionInstruction[],
+  refreshIxs: TransactionInstruction[],
+  opts: { blockhash: string; payerKey: PublicKey; luts: AddressLookupTableAccount[] }
+): ExtendedV0Transaction[] {
+  const build = (ixs: TransactionInstruction[], type: TransactionType) =>
+    splitInstructionsToFitTransactions([], ixs, opts).map((tx) =>
+      addTransactionMetadata(tx, { type, addressLookupTables: opts.luts })
+    );
+  return [
+    ...build(setupIxs, TransactionType.CREATE_ATA),
+    ...build(refreshIxs, TransactionType.CRANK),
+  ];
 }
 
 /**

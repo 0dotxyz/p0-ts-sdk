@@ -23,6 +23,7 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
+  makePreludeTxs,
   makeUnwrapSolIx,
   selectLutsForBanks,
   splitInstructionsToFitTransactions,
@@ -204,28 +205,11 @@ export async function makeBulkWithdrawTx(
 
   // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
   // tx for the whole batch (see the atomic-bundle note in the doc comment).
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
   const setupIxs = await makeSetupIx({
     connection,
     authority,
     tokens: setupTokens,
   });
-  if (setupIxs.length > 0) {
-    const setupTxs = splitInstructionsToFitTransactions([], setupIxs, {
-      blockhash,
-      payerKey: authority,
-      luts: selectedLuts,
-    });
-    additionalTxs.push(
-      ...setupTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: selectedLuts,
-        })
-      )
-    );
-  }
 
   // One shared refresh for the whole batch: kamino reserves + obligations for
   // the withdrawn kamino banks, rate cranks for the account's other jup/drift
@@ -236,21 +220,11 @@ export async function makeBulkWithdrawTx(
     bankAddresses,
     bankMetadataMap
   ).instructions;
-  if (refreshIxs.length > 0) {
-    const refreshTxs = splitInstructionsToFitTransactions([], refreshIxs, {
-      blockhash,
-      payerKey: authority,
-      luts: selectedLuts,
-    });
-    additionalTxs.push(
-      ...refreshTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CRANK,
-          addressLookupTables: selectedLuts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    blockhash,
+    payerKey: authority,
+    luts: selectedLuts,
+  });
 
   return {
     transactions: [...additionalTxs, ...withdrawTxs],

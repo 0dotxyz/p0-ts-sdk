@@ -47,13 +47,11 @@ import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
   ExtendedV0Transaction,
   getTxSize,
   getTotalAccountKeys,
   InstructionsWrapper,
-  splitInstructionsToFitTransactions,
-  TransactionType,
+  makePreludeTxs,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 import {
@@ -148,26 +146,11 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
-  // If ATAs, additional instructions, or refreshes are needed, add them
-  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs.instructions];
-    const txs = splitInstructionsToFitTransactions([], ixs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
-    });
-
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs.instructions, {
+    blockhash,
+    payerKey: marginfiAccount.authority,
+    luts: addressLookupTableAccounts ?? [],
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
 

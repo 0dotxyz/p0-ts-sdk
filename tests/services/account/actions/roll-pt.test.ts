@@ -102,6 +102,7 @@ vi.mock("~/services/account/actions/flash-loan", () => ({
 
 import { makeRollPtTx } from "~/services/account/actions/roll-pt";
 import type { MakeRollPtTxParams, RollPtOpts } from "~/services/account/types";
+import { TransactionType } from "~/services/transaction";
 
 function pk(seed: number): PublicKey {
   const b = Buffer.alloc(32);
@@ -295,8 +296,10 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
     const res = await makeRollPtTx(params);
 
     expect(res.mustBeAtomicBundle).toBe(true);
-    const prelude = res.transactions[0].message.staticAccountKeys;
-    expect(prelude.some((key) => key.equals(pk(36)))).toBe(true);
+    const crankKeys = res.transactions
+      .filter((tx) => tx.type === TransactionType.CRANK)
+      .flatMap((tx) => tx.message.staticAccountKeys);
+    expect(crankKeys.some((key) => key.equals(pk(36)))).toBe(true);
     expect(store.flashloanIxs).toHaveLength(6);
   });
 

@@ -41,13 +41,12 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedTransaction,
-  ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
-  splitInstructionsToFitTransactions,
   TransactionType,
   getTxSize,
   getTotalAccountKeys,
+  makePreludeTxs,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -259,26 +258,11 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
-  // if atas are needed, add them
-  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs.instructions];
-    const txs = splitInstructionsToFitTransactions([], ixs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
-    });
-
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs.instructions, {
+    blockhash,
+    payerKey: marginfiAccount.authority,
+    luts: addressLookupTableAccounts ?? [],
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {
