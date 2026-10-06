@@ -18,7 +18,11 @@ import { SolanaTransaction, TransactionFormat } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
-import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE, V1_TRANSACTION_CONFIG } from "~/constants";
+import {
+  ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE,
+  SIZING_BLOCKHASH,
+  V1_TRANSACTION_CONFIG,
+} from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
@@ -161,6 +165,36 @@ export function makeTransactionMessage({
 }
 
 /**
+ * Whether the instructions compile into one message of `txFormat`'s version within its size limit
+ * (minus `sizeMargin`, if given) and `maxAccountLocks` account locks (if given).
+ */
+export function fitsInOneTransaction(
+  ixs: Instruction[],
+  opts: {
+    feePayer: TransactionSigner;
+    txFormat: TransactionFormat;
+    /** Bytes reserved below the size limit, e.g. for compute-budget ixs appended at send time. */
+    sizeMargin?: number;
+    /** Also cap the total account locks (e.g. MAX_ACCOUNT_LOCKS). */
+    maxAccountLocks?: number;
+  }
+): boolean {
+  // A message that can't be compiled (e.g. too many accounts) does not fit.
+  try {
+    const tx = makeTransactionMessage({
+      instructions: ixs,
+      feePayer: opts.feePayer,
+      latestBlockhash: SIZING_BLOCKHASH,
+      txFormat: opts.txFormat,
+    });
+    if (getTxSize(tx) > getTransactionMessageSizeLimit(tx) - (opts.sizeMargin ?? 0)) return false;
+    return opts.maxAccountLocks === undefined || getTotalAccountKeys(tx) <= opts.maxAccountLocks;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Splits your instructions into as many transaction messages as needed
  * so that none exceed the size limit of their version (minus `sizeMargin`, if given) nor
  * `maxAccountLocks` account locks (if given).
@@ -190,18 +224,8 @@ export function splitInstructionsToFitTransactions(
     });
   }
 
-  // A message that can't be compiled (e.g. too many accounts) does not fit.
   function fits(extraIxs: Instruction[]): boolean {
-    try {
-      const tx = buildTx(extraIxs);
-      if (getTxSize(tx) > getTransactionMessageSizeLimit(tx) - (opts.sizeMargin ?? 0)) return false;
-      if (opts.maxAccountLocks !== undefined && getTotalAccountKeys(tx) > opts.maxAccountLocks) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
+    return fitsInOneTransaction([...mandatoryIxs, ...extraIxs], opts);
   }
 
   for (const ix of ixs) {

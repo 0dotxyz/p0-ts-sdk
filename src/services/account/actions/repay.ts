@@ -29,7 +29,7 @@ import {
   compileFlashloanPrecheck,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { appendPremiumRefresh, makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -43,7 +43,6 @@ import {
   getTxSize,
   makeTransactionMessage,
   makeWrapSolIxs,
-  selectLutsForBanks,
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
@@ -106,15 +105,20 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
   const { rpc, txFormat, latestBlockhash, ...repayIxParams } = params;
 
   const repayIxs = await makeRepayIx(repayIxParams);
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh(
+    params,
+    repayIxs,
+    [],
+    params.repayAll ? [params.bank.address] : []
+  );
 
   return {
     message: makeTransactionMessage({
-      instructions: repayIxs,
+      instructions: txIxs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      // Repays don't add health remaining-accounts, so only the target bank matters.
-      txFormat: selectLutsForBanks(txFormat, [params.bank]),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.REPAY,
   };

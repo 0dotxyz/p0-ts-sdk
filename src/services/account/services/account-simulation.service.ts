@@ -288,7 +288,7 @@ export async function simulateAccountHealthCache(params: {
     bankIntegrationMap ?? {}
   );
 
-  const healthPulseIxs = await makePulseHealthIx(programAddress, marginfiAccount, banksMap);
+  const healthPulseIxs = await makePulseHealthIx(programAddress, marginfiAccount, banksMap, [], []);
 
   const additionalTx = makeTransactionMessage({
     instructions: [

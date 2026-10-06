@@ -98,7 +98,10 @@ export interface WrapSolOpts {
   wSolBalanceUi?: number;
 }
 
-export interface MakeDepositIxOpts extends WrapSolOpts {}
+export interface MakeDepositIxOpts extends WrapSolOpts {
+  /** Transaction builders only: don't add `pulse_health` (see {@link PremiumRefreshParams}) */
+  skipPremiumRefresh?: boolean;
+}
 
 export interface MakeDepositIxParams {
   programAddress: Address;
@@ -122,12 +125,29 @@ export interface ActionTxParams {
   latestBlockhash?: BlockhashLifetimeConstraint;
 }
 
-export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {
-  /** Banks the account holds, for the per-account limit on integration and staked positions. */
+/**
+ * Account state the deposit and repay transaction builders use to add `pulse_health` after the
+ * action while the account has premium-bearing debt, so the program rewrites its variable borrow
+ * premium rates as the transaction lands (deposits and repays don't refresh them on their own).
+ * Opt out with `opts.skipPremiumRefresh`. The single-transaction builders leave it out when it
+ * doesn't fit next to the action.
+ */
+export interface PremiumRefreshParams {
+  /** The account before the action */
+  marginfiAccount: MarginfiAccountType;
   bankMap: Map<string, BankType>;
+  bankMetadataMap: BankIntegrationMetadataMap;
 }
 
-export interface MakeRepayIxOpts extends WrapSolOpts {}
+export interface MakeDepositTxParams
+  extends MakeDepositIxParams, ActionTxParams, PremiumRefreshParams {
+  bankMetadataMap: BankIntegrationMetadataMap;
+}
+
+export interface MakeRepayIxOpts extends WrapSolOpts {
+  /** Transaction builders only: don't add `pulse_health` (see {@link PremiumRefreshParams}) */
+  skipPremiumRefresh?: boolean;
+}
 
 export interface MakeRepayIxParams {
   programAddress: Address;
@@ -142,7 +162,8 @@ export interface MakeRepayIxParams {
   opts?: MakeRepayIxOpts;
 }
 
-export interface MakeRepayTxParams extends MakeRepayIxParams, ActionTxParams {}
+export interface MakeRepayTxParams
+  extends MakeRepayIxParams, ActionTxParams, PremiumRefreshParams {}
 
 export interface MakeWithdrawIxOpts extends MakeBorrowIxOpts {
   /**
@@ -335,6 +356,10 @@ export interface MakeBulkRepayTxParams {
   /** Token program per repaid bank (bank address → token program). */
   tokenProgramsByBank: Map<string, Address>;
   txFormat: TransactionFormat;
+  /** Venue state for the refreshes before `pulse_health`; see {@link PremiumRefreshParams} */
+  bankMetadataMap: BankIntegrationMetadataMap;
+  /** Don't add `pulse_health` after the repays */
+  skipPremiumRefresh?: boolean;
 }
 
 export interface BulkLendTxsResult {

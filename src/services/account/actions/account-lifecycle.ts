@@ -3,6 +3,7 @@ import {
   fetchEncodedAccount,
   type Address,
   type Instruction,
+  type TransactionSigner,
 } from "@solana/kit";
 import {
   findAssociatedTokenPda,
@@ -20,19 +21,30 @@ import {
   MakeCreateAccountTxParams,
   MakeSetupIxParams,
   MarginfiAccountType,
+  PremiumRefreshParams,
 } from "../types";
 import {
   computeHealthAccounts,
   findRandomAvailableAccountIndex,
   getActiveBalances,
+  needsPremiumRefresh,
 } from "../utils";
 
 import { decodeFeeStateRaw } from "~/accounts";
-import { DEFAULT_ADDRESS } from "~/constants";
-import { TransactionBuildingError } from "~/errors";
+import { BUNDLE_TX_SIZE, DEFAULT_ADDRESS, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
+import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
-import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
+import {
+  fitsInOneTransaction,
+  makeTransactionMessage,
+  selectLutsForAccountAction,
+  selectLutsForBanks,
+  SolanaTransaction,
+  TransactionFormat,
+  TransactionType,
+} from "~/services/transaction";
 import { deriveFeeState, deriveMarginfiAccount } from "~/utils";
 
 /**
@@ -342,24 +354,136 @@ export async function makeSetupIx({
 }
 
 /**
- * Refreshes `marginfiAccount`'s on-chain health cache from its active banks.
- * @throws Error if `bankMap` misses one of the account's active banks
+ * Refreshes `marginfiAccount`'s on-chain health cache from its active banks, plus
+ * `mandatoryBanks` and minus `excludedBanks` (the positions an action in the same transaction
+ * opens or closes).
+ * @throws Error if `bankMap` misses one of the banks
  */
 export async function makePulseHealthIx(
   programAddress: Address,
   marginfiAccount: MarginfiAccountType,
-  bankMap: Map<string, BankType>
+  bankMap: Map<string, BankType>,
+  mandatoryBanks: Address[],
+  excludedBanks: Address[]
 ): Promise<Instruction[]> {
+  const activeBanks = getActiveBalances(marginfiAccount.balances)
+    .map((b) => b.bankPk)
+    .filter((bank) => !excludedBanks.includes(bank));
   const ix = await instructions.makePulseHealthIx(
     programAddress,
     { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group },
-    computeHealthAccounts(
-      bankMap,
-      getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk)
-    )
+    computeHealthAccounts(bankMap, [...activeBanks, ...mandatoryBanks])
   );
 
   return [ix];
+}
+
+/**
+ * Integration refreshes plus `pulse_health`, placed after a deposit or repay so the program
+ * rewrites the account's variable borrow premium rates from its collateral after the action.
+ * See {@link needsPremiumRefresh} for when it's needed.
+ *
+ * Best-effort: returns no instructions when a bank to refresh has no venue state in
+ * `bankMetadataMap`, since `pulse_health` skips the premium write when a leg can't be priced.
+ *
+ * @param programAddress - The marginfi program address
+ * @param state - The account (before the action), bank map and venue state
+ * @param mandatoryBanks - Banks the action opens (the deposited bank)
+ * @param excludedBanks - Banks the action closes (fully repaid banks)
+ * @returns Instructions to append after the action
+ */
+export async function makePremiumRefreshIxs(
+  programAddress: Address,
+  { marginfiAccount, bankMap, bankMetadataMap }: PremiumRefreshParams,
+  mandatoryBanks: Address[],
+  excludedBanks: Address[]
+): Promise<Instruction[]> {
+  let refreshIxs: Instruction[];
+  try {
+    refreshIxs = await makeRefreshIntegrationBanksIxs(
+      marginfiAccount,
+      bankMap,
+      [],
+      bankMetadataMap,
+      mandatoryBanks
+    );
+  } catch (error) {
+    // A missing refresh only costs the rate update; it must not block the deposit or repay
+    if (
+      error instanceof TransactionBuildingError &&
+      (error.code === TransactionBuildingErrorCode.KAMINO_RESERVE_NOT_FOUND ||
+        error.code === TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND ||
+        error.code === TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND)
+    ) {
+      return [];
+    }
+    throw error;
+  }
+  const pulseIxs = await makePulseHealthIx(
+    programAddress,
+    marginfiAccount,
+    bankMap,
+    mandatoryBanks,
+    excludedBanks
+  );
+  return [...refreshIxs, ...pulseIxs];
+}
+
+/**
+ * Appends the premium refresh ({@link makePremiumRefreshIxs}) to a deposit or repay that lands in
+ * one transaction, and picks the lookup tables to compile it with. The refresh is left out when
+ * `opts.skipPremiumRefresh` is set, no premium-bearing debt remains, venue state is missing, or
+ * it would push the transaction past its size limit or MAX_ACCOUNT_LOCKS.
+ *
+ * @param params - The builder's params: account (before the action), bank map, venue state,
+ * acted-on bank, authority and transaction format
+ * @param actionIxs - The action's instructions
+ * @param mandatoryBanks - Banks the action opens (the deposited bank)
+ * @param excludedBanks - Banks the action closes (fully repaid banks)
+ * @returns The transaction's instructions and format (with the lookup tables it needs)
+ */
+export async function appendPremiumRefresh(
+  params: PremiumRefreshParams & {
+    programAddress: Address;
+    bank: BankType;
+    authority: TransactionSigner;
+    txFormat: TransactionFormat;
+    opts?: { skipPremiumRefresh?: boolean };
+  },
+  actionIxs: Instruction[],
+  mandatoryBanks: Address[],
+  excludedBanks: Address[]
+): Promise<{ instructions: Instruction[]; txFormat: TransactionFormat }> {
+  const { marginfiAccount, bankMap, bank, txFormat } = params;
+  const actionOnly = { instructions: actionIxs, txFormat: selectLutsForBanks(txFormat, [bank]) };
+  if (
+    params.opts?.skipPremiumRefresh ||
+    !needsPremiumRefresh(marginfiAccount, bankMap, excludedBanks)
+  ) {
+    return actionOnly;
+  }
+
+  const premiumIxs = await makePremiumRefreshIxs(
+    params.programAddress,
+    params,
+    mandatoryBanks,
+    excludedBanks
+  );
+  const withPremium = {
+    instructions: [...actionIxs, ...premiumIxs],
+    txFormat: selectLutsForAccountAction(txFormat, bank, marginfiAccount.balances, bankMap),
+  };
+  // Leaves room for what the send pipeline may append: compute-budget and priority-fee ixs, and
+  // in bundles a Jito tip, which lock the ComputeBudget program, tip account and System program
+  const fits =
+    premiumIxs.length > 0 &&
+    fitsInOneTransaction(withPremium.instructions, {
+      feePayer: params.authority,
+      txFormat: withPremium.txFormat,
+      sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
+      maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
+    });
+  return fits ? withPremium : actionOnly;
 }
 
 export function generateDummyAccount(

@@ -392,7 +392,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @throws Error if `bankMap` misses one of the account's active banks
    */
   async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
-    return makePulseHealthIx(programAddress, this, bankMap);
+    return makePulseHealthIx(programAddress, this, bankMap, [], []);
   }
 
   async makePlaceOrderIx(params: Omit<MakePlaceOrderIxParams, "marginfiAccount">) {

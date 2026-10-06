@@ -1,9 +1,9 @@
 import type { Address, Instruction } from "@solana/kit";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
-import { computeQuantityUi } from "../utils";
+import { computeQuantityUi, needsPremiumRefresh } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -172,8 +172,9 @@ export async function makeBulkWithdrawTx(
 
 /**
  * Repay the FULL debt of every given bank from the wallet, packing as many
- * repays per transaction as fit. Repays carry no health pack and need no
- * oracle cranks, so most batches are a single transaction.
+ * repays per transaction as fit, followed by the premium refresh while
+ * premium-bearing debt remains. Most batches are a single transaction; one
+ * that splits with a premium refresh in it must land as one bundle.
  */
 export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<BulkLendTxsResult> {
   const {
@@ -217,11 +218,21 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     );
   }
 
+  const premiumIxs =
+    !params.skipPremiumRefresh && needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
+      ? await makePremiumRefreshIxs(
+          programAddress,
+          { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
+          [],
+          bankAddresses
+        )
+      : [];
+
   const { value: latestBlockhash } = await rpc
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const transactions = splitInstructionsToFitTransactions([], repayIxs, {
+  const transactions = splitInstructionsToFitTransactions([], [...repayIxs, ...premiumIxs], {
     latestBlockhash,
     feePayer: authority,
     txFormat,
@@ -229,5 +240,10 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     maxAccountLocks: MAX_ACCOUNT_LOCKS,
   }).map((message) => ({ message, type: TransactionType.REPAY }));
 
-  return { transactions, actionTxIndex: 0, mustBeAtomicBundle: false };
+  return {
+    transactions,
+    actionTxIndex: 0,
+    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay
+    mustBeAtomicBundle: premiumIxs.length > 0 && transactions.length > 1,
+  };
 }

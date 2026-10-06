@@ -5,6 +5,8 @@ import { BigNumber } from "bignumber.js";
 import { MakeDepositIxParams, MakeDepositTxParams } from "../types";
 import { exceedsCostlyPositionLimit } from "../utils";
 
+import { appendPremiumRefresh } from "./account-lifecycle";
+
 import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
@@ -12,7 +14,6 @@ import { AssetTag } from "~/services/bank";
 import {
   makeTransactionMessage,
   makeWrapSolIxs,
-  selectLutsForBanks,
   SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
@@ -202,14 +203,20 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
       ? makeRefreshingIxs(kaminoAccounts.kaminoReserve, reserve, kaminoAccounts.kaminoObligation)
       : [];
 
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh(
+    params,
+    [...refreshIxs, ...depositIxs],
+    [bank.address],
+    []
+  );
+
   return {
     message: makeTransactionMessage({
-      instructions: [...refreshIxs, ...depositIxs],
+      instructions: txIxs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      // Deposits don't add health remaining-accounts, so only the target bank matters.
-      txFormat: selectLutsForBanks(txFormat, [bank]),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.DEPOSIT,
   };
