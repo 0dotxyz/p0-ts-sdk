@@ -20,8 +20,8 @@ import {
   computeBankBorrowCapRemaining,
   computeBankProjectedAvailableLiquidity,
   computeBankDepositCapRemaining,
-  computeBankRateLimitRemaining,
   computeGroupRateLimitRemainingUsd,
+  computeRateLimitWindowRemainingCapacity,
   computeVenueAvailableLiquidity,
   BankVenueStates,
   EmodeImpactStatus,
@@ -31,6 +31,7 @@ import {
   RiskTier,
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
+import { nativeToUi } from "~/utils";
 
 /**
  * Configuration for computing maximum borrow amount for a bank
@@ -268,42 +269,65 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
 }
 
 /**
- * Remaining outflow (withdraw/borrow) allowed by the bank-level rate limiter (native tokens) and,
- * if provided, the group-level rate limiter (USD, converted at the unbiased realtime price —
- * mirroring the program's `record_withdrawal_outflow`). Returns +Infinity when no limiter is
- * enabled so it is a no-op inside `BigNumber.min`.
- *
- * The result is in underlying UI units to match the other max-amount clamps. The bank-level
- * limiter records the withdraw instruction's own denomination, which differs per venue:
- * - DEFAULT / DRIFT / JUPLEND: underlying token amount (Drift records `token_amount`, JupLend
- *   `native_outflow`, not their internal scaled/share balances) — already underlying, no
- *   conversion.
- * - KAMINO: cToken collateral amount (the instruction's `amount` is denominated in collateral
- *   tokens) — multiplied by the cToken exchange rate.
- * - STAKED: LST amount (the bank mint) — multiplied by the LST→SOL rate to reach the SDK's
- *   SOL-equivalent underlying space.
+ * The binding window of a bank's own outflow (withdraws + borrows) rate limiter.
  */
+export interface BankOutflowRateLimit {
+  window: "hourly" | "daily";
+  /** Remaining outflow in underlying UI units, clamped at 0 */
+  remaining: BigNumber;
+}
+
+/**
+ * The tighter of a bank's hourly and daily outflow windows, in the underlying UI units that
+ * {@link computeMaxWithdrawForBank} and {@link computeMaxBorrowForBank} clamp to.
+ *
+ * Every venue's withdraw records the underlying token amount on the bank limiter (Kamino and
+ * Solend the redeemed liquidity, Drift `token_amount`, JupLend `native_outflow`), except STAKED
+ * banks, which record the LST amount — multiplied here by the LST→SOL rate to reach the SDK's
+ * SOL-equivalent space.
+ *
+ * @returns The window with the least remaining capacity, or `null` when the bank has no rate
+ * limiter enabled
+ */
+export function computeBankOutflowRateLimit(
+  bank: BankType,
+  assetShareValueMultiplier?: BigNumber
+): BankOutflowRateLimit | null {
+  if (!bank.rateLimiter) return null;
+  const nowSeconds = Date.now() / 1000;
+  const limiterToUnderlying =
+    bank.config.assetTag === AssetTag.STAKED && assetShareValueMultiplier?.gt(0)
+      ? assetShareValueMultiplier
+      : new BigNumber(1);
+
+  let tightest: BankOutflowRateLimit | null = null;
+  for (const window of ["hourly", "daily"] as const) {
+    const remainingNative = computeRateLimitWindowRemainingCapacity(
+      bank.rateLimiter[window],
+      nowSeconds
+    );
+    if (!remainingNative) continue;
+    const remaining = BigNumber.max(0, nativeToUi(remainingNative, bank.mintDecimals)).times(
+      limiterToUnderlying
+    );
+    if (!tightest || remaining.lt(tightest.remaining)) tightest = { window, remaining };
+  }
+  return tightest;
+}
+
 function computeOutflowRateLimitRemaining(
   bank: BankType,
   oraclePrice: OraclePrice,
   groupRateLimiter?: BankRateLimiterType,
   assetShareValueMultiplier?: BigNumber
 ): BigNumber {
-  const nowSeconds = Date.now() / 1000;
-  let remaining = new BigNumber(Infinity);
+  let remaining =
+    computeBankOutflowRateLimit(bank, assetShareValueMultiplier)?.remaining ??
+    new BigNumber(Infinity);
 
-  let bankRemaining = computeBankRateLimitRemaining(bank, nowSeconds);
-  if (bankRemaining !== null) {
-    const limiterInBankMintUnits =
-      bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.STAKED;
-    if (limiterInBankMintUnits && assetShareValueMultiplier?.gt(0)) {
-      bankRemaining = bankRemaining.times(assetShareValueMultiplier);
-    }
-    remaining = BigNumber.min(remaining, bankRemaining);
-  }
-
-  // Program: `calc_value(amount, unbiased realtime price).to_num::<i64>() > remaining` fails.
-  const groupRemainingUsd = computeGroupRateLimitRemainingUsd(groupRateLimiter, nowSeconds);
+  // Borrow values the group outflow at the unbiased realtime price and withdraw at the low-biased
+  // one, so unbiased is exact for borrows and slightly conservative for withdraws.
+  const groupRemainingUsd = computeGroupRateLimitRemainingUsd(groupRateLimiter);
   if (groupRemainingUsd !== null) {
     const price = getPrice(oraclePrice, PriceBias.None, false);
     if (price.gt(0)) remaining = BigNumber.min(remaining, groupRemainingUsd.div(price));
