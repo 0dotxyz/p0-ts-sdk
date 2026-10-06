@@ -9,7 +9,6 @@ export enum TransactionBuildingErrorCode {
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
   DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
   JUPLEND_STATE_NOT_FOUND = "JUPLEND_STATE_NOT_FOUND",
-  SWITCHBOARD_FEED_UPDATE_FAILED = "SWITCHBOARD_FEED_UPDATE_FAILED",
   SWAP_QUOTE_FAILED = "SWAP_QUOTE_FAILED",
   TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
   TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
@@ -64,10 +63,6 @@ export interface TransactionBuildingErrorDetails {
     bankAddress: string;
     bankMint: string;
     bankSymbol?: string;
-  };
-  [TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED]: {
-    oracleKeys: string[];
-    reason: string;
   };
   [TransactionBuildingErrorCode.SWAP_QUOTE_FAILED]: {
     provider: string;
@@ -229,20 +224,6 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND,
       `JupLend state not found for ${bankSymbol ?? bankMint}`,
       { bankAddress, bankMint, bankSymbol }
-    );
-  }
-
-  /**
-   * Failed to update Switchboard price feeds
-   */
-  static switchboardFeedUpdateFailed(
-    oracleKeys: string[],
-    reason: string
-  ): TransactionBuildingError<TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED> {
-    return new TransactionBuildingError(
-      TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED,
-      `Switchboard feed update failed: ${reason}`,
-      { oracleKeys, reason }
     );
   }
 
