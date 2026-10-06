@@ -1,5 +1,6 @@
 import type { Address, Instruction } from "@solana/kit";
 
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { AssetTag, BankType, requireBank } from "~/services/bank";
 import type { BankIntegrationMetadataMap } from "~/types";
@@ -22,6 +23,8 @@ import { makeUpdateJupLendRateIx } from "~/vendor/jup-lend";
  * @param bankMetadataMap - Map containing Bank-specific metadata (JupLend lending states)
  * @returns update_rate instructions
  * @throws if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (JUPLEND_STATE_NOT_FOUND) when a JupLend bank has no lending
+ * state in `bankMetadataMap`
  */
 export function makeUpdateJupLendRateIxs(
   marginfiAccount: MarginfiAccountType,
@@ -42,8 +45,15 @@ export function makeUpdateJupLendRateIxs(
   // filter juplend banks
   const jupLendBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.JUPLEND);
 
-  return jupLendBanks
-    .map((bank) => bankMetadataMap?.[bank.address]?.jupLendStates?.lendingState)
-    .filter((lendingState): lendingState is NonNullable<typeof lendingState> => !!lendingState)
-    .map(makeUpdateJupLendRateIx);
+  return jupLendBanks.map((bank) => {
+    const jupLendStates = bankMetadataMap[bank.address]?.jupLendStates;
+    if (!jupLendStates) {
+      throw TransactionBuildingError.jupLendStateNotFound(
+        bank.address,
+        bank.mint,
+        bank.tokenSymbol
+      );
+    }
+    return makeUpdateJupLendRateIx(jupLendStates.lendingState);
+  });
 }

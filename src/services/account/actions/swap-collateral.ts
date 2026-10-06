@@ -19,6 +19,7 @@ import {
 } from "../services/swap-engine";
 import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
 import {
+  exceedsCostlyPositionLimit,
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
@@ -200,6 +201,13 @@ async function buildSwapCollateralFlashloanTx({
     actualWithdrawAmount,
     withdrawBank.mintDecimals
   );
+  // A full withdraw closes its balance before the deposit opens one, freeing that position.
+  const balancesAtDeposit = isFullWithdraw
+    ? marginfiAccount.balances.filter((balance) => balance.bankPk !== withdrawBank.address)
+    : marginfiAccount.balances;
+  if (exceedsCostlyPositionLimit(balancesAtDeposit, bankMap, depositBank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(depositBank.address);
+  }
 
   const cuRequestIxs = [
     getSetComputeUnitLimitInstruction({ units: 1_200_000 }),

@@ -11,6 +11,8 @@ export const STAKED_ORACLE_DISABLED_FLAG: number = 1 << 9;
 export const STAKED_ORACLE_USES_ONRAMP_FLAG: number = 1 << 10;
 /** Bank flags bit 13: liabilities in this bank accrue the variable borrow premium */
 export const PREMIUM_ACTIVE_FLAG: number = 1 << 13;
+/** Max integration (Kamino, Drift, Solend, JupLend) + staked positions one account can open (0.1.12) */
+export const MAX_COSTLY_POSITIONS = 4;
 
 // Program keys
 export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");

@@ -21,6 +21,7 @@ import { LoopFlashloanDescriptor, MakeLoopTxParams, SwapQuoteResult } from "../t
 import {
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
+  exceedsCostlyPositionLimit,
   patchDepositAmount,
   isDepositIx,
   BridgeOpts,
@@ -64,6 +65,15 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
   mustBeAtomicBundle: boolean;
 }> {
   const { authority, depositOpts, borrowOpts, txFormat, rpc, additionalIxs = [] } = params;
+  if (
+    exceedsCostlyPositionLimit(
+      params.marginfiAccount.balances,
+      params.bankMap,
+      depositOpts.depositBank
+    )
+  ) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(depositOpts.depositBank.address);
+  }
 
   const { value: latestBlockhash } = await rpc
     .getLatestBlockhash({ commitment: "confirmed" })

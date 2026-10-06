@@ -122,7 +122,10 @@ export interface ActionTxParams {
   latestBlockhash?: BlockhashLifetimeConstraint;
 }
 
-export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {}
+export interface MakeDepositTxParams extends MakeDepositIxParams, ActionTxParams {
+  /** Banks the account holds, for the per-account limit on integration and staked positions. */
+  bankMap: Map<string, BankType>;
+}
 
 export interface MakeRepayIxOpts extends WrapSolOpts {}
 
@@ -497,6 +500,8 @@ export interface MakeRollPtTxParams {
       SimulateTransactionApi
   >;
   bankMap: Map<string, BankType>;
+  /** Venue state for refreshing the account's Kamino / Drift / JupLend banks before the roll. */
+  bankMetadataMap: BankIntegrationMetadataMap;
   withdrawOpts: {
     totalPositionAmount: number;
     withdrawAmount?: number;

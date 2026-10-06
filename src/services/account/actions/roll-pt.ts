@@ -41,6 +41,7 @@ import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
+import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   getTxSize,
   getTotalAccountKeys,
@@ -89,8 +90,20 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   transactions: SolanaTransaction[];
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot) */
+  mustBeAtomicBundle: boolean;
 }> {
-  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, txFormat } = params;
+  const {
+    marginfiAccount,
+    authority,
+    rpc,
+    bankMap,
+    bankMetadataMap,
+    withdrawOpts,
+    depositOpts,
+    rollOpts,
+    txFormat,
+  } = params;
 
   // Resolve the matured vault's `merge` (redeem PT → SY) accounts and the successor CLMM pool's
   // `trade_pt` (buy SY → PT) accounts up front. The merge's SY is exactly the CLMM pool's quote
@@ -134,6 +147,15 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     ],
   });
 
+  // end_flashloan prices every collateral leg, and with premium-bearing debt an unpriceable
+  // (stale) Kamino/Drift/JupLend leg reverts it (6615), so every integration bank is refreshed.
+  const refreshIntegrationIxs = await makeRefreshIntegrationBanksIxs(
+    marginfiAccount,
+    bankMap,
+    [withdrawOpts.withdrawBank.address, depositOpts.depositBank.address],
+    bankMetadataMap
+  );
+
   const { flashloanTx, swapQuote } = await buildRollPtFlashloanTx({
     params,
     merge,
@@ -143,12 +165,16 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
 
   const additionalTxs: SolanaTransaction[] = [];
 
-  if (setupIxs.length > 0) {
-    const messages = splitInstructionsToFitTransactions([], setupIxs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
+  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
+    const messages = splitInstructionsToFitTransactions(
+      [],
+      [...setupIxs, ...refreshIntegrationIxs],
+      {
+        latestBlockhash,
+        feePayer: authority,
+        txFormat,
+      }
+    );
     additionalTxs.push(
       ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
     );
@@ -160,6 +186,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     transactions,
     actionTxIndex: transactions.length - 1,
     quoteResponse: swapQuote,
+    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
   };
 }
 

@@ -1,3 +1,5 @@
+import { MAX_COSTLY_POSITIONS } from "~/constants";
+
 /**
  * Error codes for transaction building failures
  */
@@ -16,6 +18,8 @@ export enum TransactionBuildingErrorCode {
   BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
   ORDER_INVALID_TRIGGER = "ORDER_INVALID_TRIGGER",
   ORDER_INVALID_SLIPPAGE = "ORDER_INVALID_SLIPPAGE",
+  COSTLY_POSITION_LIMIT_EXCEEDED = "COSTLY_POSITION_LIMIT_EXCEEDED",
+  ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
 }
 
 /**
@@ -104,6 +108,15 @@ export interface TransactionBuildingErrorDetails {
   [TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE]: {
     maxSlippagePercent: number;
     maxAllowedPercent: number;
+  };
+  [TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED]: {
+    /** Integration/staked bank the action would open a position in */
+    bankAddress: string;
+    /** Max integration + staked positions per account */
+    limit: number;
+  };
+  [TransactionBuildingErrorCode.ACCOUNT_DISABLED]: {
+    accountAddress: string;
   };
 }
 
@@ -347,6 +360,33 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE,
       `Max slippage percent must be in (0, ${maxAllowedPercent}], got ${maxSlippagePercent}`,
       { maxSlippagePercent, maxAllowedPercent }
+    );
+  }
+
+  /**
+   * The action would open an integration (Kamino, Drift, Solend, JupLend) or staked position
+   * beyond the per-account limit on such positions.
+   */
+  static costlyPositionLimitExceeded(
+    bankAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED,
+      `An account can hold at most ${MAX_COSTLY_POSITIONS} integration and staked positions`,
+      { bankAddress, limit: MAX_COSTLY_POSITIONS }
+    );
+  }
+
+  /**
+   * The marginfi account is disabled (e.g. already transferred to a new account), so it can't act.
+   */
+  static accountDisabled(
+    accountAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ACCOUNT_DISABLED> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ACCOUNT_DISABLED,
+      `Account ${accountAddress} is disabled`,
+      { accountAddress }
     );
   }
 

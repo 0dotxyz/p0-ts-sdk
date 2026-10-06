@@ -11,6 +11,7 @@ import {
 import { BigNumber } from "bignumber.js";
 
 import {
+  AccountFlags,
   HealthCacheStatus,
   MakeAccountTransferToNewAccountTxParams,
   MakeCloseAccountIxParams,
@@ -28,6 +29,7 @@ import {
 
 import { decodeFeeStateRaw } from "~/accounts";
 import { DEFAULT_ADDRESS } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
 import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
@@ -109,6 +111,8 @@ export async function makeCloseMarginfiAccountTx({
  * @param params.feePayer - Optional. Pays rent/fees. Defaults to `authority`.
  * @returns Transaction to transfer the account
  * @throws if the program's fee state account doesn't exist
+ * @throws TransactionBuildingError (ACCOUNT_DISABLED) when the account is disabled, e.g. already
+ * transferred
  */
 export async function makeAccountTransferToNewAccountTx({
   rpc,
@@ -120,6 +124,10 @@ export async function makeAccountTransferToNewAccountTx({
   feePayer = authority,
   txFormat,
 }: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
+  if (marginfiAccount.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED)) {
+    throw TransactionBuildingError.accountDisabled(marginfiAccount.address);
+  }
+
   const [feeStateAddress] = await deriveFeeState(programAddress);
   const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
   assertAccountExists(feeStateAccount);

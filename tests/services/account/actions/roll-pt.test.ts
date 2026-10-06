@@ -189,6 +189,8 @@ function makeParams(
 ): MakeRollPtTxParams {
   const authority = createNoopSigner(pk(1));
   const { rollOpts: rollOverrides, ...rest } = overrides;
+  const withdrawBank = { address: pk(32), mint: pk(30), mintDecimals: 9, config: { assetTag: 0 } };
+  const depositBank = { address: pk(33), mint: pk(31), mintDecimals: 6, config: { assetTag: 0 } };
   const send = (value: unknown) => ({ send: async () => value });
   const base: MakeRollPtTxParams = {
     programAddress: address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"),
@@ -252,14 +254,15 @@ function makeParams(
           ],
         }),
     } as any,
-    bankMap: new Map(),
+    bankMap: new Map([withdrawBank, depositBank].map((b) => [b.address, b])) as any,
+    bankMetadataMap: {},
     withdrawOpts: {
       totalPositionAmount: 100,
-      withdrawBank: { mint: pk(30), mintDecimals: 9 } as any,
+      withdrawBank: withdrawBank as any,
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
     },
     depositOpts: {
-      depositBank: { mint: pk(31), mintDecimals: 6 } as any,
+      depositBank: depositBank as any,
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
     },
     rollOpts: { maturedMarket: pk(60), successorMarket: pk(67), slippageBps: 50 },
@@ -310,6 +313,40 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
     expect(u64At(ixs[4], 11)).toBe(expectedMinPtOut); // amount_out_constraint
     // deposit patched to the guaranteed min PT out
     expect(u64At(ixs[5], 8)).toBe(expectedMinPtOut);
+  });
+
+  it("refreshes the account's Kamino collateral in the prelude and requires an atomic bundle", async () => {
+    const kaminoBank = {
+      address: pk(34),
+      mint: pk(35),
+      config: { assetTag: 3 },
+      kaminoIntegrationAccounts: { kaminoReserve: pk(36), kaminoObligation: pk(37) },
+    };
+    const base = makeParams();
+    const params = makeParams({
+      marginfiAccount: {
+        ...base.marginfiAccount,
+        balances: [{ active: true, bankPk: kaminoBank.address }],
+      } as any,
+      bankMap: new Map([...base.bankMap, [kaminoBank.address, kaminoBank as any]]),
+      bankMetadataMap: {
+        [kaminoBank.address]: { kaminoStates: { reserveState: { lendingMarket: pk(38) } } },
+      } as any,
+    });
+
+    const res = await makeRollPtTx(params);
+
+    expect(res.mustBeAtomicBundle).toBe(true);
+    const preludeAccounts = res.transactions[0].message.instructions.flatMap((ix) =>
+      (ix.accounts ?? []).map((meta) => meta.address)
+    );
+    expect(preludeAccounts).toContain(pk(36));
+    expect(store.flashloanIxs).toHaveLength(6);
+  });
+
+  it("needs no atomic bundle without integration collateral", async () => {
+    const res = await makeRollPtTx(makeParams());
+    expect(res.mustBeAtomicBundle).toBe(false);
   });
 
   it("returns a quote: exact merge SY in, exact PT out, min-out threshold + slippage", async () => {

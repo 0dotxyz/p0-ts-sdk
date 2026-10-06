@@ -73,6 +73,52 @@ describe("classifyAndValidate (position cap)", () => {
   });
 });
 
+describe("classifyAndValidate (costly position limit)", () => {
+  const authority = pk(31);
+  const group = pk(32);
+  const makeBank = (seed: number, assetTag: AssetTag) =>
+    ({
+      address: pk(seed),
+      mint: pk(seed + 50),
+      mintDecimals: 9,
+      assetShareValue: new BigNumber(1),
+      liabilityShareValue: new BigNumber(1),
+      premiumActive: false,
+      config: { assetTag },
+    }) as unknown as BankType;
+  const balanceIn = (bank: BankType) => ({
+    active: true,
+    bankPk: bank.address,
+    assetShares: new BigNumber(1e9),
+    liabilityShares: new BigNumber(0),
+  });
+
+  it("rejects a transfer that leaves the destination with more than 4 integration/staked positions", () => {
+    const staked = [makeBank(150, AssetTag.STAKED), makeBank(151, AssetTag.STAKED)];
+    const kamino = [150, 151, 152].map((seed) => makeBank(seed + 10, AssetTag.KAMINO));
+    const params = {
+      programAddress: pk(99),
+      authority: createNoopSigner(authority),
+      rpc: {} as never,
+      marginfiAccount: { address: pk(30), authority, group, balances: staked.map(balanceIn) },
+      destinationAccount: { address: pk(33), authority, group, balances: kamino.map(balanceIn) },
+      bankAddresses: staked.map((b) => b.address),
+      bankMap: new Map([...staked, ...kamino].map((b) => [b.address, b])),
+      bankMetadataMap: {} as BankIntegrationMetadataMap,
+      assetShareValueMultiplierByBank: new Map(),
+      tokenProgramsByBank: new Map(staked.map((b) => [b.address, TOKEN_PROGRAM_ADDRESS])),
+      txFormat: { version: 0, luts: {} },
+    } as unknown as MakeTransferPositionsTxParams;
+
+    expect(() => classifyAndValidate(params)).toThrow(
+      "destination account cannot hold 5 integration and staked positions (max 4)"
+    );
+    expect(() =>
+      classifyAndValidate({ ...params, bankAddresses: [staked[0].address] })
+    ).not.toThrow();
+  });
+});
+
 // --------------------------------------------------------------------------------------
 // Integration collateral-leg dispatch
 // --------------------------------------------------------------------------------------

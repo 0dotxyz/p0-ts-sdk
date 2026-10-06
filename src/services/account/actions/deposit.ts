@@ -3,6 +3,7 @@ import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import { MakeDepositIxParams, MakeDepositTxParams } from "../types";
+import { exceedsCostlyPositionLimit } from "../utils";
 
 import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -186,8 +187,11 @@ export async function makeDepositIx({
  * @throws see {@link makeDepositIx}
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
-  const { rpc, txFormat, latestBlockhash, ...depositIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, bankMap, ...depositIxParams } = params;
   const { bank, bankMetadataMap } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, bankMap, bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(bank.address);
+  }
 
   const depositIxs = await makeDepositIx(depositIxParams);
 
