@@ -13,6 +13,8 @@ import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import instructions from "~/instructions";
 import {
   addOracleToBanksIx,
+  AssetTag,
+  BankType,
   configureScopeOracleIx,
   freezeBankConfigIx,
   OracleSetup,
@@ -55,42 +57,57 @@ describe("Scope oracle configuration instruction", () => {
     expect(ix.data.readUInt16LE(40)).toBe(511);
   });
 
-  it("exposes the typed Anchor builder through the bank service", async () => {
-    const bank = publicKey(4);
-    const group = publicKey(2);
-    const admin = publicKey(3);
-    const oracle = publicKey(5);
-    const expectedIx = new TransactionInstruction({
-      programId: publicKey(1),
-      keys: [],
-      data: Buffer.alloc(0),
-    });
-    const instruction = vi.fn().mockResolvedValue(expectedIx);
-    const remainingAccounts = vi.fn().mockReturnValue({ instruction });
-    const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
-    const accounts = vi.fn().mockReturnValue({ accountsPartial });
-    const lendingPoolConfigureBankOracleScope = vi.fn().mockReturnValue({ accounts });
-    const program = {
-      methods: { lendingPoolConfigureBankOracleScope },
-    } as unknown as MarginfiProgram;
+  it.each([
+    [AssetTag.DEFAULT, false],
+    [AssetTag.KAMINO, true],
+    [AssetTag.JUPLEND, true],
+  ])(
+    "builds through the bank service for asset tag %s, adding oracleKeys[1] for venue banks: %s",
+    async (assetTag, withIntegrationAccount) => {
+      const group = publicKey(2);
+      const admin = publicKey(3);
+      const oracle = publicKey(5);
+      const integrationAccount = publicKey(6);
+      const bank = {
+        address: publicKey(4),
+        config: { assetTag, oracleKeys: [publicKey(8), integrationAccount] },
+      } as unknown as BankType;
+      const expectedIx = new TransactionInstruction({
+        programId: publicKey(1),
+        keys: [],
+        data: Buffer.alloc(0),
+      });
+      const instruction = vi.fn().mockResolvedValue(expectedIx);
+      const remainingAccounts = vi.fn().mockReturnValue({ instruction });
+      const accountsPartial = vi.fn().mockReturnValue({ remainingAccounts });
+      const accounts = vi.fn().mockReturnValue({ accountsPartial });
+      const lendingPoolConfigureBankOracleScope = vi.fn().mockReturnValue({ accounts });
+      const program = {
+        methods: { lendingPoolConfigureBankOracleScope },
+      } as unknown as MarginfiProgram;
 
-    const wrapper = await configureScopeOracleIx({
-      program,
-      bankAddress: bank,
-      oracle,
-      entryIndex: 37,
-      groupAddress: group,
-      governanceAdminAddress: admin,
-    });
+      const wrapper = await configureScopeOracleIx({
+        program,
+        bank,
+        oracle,
+        entryIndex: 37,
+        groupAddress: group,
+        governanceAdminAddress: admin,
+      });
 
-    expect(lendingPoolConfigureBankOracleScope).toHaveBeenCalledWith(oracle, 37);
-    expect(accounts).toHaveBeenCalledWith({ bank });
-    expect(accountsPartial).toHaveBeenCalledWith({ group, governanceAdmin: admin });
-    expect(remainingAccounts).toHaveBeenCalledWith([
-      { pubkey: oracle, isSigner: false, isWritable: false },
-    ]);
-    expect(wrapper).toEqual({ instructions: [expectedIx], keys: [] });
-  });
+      expect(lendingPoolConfigureBankOracleScope).toHaveBeenCalledWith(oracle, 37);
+      expect(accounts).toHaveBeenCalledWith({ bank: bank.address });
+      expect(accountsPartial).toHaveBeenCalledWith({ group, governanceAdmin: admin });
+      expect(remainingAccounts).toHaveBeenCalledWith(
+        [oracle, ...(withIntegrationAccount ? [integrationAccount] : [])].map((pubkey) => ({
+          pubkey,
+          isSigner: false,
+          isWritable: false,
+        }))
+      );
+      expect(wrapper).toEqual({ instructions: [expectedIx], keys: [] });
+    }
+  );
 
   it("routes every Scope setup away from configure-bank-oracle", async () => {
     const program = { methods: {} } as unknown as MarginfiProgram;

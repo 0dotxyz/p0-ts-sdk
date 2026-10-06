@@ -3,7 +3,7 @@ import BigNumber from "bignumber.js";
 
 import { InstructionsWrapper } from "../transaction";
 
-import { OracleSetup } from "./types";
+import { AssetTag, BankType, OracleSetup } from "./types";
 import { serializeOracleSetupToIndex } from "./utils";
 
 import instructions from "~/instructions";
@@ -185,35 +185,41 @@ export async function setOraclePriceIx({
 
 type ConfigureScopeOracleIxArgs = {
   program: MarginfiProgram;
-  bankAddress: PublicKey;
+  bank: BankType;
   oracle: PublicKey;
   entryIndex: number;
-  /** Kamino reserve or JupLend lending account (the bank's `oracleKeys[1]`); required for Kamino and JupLend banks */
-  integrationAccount?: PublicKey;
   groupAddress?: PublicKey;
   governanceAdminAddress?: PublicKey;
 };
 
+/**
+ * Point a bank at an entry in a Scope OraclePrices account, signed by the group's governance admin.
+ * The program picks Scope, ScopeKamino or ScopeJuplend from the bank's asset tag; for Kamino and
+ * JupLend banks the reserve / lending account it validates is taken from `bank.config.oracleKeys[1]`.
+ */
 export async function configureScopeOracleIx({
   program,
-  bankAddress,
+  bank,
   oracle,
   entryIndex,
-  integrationAccount,
   groupAddress,
   governanceAdminAddress,
 }: ConfigureScopeOracleIxArgs): Promise<InstructionsWrapper> {
   const ix = await instructions.makeLendingPoolConfigureBankOracleScopeIx(
     program,
     {
-      bank: bankAddress,
+      bank: bank.address,
       group: groupAddress,
       governanceAdmin: governanceAdminAddress,
     },
     {
       oracle,
       entryIndex,
-      integrationAccount,
+      // ScopeKamino / ScopeJuplend validate the Kamino reserve or JupLend lending account after the feed
+      integrationAccount:
+        bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.JUPLEND
+          ? bank.config.oracleKeys[1]
+          : undefined,
     }
   );
 
