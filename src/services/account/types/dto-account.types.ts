@@ -11,6 +11,9 @@ export interface BalanceTypeDto {
   tag?: number;
   assetShares: string;
   liabilityShares: string;
+  /** Optional so DTOs cached before the variable borrow premium still parse (defaults to 0). */
+  premiumRate?: string;
+  premiumOutstanding?: string;
   lastUpdate: number;
 }
 

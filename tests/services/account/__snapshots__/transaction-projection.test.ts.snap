@@ -17,6 +17,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "HshhP4nnfBvkGroaMeJZZtfQFZeg3ukLPmW294G5T4j9",
       "lastUpdate": 1786362022,
       "liabilityShares": "537133386.87518305157",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -25,6 +27,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "HmpMfL8942u22htC4EMiWgLX931g3sacXFR6KjuLgKLV",
       "lastUpdate": 1778666219,
       "liabilityShares": "235270091.96312004527",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -33,6 +37,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "HDYFgNRTFL2tVwGyAHaTr4SW7Y7riXjew48qKLHgi8es",
       "lastUpdate": 1780991154,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -41,6 +47,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "EmMhorGDR3N9ecNWVQjJi2QpFLkeHEvjZFdW6TuVgXjU",
       "lastUpdate": 1790152946,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -49,6 +57,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "EbuSnXdFz1R4VPdaJ96KQQQmeYgZTHSzpNW94Tw1PE3H",
       "lastUpdate": 1774854756,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -57,6 +67,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "Dj2CwMF3GM7mMT5hcyGXKuYSQ2kQ5zaVCkA1zX1qaTva",
       "lastUpdate": 1784277752,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -65,6 +77,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh",
       "lastUpdate": 1773689114,
       "liabilityShares": "14366592380.26453231877255544817",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -73,6 +87,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "Amtw3n7GZe5SWmyhMhaFhDTi39zbTkLeWErBsmZXwpDa",
       "lastUpdate": 1757639992,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -81,6 +97,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "Ac4KV5K5isDqtABtg6h5DiwzZMe3Sp9bc3pBiCUvUpaQ",
       "lastUpdate": 1780418797,
       "liabilityShares": "392288.76030274663444",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -89,6 +107,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "7GbG8B1aHpV4Q271ozU9EDEGPTLXpekv7m2UgyCgFzr5",
       "lastUpdate": 1789755652,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -97,6 +117,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "61Qx9kgWo9RVtPHf8Rku6gbaUtcnzgkpAuifQBUcMRVK",
       "lastUpdate": 1787384815,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -105,6 +127,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "3xn7strvpinirQ5KxEgVFemb6qYeHG39krohoeRHRrRt",
       "lastUpdate": 1781545576,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -113,6 +137,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
       "lastUpdate": 1774355856,
       "liabilityShares": "94173812.929205577265",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -121,6 +147,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "22DcjMZrMwC5Bpa5AGBsmjc5V9VuQrXG6N9ZtdUNyYGE",
       "lastUpdate": 1774336536,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -129,6 +157,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "11111111111111111111111111111111",
       "lastUpdate": 0,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
     {
@@ -137,6 +167,8 @@ exports[`transaction projection > projects balance shares through deposits, repa
       "bankPk": "4cSk2pyxFkPdc5Kp5Yk1HYLjTbNoYzwtz2MCKUogjqeg",
       "lastUpdate": 0,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
       "tag": 0,
     },
   ],

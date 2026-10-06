@@ -22,6 +22,8 @@ import {
   BankConfigFastOpt,
   BankConfigGovOpt,
   MarginfiGroupType,
+  PremiumEntry,
+  rateFromU32,
 } from "../services";
 import { parseBankRateLimiterRaw } from "../services/bank/utils/deserialize.utils";
 
@@ -36,11 +38,19 @@ class MarginfiGroup implements MarginfiGroupType {
   public admin: Address;
   /** Group-level net-outflow rate limiter (USD windows); see isGroupRateLimiterEnabled */
   public rateLimiter?: BankRateLimiterType;
+  /** Live entries of the variable borrow premium table */
+  public premiumEntries: PremiumEntry[];
 
-  constructor(admin: Address, address: Address, rateLimiter?: BankRateLimiterType) {
+  constructor(
+    admin: Address,
+    address: Address,
+    rateLimiter?: BankRateLimiterType,
+    premiumEntries: PremiumEntry[] = []
+  ) {
     this.admin = admin;
     this.address = address;
     this.rateLimiter = rateLimiter;
+    this.premiumEntries = premiumEntries;
   }
 
   static async fetch(address: Address, rpc: Rpc<GetAccountInfoApi>): Promise<MarginfiGroup> {
@@ -77,10 +87,18 @@ class MarginfiGroup implements MarginfiGroupType {
 
   static fromBuffer(address: Address, rawData: ReadonlyUint8Array): MarginfiGroup {
     const accountData = decodeMarginfiGroupRaw(rawData);
+    const premiumEntries = accountData.premiumEntries
+      .slice(0, accountData.premiumSettings.entryCount)
+      .map((entry) => ({
+        collateralTag: entry.collateralTag,
+        liabilityTag: entry.liabilityTag,
+        rate: rateFromU32(entry.rate),
+      }));
     return new MarginfiGroup(
       accountData.admin,
       address,
-      parseBankRateLimiterRaw(accountData.rateLimiter)
+      parseBankRateLimiterRaw(accountData.rateLimiter),
+      premiumEntries
     );
   }
 

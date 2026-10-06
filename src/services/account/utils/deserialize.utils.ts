@@ -22,6 +22,7 @@ import type {
 } from "../types/raw-account.types";
 
 import { decodeMarginfiAccountRaw, OrderTriggerTypeRaw } from "~/accounts";
+import { rateFromU32 } from "~/services/bank";
 import { maxSlippageU32ToPercent, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
@@ -30,6 +31,8 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const tag = balanceRaw.tag;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
+  const premiumRate = rateFromU32(balanceRaw.premiumRateSnapshot);
+  const premiumOutstanding = wrappedI80F48toBigNumber(balanceRaw.premiumOutstanding);
   const lastUpdate = Number(balanceRaw.lastUpdate);
 
   return {
@@ -38,6 +41,8 @@ export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
     tag,
     assetShares,
     liabilityShares,
+    premiumRate,
+    premiumOutstanding,
     lastUpdate,
   };
 }
@@ -230,6 +235,8 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
     tag: balanceDto.tag ?? 0,
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
+    premiumRate: new BigNumber(balanceDto.premiumRate ?? 0),
+    premiumOutstanding: new BigNumber(balanceDto.premiumOutstanding ?? 0),
     lastUpdate: balanceDto.lastUpdate,
   };
 }

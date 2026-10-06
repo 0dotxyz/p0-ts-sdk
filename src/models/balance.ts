@@ -25,6 +25,8 @@ class Balance implements BalanceType {
     public tag: number,
     public assetShares: BigNumber,
     public liabilityShares: BigNumber,
+    public premiumRate: BigNumber,
+    public premiumOutstanding: BigNumber,
     public lastUpdate: number
   ) {}
 
@@ -35,6 +37,8 @@ class Balance implements BalanceType {
       balance.tag,
       balance.assetShares,
       balance.liabilityShares,
+      balance.premiumRate,
+      balance.premiumOutstanding,
       balance.lastUpdate
     );
   }

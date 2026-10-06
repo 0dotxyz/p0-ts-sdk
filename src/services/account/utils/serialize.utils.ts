@@ -26,6 +26,8 @@ export function balanceToDto(balance: BalanceType): BalanceTypeDto {
     tag: balance.tag,
     assetShares: balance.assetShares.toString(),
     liabilityShares: balance.liabilityShares.toString(),
+    premiumRate: balance.premiumRate.toString(),
+    premiumOutstanding: balance.premiumOutstanding.toString(),
     lastUpdate: balance.lastUpdate,
   };
 }
