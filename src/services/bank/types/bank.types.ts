@@ -201,8 +201,8 @@ export interface BankType {
   premiumActivatedAt: number;
   /**
    * The Kamino market (flags bit 14) or reserve is in emergency mode, so the bank's collateral
-   * counts zero toward initial health. Decoding sets the market part; whoever joins the bank with
-   * its Kamino reserve ORs in the reserve's `emergencyMode`.
+   * counts zero toward initial health. Decoding sets the market part;
+   * {@link withKaminoReserveEmergency} ORs in the reserve's `emergencyMode`.
    */
   kaminoEmergency: boolean;
   rateLimiter?: BankRateLimiterType;

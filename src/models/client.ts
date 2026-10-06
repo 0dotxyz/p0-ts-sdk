@@ -30,6 +30,7 @@ import {
   fetchBankIntegrationMetadata,
   getKaminoCTokenMultiplier,
   getJupLendFTokenMultiplier,
+  withKaminoReserveEmergency,
 } from "~/services/integration";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
 import { fetchProgramForMints } from "~/services/misc";
@@ -404,12 +405,10 @@ export class Project0Client {
             bank.address.toBase58(),
             getKaminoCTokenMultiplier(reserve)
           );
-          if (reserve.config.emergencyMode !== 0) {
-            bankMap.set(
-              bank.address.toBase58(),
-              Bank.fromBankType({ ...bank, kaminoEmergency: true })
-            );
-          }
+          bankMap.set(
+            bank.address.toBase58(),
+            Bank.fromBankType(withKaminoReserveEmergency(bank, reserve))
+          );
           break;
         }
 
