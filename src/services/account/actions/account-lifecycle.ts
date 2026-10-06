@@ -28,7 +28,7 @@ import {
   parseMarginfiAccountRaw,
 } from "../utils";
 
-import { TransactionBuildingError } from "~/errors";
+import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -443,6 +443,9 @@ export async function makePulseHealthIx(
  * rewrites the account's variable borrow premium rates from its collateral after the action.
  * See {@link needsPremiumRefresh} for when it's needed.
  *
+ * Best-effort: returns no instructions when a bank to refresh has no venue state in
+ * `bankMetadataMap`, since `pulse_health` skips the premium write when a leg can't be priced.
+ *
  * @param program - The Marginfi program instance
  * @param state - The account (before the action), bank map and venue state
  * @param mandatoryBanks - Banks the action opens (the deposited bank)
@@ -455,13 +458,27 @@ export async function makePremiumRefreshIxs(
   mandatoryBanks: PublicKey[],
   excludedBanks: PublicKey[]
 ): Promise<TransactionInstruction[]> {
-  const refreshIxs = makeRefreshIntegrationBanksIxs(
-    marginfiAccount,
-    bankMap,
-    [],
-    bankMetadataMap,
-    mandatoryBanks
-  );
+  let refreshIxs: TransactionInstruction[];
+  try {
+    refreshIxs = makeRefreshIntegrationBanksIxs(
+      marginfiAccount,
+      bankMap,
+      [],
+      bankMetadataMap,
+      mandatoryBanks
+    ).instructions;
+  } catch (error) {
+    // A missing refresh only costs the rate update; it must not block the deposit or repay
+    if (
+      error instanceof TransactionBuildingError &&
+      (error.code === TransactionBuildingErrorCode.KAMINO_RESERVE_NOT_FOUND ||
+        error.code === TransactionBuildingErrorCode.DRIFT_STATE_NOT_FOUND ||
+        error.code === TransactionBuildingErrorCode.JUPLEND_STATE_NOT_FOUND)
+    ) {
+      return [];
+    }
+    throw error;
+  }
   const pulseIxs = await makePulseHealthIx(
     program,
     marginfiAccount,
@@ -469,7 +486,7 @@ export async function makePremiumRefreshIxs(
     mandatoryBanks,
     excludedBanks
   );
-  return [...refreshIxs.instructions, ...pulseIxs.instructions];
+  return [...refreshIxs, ...pulseIxs.instructions];
 }
 
 export function generateDummyAccount(

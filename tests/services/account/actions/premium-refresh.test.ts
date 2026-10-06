@@ -26,7 +26,7 @@ const program = new Program<MarginfiIdlType>(
   new AnchorProvider(new Connection("http://127.0.0.1:1"), {} as Wallet, {})
 ) as unknown as MarginfiProgram;
 
-function bank(opts: { premiumActive?: boolean } = {}): BankType {
+function bank(opts: { premiumActive?: boolean; assetTag?: AssetTag } = {}): BankType {
   const oracle = PublicKey.unique();
   return {
     address: PublicKey.unique(),
@@ -42,7 +42,7 @@ function bank(opts: { premiumActive?: boolean } = {}): BankType {
     premiumActivatedAt: 0,
     config: {
       oracleSetup: OracleSetup.PythPushOracle,
-      assetTag: AssetTag.DEFAULT,
+      assetTag: opts.assetTag ?? AssetTag.DEFAULT,
       oracleKeys: [oracle],
     },
   } as unknown as BankType;
@@ -90,7 +90,8 @@ const sol = bank();
 const usdc = bank();
 const usdt = bank();
 const inactive = bank({ premiumActive: false });
-const bankMap = new Map([sol, usdc, usdt, inactive].map((b) => [b.address.toBase58(), b]));
+const kamino = bank({ assetTag: AssetTag.KAMINO });
+const bankMap = new Map([sol, usdc, usdt, inactive, kamino].map((b) => [b.address.toBase58(), b]));
 
 function deposit(
   marginfiAccount: MarginfiAccountType,
@@ -181,6 +182,13 @@ describe("repays", () => {
     expect((await repay(borrower, usdc, true)).instructions.some(isPulse)).toBe(false);
   });
 
+  it("drop the pulse instead of throwing when a held bank has no venue state", async () => {
+    const kaminoCollateral = account([balance(kamino, "asset"), balance(usdc, "liability")]);
+    const tx = await repay(kaminoCollateral, usdc, false);
+
+    expect(tx.instructions.some(isPulse)).toBe(false);
+  });
+
   it("bulk: add one pulse after all repays, unless skipped", async () => {
     vi.spyOn(instructions, "makeRepayIx").mockResolvedValue(
       new TransactionInstruction({ programId: program.programId, keys: [], data: Buffer.alloc(8) })
@@ -210,7 +218,9 @@ describe("repays", () => {
     const last = message.compiledInstructions[message.compiledInstructions.length - 1];
     const accountKeys = message.staticAccountKeys.map((k) => k.toBase58());
     expect(Buffer.from(last.data.subarray(0, 8)).equals(PULSE_DISCRIMINATOR)).toBe(true);
-    expect(last.accountKeyIndexes.map((i) => accountKeys[i])).not.toContain(usdc.address.toBase58());
+    expect(last.accountKeyIndexes.map((i) => accountKeys[i])).not.toContain(
+      usdc.address.toBase58()
+    );
 
     const skipped = (await bulkRepay(true)).transactions.flatMap((tx) =>
       tx.message.compiledInstructions.map((ix) => Buffer.from(ix.data.subarray(0, 8)))
