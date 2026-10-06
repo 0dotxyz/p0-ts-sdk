@@ -164,7 +164,8 @@ export interface MakeKaminoDepositIxParams {
  * Account state the deposit and repay transaction builders use to add `pulse_health` after the
  * action while the account has premium-bearing debt, so the program rewrites its variable borrow
  * premium rates as the transaction lands (deposits and repays don't refresh them on their own).
- * Opt out with `opts.skipPremiumRefresh`.
+ * Opt out with `opts.skipPremiumRefresh`. The single-transaction builders leave it out when it
+ * doesn't fit next to the action.
  */
 export interface PremiumRefreshParams {
   /** The account before the action */

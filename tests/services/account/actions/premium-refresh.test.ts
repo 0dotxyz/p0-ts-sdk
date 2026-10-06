@@ -1,8 +1,16 @@
 import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
-import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import {
+  AddressLookupTableAccount,
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import { MarginfiAccount, MarginfiAccountWrapper, Project0Client } from "~/index";
 import instructions from "~/instructions";
@@ -12,11 +20,14 @@ import {
   HealthCacheStatus,
   makeBulkRepayTx,
   makeDepositTx,
+  makeKaminoDepositTx,
   makeRepayTx,
   MarginfiAccountType,
 } from "~/services/account";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
-import type { MarginfiProgram } from "~/types";
+import { getTotalAccountKeys } from "~/services/transaction";
+import type { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
+import { KaminoReserve } from "~/vendor/klend";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
 const PULSE_DISCRIMINATOR = Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]);
@@ -287,5 +298,132 @@ describe("account wrapper", () => {
 
     const tx = await wrapper.makeDepositTx(usdt.address, 10, overrides(marginfiAccount, usdt));
     expect(isPulse(lastIx(tx))).toBe(true);
+  });
+});
+
+describe("large accounts", () => {
+  const lendingMarket = PublicKey.unique();
+  const reserves = new Map<string, KaminoReserve>();
+  // Every fixture key goes in the lookup table, so account locks bind before bytes do
+  const lutAddresses: PublicKey[] = [lendingMarket];
+
+  function kaminoBank(): BankType {
+    const base = bank({ assetTag: AssetTag.KAMINO });
+    const reserve = PublicKey.unique();
+    const obligation = PublicKey.unique();
+    const reserveState = {
+      lendingMarket,
+      farmCollateral: PublicKey.unique(),
+      liquidity: { supplyVault: PublicKey.unique() },
+      collateral: { mintPubkey: PublicKey.unique(), supplyVault: PublicKey.unique() },
+      config: {
+        tokenInfo: {
+          pythConfiguration: { price: base.oracleKey },
+          switchboardConfiguration: {
+            priceAggregator: PublicKey.default,
+            twapAggregator: PublicKey.default,
+          },
+          scopeConfiguration: { priceFeed: PublicKey.default },
+        },
+      },
+    };
+    reserves.set(base.address.toBase58(), reserveState as unknown as KaminoReserve);
+    lutAddresses.push(
+      obligation,
+      reserveState.farmCollateral,
+      reserveState.liquidity.supplyVault,
+      reserveState.collateral.mintPubkey,
+      reserveState.collateral.supplyVault
+    );
+    return {
+      ...base,
+      kaminoIntegrationAccounts: { kaminoReserve: reserve, kaminoObligation: obligation },
+      config: {
+        ...base.config,
+        oracleSetup: OracleSetup.KaminoPythPush,
+        oracleKeys: [base.oracleKey, reserve],
+      },
+    } as BankType;
+  }
+
+  function lstBank(): BankType {
+    const base = bank();
+    return {
+      ...base,
+      config: {
+        ...base.config,
+        oracleSetup: OracleSetup.PythLST,
+        oracleKeys: [base.oracleKey, PublicKey.unique()],
+      },
+    } as BankType;
+  }
+
+  const target = kaminoBank();
+  const heldKamino = [kaminoBank(), kaminoBank(), kaminoBank()];
+  const lsts = Array.from({ length: 11 }, lstBank);
+  const debt = bank();
+  const banks = [target, ...heldKamino, ...lsts, debt];
+  const largeBankMap = new Map(banks.map((b) => [b.address.toBase58(), b]));
+  const bankMetadataMap = Object.fromEntries(
+    [target, ...heldKamino].map((b) => [
+      b.address.toBase58(),
+      { kaminoStates: { reserveState: reserves.get(b.address.toBase58()) } },
+    ])
+  ) as unknown as BankIntegrationMetadataMap;
+
+  function kaminoDeposit(marginfiAccount: MarginfiAccountType) {
+    const lut = new AddressLookupTableAccount({
+      key: PublicKey.unique(),
+      state: {
+        deactivationSlot: BigInt("18446744073709551615"),
+        lastExtendedSlot: 0,
+        lastExtendedSlotStartIndex: 0,
+        addresses: [
+          ...lutAddresses,
+          marginfiAccount.address,
+          marginfiAccount.group,
+          ...banks.flatMap((b) => [b.address, b.mint, b.liquidityVault, ...b.config.oracleKeys]),
+        ],
+      },
+    });
+    return makeKaminoDepositTx({
+      program,
+      bank: target,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      amount: 10,
+      accountAddress: marginfiAccount.address,
+      authority: marginfiAccount.authority,
+      group: marginfiAccount.group,
+      reserve: reserves.get(target.address.toBase58())!,
+      isSync: true,
+      luts: [lut],
+      connection: program.provider.connection,
+      blockhash: PublicKey.default.toBase58(),
+      marginfiAccount,
+      bankMap: largeBankMap,
+      bankMetadataMap,
+    });
+  }
+
+  const hasPulse = (tx: VersionedTransaction) =>
+    tx.message.compiledInstructions.some((ix) =>
+      Buffer.from(ix.data.subarray(0, 8)).equals(PULSE_DISCRIMINATOR)
+    );
+
+  it("keep the pulse on a Kamino deposit while it fits", async () => {
+    const small = account([balance(heldKamino[0], "asset"), balance(debt, "liability")]);
+    expect(hasPulse(await kaminoDeposit(small))).toBe(true);
+  });
+
+  it("drop it when it would push a Kamino deposit past the account-lock limit", async () => {
+    const large = account([
+      ...heldKamino.map((b) => balance(b, "asset")),
+      ...lsts.map((b) => balance(b, "asset")),
+      balance(debt, "liability"),
+    ]);
+    const tx = await kaminoDeposit(large);
+
+    expect(hasPulse(tx)).toBe(false);
+    expect(getTotalAccountKeys(tx)).toBeLessThanOrEqual(MAX_ACCOUNT_LOCKS);
   });
 });

@@ -25,9 +25,11 @@ import {
 import {
   computeHealthAccountMetas,
   computeHealthCheckAccounts,
+  needsPremiumRefresh,
   parseMarginfiAccountRaw,
 } from "../utils";
 
+import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
 import { BankType } from "~/services/bank";
@@ -35,6 +37,9 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
+  fitsInOneTransaction,
+  selectLutsForAccountAction,
+  selectLutsForBanks,
   SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
@@ -487,6 +492,63 @@ export async function makePremiumRefreshIxs(
     excludedBanks
   );
   return [...refreshIxs, ...pulseIxs.instructions];
+}
+
+/**
+ * Appends the premium refresh ({@link makePremiumRefreshIxs}) to a deposit or repay that lands in
+ * one transaction, and picks the lookup tables to compile it with. The refresh is left out when
+ * `opts.skipPremiumRefresh` is set, no premium-bearing debt remains, venue state is missing, or
+ * it would push the transaction past MAX_TX_SIZE / MAX_ACCOUNT_LOCKS.
+ *
+ * @param params - The builder's params: account (before the action), bank map, venue state,
+ * acted-on bank, authority and lookup tables
+ * @param actionIxs - The action's instructions
+ * @param mandatoryBanks - Banks the action opens (the deposited bank)
+ * @param excludedBanks - Banks the action closes (fully repaid banks)
+ * @returns The transaction's instructions and lookup tables
+ */
+export async function appendPremiumRefresh(
+  params: PremiumRefreshParams & {
+    program: MarginfiProgram;
+    bank: BankType;
+    authority: PublicKey;
+    luts: AddressLookupTableAccount[];
+    opts?: { skipPremiumRefresh?: boolean };
+  },
+  actionIxs: TransactionInstruction[],
+  mandatoryBanks: PublicKey[],
+  excludedBanks: PublicKey[]
+): Promise<{ instructions: TransactionInstruction[]; luts: AddressLookupTableAccount[] }> {
+  const { marginfiAccount, bankMap, bank, luts } = params;
+  const actionOnly = { instructions: actionIxs, luts: selectLutsForBanks(luts, [bank]) };
+  if (
+    params.opts?.skipPremiumRefresh ||
+    !needsPremiumRefresh(marginfiAccount, bankMap, excludedBanks)
+  ) {
+    return actionOnly;
+  }
+
+  const premiumIxs = await makePremiumRefreshIxs(
+    params.program,
+    params,
+    mandatoryBanks,
+    excludedBanks
+  );
+  const withPremium = {
+    instructions: [...actionIxs, ...premiumIxs],
+    luts: selectLutsForAccountAction(luts, bank, marginfiAccount.balances, bankMap),
+  };
+  // Leaves room for what the send pipeline appends: compute-budget and priority-fee ixs, and in
+  // bundles a Jito tip, which lock the ComputeBudget program, tip account and System program
+  const fits =
+    premiumIxs.length > 0 &&
+    fitsInOneTransaction(withPremium.instructions, {
+      payerKey: params.authority,
+      luts: withPremium.luts,
+      sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
+      maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
+    });
+  return fits ? withPremium : actionOnly;
 }
 
 export function generateDummyAccount(

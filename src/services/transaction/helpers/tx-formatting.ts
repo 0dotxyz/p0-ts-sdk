@@ -140,6 +140,38 @@ function countTxAccountLocks(tx: VersionedTransaction): number {
 }
 
 /**
+ * Whether the instructions compile into one v0 transaction within MAX_TX_SIZE (minus
+ * `sizeMargin`, if given) and `maxAccountLocks` account locks (if given).
+ */
+export function fitsInOneTransaction(
+  ixs: TransactionInstruction[],
+  opts: {
+    payerKey: PublicKey;
+    luts: AddressLookupTableAccount[];
+    /** Bytes reserved below MAX_TX_SIZE, e.g. for compute-budget ixs appended at send time. */
+    sizeMargin?: number;
+    /** Also cap the total account locks (e.g. MAX_ACCOUNT_LOCKS). */
+    maxAccountLocks?: number;
+  }
+): boolean {
+  // Compiling a message that overflows the compact-array encoding throws a
+  // RangeError; treat that as "does not fit".
+  try {
+    const tx = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: opts.payerKey,
+        recentBlockhash: PublicKey.default.toBase58(),
+        instructions: ixs,
+      }).compileToV0Message(opts.luts)
+    );
+    if (getTxSize(tx) > MAX_TX_SIZE - (opts.sizeMargin ?? 0)) return false;
+    return opts.maxAccountLocks === undefined || countTxAccountLocks(tx) <= opts.maxAccountLocks;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Splits your instructions into as many VersionedTransactions as needed
  * so that none exceed MAX_TX_SIZE (minus `sizeMargin`, if given) nor
  * `maxAccountLocks` account locks (if given).
@@ -159,7 +191,6 @@ export function splitInstructionsToFitTransactions(
 ): VersionedTransaction[] {
   const result: VersionedTransaction[] = [];
   let buffer: TransactionInstruction[] = [];
-  const maxSize = MAX_TX_SIZE - (opts.sizeMargin ?? 0);
 
   function buildTx(extraIxs: TransactionInstruction[]): VersionedTransaction {
     const messageV0 = new TransactionMessage({
@@ -171,19 +202,8 @@ export function splitInstructionsToFitTransactions(
     return new VersionedTransaction(messageV0);
   }
 
-  // Compiling a message that overflows the compact-array encoding throws a
-  // RangeError; treat that as "does not fit".
   function fits(extraIxs: TransactionInstruction[]): boolean {
-    try {
-      const tx = buildTx(extraIxs);
-      if (getTxSize(tx) > maxSize) return false;
-      if (opts.maxAccountLocks !== undefined && countTxAccountLocks(tx) > opts.maxAccountLocks) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
+    return fitsInOneTransaction([...mandatoryIxs, ...extraIxs], opts);
   }
 
   for (const ix of ixs) {

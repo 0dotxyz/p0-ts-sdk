@@ -18,9 +18,9 @@ import {
   MakeJuplendDepositIxParams,
   MakeJuplendDepositTxParams,
 } from "../types";
-import { exceedsCostlyPositionLimit, needsPremiumRefresh } from "../utils";
+import { exceedsCostlyPositionLimit } from "../utils";
 
-import { makePremiumRefreshIxs } from "./account-lifecycle";
+import { appendPremiumRefresh } from "./account-lifecycle";
 
 import { SYSTEM_PROGRAM_ID } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -31,8 +31,6 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
-  selectLutsForAccountAction,
-  selectLutsForBanks,
   TransactionType,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
@@ -202,14 +200,12 @@ export async function makeDriftDepositTx(
     amount,
     ...depositIxParams,
   });
-  const premiumIxs =
-    !params.opts?.skipPremiumRefresh &&
-    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
-      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
-      : [];
-  const selectedLuts = premiumIxs.length
-    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
-    : selectLutsForBanks(luts, [params.bank]);
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    depositIxs.instructions,
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -218,7 +214,7 @@ export async function makeDriftDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions, ...premiumIxs],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -439,14 +435,12 @@ export async function makeKaminoDepositTx(
     amount,
     ...depositIxParams,
   });
-  const premiumIxs =
-    !params.opts?.skipPremiumRefresh &&
-    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
-      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
-      : [];
-  const selectedLuts = premiumIxs.length
-    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
-    : selectLutsForBanks(luts, [params.bank]);
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    [...refreshIxs, ...depositIxs.instructions],
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -455,7 +449,7 @@ export async function makeKaminoDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs, ...depositIxs.instructions, ...premiumIxs],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -597,15 +591,13 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Extend
   }
 
   const ixs = await makeDepositIx(depositIxParams);
-  const premiumIxs =
-    !params.opts?.skipPremiumRefresh &&
-    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
-      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
-      : [];
-  const selectedLuts = premiumIxs.length
-    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
-    : selectLutsForBanks(luts, [params.bank]);
-  const tx = new Transaction().add(...ixs.instructions, ...premiumIxs);
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    ixs.instructions,
+    [params.bank.address],
+    []
+  );
+  const tx = new Transaction().add(...instructions);
   tx.feePayer = params.authority;
 
   const solanaTx = addTransactionMetadata(tx, {
@@ -756,14 +748,12 @@ export async function makeJuplendDepositTx(
     amount,
     ...depositIxParams,
   });
-  const premiumIxs =
-    !params.opts?.skipPremiumRefresh &&
-    needsPremiumRefresh(params.marginfiAccount, params.bankMap, [])
-      ? await makePremiumRefreshIxs(params.program, params, [params.bank.address], [])
-      : [];
-  const selectedLuts = premiumIxs.length
-    ? selectLutsForAccountAction(luts, params.bank, params.marginfiAccount.balances, params.bankMap)
-    : selectLutsForBanks(luts, [params.bank]);
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    depositIxs.instructions,
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -772,7 +762,7 @@ export async function makeJuplendDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions, ...premiumIxs],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
