@@ -27,6 +27,8 @@ import {
   getI64Encoder,
   getStructDecoder,
   getStructEncoder,
+  getU16Decoder,
+  getU16Encoder,
   getU32Decoder,
   getU32Encoder,
   getU64Decoder,
@@ -160,6 +162,10 @@ export type Bank = {
    * single-pool on-ramp account in NAV.
    * - Bit 11 (2048): `CIRCUIT_BREAKER_ENABLED` — oracle deviation breaker active on this bank
    * - Bit 12 (4096): `BANK_SAME_ASSET_EMODE_ELIGIBLE` — bank may participate in same-asset e-mode.
+   * - Bit 13 (8192): `PREMIUM_ACTIVE` — a liability-bank flag: balances borrowing from this
+   * bank accrue the pairwise variable-borrow premium and project it in health checks.
+   * - Bit 14 (16384): `KAMINO_MARKET_EMERGENCY` — the Kamino lending market behind this bank is
+   * in emergency mode, so the bank backs no new borrowing.
    */
   flags: bigint;
   /**
@@ -244,7 +250,12 @@ export type Bank = {
    * Tracks net outflow (outflows - inflows) in native tokens.
    */
   rateLimiter: BankRateLimiter;
-  padAfterRateLimiter: ReadonlyUint8Array;
+  /**
+   * Realized variable-borrow premium sitting in the liquidity vault, pending sweep to the
+   * protocol premium wallet's canonical ATA for `mint`. Only incremented when premium tokens
+   * are actually received (repay); never by mere accrual.
+   */
+  collectedPremiumOutstanding: WrappedI80F48;
   /**
    * * `0` for legacy banks created via `lending_pool_add_bank` (created via keypair, not a PDA),
    * or pre-backfill banks (1.8 or earlier) where seed remains unknown.
@@ -299,7 +310,22 @@ export type Bank = {
    * a paused pulse; the next accrual excludes these on top of the current halt. Zero normally.
    */
   cbFrozenSecondsPending: bigint;
-  padding1: Array<bigint>;
+  /**
+   * Tag for the group's pairwise variable-borrow premium matrix. Determines the rate other
+   * accounts pay when this bank is offered as collateral (as `collateral_tag`) and the rate
+   * this bank's borrowers pay (as `liability_tag`).
+   * * 0 = untagged: never matches any premium entry.
+   */
+  premiumTag: number;
+  pad3: ReadonlyUint8Array;
+  /**
+   * Unix timestamp of the most recent inactive->active `PREMIUM_ACTIVE` transition. Premium
+   * accrual is clamped to start no earlier than this, so toggling the flag off and back on
+   * can never charge for (or health-project) the deactivated window.
+   * * 0 on banks that never activated premium.
+   */
+  premiumActivatedAt: bigint;
+  padding1: Array<Array<bigint>>;
 };
 
 export type BankArgs = {
@@ -384,6 +410,10 @@ export type BankArgs = {
    * single-pool on-ramp account in NAV.
    * - Bit 11 (2048): `CIRCUIT_BREAKER_ENABLED` — oracle deviation breaker active on this bank
    * - Bit 12 (4096): `BANK_SAME_ASSET_EMODE_ELIGIBLE` — bank may participate in same-asset e-mode.
+   * - Bit 13 (8192): `PREMIUM_ACTIVE` — a liability-bank flag: balances borrowing from this
+   * bank accrue the pairwise variable-borrow premium and project it in health checks.
+   * - Bit 14 (16384): `KAMINO_MARKET_EMERGENCY` — the Kamino lending market behind this bank is
+   * in emergency mode, so the bank backs no new borrowing.
    */
   flags: number | bigint;
   /**
@@ -468,7 +498,12 @@ export type BankArgs = {
    * Tracks net outflow (outflows - inflows) in native tokens.
    */
   rateLimiter: BankRateLimiterArgs;
-  padAfterRateLimiter: ReadonlyUint8Array;
+  /**
+   * Realized variable-borrow premium sitting in the liquidity vault, pending sweep to the
+   * protocol premium wallet's canonical ATA for `mint`. Only incremented when premium tokens
+   * are actually received (repay); never by mere accrual.
+   */
+  collectedPremiumOutstanding: WrappedI80F48Args;
   /**
    * * `0` for legacy banks created via `lending_pool_add_bank` (created via keypair, not a PDA),
    * or pre-backfill banks (1.8 or earlier) where seed remains unknown.
@@ -523,7 +558,22 @@ export type BankArgs = {
    * a paused pulse; the next accrual excludes these on top of the current halt. Zero normally.
    */
   cbFrozenSecondsPending: number | bigint;
-  padding1: Array<number | bigint>;
+  /**
+   * Tag for the group's pairwise variable-borrow premium matrix. Determines the rate other
+   * accounts pay when this bank is offered as collateral (as `collateral_tag`) and the rate
+   * this bank's borrowers pay (as `liability_tag`).
+   * * 0 = untagged: never matches any premium entry.
+   */
+  premiumTag: number;
+  pad3: ReadonlyUint8Array;
+  /**
+   * Unix timestamp of the most recent inactive->active `PREMIUM_ACTIVE` transition. Premium
+   * accrual is clamped to start no earlier than this, so toggling the flag off and back on
+   * can never charge for (or health-project) the deactivated window.
+   * * 0 on banks that never activated premium.
+   */
+  premiumActivatedAt: number | bigint;
+  padding1: Array<Array<number | bigint>>;
 };
 
 /** Gets the encoder for {@link BankArgs} account data. */
@@ -571,7 +621,7 @@ export function getBankEncoder(): FixedSizeEncoder<BankArgs> {
       ["integrationAcc2", getAddressEncoder()],
       ["integrationAcc3", getAddressEncoder()],
       ["rateLimiter", getBankRateLimiterEncoder()],
-      ["padAfterRateLimiter", fixEncoderSize(getBytesEncoder(), 16)],
+      ["collectedPremiumOutstanding", getWrappedI80F48Encoder()],
       ["bankSeed", getU64Encoder()],
       ["cbHaltStartedAt", getI64Encoder()],
       ["cbHaltEndedAt", getI64Encoder()],
@@ -585,7 +635,10 @@ export function getBankEncoder(): FixedSizeEncoder<BankArgs> {
       ["cbWindowReferencePrice", getWrappedI80F48Encoder()],
       ["cbWindowStartedAt", getI64Encoder()],
       ["cbFrozenSecondsPending", getU64Encoder()],
-      ["padding1", getArrayEncoder(getU64Encoder(), { size: 2 })],
+      ["premiumTag", getU16Encoder()],
+      ["pad3", fixEncoderSize(getBytesEncoder(), 6)],
+      ["premiumActivatedAt", getI64Encoder()],
+      ["padding1", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 8 }), { size: 32 })],
     ]),
     (value) => ({ ...value, discriminator: BANK_DISCRIMINATOR })
   );
@@ -635,7 +688,7 @@ export function getBankDecoder(): FixedSizeDecoder<Bank> {
     ["integrationAcc2", getAddressDecoder()],
     ["integrationAcc3", getAddressDecoder()],
     ["rateLimiter", getBankRateLimiterDecoder()],
-    ["padAfterRateLimiter", fixDecoderSize(getBytesDecoder(), 16)],
+    ["collectedPremiumOutstanding", getWrappedI80F48Decoder()],
     ["bankSeed", getU64Decoder()],
     ["cbHaltStartedAt", getI64Decoder()],
     ["cbHaltEndedAt", getI64Decoder()],
@@ -649,7 +702,10 @@ export function getBankDecoder(): FixedSizeDecoder<Bank> {
     ["cbWindowReferencePrice", getWrappedI80F48Decoder()],
     ["cbWindowStartedAt", getI64Decoder()],
     ["cbFrozenSecondsPending", getU64Decoder()],
-    ["padding1", getArrayDecoder(getU64Decoder(), { size: 2 })],
+    ["premiumTag", getU16Decoder()],
+    ["pad3", fixDecoderSize(getBytesDecoder(), 6)],
+    ["premiumActivatedAt", getI64Decoder()],
+    ["padding1", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 8 }), { size: 32 })],
   ]);
 }
 
@@ -709,5 +765,5 @@ export async function fetchAllMaybeBank(
 }
 
 export function getBankSize(): number {
-  return 1864;
+  return 3912;
 }

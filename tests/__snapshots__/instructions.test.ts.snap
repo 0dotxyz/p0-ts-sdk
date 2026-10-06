@@ -220,6 +220,11 @@ exports[`marginfi instruction wire format > makeCloseAccountIx 1`] = `
       true,
       true,
     ],
+    [
+      "G4TSsvzqVbXzixyff8AynynfkQT3RGUshy3GsTSFzuJU",
+      false,
+      false,
+    ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
 }
@@ -883,6 +888,11 @@ exports[`marginfi instruction wire format > makeGroupInitIx 1`] = `
     ],
     [
       "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
       false,
       false,
     ],
@@ -2248,6 +2258,11 @@ exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleIx
       true,
     ],
     [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
       "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
       false,
       false,
@@ -2282,7 +2297,51 @@ exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleSc
       true,
     ],
     [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
       "5oEzAP4izB65uRm2yDAEf9oALGwHpWkDfyKb8zBY3euC",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makeLendingPoolConfigureBankOracleScopeIx integration account 1`] = `
+{
+  "data": "86e47f03758455924747474747474747474747474747474747474747474747474747474747474747ff01",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "5oEzAP4izB65uRm2yDAEf9oALGwHpWkDfyKb8zBY3euC",
+      false,
+      false,
+    ],
+    [
+      "5sAHJgXjaUPK3X1YQWV9x2ZvaS9VVaS3ENzFCNE8nzDu",
       false,
       false,
     ],
@@ -2309,6 +2368,11 @@ exports[`marginfi instruction wire format > makeLendingPoolSetOraclePriceIx 1`] 
       "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
       false,
       true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
     ],
     [
       "DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F",
@@ -2401,6 +2465,11 @@ exports[`marginfi instruction wire format > makePoolAddBankIx 1`] = `
     ],
     [
       "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
       false,
       false,
     ],
@@ -2617,9 +2686,9 @@ exports[`marginfi instruction wire format > makePoolAddPermissionlessStakedBankI
 }
 `;
 
-exports[`marginfi instruction wire format > makePoolConfigureBankIx 1`] = `
+exports[`marginfi instruction wire format > makePoolConfigureBankGovIx 1`] = `
 {
-  "data": "79ad9c285d9438ed0101010101010101010101010101010101000102020202020202020202020202020202000140420f00000000000001010101030303030303030303030303030303030104040404040404040404040404040404010505050505050505050505050505050501060606060606060606060606060606060107070707070707070707070707070707010a0000000114000000010000000000000000010000000200000002000000040000000300000006000000040000000800000001010102000164000000013c00010101000000000000000000000000",
+  "data": "7a578d56b62292190101010101010101010101010101010101000102020202020202020202020202020202000101010101020164000000013c00000100",
   "keys": [
     [
       "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
@@ -2635,6 +2704,40 @@ exports[`marginfi instruction wire format > makePoolConfigureBankIx 1`] = `
       "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
       false,
       true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePoolConfigureBankIx 1`] = `
+{
+  "data": "79ad9c285d9438ed0140420f00000000000001010101030303030303030303030303030303030104040404040404040404040404040404010505050505050505050505050505050501060606060606060606060606060606060107070707070707070707070707070707010a0000000114000000010000000000000000010000000200000002000000040000000300000006000000040000000800000000010100000000000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      true,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
+      false,
+      false,
     ],
   ],
   "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",

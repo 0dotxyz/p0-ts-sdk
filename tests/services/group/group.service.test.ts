@@ -34,7 +34,7 @@ describe("group admin instructions", () => {
     const ix = await makePoolAddBankIx({
       programAddress,
       groupAddress: key(1),
-      admin: createNoopSigner(key(5)),
+      governanceAdmin: createNoopSigner(key(5)),
       globalFeeWallet: key(6),
       feePayer: createNoopSigner(key(3)),
       bank: createNoopSigner(key(2)),

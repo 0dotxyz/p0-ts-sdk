@@ -49,6 +49,10 @@ import {
   getGroupRateLimiterEncoder,
   getPanicStateCacheDecoder,
   getPanicStateCacheEncoder,
+  getPremiumEntryDecoder,
+  getPremiumEntryEncoder,
+  getPremiumSettingsDecoder,
+  getPremiumSettingsEncoder,
   getWithdrawWindowCacheDecoder,
   getWithdrawWindowCacheEncoder,
   type FeeStateCache,
@@ -57,6 +61,10 @@ import {
   type GroupRateLimiterArgs,
   type PanicStateCache,
   type PanicStateCacheArgs,
+  type PremiumEntry,
+  type PremiumEntryArgs,
+  type PremiumSettings,
+  type PremiumSettingsArgs,
   type WithdrawWindowCache,
   type WithdrawWindowCacheArgs,
 } from "../types";
@@ -71,7 +79,13 @@ export function getMarginfiGroupDiscriminatorBytes(): ReadonlyUint8Array {
 
 export type MarginfiGroup = {
   discriminator: ReadonlyUint8Array;
-  /** Broadly able to modify anything, and can set/remove other admins at will. */
+  /**
+   * Broadly able to modify anything, and can set/remove other admins at will.
+   *
+   * Subsequent to the release of the `governance_admin`, this role can be considered the "fast" admin,
+   * it can perform various tasks that do not require timelock sensitivity. High-risk activities
+   * like changing oracles or bank weights are now under the control of the "slow" governance admin.
+   */
   admin: Address;
   /**
    * Bitmask for group settings flags.
@@ -126,12 +140,12 @@ export type MarginfiGroup = {
   metadataAdmin: Address;
   /**
    * Maximum leverage allowed for emode positions (initial margin), stored as u32 basis.
-   * Use `u32_to_basis` to convert to I80F48. Range: 1-100.
+   * Use `u32_to_basis` to convert to I80F48. Range: 1-100; 0 is unset and bounds nothing.
    */
   emodeMaxInitLeverage: number;
   /**
    * Maximum leverage allowed for emode positions (maintenance margin), stored as u32 basis.
-   * Must be > emode_max_init_leverage. Range: 1-100.
+   * Must be > emode_max_init_leverage. Range: 1-100; 0 is unset and bounds nothing.
    */
   emodeMaxMaintLeverage: number;
   /**
@@ -143,6 +157,9 @@ export type MarginfiGroup = {
   /**
    * Encoded same-asset automatic emode leverage for maintenance margin.
    * Decode with `u32_to_basis`. Ordering is validated in decoded space.
+   * Eligible banks have their liquidation fees checked against this value only when they opt in
+   * while it is enabled or when they change fees. Enabling or raising it does not re-check them,
+   * so verify every eligible bank off-chain first.
    */
   sameAssetEmodeMaintLeverage: number;
   /**
@@ -169,13 +186,39 @@ export type MarginfiGroup = {
    * does not itself compromise any funds, and is merely annoying.
    */
   delegateFlowAdmin: Address;
-  padding0: Array<Array<bigint>>;
-  padding1: Array<Array<bigint>>;
+  /**
+   * Header for the pairwise variable-borrow premium matrix stored in `premium_entries`.
+   * Occupies the former `_padding_0`/`_padding_1` region of the v1 layout, so v1 accounts
+   * resize to a zeroed header (matrix off).
+   */
+  premiumSettings: PremiumSettings;
+  /**
+   * Pairwise variable-borrow premium rates, keyed by (collateral `premium_tag`, liability
+   * `premium_tag`). Live entries occupy the first `premium_settings.entry_count` slots.
+   * Read only via `find_premium_rate`. Future capacity growth carves from `_padding_2`.
+   */
+  premiumEntries: Array<PremiumEntry>;
+  /**
+   * Also called the "slow" admin. Dedicated authority for time-locked configuration. Legacy
+   * groups have this field zeroed after resize and must be bootstrapped by the fast admin with
+   * `marginfi_group_set_governance_admin` before slow-authority operations are available.
+   *
+   * This is the first 32 bytes of post-v1 reserved space; renaming the field does not alter
+   * any serialized account bytes.
+   */
+  governanceAdmin: Address;
   padding2: Array<Array<bigint>>;
+  padding3: Array<bigint>;
 };
 
 export type MarginfiGroupArgs = {
-  /** Broadly able to modify anything, and can set/remove other admins at will. */
+  /**
+   * Broadly able to modify anything, and can set/remove other admins at will.
+   *
+   * Subsequent to the release of the `governance_admin`, this role can be considered the "fast" admin,
+   * it can perform various tasks that do not require timelock sensitivity. High-risk activities
+   * like changing oracles or bank weights are now under the control of the "slow" governance admin.
+   */
   admin: Address;
   /**
    * Bitmask for group settings flags.
@@ -230,12 +273,12 @@ export type MarginfiGroupArgs = {
   metadataAdmin: Address;
   /**
    * Maximum leverage allowed for emode positions (initial margin), stored as u32 basis.
-   * Use `u32_to_basis` to convert to I80F48. Range: 1-100.
+   * Use `u32_to_basis` to convert to I80F48. Range: 1-100; 0 is unset and bounds nothing.
    */
   emodeMaxInitLeverage: number;
   /**
    * Maximum leverage allowed for emode positions (maintenance margin), stored as u32 basis.
-   * Must be > emode_max_init_leverage. Range: 1-100.
+   * Must be > emode_max_init_leverage. Range: 1-100; 0 is unset and bounds nothing.
    */
   emodeMaxMaintLeverage: number;
   /**
@@ -247,6 +290,9 @@ export type MarginfiGroupArgs = {
   /**
    * Encoded same-asset automatic emode leverage for maintenance margin.
    * Decode with `u32_to_basis`. Ordering is validated in decoded space.
+   * Eligible banks have their liquidation fees checked against this value only when they opt in
+   * while it is enabled or when they change fees. Enabling or raising it does not re-check them,
+   * so verify every eligible bank off-chain first.
    */
   sameAssetEmodeMaintLeverage: number;
   /**
@@ -273,9 +319,29 @@ export type MarginfiGroupArgs = {
    * does not itself compromise any funds, and is merely annoying.
    */
   delegateFlowAdmin: Address;
-  padding0: Array<Array<number | bigint>>;
-  padding1: Array<Array<number | bigint>>;
+  /**
+   * Header for the pairwise variable-borrow premium matrix stored in `premium_entries`.
+   * Occupies the former `_padding_0`/`_padding_1` region of the v1 layout, so v1 accounts
+   * resize to a zeroed header (matrix off).
+   */
+  premiumSettings: PremiumSettingsArgs;
+  /**
+   * Pairwise variable-borrow premium rates, keyed by (collateral `premium_tag`, liability
+   * `premium_tag`). Live entries occupy the first `premium_settings.entry_count` slots.
+   * Read only via `find_premium_rate`. Future capacity growth carves from `_padding_2`.
+   */
+  premiumEntries: Array<PremiumEntryArgs>;
+  /**
+   * Also called the "slow" admin. Dedicated authority for time-locked configuration. Legacy
+   * groups have this field zeroed after resize and must be bootstrapped by the fast admin with
+   * `marginfi_group_set_governance_admin` before slow-authority operations are available.
+   *
+   * This is the first 32 bytes of post-v1 reserved space; renaming the field does not alter
+   * any serialized account bytes.
+   */
+  governanceAdmin: Address;
   padding2: Array<Array<number | bigint>>;
+  padding3: Array<number | bigint>;
 };
 
 /** Gets the encoder for {@link MarginfiGroupArgs} account data. */
@@ -306,9 +372,11 @@ export function getMarginfiGroupEncoder(): FixedSizeEncoder<MarginfiGroupArgs> {
       ["deleverageWithdrawLastAdminUpdateSlot", getU64Encoder()],
       ["deleverageWithdrawLastAdminUpdateSeq", getU64Encoder()],
       ["delegateFlowAdmin", getAddressEncoder()],
-      ["padding0", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 2 }), { size: 2 })],
-      ["padding1", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 2 }), { size: 32 })],
-      ["padding2", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 32 }), { size: 32 })],
+      ["premiumSettings", getPremiumSettingsEncoder()],
+      ["premiumEntries", getArrayEncoder(getPremiumEntryEncoder(), { size: 64 })],
+      ["governanceAdmin", getAddressEncoder()],
+      ["padding2", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 32 }), { size: 31 })],
+      ["padding3", getArrayEncoder(getU64Encoder(), { size: 28 })],
     ]),
     (value) => ({ ...value, discriminator: MARGINFI_GROUP_DISCRIMINATOR })
   );
@@ -341,9 +409,11 @@ export function getMarginfiGroupDecoder(): FixedSizeDecoder<MarginfiGroup> {
     ["deleverageWithdrawLastAdminUpdateSlot", getU64Decoder()],
     ["deleverageWithdrawLastAdminUpdateSeq", getU64Decoder()],
     ["delegateFlowAdmin", getAddressDecoder()],
-    ["padding0", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 2 }), { size: 2 })],
-    ["padding1", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 2 }), { size: 32 })],
-    ["padding2", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 32 }), { size: 32 })],
+    ["premiumSettings", getPremiumSettingsDecoder()],
+    ["premiumEntries", getArrayDecoder(getPremiumEntryDecoder(), { size: 64 })],
+    ["governanceAdmin", getAddressDecoder()],
+    ["padding2", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 32 }), { size: 31 })],
+    ["padding3", getArrayDecoder(getU64Decoder(), { size: 28 })],
   ]);
 }
 

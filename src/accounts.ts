@@ -4,6 +4,7 @@ import {
   BANK_DISCRIMINATOR,
   FEE_STATE_DISCRIMINATOR,
   getBankDecoder,
+  getBankSize,
   getFeeStateDecoder,
   getMarginfiAccountDecoder,
   getMarginfiGroupDecoder,
@@ -25,11 +26,15 @@ export {
 } from "./generated/marginfi";
 
 /**
- * Decodes a marginfi `Bank` account.
+ * Decodes a marginfi `Bank` account. Banks not yet resized to the 0.1.12 layout
+ * (`lending_pool_resize_bank_account`) lack the trailing padding; it's read as zeros, as the
+ * program does after a resize.
  * @throws if the discriminator doesn't match
  */
 export function decodeBankRaw(data: ReadonlyUint8Array): Bank {
-  return decodeAccountData(data, BANK_DISCRIMINATOR, getBankDecoder(), "marginfi Bank");
+  const padded = new Uint8Array(Math.max(data.length, getBankSize()));
+  padded.set(data);
+  return decodeAccountData(padded, BANK_DISCRIMINATOR, getBankDecoder(), "marginfi Bank");
 }
 
 /**

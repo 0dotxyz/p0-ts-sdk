@@ -73,10 +73,7 @@ export type MinimalObligation = {
   deposits: Array<MinimalObligationCollateral>;
   lowestReserveDepositLiquidationLtv: bigint;
   depositedValueSf: ReadonlyUint8Array;
-  paddingPart1: ReadonlyUint8Array;
-  paddingPart2: ReadonlyUint8Array;
-  paddingPart3: ReadonlyUint8Array;
-  paddingPart4: ReadonlyUint8Array;
+  padding1: ReadonlyUint8Array;
   paddingPart5a: ReadonlyUint8Array;
   paddingPart5c: ReadonlyUint8Array;
 };
@@ -118,10 +115,7 @@ export type MinimalObligationArgs = {
   deposits: Array<MinimalObligationCollateralArgs>;
   lowestReserveDepositLiquidationLtv: number | bigint;
   depositedValueSf: ReadonlyUint8Array;
-  paddingPart1: ReadonlyUint8Array;
-  paddingPart2: ReadonlyUint8Array;
-  paddingPart3: ReadonlyUint8Array;
-  paddingPart4: ReadonlyUint8Array;
+  padding1: ReadonlyUint8Array;
   paddingPart5a: ReadonlyUint8Array;
   paddingPart5c: ReadonlyUint8Array;
 };
@@ -138,10 +132,7 @@ export function getMinimalObligationEncoder(): FixedSizeEncoder<MinimalObligatio
     ["deposits", getArrayEncoder(getMinimalObligationCollateralEncoder(), { size: 8 })],
     ["lowestReserveDepositLiquidationLtv", getU64Encoder()],
     ["depositedValueSf", fixEncoderSize(getBytesEncoder(), 16)],
-    ["paddingPart1", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart2", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart3", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart4", fixEncoderSize(getBytesEncoder(), 512)],
+    ["padding1", fixEncoderSize(getBytesEncoder(), 2048)],
     ["paddingPart5a", fixEncoderSize(getBytesEncoder(), 64)],
     ["paddingPart5c", fixEncoderSize(getBytesEncoder(), 24)],
   ]);
@@ -159,10 +150,7 @@ export function getMinimalObligationDecoder(): FixedSizeDecoder<MinimalObligatio
     ["deposits", getArrayDecoder(getMinimalObligationCollateralDecoder(), { size: 8 })],
     ["lowestReserveDepositLiquidationLtv", getU64Decoder()],
     ["depositedValueSf", fixDecoderSize(getBytesDecoder(), 16)],
-    ["paddingPart1", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart2", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart3", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart4", fixDecoderSize(getBytesDecoder(), 512)],
+    ["padding1", fixDecoderSize(getBytesDecoder(), 2048)],
     ["paddingPart5a", fixDecoderSize(getBytesDecoder(), 64)],
     ["paddingPart5c", fixDecoderSize(getBytesDecoder(), 24)],
   ]);

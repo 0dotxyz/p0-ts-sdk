@@ -32,11 +32,17 @@ import {
   type FixedSizeEncoder,
   type ReadonlyUint8Array,
 } from "@solana/kit";
+import {
+  getInsuranceFundDecoder,
+  getInsuranceFundEncoder,
+  type InsuranceFund,
+  type InsuranceFundArgs,
+} from ".";
 
 /**
  * Minimal representation of Drift's SpotMarket account
  * Only includes the fields we actually need for marginfi integration
- * https://github.com/drift-labs/protocol-v2/tree/master/programs/drift/src/state/spot_market.rs#L35
+ * https://github.com/drift-labs/protocol-v2/blob/master/programs/drift/src/state/spot_market.rs#L33-L211
  */
 export type MinimalSpotMarket = {
   /** The address of the spot market. It is a pda of the market index */
@@ -47,27 +53,56 @@ export type MinimalSpotMarket = {
   mint: Address;
   /** The vault used to store the market's deposits */
   vault: Address;
-  padding1: Array<Array<bigint>>;
-  padding2: ReadonlyUint8Array;
+  /**
+   * SpotMarket fields between `vault` and `insurance_fund`; unused by marginfi, sized to match
+   * upstream.
+   */
+  name: ReadonlyUint8Array;
+  historicalOracleData: Array<bigint>;
+  historicalIndexData: Array<bigint>;
+  revenuePool: Array<bigint>;
+  spotFeePool: Array<bigint>;
+  insuranceFund: InsuranceFund;
+  totalSpotFee: Array<bigint>;
   /** All the fields we need for testing (stored as raw bytes for simplicity) */
   depositBalance: ReadonlyUint8Array;
   borrowBalance: ReadonlyUint8Array;
   cumulativeDepositInterest: ReadonlyUint8Array;
   cumulativeBorrowInterest: ReadonlyUint8Array;
-  padding3: Array<bigint>;
+  padding1: Array<bigint>;
+  /** Deposit ceiling in native mint precision; `0` is uncapped. */
+  maxTokenDeposits: bigint;
+  padding2: Array<bigint>;
   /**
    * Last time the cumulative deposit and borrow interest was updated
    * Offset: 568 bytes from start of struct (including discriminator)
    */
   lastInterestTs: bigint;
-  padding4: Array<bigint>;
+  padding3: Array<bigint>;
+  padding4: ReadonlyUint8Array;
+  /** Drift spot interest-rate curve params (`SpotMarket`), precision 1e6. */
+  optimalUtilization: number;
+  optimalBorrowRate: number;
+  maxBorrowRate: number;
   decimals: number;
   marketIndex: number;
   padding5: Array<number>;
+  /**
+   * `MarketStatus`; `0` is `Initialized`, the warm-up state that rejects deposits, and `1` is
+   * `Active`.
+   */
+  status: number;
   padding6: ReadonlyUint8Array;
+  /** `SpotOperation` pause bitmask; bit 0 (`UpdateCumulativeInterest`) stops interest accrual. */
+  pausedOperations: number;
+  padding7: ReadonlyUint8Array;
+  padding8: ReadonlyUint8Array;
+  /** Borrow-rate floor, in units of `PERCENTAGE_PRECISION / 200`. */
+  minBorrowRate: number;
+  padding9: ReadonlyUint8Array;
   poolId: number;
   /** Padding to reach 776 bytes total (including discriminator) */
-  padding7: Array<bigint>;
+  padding10: Array<bigint>;
 };
 
 export type MinimalSpotMarketArgs = {
@@ -79,27 +114,56 @@ export type MinimalSpotMarketArgs = {
   mint: Address;
   /** The vault used to store the market's deposits */
   vault: Address;
-  padding1: Array<Array<number | bigint>>;
-  padding2: ReadonlyUint8Array;
+  /**
+   * SpotMarket fields between `vault` and `insurance_fund`; unused by marginfi, sized to match
+   * upstream.
+   */
+  name: ReadonlyUint8Array;
+  historicalOracleData: Array<number | bigint>;
+  historicalIndexData: Array<number | bigint>;
+  revenuePool: Array<number | bigint>;
+  spotFeePool: Array<number | bigint>;
+  insuranceFund: InsuranceFundArgs;
+  totalSpotFee: Array<number | bigint>;
   /** All the fields we need for testing (stored as raw bytes for simplicity) */
   depositBalance: ReadonlyUint8Array;
   borrowBalance: ReadonlyUint8Array;
   cumulativeDepositInterest: ReadonlyUint8Array;
   cumulativeBorrowInterest: ReadonlyUint8Array;
-  padding3: Array<number | bigint>;
+  padding1: Array<number | bigint>;
+  /** Deposit ceiling in native mint precision; `0` is uncapped. */
+  maxTokenDeposits: number | bigint;
+  padding2: Array<number | bigint>;
   /**
    * Last time the cumulative deposit and borrow interest was updated
    * Offset: 568 bytes from start of struct (including discriminator)
    */
   lastInterestTs: number | bigint;
-  padding4: Array<number | bigint>;
+  padding3: Array<number | bigint>;
+  padding4: ReadonlyUint8Array;
+  /** Drift spot interest-rate curve params (`SpotMarket`), precision 1e6. */
+  optimalUtilization: number;
+  optimalBorrowRate: number;
+  maxBorrowRate: number;
   decimals: number;
   marketIndex: number;
   padding5: Array<number>;
+  /**
+   * `MarketStatus`; `0` is `Initialized`, the warm-up state that rejects deposits, and `1` is
+   * `Active`.
+   */
+  status: number;
   padding6: ReadonlyUint8Array;
+  /** `SpotOperation` pause bitmask; bit 0 (`UpdateCumulativeInterest`) stops interest accrual. */
+  pausedOperations: number;
+  padding7: ReadonlyUint8Array;
+  padding8: ReadonlyUint8Array;
+  /** Borrow-rate floor, in units of `PERCENTAGE_PRECISION / 200`. */
+  minBorrowRate: number;
+  padding9: ReadonlyUint8Array;
   poolId: number;
   /** Padding to reach 776 bytes total (including discriminator) */
-  padding7: Array<number | bigint>;
+  padding10: Array<number | bigint>;
 };
 
 export function getMinimalSpotMarketEncoder(): FixedSizeEncoder<MinimalSpotMarketArgs> {
@@ -108,21 +172,38 @@ export function getMinimalSpotMarketEncoder(): FixedSizeEncoder<MinimalSpotMarke
     ["oracle", getAddressEncoder()],
     ["mint", getAddressEncoder()],
     ["vault", getAddressEncoder()],
-    ["padding1", getArrayEncoder(getArrayEncoder(getU64Encoder(), { size: 4 }), { size: 9 })],
-    ["padding2", fixEncoderSize(getBytesEncoder(), 8)],
+    ["name", fixEncoderSize(getBytesEncoder(), 32)],
+    ["historicalOracleData", getArrayEncoder(getU64Encoder(), { size: 6 })],
+    ["historicalIndexData", getArrayEncoder(getU64Encoder(), { size: 5 })],
+    ["revenuePool", getArrayEncoder(getU64Encoder(), { size: 3 })],
+    ["spotFeePool", getArrayEncoder(getU64Encoder(), { size: 3 })],
+    ["insuranceFund", getInsuranceFundEncoder()],
+    ["totalSpotFee", getArrayEncoder(getU64Encoder(), { size: 2 })],
     ["depositBalance", fixEncoderSize(getBytesEncoder(), 16)],
     ["borrowBalance", fixEncoderSize(getBytesEncoder(), 16)],
     ["cumulativeDepositInterest", fixEncoderSize(getBytesEncoder(), 16)],
     ["cumulativeBorrowInterest", fixEncoderSize(getBytesEncoder(), 16)],
-    ["padding3", getArrayEncoder(getU64Encoder(), { size: 9 })],
+    ["padding1", getArrayEncoder(getU64Encoder(), { size: 5 })],
+    ["maxTokenDeposits", getU64Encoder()],
+    ["padding2", getArrayEncoder(getU64Encoder(), { size: 3 })],
     ["lastInterestTs", getU64Encoder()],
-    ["padding4", getArrayEncoder(getU64Encoder(), { size: 13 })],
+    ["padding3", getArrayEncoder(getU64Encoder(), { size: 11 })],
+    ["padding4", fixEncoderSize(getBytesEncoder(), 4)],
+    ["optimalUtilization", getU32Encoder()],
+    ["optimalBorrowRate", getU32Encoder()],
+    ["maxBorrowRate", getU32Encoder()],
     ["decimals", getU32Encoder()],
     ["marketIndex", getU16Encoder()],
-    ["padding5", getArrayEncoder(getU16Encoder(), { size: 24 })],
+    ["padding5", getArrayEncoder(getU16Encoder(), { size: 1 })],
+    ["status", getU8Encoder()],
     ["padding6", fixEncoderSize(getBytesEncoder(), 1)],
+    ["pausedOperations", getU8Encoder()],
+    ["padding7", fixEncoderSize(getBytesEncoder(), 30)],
+    ["padding8", fixEncoderSize(getBytesEncoder(), 7)],
+    ["minBorrowRate", getU8Encoder()],
+    ["padding9", fixEncoderSize(getBytesEncoder(), 6)],
     ["poolId", getU8Encoder()],
-    ["padding7", getArrayEncoder(getU64Encoder(), { size: 5 })],
+    ["padding10", getArrayEncoder(getU64Encoder(), { size: 5 })],
   ]);
 }
 
@@ -132,21 +213,38 @@ export function getMinimalSpotMarketDecoder(): FixedSizeDecoder<MinimalSpotMarke
     ["oracle", getAddressDecoder()],
     ["mint", getAddressDecoder()],
     ["vault", getAddressDecoder()],
-    ["padding1", getArrayDecoder(getArrayDecoder(getU64Decoder(), { size: 4 }), { size: 9 })],
-    ["padding2", fixDecoderSize(getBytesDecoder(), 8)],
+    ["name", fixDecoderSize(getBytesDecoder(), 32)],
+    ["historicalOracleData", getArrayDecoder(getU64Decoder(), { size: 6 })],
+    ["historicalIndexData", getArrayDecoder(getU64Decoder(), { size: 5 })],
+    ["revenuePool", getArrayDecoder(getU64Decoder(), { size: 3 })],
+    ["spotFeePool", getArrayDecoder(getU64Decoder(), { size: 3 })],
+    ["insuranceFund", getInsuranceFundDecoder()],
+    ["totalSpotFee", getArrayDecoder(getU64Decoder(), { size: 2 })],
     ["depositBalance", fixDecoderSize(getBytesDecoder(), 16)],
     ["borrowBalance", fixDecoderSize(getBytesDecoder(), 16)],
     ["cumulativeDepositInterest", fixDecoderSize(getBytesDecoder(), 16)],
     ["cumulativeBorrowInterest", fixDecoderSize(getBytesDecoder(), 16)],
-    ["padding3", getArrayDecoder(getU64Decoder(), { size: 9 })],
+    ["padding1", getArrayDecoder(getU64Decoder(), { size: 5 })],
+    ["maxTokenDeposits", getU64Decoder()],
+    ["padding2", getArrayDecoder(getU64Decoder(), { size: 3 })],
     ["lastInterestTs", getU64Decoder()],
-    ["padding4", getArrayDecoder(getU64Decoder(), { size: 13 })],
+    ["padding3", getArrayDecoder(getU64Decoder(), { size: 11 })],
+    ["padding4", fixDecoderSize(getBytesDecoder(), 4)],
+    ["optimalUtilization", getU32Decoder()],
+    ["optimalBorrowRate", getU32Decoder()],
+    ["maxBorrowRate", getU32Decoder()],
     ["decimals", getU32Decoder()],
     ["marketIndex", getU16Decoder()],
-    ["padding5", getArrayDecoder(getU16Decoder(), { size: 24 })],
+    ["padding5", getArrayDecoder(getU16Decoder(), { size: 1 })],
+    ["status", getU8Decoder()],
     ["padding6", fixDecoderSize(getBytesDecoder(), 1)],
+    ["pausedOperations", getU8Decoder()],
+    ["padding7", fixDecoderSize(getBytesDecoder(), 30)],
+    ["padding8", fixDecoderSize(getBytesDecoder(), 7)],
+    ["minBorrowRate", getU8Decoder()],
+    ["padding9", fixDecoderSize(getBytesDecoder(), 6)],
     ["poolId", getU8Decoder()],
-    ["padding7", getArrayDecoder(getU64Decoder(), { size: 5 })],
+    ["padding10", getArrayDecoder(getU64Decoder(), { size: 5 })],
   ]);
 }
 

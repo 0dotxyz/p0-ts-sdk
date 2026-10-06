@@ -66,6 +66,8 @@ export type LendingPoolHandleBankruptcyInstruction<
   TAccountInsuranceVaultAuthority extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -91,6 +93,9 @@ export type LendingPoolHandleBankruptcyInstruction<
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -129,6 +134,7 @@ export type LendingPoolHandleBankruptcyAsyncInput<
   TAccountInsuranceVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountInsuranceVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   /**
@@ -142,6 +148,7 @@ export type LendingPoolHandleBankruptcyAsyncInput<
   insuranceVault?: TAccountInsuranceVault;
   insuranceVaultAuthority?: TAccountInsuranceVaultAuthority;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export async function getLendingPoolHandleBankruptcyInstructionAsync<
@@ -153,6 +160,7 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
   TAccountInsuranceVault extends InstructionAccountInput,
   TAccountInsuranceVaultAuthority extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolHandleBankruptcyAsyncInput<
@@ -163,7 +171,8 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
     TAccountLiquidityVault,
     TAccountInsuranceVault,
     TAccountInsuranceVaultAuthority,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
@@ -191,6 +200,10 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -214,6 +227,11 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
       isWritable: false,
     },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -243,6 +261,10 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -254,6 +276,7 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
       getAccountMeta("insuranceVault", accounts.insuranceVault),
       getAccountMeta("insuranceVaultAuthority", accounts.insuranceVaultAuthority),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolHandleBankruptcyInstructionDataEncoder().encode({}),
     programAddress,
@@ -281,6 +304,10 @@ export async function getLendingPoolHandleBankruptcyInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -294,6 +321,7 @@ export type LendingPoolHandleBankruptcyInput<
   TAccountInsuranceVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountInsuranceVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   /**
@@ -307,6 +335,7 @@ export type LendingPoolHandleBankruptcyInput<
   insuranceVault: TAccountInsuranceVault;
   insuranceVaultAuthority: TAccountInsuranceVaultAuthority;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getLendingPoolHandleBankruptcyInstruction<
@@ -318,6 +347,7 @@ export function getLendingPoolHandleBankruptcyInstruction<
   TAccountInsuranceVault extends InstructionAccountInput,
   TAccountInsuranceVaultAuthority extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolHandleBankruptcyInput<
@@ -328,7 +358,8 @@ export function getLendingPoolHandleBankruptcyInstruction<
     TAccountLiquidityVault,
     TAccountInsuranceVault,
     TAccountInsuranceVaultAuthority,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolHandleBankruptcyInstruction<
@@ -355,6 +386,10 @@ export function getLendingPoolHandleBankruptcyInstruction<
   ResolvedInstructionAccountMeta<
     TAccountTokenProgram,
     InstructionAccountInputAddress<TAccountTokenProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -377,6 +412,11 @@ export function getLendingPoolHandleBankruptcyInstruction<
       isWritable: false,
     },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -387,6 +427,10 @@ export function getLendingPoolHandleBankruptcyInstruction<
   if (!accounts.tokenProgram.value) {
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
+  }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
   }
 
   return Object.freeze({
@@ -399,6 +443,7 @@ export function getLendingPoolHandleBankruptcyInstruction<
       getAccountMeta("insuranceVault", accounts.insuranceVault),
       getAccountMeta("insuranceVaultAuthority", accounts.insuranceVaultAuthority),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolHandleBankruptcyInstructionDataEncoder().encode({}),
     programAddress,
@@ -426,6 +471,10 @@ export function getLendingPoolHandleBankruptcyInstruction<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -448,6 +497,7 @@ export type ParsedLendingPoolHandleBankruptcyInstruction<
     insuranceVault: TAccountMetas[5];
     insuranceVaultAuthority: TAccountMetas[6];
     tokenProgram: TAccountMetas[7];
+    instructionSysvar: TAccountMetas[8];
   };
   data: LendingPoolHandleBankruptcyInstructionData;
 };
@@ -460,10 +510,10 @@ export function parseLendingPoolHandleBankruptcyInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolHandleBankruptcyInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 8) {
+  if (instruction.accounts.length < 9) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 8,
+      expectedAccountMetas: 9,
     });
   }
   let accountIndex = 0;
@@ -483,6 +533,7 @@ export function parseLendingPoolHandleBankruptcyInstruction<
       insuranceVault: getNextAccount(),
       insuranceVaultAuthority: getNextAccount(),
       tokenProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolHandleBankruptcyInstructionDataDecoder().decode(instruction.data),
   };

@@ -34,6 +34,8 @@ const SETUP_INDICES: [OracleSetup, number][] = [
   [OracleSetup.JuplendLST, 24],
   [OracleSetup.PTPyth, 25],
   [OracleSetup.PTFixed, 26],
+  [OracleSetup.ScopeKamino, 27],
+  [OracleSetup.ScopeJuplend, 28],
 ];
 
 describe("OracleSetup (de)serialization", () => {
@@ -45,7 +47,7 @@ describe("OracleSetup (de)serialization", () => {
   });
 
   it("parses future (reserved) discriminants as Unknown instead of throwing", () => {
-    for (const index of [OracleSetupRaw.Reserved27, OracleSetupRaw.Reserved40, 63]) {
+    for (const index of [OracleSetupRaw.Reserved29, OracleSetupRaw.Reserved40, 63]) {
       expect(parseOracleSetup(index)).toBe(OracleSetup.Unknown);
     }
   });

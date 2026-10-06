@@ -57,18 +57,24 @@ export function getLendingPoolConfigureBankOracleScopeDiscriminatorBytes(): Read
 export type LendingPoolConfigureBankOracleScopeInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? ReadonlyAccount<TAccountGroup> : TAccountGroup,
-      TAccountAdmin extends string
-        ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
-        : TAccountAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -115,29 +121,44 @@ export function getLendingPoolConfigureBankOracleScopeInstructionDataCodec(): Fi
 
 export type LendingPoolConfigureBankOracleScopeInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: LendingPoolConfigureBankOracleScopeInstructionDataArgs["oracle"];
   entryIndex: LendingPoolConfigureBankOracleScopeInstructionDataArgs["entryIndex"];
 };
 
 export function getLendingPoolConfigureBankOracleScopeInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: LendingPoolConfigureBankOracleScopeInput<TAccountGroup, TAccountAdmin, TAccountBank>,
+  input: LendingPoolConfigureBankOracleScopeInput<
+    TAccountGroup,
+    TAccountGovernanceAdmin,
+    TAccountBank,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolConfigureBankOracleScopeInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -148,8 +169,13 @@ export function getLendingPoolConfigureBankOracleScopeInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -159,11 +185,18 @@ export function getLendingPoolConfigureBankOracleScopeInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolConfigureBankOracleScopeInstructionDataEncoder().encode(
       args as LendingPoolConfigureBankOracleScopeInstructionDataArgs
@@ -172,8 +205,15 @@ export function getLendingPoolConfigureBankOracleScopeInstruction<
   } as LendingPoolConfigureBankOracleScopeInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -184,8 +224,9 @@ export type ParsedLendingPoolConfigureBankOracleScopeInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    admin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolConfigureBankOracleScopeInstructionData;
 };
@@ -198,10 +239,10 @@ export function parseLendingPoolConfigureBankOracleScopeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolConfigureBankOracleScopeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -212,7 +253,12 @@ export function parseLendingPoolConfigureBankOracleScopeInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), admin: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      governanceAdmin: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolConfigureBankOracleScopeInstructionDataDecoder().decode(instruction.data),
   };
 }

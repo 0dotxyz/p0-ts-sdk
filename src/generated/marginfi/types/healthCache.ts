@@ -103,7 +103,9 @@ export type HealthCache = {
    * oracle cranks ran recently enough. Check `internal_err` and `err_index` for more details
    * in some circumstances. Invalid if generated after borrow/withdraw (these instructions will
    * ignore oracle issues if health is still satisfactory with some balance zeroed out).
-   * * 8, 16, 32, 64, 128, etc - reserved for future use
+   * * EMODE BOOSTED = 8 - If set, an emode or same-asset entry weights every collateral balance
+   * above its own bank's maintenance weight. Only written by maintenance passes.
+   * * 16, 32, 64, 128, etc - reserved for future use
    */
   flags: number;
   /**
@@ -199,7 +201,9 @@ export type HealthCacheArgs = {
    * oracle cranks ran recently enough. Check `internal_err` and `err_index` for more details
    * in some circumstances. Invalid if generated after borrow/withdraw (these instructions will
    * ignore oracle issues if health is still satisfactory with some balance zeroed out).
-   * * 8, 16, 32, 64, 128, etc - reserved for future use
+   * * EMODE BOOSTED = 8 - If set, an emode or same-asset entry weights every collateral balance
+   * above its own bank's maintenance weight. Only written by maintenance passes.
+   * * 16, 32, 64, 128, etc - reserved for future use
    */
   flags: number;
   /**

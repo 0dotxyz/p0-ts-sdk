@@ -57,6 +57,8 @@ export type ConfigGroupFeeInstruction<
   TAccountMarginfiGroup extends string | AccountMeta<string> = string,
   TAccountGlobalFeeAdmin extends string | AccountMeta<string> = string,
   TAccountFeeState extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -69,6 +71,9 @@ export type ConfigGroupFeeInstruction<
         ? ReadonlySignerAccount<TAccountGlobalFeeAdmin> & AccountSignerMeta<TAccountGlobalFeeAdmin>
         : TAccountGlobalFeeAdmin,
       TAccountFeeState extends string ? ReadonlyAccount<TAccountFeeState> : TAccountFeeState,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -111,11 +116,13 @@ export type ConfigGroupFeeAsyncInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   /** `global_fee_admin` of the FeeState */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState?: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
   enableProgramFee: ConfigGroupFeeInstructionDataArgs["enableProgramFee"];
 };
 
@@ -123,9 +130,15 @@ export async function getConfigGroupFeeInstructionAsync<
   TAccountMarginfiGroup extends InstructionAccountInput,
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: ConfigGroupFeeAsyncInput<TAccountMarginfiGroup, TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: ConfigGroupFeeAsyncInput<
+    TAccountMarginfiGroup,
+    TAccountGlobalFeeAdmin,
+    TAccountFeeState,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   ConfigGroupFeeInstruction<
@@ -141,6 +154,10 @@ export async function getConfigGroupFeeInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -155,6 +172,11 @@ export async function getConfigGroupFeeInstructionAsync<
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: true },
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -168,12 +190,17 @@ export async function getConfigGroupFeeInstructionAsync<
   if (!accounts.feeState.value) {
     accounts.feeState.value = await findFeeStatePda({ programAddress });
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getConfigGroupFeeInstructionDataEncoder().encode(
       args as ConfigGroupFeeInstructionDataArgs
@@ -192,6 +219,10 @@ export async function getConfigGroupFeeInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -200,11 +231,13 @@ export type ConfigGroupFeeInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   /** `global_fee_admin` of the FeeState */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
   enableProgramFee: ConfigGroupFeeInstructionDataArgs["enableProgramFee"];
 };
 
@@ -212,9 +245,15 @@ export function getConfigGroupFeeInstruction<
   TAccountMarginfiGroup extends InstructionAccountInput,
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: ConfigGroupFeeInput<TAccountMarginfiGroup, TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: ConfigGroupFeeInput<
+    TAccountMarginfiGroup,
+    TAccountGlobalFeeAdmin,
+    TAccountFeeState,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): ConfigGroupFeeInstruction<
   TProgramAddress,
@@ -226,7 +265,14 @@ export function getConfigGroupFeeInstruction<
     TAccountGlobalFeeAdmin,
     InstructionAccountInputAddress<TAccountGlobalFeeAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountFeeState, InstructionAccountInputAddress<TAccountFeeState>>
+  ResolvedInstructionAccountMeta<
+    TAccountFeeState,
+    InstructionAccountInputAddress<TAccountFeeState>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -239,6 +285,11 @@ export function getConfigGroupFeeInstruction<
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: true },
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -248,11 +299,18 @@ export function getConfigGroupFeeInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getConfigGroupFeeInstructionDataEncoder().encode(
       args as ConfigGroupFeeInstructionDataArgs
@@ -271,6 +329,10 @@ export function getConfigGroupFeeInstruction<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -285,6 +347,7 @@ export type ParsedConfigGroupFeeInstruction<
     /** `global_fee_admin` of the FeeState */
     globalFeeAdmin: TAccountMetas[1];
     feeState: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: ConfigGroupFeeInstructionData;
 };
@@ -297,10 +360,10 @@ export function parseConfigGroupFeeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedConfigGroupFeeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -315,6 +378,7 @@ export function parseConfigGroupFeeInstruction<
       marginfiGroup: getNextAccount(),
       globalFeeAdmin: getNextAccount(),
       feeState: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getConfigGroupFeeInstructionDataDecoder().decode(instruction.data),
   };

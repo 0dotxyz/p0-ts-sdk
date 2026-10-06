@@ -8,18 +8,16 @@
 
 import {
   combineCodec,
-  fixDecoderSize,
-  fixEncoderSize,
   getAddressDecoder,
   getAddressEncoder,
   getArrayDecoder,
   getArrayEncoder,
-  getBytesDecoder,
-  getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
   getU16Decoder,
   getU16Encoder,
+  getU32Decoder,
+  getU32Encoder,
   getU64Decoder,
   getU64Encoder,
   getU8Decoder,
@@ -28,7 +26,6 @@ import {
   type FixedSizeCodec,
   type FixedSizeDecoder,
   type FixedSizeEncoder,
-  type ReadonlyUint8Array,
 } from "@solana/kit";
 import {
   getWrappedI80F48Decoder,
@@ -52,7 +49,13 @@ export type Balance = {
    * A tag may also have a non-zero value while having no orders.
    */
   tag: number;
-  pad0: ReadonlyUint8Array;
+  /**
+   * Collateral-weighted variable-borrow premium APR snapshot for this liability position,
+   * encoded like interest-curve points via `milli_to_u32` (0-1000%). Recomputed by every
+   * oracle-carrying ix (borrow, withdraw, liquidation, order end, `pulse_health`) but not
+   * deposit/repay, which carry no oracles. 0 = no premium.
+   */
+  premiumRateSnapshot: number;
   /**
    * The user's asset (deposit) shares in the bank. Multiply by `bank.asset_share_value` for
    * the token amount.
@@ -63,9 +66,16 @@ export type Balance = {
    * for the token amount.
    */
   liabilityShares: WrappedI80F48;
-  /** Unclaimed emissions rewards for this position */
-  emissionsOutstanding: WrappedI80F48;
-  /** Unix timestamp (u64) of the last emissions calculation for this position */
+  /**
+   * Accrued (materialized) variable-borrow premium owed on this liability position, in native
+   * token units. Settled (with real tokens) only on repay; written off on bankruptcy,
+   * tokenless repayment, or a liability→asset flip.
+   */
+  premiumOutstanding: WrappedI80F48;
+  /**
+   * Unix timestamp (u64) of the last premium accrual (claim) for this position. Set at
+   * balance creation and bumped on every `claim_premium`.
+   */
   lastUpdate: bigint;
   /** Reserved for future use */
   padding: Array<bigint>;
@@ -86,7 +96,13 @@ export type BalanceArgs = {
    * A tag may also have a non-zero value while having no orders.
    */
   tag: number;
-  pad0: ReadonlyUint8Array;
+  /**
+   * Collateral-weighted variable-borrow premium APR snapshot for this liability position,
+   * encoded like interest-curve points via `milli_to_u32` (0-1000%). Recomputed by every
+   * oracle-carrying ix (borrow, withdraw, liquidation, order end, `pulse_health`) but not
+   * deposit/repay, which carry no oracles. 0 = no premium.
+   */
+  premiumRateSnapshot: number;
   /**
    * The user's asset (deposit) shares in the bank. Multiply by `bank.asset_share_value` for
    * the token amount.
@@ -97,9 +113,16 @@ export type BalanceArgs = {
    * for the token amount.
    */
   liabilityShares: WrappedI80F48Args;
-  /** Unclaimed emissions rewards for this position */
-  emissionsOutstanding: WrappedI80F48Args;
-  /** Unix timestamp (u64) of the last emissions calculation for this position */
+  /**
+   * Accrued (materialized) variable-borrow premium owed on this liability position, in native
+   * token units. Settled (with real tokens) only on repay; written off on bankruptcy,
+   * tokenless repayment, or a liability→asset flip.
+   */
+  premiumOutstanding: WrappedI80F48Args;
+  /**
+   * Unix timestamp (u64) of the last premium accrual (claim) for this position. Set at
+   * balance creation and bumped on every `claim_premium`.
+   */
   lastUpdate: number | bigint;
   /** Reserved for future use */
   padding: Array<number | bigint>;
@@ -111,10 +134,10 @@ export function getBalanceEncoder(): FixedSizeEncoder<BalanceArgs> {
     ["bankPk", getAddressEncoder()],
     ["bankAssetTag", getU8Encoder()],
     ["tag", getU16Encoder()],
-    ["pad0", fixEncoderSize(getBytesEncoder(), 4)],
+    ["premiumRateSnapshot", getU32Encoder()],
     ["assetShares", getWrappedI80F48Encoder()],
     ["liabilityShares", getWrappedI80F48Encoder()],
-    ["emissionsOutstanding", getWrappedI80F48Encoder()],
+    ["premiumOutstanding", getWrappedI80F48Encoder()],
     ["lastUpdate", getU64Encoder()],
     ["padding", getArrayEncoder(getU64Encoder(), { size: 1 })],
   ]);
@@ -126,10 +149,10 @@ export function getBalanceDecoder(): FixedSizeDecoder<Balance> {
     ["bankPk", getAddressDecoder()],
     ["bankAssetTag", getU8Decoder()],
     ["tag", getU16Decoder()],
-    ["pad0", fixDecoderSize(getBytesDecoder(), 4)],
+    ["premiumRateSnapshot", getU32Decoder()],
     ["assetShares", getWrappedI80F48Decoder()],
     ["liabilityShares", getWrappedI80F48Decoder()],
-    ["emissionsOutstanding", getWrappedI80F48Decoder()],
+    ["premiumOutstanding", getWrappedI80F48Decoder()],
     ["lastUpdate", getU64Decoder()],
     ["padding", getArrayDecoder(getU64Decoder(), { size: 1 })],
   ]);

@@ -1,7 +1,7 @@
 import type { Address, Instruction, TransactionSigner } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { OracleSetup } from "./types";
+import { AssetTag, BankType, OracleSetup } from "./types";
 import { serializeOracleSetup } from "./utils/serialize.utils";
 
 import instructions from "~/instructions";
@@ -11,47 +11,31 @@ type BankAdminIxArgs = {
   programAddress: Address;
   bankAddress: Address;
   groupAddress: Address;
-  admin: TransactionSigner;
+  governanceAdmin: TransactionSigner;
 };
 
+/** Freeze a bank's settings against further changes, signed by the group's governance admin. */
 export async function freezeBankConfigIx({
   programAddress,
   bankAddress,
   groupAddress,
-  admin,
+  governanceAdmin,
 }: BankAdminIxArgs): Promise<Instruction> {
-  return instructions.makePoolConfigureBankIx(programAddress, {
+  return instructions.makePoolConfigureBankGovIx(programAddress, {
     group: groupAddress,
-    admin,
+    governanceAdmin,
     bank: bankAddress,
-    bankConfigOpt: {
-      assetWeightInit: null,
-      assetWeightMaint: null,
-      liabilityWeightInit: null,
-      liabilityWeightMaint: null,
-      depositLimit: null,
-      borrowLimit: null,
-      operationalState: null,
-      interestRateConfig: null,
-      riskTier: null,
-      assetTag: null,
-      totalAssetValueInitLimit: null,
-      oracleMaxConfidence: null,
-      oracleMaxAge: null,
-      permissionlessBadDebtSettlement: null,
-      freezeSettings: true,
-      tokenlessRepaymentsAllowed: null,
-      liquidationLiquidatorFee: null,
-      liquidationInsuranceFee: null,
-      circuitBreakerEnabled: null,
-      cbDeviationBpsTiers: null,
-      cbTierDurationsSeconds: null,
-      cbEscalationWindowMult: null,
-      cbEmaAlphaBps: null,
-      cbWindowSeconds: null,
-      cbWindowMaxUpBps: null,
-      cbWindowMaxDownBps: null,
-    },
+    assetWeightInit: null,
+    assetWeightMaint: null,
+    liabilityWeightInit: null,
+    liabilityWeightMaint: null,
+    operationalState: null,
+    riskTier: null,
+    assetTag: null,
+    oracleMaxConfidence: null,
+    oracleMaxAge: null,
+    tokenlessRepaymentsAllowed: null,
+    freezeSettings: true,
   });
 }
 
@@ -68,14 +52,18 @@ export async function addOracleToBanksIx({
   programAddress,
   bankAddress,
   groupAddress,
-  admin,
+  governanceAdmin,
   feedId,
   oracleKey,
   oracleAccounts,
   setup,
 }: AddOracleToBanksIxArgs): Promise<Instruction> {
-  if (
+  const isScope =
     setup === OracleSetup.Scope ||
+    setup === OracleSetup.ScopeKamino ||
+    setup === OracleSetup.ScopeJuplend;
+  if (
+    isScope ||
     setup === OracleSetup.PTPyth ||
     setup === OracleSetup.PTFixed ||
     setup === OracleSetup.Fixed ||
@@ -84,9 +72,7 @@ export async function addOracleToBanksIx({
     setup === OracleSetup.FixedJuplend
   ) {
     throw new Error(
-      `${setup} must be configured with ${
-        setup === OracleSetup.Scope ? "configureScopeOracleIx" : "setOraclePriceIx"
-      }`
+      `${setup} must be configured with ${isScope ? "configureScopeOracleIx" : "setOraclePriceIx"}`
     );
   }
 
@@ -115,7 +101,7 @@ export async function addOracleToBanksIx({
     programAddress,
     {
       group: groupAddress,
-      admin,
+      governanceAdmin,
       bank: bankAddress,
       setup: serializeOracleSetup(setup),
       oracle: feedId,
@@ -131,12 +117,12 @@ type SetOraclePriceIxArgs = BankAdminIxArgs & {
   oracleAccounts?: Address[];
 };
 
-/** Configure a flat fixed price or an Exponent PT price using the 0.1.11 instruction. */
+/** Configure a flat fixed price or an Exponent PT price, signed by the group's governance admin. */
 export async function setOraclePriceIx({
   programAddress,
   bankAddress,
   groupAddress,
-  admin,
+  governanceAdmin,
   price,
   setup,
   oracleAccounts = [],
@@ -151,7 +137,7 @@ export async function setOraclePriceIx({
     programAddress,
     {
       group: groupAddress,
-      admin,
+      governanceAdmin,
       bank: bankAddress,
       price: bigNumberToWrappedI80F48(price),
       setup: serializeOracleSetup(setup),
@@ -160,24 +146,30 @@ export async function setOraclePriceIx({
   );
 }
 
-type ConfigureScopeOracleIxArgs = BankAdminIxArgs & {
+type ConfigureScopeOracleIxArgs = Omit<BankAdminIxArgs, "bankAddress"> & {
+  bank: BankType;
   oracle: Address;
   entryIndex: number;
 };
 
+/**
+ * Point a bank at an entry in a Scope OraclePrices account, signed by the group's governance admin.
+ * The program picks Scope, ScopeKamino or ScopeJuplend from the bank's asset tag; for Kamino and
+ * JupLend banks the reserve / lending account it validates is taken from `bank.config.oracleKeys[1]`.
+ */
 export async function configureScopeOracleIx({
   programAddress,
-  bankAddress,
+  bank,
   groupAddress,
-  admin,
+  governanceAdmin,
   oracle,
   entryIndex,
 }: ConfigureScopeOracleIxArgs): Promise<Instruction> {
-  return instructions.makeLendingPoolConfigureBankOracleScopeIx(programAddress, {
-    group: groupAddress,
-    admin,
-    bank: bankAddress,
-    oracle,
-    entryIndex,
-  });
+  return instructions.makeLendingPoolConfigureBankOracleScopeIx(
+    programAddress,
+    { group: groupAddress, governanceAdmin, bank: bank.address, oracle, entryIndex },
+    bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.JUPLEND
+      ? bank.config.oracleKeys[1]
+      : undefined
+  );
 }

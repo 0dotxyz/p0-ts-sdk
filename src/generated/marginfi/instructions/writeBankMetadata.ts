@@ -63,6 +63,8 @@ export type WriteBankMetadataInstruction<
   TAccountBank extends string | AccountMeta<string> = string,
   TAccountMetadataAdmin extends string | AccountMeta<string> = string,
   TAccountMetadata extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -74,6 +76,9 @@ export type WriteBankMetadataInstruction<
         ? WritableSignerAccount<TAccountMetadataAdmin> & AccountSignerMeta<TAccountMetadataAdmin>
         : TAccountMetadataAdmin,
       TAccountMetadata extends string ? WritableAccount<TAccountMetadata> : TAccountMetadata,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -123,6 +128,7 @@ export type WriteBankMetadataInput<
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountMetadataAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountMetadata extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   /**
@@ -132,6 +138,7 @@ export type WriteBankMetadataInput<
   bank: TAccountBank;
   metadataAdmin: TAccountMetadataAdmin;
   metadata: TAccountMetadata;
+  instructionSysvar?: TAccountInstructionSysvar;
   ticker: WriteBankMetadataInstructionDataArgs["ticker"];
   description: WriteBankMetadataInstructionDataArgs["description"];
 };
@@ -141,13 +148,15 @@ export function getWriteBankMetadataInstruction<
   TAccountBank extends InstructionAccountInput,
   TAccountMetadataAdmin extends InstructionSignerInput,
   TAccountMetadata extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: WriteBankMetadataInput<
     TAccountGroup,
     TAccountBank,
     TAccountMetadataAdmin,
-    TAccountMetadata
+    TAccountMetadata,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): WriteBankMetadataInstruction<
@@ -158,7 +167,14 @@ export function getWriteBankMetadataInstruction<
     TAccountMetadataAdmin,
     InstructionAccountInputAddress<TAccountMetadataAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountMetadata, InstructionAccountInputAddress<TAccountMetadata>>
+  ResolvedInstructionAccountMeta<
+    TAccountMetadata,
+    InstructionAccountInputAddress<TAccountMetadata>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -172,6 +188,11 @@ export function getWriteBankMetadataInstruction<
     bank: { value: input.bank ?? null, isSigner: false, isWritable: false },
     metadataAdmin: { value: input.metadataAdmin ?? null, isSigner: true, isWritable: true },
     metadata: { value: input.metadata ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -181,12 +202,19 @@ export function getWriteBankMetadataInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("bank", accounts.bank),
       getAccountMeta("metadataAdmin", accounts.metadataAdmin),
       getAccountMeta("metadata", accounts.metadata),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getWriteBankMetadataInstructionDataEncoder().encode(
       args as WriteBankMetadataInstructionDataArgs
@@ -203,6 +231,10 @@ export function getWriteBankMetadataInstruction<
     ResolvedInstructionAccountMeta<
       TAccountMetadata,
       InstructionAccountInputAddress<TAccountMetadata>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -221,6 +253,7 @@ export type ParsedWriteBankMetadataInstruction<
     bank: TAccountMetas[1];
     metadataAdmin: TAccountMetas[2];
     metadata: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: WriteBankMetadataInstructionData;
 };
@@ -233,10 +266,10 @@ export function parseWriteBankMetadataInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedWriteBankMetadataInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -252,6 +285,7 @@ export function parseWriteBankMetadataInstruction<
       bank: getNextAccount(),
       metadataAdmin: getNextAccount(),
       metadata: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getWriteBankMetadataInstructionDataDecoder().decode(instruction.data),
   };

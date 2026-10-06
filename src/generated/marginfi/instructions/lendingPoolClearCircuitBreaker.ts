@@ -58,6 +58,8 @@ export type LendingPoolClearCircuitBreakerInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountAuthority extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -68,6 +70,9 @@ export type LendingPoolClearCircuitBreakerInstruction<
         ? ReadonlySignerAccount<TAccountAuthority> & AccountSignerMeta<TAccountAuthority>
         : TAccountAuthority,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -110,11 +115,13 @@ export type LendingPoolClearCircuitBreakerInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountAuthority extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   /** Either `group.admin` or `group.risk_admin`. Validated in the handler. */
   authority: TAccountAuthority;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
   reseedReference: LendingPoolClearCircuitBreakerInstructionDataArgs["reseedReference"];
 };
 
@@ -122,9 +129,15 @@ export function getLendingPoolClearCircuitBreakerInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountAuthority extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: LendingPoolClearCircuitBreakerInput<TAccountGroup, TAccountAuthority, TAccountBank>,
+  input: LendingPoolClearCircuitBreakerInput<
+    TAccountGroup,
+    TAccountAuthority,
+    TAccountBank,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolClearCircuitBreakerInstruction<
   TProgramAddress,
@@ -133,7 +146,11 @@ export function getLendingPoolClearCircuitBreakerInstruction<
     TAccountAuthority,
     InstructionAccountInputAddress<TAccountAuthority>
   >,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -146,6 +163,11 @@ export function getLendingPoolClearCircuitBreakerInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     authority: { value: input.authority ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -155,11 +177,18 @@ export function getLendingPoolClearCircuitBreakerInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("authority", accounts.authority),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolClearCircuitBreakerInstructionDataEncoder().encode(
       args as LendingPoolClearCircuitBreakerInstructionDataArgs
@@ -172,7 +201,11 @@ export function getLendingPoolClearCircuitBreakerInstruction<
       TAccountAuthority,
       InstructionAccountInputAddress<TAccountAuthority>
     >,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -186,6 +219,7 @@ export type ParsedLendingPoolClearCircuitBreakerInstruction<
     /** Either `group.admin` or `group.risk_admin`. Validated in the handler. */
     authority: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolClearCircuitBreakerInstructionData;
 };
@@ -198,10 +232,10 @@ export function parseLendingPoolClearCircuitBreakerInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolClearCircuitBreakerInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -212,7 +246,12 @@ export function parseLendingPoolClearCircuitBreakerInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), authority: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      authority: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolClearCircuitBreakerInstructionDataDecoder().decode(instruction.data),
   };
 }

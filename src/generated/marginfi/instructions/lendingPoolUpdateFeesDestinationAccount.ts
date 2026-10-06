@@ -56,6 +56,8 @@ export type LendingPoolUpdateFeesDestinationAccountInstruction<
   TAccountBank extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
   TAccountDestinationAccount extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -69,6 +71,9 @@ export type LendingPoolUpdateFeesDestinationAccountInstruction<
       TAccountDestinationAccount extends string
         ? ReadonlyAccount<TAccountDestinationAccount>
         : TAccountDestinationAccount,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -108,12 +113,14 @@ export type LendingPoolUpdateFeesDestinationAccountInput<
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountDestinationAccount extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   bank: TAccountBank;
   admin: TAccountAdmin;
   /** Bank fees will be sent to this account which must be an ATA of the bank's mint. */
   destinationAccount: TAccountDestinationAccount;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getLendingPoolUpdateFeesDestinationAccountInstruction<
@@ -121,13 +128,15 @@ export function getLendingPoolUpdateFeesDestinationAccountInstruction<
   TAccountBank extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
   TAccountDestinationAccount extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolUpdateFeesDestinationAccountInput<
     TAccountGroup,
     TAccountBank,
     TAccountAdmin,
-    TAccountDestinationAccount
+    TAccountDestinationAccount,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolUpdateFeesDestinationAccountInstruction<
@@ -138,6 +147,10 @@ export function getLendingPoolUpdateFeesDestinationAccountInstruction<
   ResolvedInstructionAccountMeta<
     TAccountDestinationAccount,
     InstructionAccountInputAddress<TAccountDestinationAccount>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -156,11 +169,22 @@ export function getLendingPoolUpdateFeesDestinationAccountInstruction<
       isSigner: false,
       isWritable: false,
     },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
+
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -168,6 +192,7 @@ export function getLendingPoolUpdateFeesDestinationAccountInstruction<
       getAccountMeta("bank", accounts.bank),
       getAccountMeta("admin", accounts.admin),
       getAccountMeta("destinationAccount", accounts.destinationAccount),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolUpdateFeesDestinationAccountInstructionDataEncoder().encode({}),
     programAddress,
@@ -179,6 +204,10 @@ export function getLendingPoolUpdateFeesDestinationAccountInstruction<
     ResolvedInstructionAccountMeta<
       TAccountDestinationAccount,
       InstructionAccountInputAddress<TAccountDestinationAccount>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -194,6 +223,7 @@ export type ParsedLendingPoolUpdateFeesDestinationAccountInstruction<
     admin: TAccountMetas[2];
     /** Bank fees will be sent to this account which must be an ATA of the bank's mint. */
     destinationAccount: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: LendingPoolUpdateFeesDestinationAccountInstructionData;
 };
@@ -206,10 +236,10 @@ export function parseLendingPoolUpdateFeesDestinationAccountInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolUpdateFeesDestinationAccountInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -225,6 +255,7 @@ export function parseLendingPoolUpdateFeesDestinationAccountInstruction<
       bank: getNextAccount(),
       admin: getNextAccount(),
       destinationAccount: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolUpdateFeesDestinationAccountInstructionDataDecoder().decode(
       instruction.data

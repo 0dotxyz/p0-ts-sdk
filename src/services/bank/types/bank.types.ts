@@ -77,6 +77,8 @@ export enum OracleSetup {
   JuplendLST = "JuplendLST",
   PTPyth = "PTPyth",
   PTFixed = "PTFixed",
+  ScopeKamino = "ScopeKamino",
+  ScopeJuplend = "ScopeJuplend",
   Unknown = "Unknown",
 }
 export enum AssetTag {
@@ -116,6 +118,40 @@ export interface BankConfigOpt {
   freezeSettings: boolean | null;
   tokenlessRepaymentsAllowed: boolean | null;
 }
+
+/**
+ * Bank settings the group admin changes with `lending_pool_configure_bank`; `null` leaves a
+ * setting unchanged. The program only accepts `operationalState` moves to paused or reduce-only
+ * here; returning a bank to operational is a governance change ({@link BankConfigGovOpt}).
+ */
+export type BankConfigFastOpt = Pick<
+  BankConfigOpt,
+  | "depositLimit"
+  | "borrowLimit"
+  | "operationalState"
+  | "interestRateConfig"
+  | "totalAssetValueInitLimit"
+  | "permissionlessBadDebtSettlement"
+>;
+
+/**
+ * Bank settings only the governance admin changes with `lending_pool_configure_bank_gov`; `null`
+ * leaves a setting unchanged. `operationalState` may only move back to operational here.
+ */
+export type BankConfigGovOpt = Pick<
+  BankConfigOpt,
+  | "assetWeightInit"
+  | "assetWeightMaint"
+  | "liabilityWeightInit"
+  | "liabilityWeightMaint"
+  | "operationalState"
+  | "riskTier"
+  | "assetTag"
+  | "oracleMaxConfidence"
+  | "oracleMaxAge"
+  | "tokenlessRepaymentsAllowed"
+  | "freezeSettings"
+>;
 
 export interface BankConfigType {
   assetWeightInit: BigNumber;

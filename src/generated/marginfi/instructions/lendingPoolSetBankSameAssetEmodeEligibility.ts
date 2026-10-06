@@ -57,22 +57,28 @@ export function getLendingPoolSetBankSameAssetEmodeEligibilityDiscriminatorBytes
 export type LendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountSigner extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
   TAccountSameAssetEmodeRegistry extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? ReadonlyAccount<TAccountGroup> : TAccountGroup,
-      TAccountSigner extends string
-        ? ReadonlySignerAccount<TAccountSigner> & AccountSignerMeta<TAccountSigner>
-        : TAccountSigner,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
       TAccountSameAssetEmodeRegistry extends string
         ? WritableAccount<TAccountSameAssetEmodeRegistry>
         : TAccountSameAssetEmodeRegistry,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -116,40 +122,51 @@ export function getLendingPoolSetBankSameAssetEmodeEligibilityInstructionDataCod
 
 export type LendingPoolSetBankSameAssetEmodeEligibilityAsyncInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountSameAssetEmodeRegistry extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  signer: TAccountSigner;
+  governanceAdmin: TAccountGovernanceAdmin;
   bank: TAccountBank;
   sameAssetEmodeRegistry?: TAccountSameAssetEmodeRegistry;
+  instructionSysvar?: TAccountInstructionSysvar;
   enabled: LendingPoolSetBankSameAssetEmodeEligibilityInstructionDataArgs["enabled"];
 };
 
 export async function getLendingPoolSetBankSameAssetEmodeEligibilityInstructionAsync<
   TAccountGroup extends InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
   TAccountSameAssetEmodeRegistry extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolSetBankSameAssetEmodeEligibilityAsyncInput<
     TAccountGroup,
-    TAccountSigner,
+    TAccountGovernanceAdmin,
     TAccountBank,
-    TAccountSameAssetEmodeRegistry
+    TAccountSameAssetEmodeRegistry,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   LendingPoolSetBankSameAssetEmodeEligibilityInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
     ResolvedInstructionAccountMeta<
       TAccountSameAssetEmodeRegistry,
       InstructionAccountInputAddress<TAccountSameAssetEmodeRegistry>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -162,12 +179,17 @@ export async function getLendingPoolSetBankSameAssetEmodeEligibilityInstructionA
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    signer: { value: input.signer ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
     sameAssetEmodeRegistry: {
       value: input.sameAssetEmodeRegistry ?? null,
       isSigner: false,
       isWritable: true,
+    },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
     },
   };
   const accounts = originalAccounts as Record<
@@ -185,13 +207,18 @@ export async function getLendingPoolSetBankSameAssetEmodeEligibilityInstructionA
       { programAddress }
     );
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("signer", accounts.signer),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("bank", accounts.bank),
       getAccountMeta("sameAssetEmodeRegistry", accounts.sameAssetEmodeRegistry),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolSetBankSameAssetEmodeEligibilityInstructionDataEncoder().encode(
       args as LendingPoolSetBankSameAssetEmodeEligibilityInstructionDataArgs
@@ -200,50 +227,68 @@ export async function getLendingPoolSetBankSameAssetEmodeEligibilityInstructionA
   } as LendingPoolSetBankSameAssetEmodeEligibilityInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
     ResolvedInstructionAccountMeta<
       TAccountSameAssetEmodeRegistry,
       InstructionAccountInputAddress<TAccountSameAssetEmodeRegistry>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
 
 export type LendingPoolSetBankSameAssetEmodeEligibilityInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountSameAssetEmodeRegistry extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  signer: TAccountSigner;
+  governanceAdmin: TAccountGovernanceAdmin;
   bank: TAccountBank;
   sameAssetEmodeRegistry: TAccountSameAssetEmodeRegistry;
+  instructionSysvar?: TAccountInstructionSysvar;
   enabled: LendingPoolSetBankSameAssetEmodeEligibilityInstructionDataArgs["enabled"];
 };
 
 export function getLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
   TAccountSameAssetEmodeRegistry extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolSetBankSameAssetEmodeEligibilityInput<
     TAccountGroup,
-    TAccountSigner,
+    TAccountGovernanceAdmin,
     TAccountBank,
-    TAccountSameAssetEmodeRegistry
+    TAccountSameAssetEmodeRegistry,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
   ResolvedInstructionAccountMeta<
     TAccountSameAssetEmodeRegistry,
     InstructionAccountInputAddress<TAccountSameAssetEmodeRegistry>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -255,12 +300,17 @@ export function getLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    signer: { value: input.signer ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
     sameAssetEmodeRegistry: {
       value: input.sameAssetEmodeRegistry ?? null,
       isSigner: false,
       isWritable: true,
+    },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
     },
   };
   const accounts = originalAccounts as Record<
@@ -271,12 +321,19 @@ export function getLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("signer", accounts.signer),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("bank", accounts.bank),
       getAccountMeta("sameAssetEmodeRegistry", accounts.sameAssetEmodeRegistry),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolSetBankSameAssetEmodeEligibilityInstructionDataEncoder().encode(
       args as LendingPoolSetBankSameAssetEmodeEligibilityInstructionDataArgs
@@ -285,11 +342,18 @@ export function getLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   } as LendingPoolSetBankSameAssetEmodeEligibilityInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
     ResolvedInstructionAccountMeta<
       TAccountSameAssetEmodeRegistry,
       InstructionAccountInputAddress<TAccountSameAssetEmodeRegistry>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -301,9 +365,10 @@ export type ParsedLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    signer: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     bank: TAccountMetas[2];
     sameAssetEmodeRegistry: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: LendingPoolSetBankSameAssetEmodeEligibilityInstructionData;
 };
@@ -316,10 +381,10 @@ export function parseLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolSetBankSameAssetEmodeEligibilityInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -332,9 +397,10 @@ export function parseLendingPoolSetBankSameAssetEmodeEligibilityInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       group: getNextAccount(),
-      signer: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       bank: getNextAccount(),
       sameAssetEmodeRegistry: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolSetBankSameAssetEmodeEligibilityInstructionDataDecoder().decode(
       instruction.data

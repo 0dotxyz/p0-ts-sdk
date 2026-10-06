@@ -26,6 +26,7 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -53,6 +54,8 @@ export type PanicPauseInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountPauseAuthority extends string | AccountMeta<string> = string,
   TAccountFeeState extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -62,6 +65,9 @@ export type PanicPauseInstruction<
         ? ReadonlySignerAccount<TAccountPauseAuthority> & AccountSignerMeta<TAccountPauseAuthority>
         : TAccountPauseAuthority,
       TAccountFeeState extends string ? WritableAccount<TAccountFeeState> : TAccountFeeState,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -91,19 +97,22 @@ export function getPanicPauseInstructionDataCodec(): FixedSizeCodec<
 export type PanicPauseAsyncInput<
   TAccountPauseAuthority extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Global fee admin or the dedicated pause delegate admin. */
   pauseAuthority: TAccountPauseAuthority;
   /** Global fee state account containing the panic state */
   feeState?: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export async function getPanicPauseInstructionAsync<
   TAccountPauseAuthority extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: PanicPauseAsyncInput<TAccountPauseAuthority, TAccountFeeState>,
+  input: PanicPauseAsyncInput<TAccountPauseAuthority, TAccountFeeState, TAccountInstructionSysvar>,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   PanicPauseInstruction<
@@ -115,6 +124,10 @@ export async function getPanicPauseInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -128,6 +141,11 @@ export async function getPanicPauseInstructionAsync<
   const originalAccounts = {
     pauseAuthority: { value: input.pauseAuthority ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -138,11 +156,16 @@ export async function getPanicPauseInstructionAsync<
   if (!accounts.feeState.value) {
     accounts.feeState.value = await findFeeStatePda({ programAddress });
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("pauseAuthority", accounts.pauseAuthority),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getPanicPauseInstructionDataEncoder().encode({}),
     programAddress,
@@ -155,6 +178,10 @@ export async function getPanicPauseInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -162,19 +189,22 @@ export async function getPanicPauseInstructionAsync<
 export type PanicPauseInput<
   TAccountPauseAuthority extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Global fee admin or the dedicated pause delegate admin. */
   pauseAuthority: TAccountPauseAuthority;
   /** Global fee state account containing the panic state */
   feeState: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getPanicPauseInstruction<
   TAccountPauseAuthority extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: PanicPauseInput<TAccountPauseAuthority, TAccountFeeState>,
+  input: PanicPauseInput<TAccountPauseAuthority, TAccountFeeState, TAccountInstructionSysvar>,
   config?: { programAddress?: TProgramAddress }
 ): PanicPauseInstruction<
   TProgramAddress,
@@ -182,7 +212,14 @@ export function getPanicPauseInstruction<
     TAccountPauseAuthority,
     InstructionAccountInputAddress<TAccountPauseAuthority>
   >,
-  ResolvedInstructionAccountMeta<TAccountFeeState, InstructionAccountInputAddress<TAccountFeeState>>
+  ResolvedInstructionAccountMeta<
+    TAccountFeeState,
+    InstructionAccountInputAddress<TAccountFeeState>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -194,16 +231,28 @@ export function getPanicPauseInstruction<
   const originalAccounts = {
     pauseAuthority: { value: input.pauseAuthority ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("pauseAuthority", accounts.pauseAuthority),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getPanicPauseInstructionDataEncoder().encode({}),
     programAddress,
@@ -216,6 +265,10 @@ export function getPanicPauseInstruction<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -230,6 +283,7 @@ export type ParsedPanicPauseInstruction<
     pauseAuthority: TAccountMetas[0];
     /** Global fee state account containing the panic state */
     feeState: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: PanicPauseInstructionData;
 };
@@ -242,10 +296,10 @@ export function parsePanicPauseInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedPanicPauseInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -256,7 +310,11 @@ export function parsePanicPauseInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { pauseAuthority: getNextAccount(), feeState: getNextAccount() },
+    accounts: {
+      pauseAuthority: getNextAccount(),
+      feeState: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getPanicPauseInstructionDataDecoder().decode(instruction.data),
   };
 }

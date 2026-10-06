@@ -159,31 +159,25 @@ const cases: Record<string, () => Promise<Instruction>> = {
       remaining
     ),
   "makeKaminoDepositIx farms, refresh none": () =>
-    instructions.makeKaminoDepositIx(
-      programAddress,
-      {
-        ...kaminoAccounts,
-        signerTokenAccount: tokenAccount,
-        liquidityVault,
-        reserveDestinationDepositCollateral: key(34),
-        obligationFarmUserState: key(35),
-        reserveFarmState: key(36),
-        amount: 1234n,
-        refreshReserve: null,
-      }
-    ),
+    instructions.makeKaminoDepositIx(programAddress, {
+      ...kaminoAccounts,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      reserveDestinationDepositCollateral: key(34),
+      obligationFarmUserState: key(35),
+      reserveFarmState: key(36),
+      amount: 1234n,
+      refreshReserve: null,
+    }),
   "makeKaminoDepositIx no farms, refresh true": () =>
-    instructions.makeKaminoDepositIx(
-      programAddress,
-      {
-        ...kaminoAccounts,
-        signerTokenAccount: tokenAccount,
-        liquidityVault,
-        reserveDestinationDepositCollateral: key(34),
-        amount: 1234n,
-        refreshReserve: true,
-      }
-    ),
+    instructions.makeKaminoDepositIx(programAddress, {
+      ...kaminoAccounts,
+      signerTokenAccount: tokenAccount,
+      liquidityVault,
+      reserveDestinationDepositCollateral: key(34),
+      amount: 1234n,
+      refreshReserve: true,
+    }),
   "makeDriftDepositIx oracle": () =>
     instructions.makeDriftDepositIx(programAddress, {
       ...driftAccounts,
@@ -377,34 +371,39 @@ const cases: Record<string, () => Promise<Instruction>> = {
       group,
       admin: authority,
       bank,
-      bankConfigOpt: {
-        assetWeightInit: wrapped(1),
-        assetWeightMaint: null,
-        liabilityWeightInit: wrapped(2),
-        liabilityWeightMaint: null,
-        depositLimit: 1_000_000n,
-        borrowLimit: null,
-        operationalState: 1,
-        interestRateConfig: interestRateConfig(3),
-        riskTier: 1,
-        assetTag: 2,
-        totalAssetValueInitLimit: null,
-        oracleMaxConfidence: 100,
-        oracleMaxAge: 60,
-        permissionlessBadDebtSettlement: true,
-        freezeSettings: false,
-        tokenlessRepaymentsAllowed: null,
-        liquidationLiquidatorFee: null,
-        liquidationInsuranceFee: null,
-        circuitBreakerEnabled: null,
-        cbDeviationBpsTiers: null,
-        cbTierDurationsSeconds: null,
-        cbEscalationWindowMult: null,
-        cbEmaAlphaBps: null,
-        cbWindowSeconds: null,
-        cbWindowMaxUpBps: null,
-        cbWindowMaxDownBps: null,
-      },
+      depositLimit: 1_000_000n,
+      borrowLimit: null,
+      operationalState: 1,
+      interestRateConfig: interestRateConfig(3),
+      totalAssetValueInitLimit: null,
+      permissionlessBadDebtSettlement: true,
+      liquidationLiquidatorFee: null,
+      liquidationInsuranceFee: null,
+      circuitBreakerEnabled: null,
+      cbDeviationBpsTiers: null,
+      cbTierDurationsSeconds: null,
+      cbEscalationWindowMult: null,
+      cbEmaAlphaBps: null,
+      cbWindowSeconds: null,
+      cbWindowMaxUpBps: null,
+      cbWindowMaxDownBps: null,
+    }),
+  makePoolConfigureBankGovIx: () =>
+    instructions.makePoolConfigureBankGovIx(programAddress, {
+      group,
+      governanceAdmin: authority,
+      bank,
+      assetWeightInit: wrapped(1),
+      assetWeightMaint: null,
+      liabilityWeightInit: wrapped(2),
+      liabilityWeightMaint: null,
+      operationalState: 1,
+      riskTier: 1,
+      assetTag: 2,
+      oracleMaxConfidence: 100,
+      oracleMaxAge: 60,
+      tokenlessRepaymentsAllowed: null,
+      freezeSettings: false,
     }),
   makeBeginFlashLoanIx: () =>
     instructions.makeBeginFlashLoanIx(programAddress, { marginfiAccount, authority, endIndex: 5 }),
@@ -429,21 +428,27 @@ const cases: Record<string, () => Promise<Instruction>> = {
   makeLendingPoolConfigureBankOracleIx: () =>
     instructions.makeLendingPoolConfigureBankOracleIx(
       programAddress,
-      { group, admin: authority, bank, setup: 3, oracle: key(70) },
+      { group, governanceAdmin: authority, bank, setup: 3, oracle: key(70) },
       remaining
     ),
   makeLendingPoolConfigureBankOracleScopeIx: () =>
     instructions.makeLendingPoolConfigureBankOracleScopeIx(programAddress, {
       group,
-      admin: authority,
+      governanceAdmin: authority,
       bank,
       oracle: key(71),
       entryIndex: 511,
     }),
+  "makeLendingPoolConfigureBankOracleScopeIx integration account": () =>
+    instructions.makeLendingPoolConfigureBankOracleScopeIx(
+      programAddress,
+      { group, governanceAdmin: authority, bank, oracle: key(71), entryIndex: 511 },
+      key(72)
+    ),
   makeLendingPoolSetOraclePriceIx: () =>
     instructions.makeLendingPoolSetOraclePriceIx(
       programAddress,
-      { group, admin: authority, bank, price: wrapped(9), setup: 11 },
+      { group, governanceAdmin: authority, bank, price: wrapped(9), setup: 11 },
       remaining
     ),
   ...Object.fromEntries(
@@ -476,7 +481,7 @@ const cases: Record<string, () => Promise<Instruction>> = {
   makePoolAddBankIx: () =>
     instructions.makePoolAddBankIx(programAddress, {
       marginfiGroup: group,
-      admin: authority,
+      governanceAdmin: authority,
       feePayer,
       globalFeeWallet: key(62),
       bankMint: mint,

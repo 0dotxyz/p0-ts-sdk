@@ -61,6 +61,8 @@ export type LendingPoolConfigureBankLimitsOnlyInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountDelegateLimitAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -72,6 +74,9 @@ export type LendingPoolConfigureBankLimitsOnlyInstruction<
             AccountSignerMeta<TAccountDelegateLimitAdmin>
         : TAccountDelegateLimitAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -124,10 +129,12 @@ export type LendingPoolConfigureBankLimitsOnlyInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountDelegateLimitAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   delegateLimitAdmin: TAccountDelegateLimitAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
   depositLimit: LendingPoolConfigureBankLimitsOnlyInstructionDataArgs["depositLimit"];
   borrowLimit: LendingPoolConfigureBankLimitsOnlyInstructionDataArgs["borrowLimit"];
   totalAssetValueInitLimit: LendingPoolConfigureBankLimitsOnlyInstructionDataArgs["totalAssetValueInitLimit"];
@@ -137,12 +144,14 @@ export function getLendingPoolConfigureBankLimitsOnlyInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountDelegateLimitAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolConfigureBankLimitsOnlyInput<
     TAccountGroup,
     TAccountDelegateLimitAdmin,
-    TAccountBank
+    TAccountBank,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolConfigureBankLimitsOnlyInstruction<
@@ -152,7 +161,11 @@ export function getLendingPoolConfigureBankLimitsOnlyInstruction<
     TAccountDelegateLimitAdmin,
     InstructionAccountInputAddress<TAccountDelegateLimitAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -169,6 +182,11 @@ export function getLendingPoolConfigureBankLimitsOnlyInstruction<
       isWritable: false,
     },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -178,11 +196,18 @@ export function getLendingPoolConfigureBankLimitsOnlyInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("delegateLimitAdmin", accounts.delegateLimitAdmin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolConfigureBankLimitsOnlyInstructionDataEncoder().encode(
       args as LendingPoolConfigureBankLimitsOnlyInstructionDataArgs
@@ -195,7 +220,11 @@ export function getLendingPoolConfigureBankLimitsOnlyInstruction<
       TAccountDelegateLimitAdmin,
       InstructionAccountInputAddress<TAccountDelegateLimitAdmin>
     >,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -208,6 +237,7 @@ export type ParsedLendingPoolConfigureBankLimitsOnlyInstruction<
     group: TAccountMetas[0];
     delegateLimitAdmin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolConfigureBankLimitsOnlyInstructionData;
 };
@@ -220,10 +250,10 @@ export function parseLendingPoolConfigureBankLimitsOnlyInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolConfigureBankLimitsOnlyInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -238,6 +268,7 @@ export function parseLendingPoolConfigureBankLimitsOnlyInstruction<
       group: getNextAccount(),
       delegateLimitAdmin: getNextAccount(),
       bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolConfigureBankLimitsOnlyInstructionDataDecoder().decode(instruction.data),
   };

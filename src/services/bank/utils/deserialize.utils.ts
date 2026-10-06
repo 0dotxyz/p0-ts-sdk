@@ -558,6 +558,10 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.FixedJuplend;
     case OracleSetupRaw.Scope:
       return OracleSetup.Scope;
+    case OracleSetupRaw.ScopeKamino:
+      return OracleSetup.ScopeKamino;
+    case OracleSetupRaw.ScopeJuplend:
+      return OracleSetup.ScopeJuplend;
     case OracleSetupRaw.PythMSOL:
       return OracleSetup.PythMSOL;
     case OracleSetupRaw.KaminoMSOL:

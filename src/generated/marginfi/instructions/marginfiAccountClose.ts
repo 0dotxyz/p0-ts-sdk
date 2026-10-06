@@ -26,6 +26,7 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -33,12 +34,14 @@ import {
 } from "@solana/kit";
 import {
   getAccountMetaFactory,
+  getAddressFromResolvedInstructionAccount,
   type InstructionAccountInput,
   type InstructionAccountInputAddress,
   type InstructionSignerInput,
   type ResolvedInstructionAccount,
   type ResolvedInstructionAccountMeta,
 } from "@solana/kit/program-client-core";
+import { findRebalanceFeePoolPda } from "../pdas";
 import { MARGINFI_PROGRAM_ADDRESS } from "../programs";
 
 export const MARGINFI_ACCOUNT_CLOSE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -54,6 +57,7 @@ export type MarginfiAccountCloseInstruction<
   TAccountMarginfiAccount extends string | AccountMeta<string> = string,
   TAccountAuthority extends string | AccountMeta<string> = string,
   TAccountFeePayer extends string | AccountMeta<string> = string,
+  TAccountRebalanceFeePool extends string | AccountMeta<string> = string,
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -68,6 +72,9 @@ export type MarginfiAccountCloseInstruction<
       TAccountFeePayer extends string
         ? WritableSignerAccount<TAccountFeePayer> & AccountSignerMeta<TAccountFeePayer>
         : TAccountFeePayer,
+      TAccountRebalanceFeePool extends string
+        ? ReadonlyAccount<TAccountRebalanceFeePool>
+        : TAccountRebalanceFeePool,
       ...TRemainingAccounts,
     ]
   >;
@@ -97,35 +104,53 @@ export function getMarginfiAccountCloseInstructionDataCodec(): FixedSizeCodec<
   );
 }
 
-export type MarginfiAccountCloseInput<
+export type MarginfiAccountCloseAsyncInput<
   TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountAuthority extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiAccount: TAccountMarginfiAccount;
   authority: TAccountAuthority;
   feePayer: TAccountFeePayer;
+  /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+  rebalanceFeePool?: TAccountRebalanceFeePool;
 };
 
-export function getMarginfiAccountCloseInstruction<
+export async function getMarginfiAccountCloseInstructionAsync<
   TAccountMarginfiAccount extends InstructionAccountInput,
   TAccountAuthority extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: MarginfiAccountCloseInput<TAccountMarginfiAccount, TAccountAuthority, TAccountFeePayer>,
-  config?: { programAddress?: TProgramAddress }
-): MarginfiAccountCloseInstruction<
-  TProgramAddress,
-  ResolvedInstructionAccountMeta<
+  input: MarginfiAccountCloseAsyncInput<
     TAccountMarginfiAccount,
-    InstructionAccountInputAddress<TAccountMarginfiAccount>
-  >,
-  ResolvedInstructionAccountMeta<
     TAccountAuthority,
-    InstructionAccountInputAddress<TAccountAuthority>
+    TAccountFeePayer,
+    TAccountRebalanceFeePool
   >,
-  ResolvedInstructionAccountMeta<TAccountFeePayer, InstructionAccountInputAddress<TAccountFeePayer>>
+  config?: { programAddress?: TProgramAddress }
+): Promise<
+  MarginfiAccountCloseInstruction<
+    TProgramAddress,
+    ResolvedInstructionAccountMeta<
+      TAccountMarginfiAccount,
+      InstructionAccountInputAddress<TAccountMarginfiAccount>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountAuthority,
+      InstructionAccountInputAddress<TAccountAuthority>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountFeePayer,
+      InstructionAccountInputAddress<TAccountFeePayer>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
+    >
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -138,17 +163,32 @@ export function getMarginfiAccountCloseInstruction<
     marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
     authority: { value: input.authority ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
+    rebalanceFeePool: { value: input.rebalanceFeePool ?? null, isSigner: false, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.rebalanceFeePool.value) {
+    accounts.rebalanceFeePool.value = await findRebalanceFeePoolPda(
+      {
+        marginfiAccount: getAddressFromResolvedInstructionAccount(
+          "marginfiAccount",
+          accounts.marginfiAccount.value
+        ),
+      },
+      { programAddress }
+    );
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiAccount", accounts.marginfiAccount),
       getAccountMeta("authority", accounts.authority),
       getAccountMeta("feePayer", accounts.feePayer),
+      getAccountMeta("rebalanceFeePool", accounts.rebalanceFeePool),
     ],
     data: getMarginfiAccountCloseInstructionDataEncoder().encode({}),
     programAddress,
@@ -165,6 +205,104 @@ export function getMarginfiAccountCloseInstruction<
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
+    >
+  >);
+}
+
+export type MarginfiAccountCloseInput<
+  TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
+  TAccountAuthority extends InstructionSignerInput = InstructionSignerInput,
+  TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput = InstructionAccountInput,
+> = {
+  marginfiAccount: TAccountMarginfiAccount;
+  authority: TAccountAuthority;
+  feePayer: TAccountFeePayer;
+  /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+  rebalanceFeePool: TAccountRebalanceFeePool;
+};
+
+export function getMarginfiAccountCloseInstruction<
+  TAccountMarginfiAccount extends InstructionAccountInput,
+  TAccountAuthority extends InstructionSignerInput,
+  TAccountFeePayer extends InstructionSignerInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput,
+  TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
+>(
+  input: MarginfiAccountCloseInput<
+    TAccountMarginfiAccount,
+    TAccountAuthority,
+    TAccountFeePayer,
+    TAccountRebalanceFeePool
+  >,
+  config?: { programAddress?: TProgramAddress }
+): MarginfiAccountCloseInstruction<
+  TProgramAddress,
+  ResolvedInstructionAccountMeta<
+    TAccountMarginfiAccount,
+    InstructionAccountInputAddress<TAccountMarginfiAccount>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountAuthority,
+    InstructionAccountInputAddress<TAccountAuthority>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountFeePayer,
+    InstructionAccountInputAddress<TAccountFeePayer>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountRebalanceFeePool,
+    InstructionAccountInputAddress<TAccountRebalanceFeePool>
+  >
+> {
+  // Program address.
+  const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
+
+  // Account meta helper.
+  const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
+
+  // Original accounts.
+  const originalAccounts = {
+    marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
+    authority: { value: input.authority ?? null, isSigner: true, isWritable: false },
+    feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
+    rebalanceFeePool: { value: input.rebalanceFeePool ?? null, isSigner: false, isWritable: false },
+  };
+  const accounts = originalAccounts as Record<
+    keyof typeof originalAccounts,
+    ResolvedInstructionAccount
+  >;
+
+  return Object.freeze({
+    accounts: [
+      getAccountMeta("marginfiAccount", accounts.marginfiAccount),
+      getAccountMeta("authority", accounts.authority),
+      getAccountMeta("feePayer", accounts.feePayer),
+      getAccountMeta("rebalanceFeePool", accounts.rebalanceFeePool),
+    ],
+    data: getMarginfiAccountCloseInstructionDataEncoder().encode({}),
+    programAddress,
+  } as MarginfiAccountCloseInstruction<
+    TProgramAddress,
+    ResolvedInstructionAccountMeta<
+      TAccountMarginfiAccount,
+      InstructionAccountInputAddress<TAccountMarginfiAccount>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountAuthority,
+      InstructionAccountInputAddress<TAccountAuthority>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountFeePayer,
+      InstructionAccountInputAddress<TAccountFeePayer>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
     >
   >);
 }
@@ -178,6 +316,8 @@ export type ParsedMarginfiAccountCloseInstruction<
     marginfiAccount: TAccountMetas[0];
     authority: TAccountMetas[1];
     feePayer: TAccountMetas[2];
+    /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+    rebalanceFeePool: TAccountMetas[3];
   };
   data: MarginfiAccountCloseInstructionData;
 };
@@ -190,10 +330,10 @@ export function parseMarginfiAccountCloseInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedMarginfiAccountCloseInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -208,6 +348,7 @@ export function parseMarginfiAccountCloseInstruction<
       marginfiAccount: getNextAccount(),
       authority: getNextAccount(),
       feePayer: getNextAccount(),
+      rebalanceFeePool: getNextAccount(),
     },
     data: getMarginfiAccountCloseInstructionDataDecoder().decode(instruction.data),
   };

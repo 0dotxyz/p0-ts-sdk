@@ -55,6 +55,8 @@ export type LendingPoolForceTokenlessRepayCompleteInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountRiskAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -65,6 +67,9 @@ export type LendingPoolForceTokenlessRepayCompleteInstruction<
         ? ReadonlySignerAccount<TAccountRiskAdmin> & AccountSignerMeta<TAccountRiskAdmin>
         : TAccountRiskAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -103,22 +108,26 @@ export type LendingPoolForceTokenlessRepayCompleteInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   riskAdmin: TAccountRiskAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getLendingPoolForceTokenlessRepayCompleteInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolForceTokenlessRepayCompleteInput<
     TAccountGroup,
     TAccountRiskAdmin,
-    TAccountBank
+    TAccountBank,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolForceTokenlessRepayCompleteInstruction<
@@ -128,7 +137,11 @@ export function getLendingPoolForceTokenlessRepayCompleteInstruction<
     TAccountRiskAdmin,
     InstructionAccountInputAddress<TAccountRiskAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -141,17 +154,29 @@ export function getLendingPoolForceTokenlessRepayCompleteInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     riskAdmin: { value: input.riskAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("riskAdmin", accounts.riskAdmin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolForceTokenlessRepayCompleteInstructionDataEncoder().encode({}),
     programAddress,
@@ -162,7 +187,11 @@ export function getLendingPoolForceTokenlessRepayCompleteInstruction<
       TAccountRiskAdmin,
       InstructionAccountInputAddress<TAccountRiskAdmin>
     >,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -175,6 +204,7 @@ export type ParsedLendingPoolForceTokenlessRepayCompleteInstruction<
     group: TAccountMetas[0];
     riskAdmin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolForceTokenlessRepayCompleteInstructionData;
 };
@@ -187,10 +217,10 @@ export function parseLendingPoolForceTokenlessRepayCompleteInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolForceTokenlessRepayCompleteInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -201,7 +231,12 @@ export function parseLendingPoolForceTokenlessRepayCompleteInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), riskAdmin: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      riskAdmin: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolForceTokenlessRepayCompleteInstructionDataDecoder().decode(
       instruction.data
     ),

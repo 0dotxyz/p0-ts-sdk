@@ -101,6 +101,10 @@ export type LendingAccountEndFlashloanInput<
   TAccountAuthority extends InstructionSignerInput = InstructionSignerInput,
 > = {
   marginfiAccount: TAccountMarginfiAccount;
+  /**
+   * Needed for the same-asset emode checks and the premium snapshot recompute; validated by
+   * the `has_one = group` on `marginfi_account`.
+   */
   group: TAccountGroup;
   authority: TAccountAuthority;
 };
@@ -171,6 +175,10 @@ export type ParsedLendingAccountEndFlashloanInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     marginfiAccount: TAccountMetas[0];
+    /**
+     * Needed for the same-asset emode checks and the premium snapshot recompute; validated by
+     * the `has_one = group` on `marginfi_account`.
+     */
     group: TAccountMetas[1];
     authority: TAccountMetas[2];
   };

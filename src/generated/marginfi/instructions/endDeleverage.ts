@@ -55,6 +55,8 @@ export type EndDeleverageInstruction<
   TAccountLiquidationRecord extends string | AccountMeta<string> = string,
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountRiskAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -70,6 +72,9 @@ export type EndDeleverageInstruction<
       TAccountRiskAdmin extends string
         ? ReadonlySignerAccount<TAccountRiskAdmin> & AccountSignerMeta<TAccountRiskAdmin>
         : TAccountRiskAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -104,11 +109,13 @@ export type EndDeleverageInput<
   TAccountLiquidationRecord extends InstructionAccountInput = InstructionAccountInput,
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiAccount: TAccountMarginfiAccount;
   liquidationRecord: TAccountLiquidationRecord;
   group: TAccountGroup;
   riskAdmin: TAccountRiskAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getEndDeleverageInstruction<
@@ -116,13 +123,15 @@ export function getEndDeleverageInstruction<
   TAccountLiquidationRecord extends InstructionAccountInput,
   TAccountGroup extends InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: EndDeleverageInput<
     TAccountMarginfiAccount,
     TAccountLiquidationRecord,
     TAccountGroup,
-    TAccountRiskAdmin
+    TAccountRiskAdmin,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): EndDeleverageInstruction<
@@ -139,6 +148,10 @@ export function getEndDeleverageInstruction<
   ResolvedInstructionAccountMeta<
     TAccountRiskAdmin,
     InstructionAccountInputAddress<TAccountRiskAdmin>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -157,11 +170,22 @@ export function getEndDeleverageInstruction<
     },
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     riskAdmin: { value: input.riskAdmin ?? null, isSigner: true, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
+
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -169,6 +193,7 @@ export function getEndDeleverageInstruction<
       getAccountMeta("liquidationRecord", accounts.liquidationRecord),
       getAccountMeta("group", accounts.group),
       getAccountMeta("riskAdmin", accounts.riskAdmin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getEndDeleverageInstructionDataEncoder().encode({}),
     programAddress,
@@ -186,6 +211,10 @@ export function getEndDeleverageInstruction<
     ResolvedInstructionAccountMeta<
       TAccountRiskAdmin,
       InstructionAccountInputAddress<TAccountRiskAdmin>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -200,6 +229,7 @@ export type ParsedEndDeleverageInstruction<
     liquidationRecord: TAccountMetas[1];
     group: TAccountMetas[2];
     riskAdmin: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: EndDeleverageInstructionData;
 };
@@ -212,10 +242,10 @@ export function parseEndDeleverageInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedEndDeleverageInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -231,6 +261,7 @@ export function parseEndDeleverageInstruction<
       liquidationRecord: getNextAccount(),
       group: getNextAccount(),
       riskAdmin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getEndDeleverageInstructionDataDecoder().decode(instruction.data),
   };

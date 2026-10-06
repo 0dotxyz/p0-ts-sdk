@@ -55,6 +55,8 @@ export type MarginfiGroupInitializeInstruction<
   TAccountAdmin extends string | AccountMeta<string> = string,
   TAccountFeeState extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -70,6 +72,9 @@ export type MarginfiGroupInitializeInstruction<
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -104,11 +109,13 @@ export type MarginfiGroupInitializeAsyncInput<
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   admin: TAccountAdmin;
   feeState?: TAccountFeeState;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export async function getMarginfiGroupInitializeInstructionAsync<
@@ -116,13 +123,15 @@ export async function getMarginfiGroupInitializeInstructionAsync<
   TAccountAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: MarginfiGroupInitializeAsyncInput<
     TAccountMarginfiGroup,
     TAccountAdmin,
     TAccountFeeState,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
@@ -140,6 +149,10 @@ export async function getMarginfiGroupInitializeInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -155,6 +168,11 @@ export async function getMarginfiGroupInitializeInstructionAsync<
     admin: { value: input.admin ?? null, isSigner: true, isWritable: true },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -169,6 +187,10 @@ export async function getMarginfiGroupInitializeInstructionAsync<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -176,6 +198,7 @@ export async function getMarginfiGroupInitializeInstructionAsync<
       getAccountMeta("admin", accounts.admin),
       getAccountMeta("feeState", accounts.feeState),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getMarginfiGroupInitializeInstructionDataEncoder().encode({}),
     programAddress,
@@ -193,6 +216,10 @@ export async function getMarginfiGroupInitializeInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -202,11 +229,13 @@ export type MarginfiGroupInitializeInput<
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   admin: TAccountAdmin;
   feeState: TAccountFeeState;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getMarginfiGroupInitializeInstruction<
@@ -214,13 +243,15 @@ export function getMarginfiGroupInitializeInstruction<
   TAccountAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: MarginfiGroupInitializeInput<
     TAccountMarginfiGroup,
     TAccountAdmin,
     TAccountFeeState,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): MarginfiGroupInitializeInstruction<
@@ -237,6 +268,10 @@ export function getMarginfiGroupInitializeInstruction<
   ResolvedInstructionAccountMeta<
     TAccountSystemProgram,
     InstructionAccountInputAddress<TAccountSystemProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -251,6 +286,11 @@ export function getMarginfiGroupInitializeInstruction<
     admin: { value: input.admin ?? null, isSigner: true, isWritable: true },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -262,6 +302,10 @@ export function getMarginfiGroupInitializeInstruction<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -269,6 +313,7 @@ export function getMarginfiGroupInitializeInstruction<
       getAccountMeta("admin", accounts.admin),
       getAccountMeta("feeState", accounts.feeState),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getMarginfiGroupInitializeInstructionDataEncoder().encode({}),
     programAddress,
@@ -286,6 +331,10 @@ export function getMarginfiGroupInitializeInstruction<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -300,6 +349,7 @@ export type ParsedMarginfiGroupInitializeInstruction<
     admin: TAccountMetas[1];
     feeState: TAccountMetas[2];
     systemProgram: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: MarginfiGroupInitializeInstructionData;
 };
@@ -312,10 +362,10 @@ export function parseMarginfiGroupInitializeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedMarginfiGroupInitializeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -331,6 +381,7 @@ export function parseMarginfiGroupInitializeInstruction<
       admin: getNextAccount(),
       feeState: getNextAccount(),
       systemProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getMarginfiGroupInitializeInstructionDataDecoder().decode(instruction.data),
   };

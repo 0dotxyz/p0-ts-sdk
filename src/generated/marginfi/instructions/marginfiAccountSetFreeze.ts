@@ -56,6 +56,8 @@ export type MarginfiAccountSetFreezeInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountMarginfiAccount extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -68,6 +70,9 @@ export type MarginfiAccountSetFreezeInstruction<
       TAccountAdmin extends string
         ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -110,10 +115,16 @@ export type MarginfiAccountSetFreezeInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   marginfiAccount: TAccountMarginfiAccount;
+  /**
+   * Fast admin when freezing; governance admin when unfreezing. The legacy account name is
+   * retained for instruction compatibility.
+   */
   admin: TAccountAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
   frozen: MarginfiAccountSetFreezeInstructionDataArgs["frozen"];
 };
 
@@ -121,9 +132,15 @@ export function getMarginfiAccountSetFreezeInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountMarginfiAccount extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: MarginfiAccountSetFreezeInput<TAccountGroup, TAccountMarginfiAccount, TAccountAdmin>,
+  input: MarginfiAccountSetFreezeInput<
+    TAccountGroup,
+    TAccountMarginfiAccount,
+    TAccountAdmin,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): MarginfiAccountSetFreezeInstruction<
   TProgramAddress,
@@ -132,7 +149,11 @@ export function getMarginfiAccountSetFreezeInstruction<
     TAccountMarginfiAccount,
     InstructionAccountInputAddress<TAccountMarginfiAccount>
   >,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -145,6 +166,11 @@ export function getMarginfiAccountSetFreezeInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -154,11 +180,18 @@ export function getMarginfiAccountSetFreezeInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("marginfiAccount", accounts.marginfiAccount),
       getAccountMeta("admin", accounts.admin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getMarginfiAccountSetFreezeInstructionDataEncoder().encode(
       args as MarginfiAccountSetFreezeInstructionDataArgs
@@ -171,7 +204,11 @@ export function getMarginfiAccountSetFreezeInstruction<
       TAccountMarginfiAccount,
       InstructionAccountInputAddress<TAccountMarginfiAccount>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -183,7 +220,12 @@ export type ParsedMarginfiAccountSetFreezeInstruction<
   accounts: {
     group: TAccountMetas[0];
     marginfiAccount: TAccountMetas[1];
+    /**
+     * Fast admin when freezing; governance admin when unfreezing. The legacy account name is
+     * retained for instruction compatibility.
+     */
     admin: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: MarginfiAccountSetFreezeInstructionData;
 };
@@ -196,10 +238,10 @@ export function parseMarginfiAccountSetFreezeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedMarginfiAccountSetFreezeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -214,6 +256,7 @@ export function parseMarginfiAccountSetFreezeInstruction<
       group: getNextAccount(),
       marginfiAccount: getNextAccount(),
       admin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getMarginfiAccountSetFreezeInstructionDataDecoder().decode(instruction.data),
   };

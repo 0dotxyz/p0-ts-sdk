@@ -18,7 +18,9 @@ import {
   makeAddPermissionlessStakedBankIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
-  BankConfigOpt,
+  makePoolConfigureBankGovIx,
+  BankConfigFastOpt,
+  BankConfigGovOpt,
   MarginfiGroupType,
 } from "../services";
 import { parseBankRateLimiterRaw } from "../services/bank/utils/deserialize.utils";
@@ -93,14 +95,29 @@ class MarginfiGroup implements MarginfiGroupType {
     programAddress: Address,
     admin: TransactionSigner,
     bankAddress: Address,
-    bankConfigOpt: BankConfigOpt
+    bankConfig: BankConfigFastOpt
   ): Promise<Instruction> {
     return makePoolConfigureBankIx({
       programAddress,
       groupAddress: this.address,
       admin,
       bankAddress,
-      bankConfigOpt,
+      bankConfig,
+    });
+  }
+
+  public async makePoolConfigureBankGovIx(
+    programAddress: Address,
+    governanceAdmin: TransactionSigner,
+    bankAddress: Address,
+    bankConfig: BankConfigGovOpt
+  ): Promise<Instruction> {
+    return makePoolConfigureBankGovIx({
+      programAddress,
+      groupAddress: this.address,
+      governanceAdmin,
+      bankAddress,
+      bankConfig,
     });
   }
 
@@ -121,7 +138,7 @@ class MarginfiGroup implements MarginfiGroupType {
 
   public async makePoolAddBankIx(
     programAddress: Address,
-    admin: TransactionSigner,
+    governanceAdmin: TransactionSigner,
     globalFeeWallet: Address,
     bank: TransactionSigner,
     bankMint: Address,
@@ -131,9 +148,9 @@ class MarginfiGroup implements MarginfiGroupType {
     return makePoolAddBankIx({
       programAddress,
       groupAddress: this.address,
-      admin,
+      governanceAdmin,
       globalFeeWallet,
-      feePayer: feePayer ?? admin,
+      feePayer: feePayer ?? governanceAdmin,
       bank,
       bankMint,
       bankConfig,
