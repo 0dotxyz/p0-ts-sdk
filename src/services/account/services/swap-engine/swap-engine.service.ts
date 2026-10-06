@@ -1,3 +1,11 @@
+import { getU32Decoder, Instruction } from "@solana/kit";
+import { SYSTEM_PROGRAM_ADDRESS, SystemInstruction } from "@solana-program/system";
+import {
+  findAssociatedTokenPda,
+  TOKEN_PROGRAM_ADDRESS,
+  TokenInstruction,
+} from "@solana-program/token";
+
 import { getSwapAdapter } from "./adapters";
 import {
   ProviderSwapRoute,
@@ -7,7 +15,7 @@ import {
   SwapEngineResult,
 } from "./types";
 
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { SwapApiConfig } from "~/services/account/types";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
@@ -78,7 +86,38 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
     );
   }
 
-  const candidates = routes.map((route) => annotateFit(route, req));
+  // Our flows own SOL wrapping: the wSOL ATA is funded in-tx (borrow / withdraw / explicit wrap)
+  // and its output is consumed by a following ix. A provider that wraps the input from the
+  // taker's lamports (transfer + SyncNative) or unwraps the output (CloseAccount) — Titan's raw
+  // routes do the former, Titan has no input-side `outputWsol` analog — would double-wrap or
+  // break the consumer, so those ixs are dropped from every route.
+  const [wsolAta] = await findAssociatedTokenPda({
+    owner: req.taker,
+    mint: WSOL_MINT,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const isProviderSolWrapIx = (ix: Instruction) =>
+    (ix.programAddress === SYSTEM_PROGRAM_ADDRESS &&
+      ix.data !== undefined &&
+      ix.data.length >= 12 &&
+      getU32Decoder().decode(ix.data) === SystemInstruction.TransferSol &&
+      ix.accounts?.[0]?.address === req.taker &&
+      ix.accounts?.[1]?.address === wsolAta) ||
+    (ix.programAddress === TOKEN_PROGRAM_ADDRESS &&
+      (ix.data?.[0] === TokenInstruction.SyncNative ||
+        ix.data?.[0] === TokenInstruction.CloseAccount) &&
+      ix.accounts?.[0]?.address === wsolAta);
+
+  const candidates = routes.map((route) =>
+    annotateFit(
+      {
+        ...route,
+        swapInstructions: route.swapInstructions.filter((ix) => !isProviderSolWrapIx(ix)),
+        setupInstructions: route.setupInstructions.filter((ix) => !isProviderSolWrapIx(ix)),
+      },
+      req
+    )
+  );
   // A route must both fit the budget AND actually yield output — providers can
   // occasionally return a degenerate route (instructions present, outAmount 0);
   // selecting one would patch the deposit to ~0 and produce a broken tx.

@@ -1,10 +1,18 @@
-import { getAddressDecoder } from "@solana/kit";
+import { address, createNoopSigner, getAddressDecoder, Instruction } from "@solana/kit";
+import { getTransferSolInstruction } from "@solana-program/system";
+import {
+  findAssociatedTokenPda,
+  getCloseAccountInstruction,
+  getSyncNativeInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type {
   ProviderSwapRoute,
   SwapEngineRequest,
 } from "~/services/account/services/swap-engine/types";
+import { WSOL_MINT } from "~/constants";
 import { SwapProvider } from "~/services/account/types";
 
 // Shared store the mocked registry reads from. `vi.hoisted` runs before the
@@ -65,6 +73,34 @@ function makeRoute(
     label,
   };
 }
+
+// The ixs Titan's raw routes (and Jupiter with wrapAndUnwrapSol=true) put around a SOL swap:
+// fund the taker's wSOL ATA from lamports, sync it, swap, close it back to lamports.
+const TAKER = address("GDDMwNyyx8uB6zrqwBFHjLLG3TBYk2F8Az4yrQC5RzMp");
+const OTHER_ATA = address("BPFLoaderUpgradeab1e11111111111111111111111");
+const SWAP_PROGRAM = address("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
+const [TAKER_WSOL_ATA] = await findAssociatedTokenPda({
+  owner: TAKER,
+  mint: WSOL_MINT,
+  tokenProgram: TOKEN_PROGRAM_ADDRESS,
+});
+const takerSigner = createNoopSigner(TAKER);
+const wrapTransferIx = getTransferSolInstruction({
+  source: takerSigner,
+  destination: TAKER_WSOL_ATA,
+  amount: 5,
+});
+const syncNativeIx = getSyncNativeInstruction({ account: TAKER_WSOL_ATA });
+const closeWsolIx = getCloseAccountInstruction({
+  account: TAKER_WSOL_ATA,
+  destination: TAKER,
+  owner: takerSigner,
+});
+const swapIx: Instruction = {
+  programAddress: SWAP_PROGRAM,
+  accounts: [],
+  data: new Uint8Array([1, 2]),
+};
 
 function makeRequest(): SwapEngineRequest {
   return {
@@ -162,5 +198,40 @@ describe("runSwapEngine selection", () => {
     store.routes.set(SwapProvider.JUPITER, []);
 
     await expect(runSwapEngine(makeRequest())).rejects.toThrow();
+  });
+
+  it("drops provider SOL wrap/unwrap ixs around the swap so our flows own wSOL handling", async () => {
+    const route = makeRoute(SwapProvider.TITAN, 1000, 10, "titan-raw");
+    route.swapInstructions = [wrapTransferIx, syncNativeIx, swapIx, closeWsolIx];
+    route.setupInstructions = [wrapTransferIx, syncNativeIx];
+    store.routes.set(SwapProvider.TITAN, [route]);
+    store.routes.set(SwapProvider.JUPITER, []);
+
+    const result = await runSwapEngine({ ...makeRequest(), taker: TAKER });
+
+    expect(result.swapInstructions).toEqual([swapIx]);
+    expect(result.setupInstructions).toEqual([]);
+  });
+
+  it("keeps system/token ixs that are not the taker's wSOL wrap or unwrap", async () => {
+    const transferElsewhere = getTransferSolInstruction({
+      source: takerSigner,
+      destination: OTHER_ATA,
+      amount: 5,
+    });
+    const syncOther = getSyncNativeInstruction({ account: OTHER_ATA });
+    const closeOther = getCloseAccountInstruction({
+      account: OTHER_ATA,
+      destination: TAKER,
+      owner: takerSigner,
+    });
+    const route = makeRoute(SwapProvider.JUPITER, 1000, 10, "jup");
+    route.swapInstructions = [transferElsewhere, syncOther, swapIx, closeOther];
+    store.routes.set(SwapProvider.JUPITER, [route]);
+    store.routes.set(SwapProvider.TITAN, []);
+
+    const result = await runSwapEngine({ ...makeRequest(), taker: TAKER });
+
+    expect(result.swapInstructions).toEqual([transferElsewhere, syncOther, swapIx, closeOther]);
   });
 });
