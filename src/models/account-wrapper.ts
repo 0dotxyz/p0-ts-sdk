@@ -11,6 +11,9 @@ import { HealthCache } from "./health-cache";
 import { WSOL_MINT } from "~/constants";
 import {
   computeLowestEmodeWeights,
+  computePremiumBreakdown,
+  computePremiumImpact,
+  computePremiumRatesByBank,
   createActiveEmodePairFromPairs,
   fetchGlobalFeeWallet,
   MakeBorrowIxOpts,
@@ -29,6 +32,9 @@ import {
   MakeWithdrawIxOpts,
   MarginRequirementType,
   OrderTriggerParams,
+  PremiumAction,
+  PremiumCollateralBreakdown,
+  PremiumImpact,
 } from "~/services/account";
 import { ActionEmodeImpact, BankType, EmodePair, requireBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
@@ -486,6 +492,44 @@ export class MarginfiAccountWrapper {
     banks: Address[]
   ): Record<string, ActionEmodeImpact> {
     return this.account.computeEmodeImpacts(emodePairs, banks);
+  }
+
+  // ----------------------------------------------------------------------------
+  // Variable borrow premium — derived from client.group.premiumEntries + account balances
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Premium rate (APR fraction) each premium-active bank would charge this account for a borrow,
+   * given its current collateral, by bank address. See {@link computePremiumRatesByBank}.
+   */
+  getPremiumRatesByBank(): Map<string, BigNumber> {
+    return computePremiumRatesByBank(this.premiumRateParams());
+  }
+
+  /**
+   * Per-collateral breakdown of the premium rate `liabilityBank` would charge this account.
+   * See {@link computePremiumBreakdown}.
+   */
+  getPremiumBreakdown(liabilityBank: Address): PremiumCollateralBreakdown[] {
+    return computePremiumBreakdown(this.premiumRateParams(), liabilityBank);
+  }
+
+  /**
+   * How `actions` would change this account's premium rates and yearly premium.
+   * See {@link computePremiumImpact}.
+   */
+  computePremiumImpact(actions: PremiumAction[]): PremiumImpact {
+    return computePremiumImpact({ ...this.premiumRateParams(), actions });
+  }
+
+  private premiumRateParams() {
+    return {
+      activeBalances: this.account.activeBalances,
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      premiumEntries: this.client.group.premiumEntries,
+    };
   }
 
   // ----------------------------------------------------------------------------

@@ -3,6 +3,8 @@ import { BigNumber } from "bignumber.js";
 
 import { BalanceType, MarginfiAccountType } from "../types";
 
+import { computeBalancePremium } from "./premium.utils";
+
 import { DEFAULT_ADDRESS } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
@@ -396,6 +398,8 @@ export function computeProjectedActiveBalancesNoCpi({
         // Check if this is a full repay
         if (closesPosition(parsed.data)) {
           targetBalance.liabilityShares = new BigNumber(0);
+          targetBalance.premiumOutstanding = new BigNumber(0);
+          targetBalance.premiumRate = new BigNumber(0);
 
           // If no assets and no liabilities, close the balance
           if (targetBalance.assetShares.eq(0)) {
@@ -409,7 +413,16 @@ export function computeProjectedActiveBalancesNoCpi({
           if (!bank) {
             throw Error(`Bank ${targetBank} not found in bankMap`);
           }
-          const repayShares = getLiabilityShares(bank, repayTokenAmount);
+          // The program settles accrued premium before principal
+          let premiumSettled = new BigNumber(0);
+          if (bank.premiumActive) {
+            const nowSeconds = Date.now() / 1000;
+            const premium = computeBalancePremium(targetBalance, bank, nowSeconds);
+            premiumSettled = BigNumber.min(premium, repayTokenAmount);
+            targetBalance.premiumOutstanding = premium.minus(premiumSettled);
+            targetBalance.lastUpdate = nowSeconds;
+          }
+          const repayShares = getLiabilityShares(bank, repayTokenAmount.minus(premiumSettled));
           targetBalance.liabilityShares = BigNumber.max(
             0,
             targetBalance.liabilityShares.minus(repayShares)

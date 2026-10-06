@@ -12,6 +12,7 @@ export {
 } from "./deserialize.utils";
 export * from "./balance.utils";
 export * from "./value.utils";
+export * from "./premium.utils";
 export * from "./health.utils";
 export * from "./account-metrics.utils";
 export * from "./transaction-projection.utils";
