@@ -14,7 +14,7 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SolanaTransaction, TransactionFormat } from "../types";
+import { SolanaTransaction, TransactionFormat, TransactionType } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
@@ -252,4 +252,25 @@ export function splitInstructionsToFitTransactions(
   }
 
   return result;
+}
+
+/**
+ * Builds the transactions that run before an action: setup (ATA creation and the like) tagged
+ * `CREATE_ATA`, then venue refreshes tagged `CRANK`, each split to fit.
+ */
+export function makePreludeTxs(
+  setupIxs: Instruction[],
+  refreshIxs: Instruction[],
+  opts: {
+    latestBlockhash: BlockhashLifetimeConstraint;
+    feePayer: TransactionSigner;
+    txFormat: TransactionFormat;
+  }
+): SolanaTransaction[] {
+  const build = (ixs: Instruction[], type: TransactionType) =>
+    splitInstructionsToFitTransactions([], ixs, opts).map((message) => ({ message, type }));
+  return [
+    ...build(setupIxs, TransactionType.CREATE_ATA),
+    ...build(refreshIxs, TransactionType.CRANK),
+  ];
 }

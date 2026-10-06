@@ -41,10 +41,10 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   makeTransactionMessage,
   makeWrapSolIxs,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionType,
   withLookupTables,
 } from "~/services/transaction";
@@ -199,20 +199,11 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: SolanaTransaction[] = [];
-
-  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs];
-    const messages = splitInstructionsToFitTransactions([], ixs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

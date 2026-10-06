@@ -34,9 +34,9 @@ import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   makeTransactionMessage,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionFormat,
   TransactionType,
 } from "~/services/transaction";
@@ -632,18 +632,11 @@ export async function makeTransferPositionsTx(
     bankMetadataMap,
   });
 
-  const additionalTxs: SolanaTransaction[] = [];
-  const preludeIxs = [...setupIxs, ...refreshIxs];
-  if (preludeIxs.length > 0) {
-    const messages = splitInstructionsToFitTransactions([], preludeIxs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

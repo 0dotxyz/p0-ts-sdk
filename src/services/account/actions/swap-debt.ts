@@ -38,9 +38,8 @@ import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
-  TransactionType,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -133,21 +132,11 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: SolanaTransaction[] = [];
-
-  // If ATAs, additional instructions, or refreshes are needed, add them
-  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs];
-    const messages = splitInstructionsToFitTransactions([], ixs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs([...additionalIxs, ...setupIxs], refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
 

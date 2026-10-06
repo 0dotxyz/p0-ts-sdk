@@ -47,11 +47,10 @@ import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   makeWrapSolIxs,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionFormat,
-  TransactionType,
   withLookupTables,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
@@ -131,8 +130,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: SolanaTransaction[] = [];
-
   // wrap sol if needed
   if (depositOpts.depositBank.mint === WSOL_MINT && depositOpts.inputDepositAmount) {
     setupIxs.push(
@@ -140,19 +137,11 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     );
   }
 
-  // if atas are needed, add them
-  if (setupIxs.length > 0 || additionalIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs];
-    const messages = splitInstructionsToFitTransactions([], ixs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs([...additionalIxs, ...setupIxs], refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

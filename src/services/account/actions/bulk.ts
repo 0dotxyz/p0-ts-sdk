@@ -11,6 +11,7 @@ import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
+  makePreludeTxs,
   makeUnwrapSolIx,
   selectLutsForBanks,
   SolanaTransaction,
@@ -127,23 +128,11 @@ export async function makeBulkWithdrawTx(
 
   // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
   // tx for the whole batch (see the atomic-bundle note in the doc comment).
-  const additionalTxs: SolanaTransaction[] = [];
-
   const setupIxs = await makeSetupIx({
     rpc,
     authority,
     tokens: setupTokens,
   });
-  if (setupIxs.length > 0) {
-    const setupTxs = splitInstructionsToFitTransactions([], setupIxs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat: selectedFormat,
-    });
-    additionalTxs.push(
-      ...setupTxs.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
 
   // One shared refresh for the whole batch: kamino reserves + obligations for
   // the withdrawn kamino banks, rate cranks for the account's other jup/drift
@@ -154,14 +143,11 @@ export async function makeBulkWithdrawTx(
     bankAddresses,
     bankMetadataMap
   );
-  if (refreshIxs.length > 0) {
-    const refreshTxs = splitInstructionsToFitTransactions([], refreshIxs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat: selectedFormat,
-    });
-    additionalTxs.push(...refreshTxs.map((message) => ({ message, type: TransactionType.CRANK })));
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat: selectedFormat,
+  });
 
   return {
     transactions: [...additionalTxs, ...withdrawTxs],

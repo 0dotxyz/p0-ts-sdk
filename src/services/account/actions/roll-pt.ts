@@ -45,11 +45,10 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   getTxSize,
   getTotalAccountKeys,
+  makePreludeTxs,
   makeTransactionMessage,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionFormat,
-  TransactionType,
   withLookupTables,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
@@ -163,22 +162,11 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     latestBlockhash,
   });
 
-  const additionalTxs: SolanaTransaction[] = [];
-
-  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const messages = splitInstructionsToFitTransactions(
-      [],
-      [...setupIxs, ...refreshIntegrationIxs],
-      {
-        latestBlockhash,
-        feePayer: authority,
-        txFormat,
-      }
-    );
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
 

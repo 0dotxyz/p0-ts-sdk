@@ -36,8 +36,8 @@ import {
  *     So each leg's crank stays its own tx, immediately before that leg's flashloan. Only setup
  *     (ATA-create) txs — which are slot-independent — are merged. Worst case is 5 txs (`setup,
  *     firstLegCrank, firstLegFL, secondLegCrank, secondLegFL`), Jito's ceiling; the bundle-tip
- *     instruction fits in-place in the small setup/crank txs. (Legs emit no crank txs since Switchboard
- *     cranking was removed; the separation is kept for any future slot-bound oracle update.)
+ *     instruction fits in-place in the small setup/crank txs. (Since Switchboard cranking was removed, a
+ *     leg's crank txs hold its venue refreshes.)
  *
  *  2. **The second leg must be built against the first leg's full projected effect.** It touches
  *     collateral/debt the first leg mutates but hasn't executed yet at build time. Built against the raw
