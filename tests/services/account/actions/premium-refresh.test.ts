@@ -114,6 +114,26 @@ function deposit(
   });
 }
 
+function bulkRepay(
+  marginfiAccount: MarginfiAccountType,
+  targets: BankType[],
+  skipPremiumRefresh?: boolean
+) {
+  return makeBulkRepayTx({
+    program,
+    connection: {
+      getLatestBlockhash: async () => ({ blockhash: PublicKey.default.toBase58() }),
+    } as unknown as Connection,
+    marginfiAccount,
+    bankAddresses: targets.map((b) => b.address),
+    bankMap,
+    bankMetadataMap: {},
+    tokenProgramsByBank: new Map(targets.map((b) => [b.address.toBase58(), TOKEN_PROGRAM_ID])),
+    overrideInferAccounts: { group: marginfiAccount.group },
+    skipPremiumRefresh,
+  });
+}
+
 function repay(marginfiAccount: MarginfiAccountType, target: BankType, repayAll: boolean) {
   return makeRepayTx({
     program,
@@ -198,22 +218,10 @@ describe("repays", () => {
       balance(usdc, "liability"),
       balance(usdt, "liability"),
     ]);
-    const bulkRepay = (skipPremiumRefresh?: boolean) =>
-      makeBulkRepayTx({
-        program,
-        connection: {
-          getLatestBlockhash: async () => ({ blockhash: PublicKey.default.toBase58() }),
-        } as unknown as Connection,
-        marginfiAccount: twoDebts,
-        bankAddresses: [usdc.address],
-        bankMap,
-        bankMetadataMap: {},
-        tokenProgramsByBank: new Map([[usdc.address.toBase58(), TOKEN_PROGRAM_ID]]),
-        overrideInferAccounts: { group: twoDebts.group },
-        skipPremiumRefresh,
-      });
 
-    const { transactions } = await bulkRepay();
+    const { transactions, mustBeAtomicBundle } = await bulkRepay(twoDebts, [usdc]);
+    expect(transactions).toHaveLength(1);
+    expect(mustBeAtomicBundle).toBe(false);
     const message = transactions[transactions.length - 1].message;
     const last = message.compiledInstructions[message.compiledInstructions.length - 1];
     const accountKeys = message.staticAccountKeys.map((k) => k.toBase58());
@@ -222,10 +230,39 @@ describe("repays", () => {
       usdc.address.toBase58()
     );
 
-    const skipped = (await bulkRepay(true)).transactions.flatMap((tx) =>
+    const skipped = (await bulkRepay(twoDebts, [usdc], true)).transactions.flatMap((tx) =>
       tx.message.compiledInstructions.map((ix) => Buffer.from(ix.data.subarray(0, 8)))
     );
     expect(skipped.some((data) => data.equals(PULSE_DISCRIMINATOR))).toBe(false);
+  });
+
+  it("bulk: bundle a batch that splits with the premium refresh in it", async () => {
+    vi.spyOn(instructions, "makeRepayIx").mockImplementation(
+      async () =>
+        new TransactionInstruction({
+          programId: program.programId,
+          keys: Array.from({ length: 16 }, () => ({
+            pubkey: PublicKey.unique(),
+            isSigner: false,
+            isWritable: true,
+          })),
+          data: Buffer.alloc(8),
+        })
+    );
+    const threeDebts = account([
+      balance(sol, "asset"),
+      balance(usdc, "liability"),
+      balance(inactive, "liability"),
+      balance(usdt, "liability"),
+    ]);
+
+    const split = await bulkRepay(threeDebts, [usdc, inactive]);
+    expect(split.transactions.length).toBeGreaterThan(1);
+    expect(split.mustBeAtomicBundle).toBe(true);
+
+    const skipped = await bulkRepay(threeDebts, [usdc, inactive], true);
+    expect(skipped.transactions.length).toBeGreaterThan(1);
+    expect(skipped.mustBeAtomicBundle).toBe(false);
   });
 });
 

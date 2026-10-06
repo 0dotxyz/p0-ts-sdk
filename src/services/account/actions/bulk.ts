@@ -261,8 +261,9 @@ export async function makeBulkWithdrawTx(
 
 /**
  * Repay the FULL debt of every given bank from the wallet, packing as many
- * repays per transaction as fit. Repays carry no health pack and need no
- * oracle cranks, so most batches are a single transaction.
+ * repays per transaction as fit, followed by the premium refresh while
+ * premium-bearing debt remains. Most batches are a single transaction; one
+ * that splits with a premium refresh in it must land as one bundle.
  */
 export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<BulkLendTxsResult> {
   const {
@@ -307,23 +308,19 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     repayIxs.push(...repay.instructions);
   }
 
-  if (
-    !params.skipPremiumRefresh &&
-    needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
-  ) {
-    repayIxs.push(
-      ...(await makePremiumRefreshIxs(
-        program,
-        { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
-        [],
-        bankAddresses
-      ))
-    );
-  }
+  const premiumIxs =
+    !params.skipPremiumRefresh && needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
+      ? await makePremiumRefreshIxs(
+          program,
+          { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
+          [],
+          bankAddresses
+        )
+      : [];
 
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
-  const transactions = splitInstructionsToFitTransactions([], repayIxs, {
+  const transactions = splitInstructionsToFitTransactions([], [...repayIxs, ...premiumIxs], {
     blockhash,
     payerKey: authority,
     luts,
@@ -336,5 +333,10 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     })
   );
 
-  return { transactions, actionTxIndex: 0, mustBeAtomicBundle: false };
+  return {
+    transactions,
+    actionTxIndex: 0,
+    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay
+    mustBeAtomicBundle: premiumIxs.length > 0 && transactions.length > 1,
+  };
 }
