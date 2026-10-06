@@ -12,6 +12,7 @@ import { WSOL_MINT } from "~/constants";
 import {
   computeLowestEmodeWeights,
   createActiveEmodePairFromPairs,
+  fetchGlobalFeeWallet,
   MakeBorrowIxOpts,
   MakeBridgedLoopTxParams,
   MakeBridgedSwapCollateralTxParams,
@@ -27,6 +28,7 @@ import {
   MakeTransferPositionsTxParams,
   MakeWithdrawIxOpts,
   MarginRequirementType,
+  OrderTriggerParams,
 } from "~/services/account";
 import { ActionEmodeImpact, BankType, EmodePair, requireBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
@@ -404,6 +406,48 @@ export class MarginfiAccountWrapper {
       groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
       ...params,
     });
+  }
+
+  // ----------------------------------------------------------------------------
+  // Orders (take-profit / stop-loss)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Place-order instruction for a take-profit / stop-loss on the `collateralBank` (asset side) /
+   * `debtBank` (liability side) pair, for composing into a larger transaction.
+   * @throws if the program's fee state account doesn't exist
+   */
+  async makePlaceOrderIx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    const { programAddress, authority, rpc } = this.context;
+    return this.account.makePlaceOrderIx({
+      programAddress,
+      authority,
+      collateralBank,
+      debtBank,
+      trigger,
+      globalFeeWallet: await fetchGlobalFeeWallet(rpc, programAddress),
+    });
+  }
+
+  /** Close-order instruction for `order` (from `fetchOrdersForAccount` or `deriveOrderPda`). */
+  async makeCloseOrderIx(order: Address) {
+    const { programAddress, authority } = this.context;
+    return this.account.makeCloseOrderIx({ programAddress, authority, order });
+  }
+
+  /** Transaction placing a take-profit / stop-loss order on the `collateralBank`/`debtBank` pair. */
+  async makePlaceOrderTx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    return this.account.makePlaceOrderTx({ ...this.context, collateralBank, debtBank, trigger });
+  }
+
+  /** Transaction replacing the pair's existing order with new thresholds. */
+  async makeUpdateOrderTx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    return this.account.makeUpdateOrderTx({ ...this.context, collateralBank, debtBank, trigger });
+  }
+
+  /** Transaction closing `order` (from `fetchOrdersForAccount` or `deriveOrderPda`). */
+  async makeCloseOrderTx(order: Address) {
+    return this.account.makeCloseOrderTx({ ...this.context, order });
   }
 
   // ----------------------------------------------------------------------------

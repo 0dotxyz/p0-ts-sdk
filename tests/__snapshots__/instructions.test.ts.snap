@@ -230,6 +230,45 @@ exports[`marginfi instruction wire format > makeCloseAccountIx 1`] = `
 }
 `;
 
+exports[`marginfi instruction wire format > makeCloseOrderIx 1`] = `
+{
+  "data": "d4df4fb6acb7cded",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+      false,
+      true,
+    ],
+    [
+      "7HTVK1Jwzjd4yRGCZnLT4QmwhmZidurFxwz2RMAiUyzk",
+      false,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
 exports[`marginfi instruction wire format > makeDepositIx depositUpToLimit none 1`] = `
 {
   "data": "ab5eeb675240d48cd20400000000000000",
@@ -2381,6 +2420,55 @@ exports[`marginfi instruction wire format > makeLendingPoolSetOraclePriceIx 1`] 
     ],
     [
       "DEKVuWHr2ym1FPGrx53JfSh5Bk5RuWGR8rdmYo7SEJNx",
+      false,
+      false,
+    ],
+  ],
+  "programId": "EWn7dE93GeQJu72WEkEmC5MZpm5FhiJzkcJEf1xpRdWP",
+}
+`;
+
+exports[`marginfi instruction wire format > makePlaceOrderIx 1`] = `
+{
+  "data": "f4704b8a8f6c07ba020000005b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c020505050505050505050505050505050506060606060606060606060606060606e8030000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      true,
+      false,
+    ],
+    [
+      "75hbt6uvDqjPZ9WgFtMhBnTeyHw7cinoHiz4FD2vEz2d",
+      false,
+      true,
+    ],
+    [
+      "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+      false,
+      false,
+    ],
+    [
+      "5ByKsfsdfVR3ecWU3XDy3GrJ8r3UkwZqeJKgcZn9Kezq",
+      false,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
       false,
       false,
     ],

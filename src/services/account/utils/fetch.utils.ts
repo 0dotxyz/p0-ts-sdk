@@ -1,22 +1,31 @@
 import {
+  assertAccountExists,
+  fetchEncodedAccount,
   fetchEncodedAccounts,
   getBase58Decoder,
   parseBase64RpcAccount,
   type Address,
   type Base58EncodedBytes,
   type EncodedAccount,
+  type GetAccountInfoApi,
   type GetMultipleAccountsApi,
   type GetProgramAccountsApi,
   type GetProgramAccountsMemcmpFilter,
   type Rpc,
 } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
-import { BalanceType } from "../types";
+import { BalanceType, OrderType } from "../types";
 
-import { decodeMarginfiAccount } from "./deserialize.utils";
+import { decodeMarginfiAccount, parseOrderRaw } from "./deserialize.utils";
 
-import { MARGINFI_ACCOUNT_DISCRIMINATOR } from "~/accounts";
-import { deriveMarginfiAccount } from "~/utils";
+import {
+  decodeFeeStateRaw,
+  decodeOrderRaw,
+  MARGINFI_ACCOUNT_DISCRIMINATOR,
+  ORDER_DISCRIMINATOR,
+} from "~/accounts";
+import { deriveFeeState, deriveMarginfiAccount, wrappedI80F48toBigNumber } from "~/utils";
 
 const DISCRIMINATOR_FILTER: GetProgramAccountsMemcmpFilter = {
   memcmp: {
@@ -244,4 +253,79 @@ export async function findRandomAvailableAccountIndex(
   }
 
   throw new Error("Unable to find free index after many attempts");
+}
+
+/**
+ * Fetches all orders for a marginfi account, including orphaned ones.
+ *
+ * @param rpc - Solana RPC client
+ * @param programAddress - The marginfi program address
+ * @param marginfiAccount - The marginfi account address
+ */
+export async function fetchOrdersForAccount(
+  rpc: Rpc<GetProgramAccountsApi>,
+  programAddress: Address,
+  marginfiAccount: Address
+): Promise<OrderType[]> {
+  const orders = await rpc
+    .getProgramAccounts(programAddress, {
+      encoding: "base64",
+      filters: [
+        {
+          memcmp: {
+            offset: 0n,
+            bytes: getBase58Decoder().decode(ORDER_DISCRIMINATOR) as Base58EncodedBytes,
+            encoding: "base58",
+          },
+        },
+        // marginfiAccount is the first field after the discriminator
+        { memcmp: { offset: 8n, bytes: marginfiAccount, encoding: "base58" } },
+      ],
+    })
+    .send();
+
+  return orders.map(({ pubkey, account }) =>
+    parseOrderRaw(pubkey, decodeOrderRaw(parseBase64RpcAccount(pubkey, account).data))
+  );
+}
+
+/**
+ * Fetches the global fee wallet from the program's `FeeState` (order placement fees go there).
+ *
+ * @param rpc - Solana RPC client
+ * @param programAddress - The marginfi program address
+ * @throws if the program's fee state account doesn't exist
+ */
+export async function fetchGlobalFeeWallet(
+  rpc: Rpc<GetAccountInfoApi>,
+  programAddress: Address
+): Promise<Address> {
+  const [feeStateAddress] = await deriveFeeState(programAddress);
+  const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
+  assertAccountExists(feeStateAccount);
+  return decodeFeeStateRaw(feeStateAccount.data).globalFeeWallet;
+}
+
+/**
+ * Fetches the order fees from the program's global `FeeState`.
+ *
+ * - `placementFeeLamports`: flat SOL fee charged by `place_order` (and again on every update).
+ * - `executionMaxFee`: the share of the pair's net value a keeper may keep on a take-profit.
+ *
+ * @param rpc - Solana RPC client
+ * @param programAddress - The marginfi program address
+ * @throws if the program's fee state account doesn't exist
+ */
+export async function fetchOrderFees(
+  rpc: Rpc<GetAccountInfoApi>,
+  programAddress: Address
+): Promise<{ placementFeeLamports: number; executionMaxFee: BigNumber }> {
+  const [feeStateAddress] = await deriveFeeState(programAddress);
+  const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
+  assertAccountExists(feeStateAccount);
+  const feeState = decodeFeeStateRaw(feeStateAccount.data);
+  return {
+    placementFeeLamports: feeState.orderInitFlatSolFee,
+    executionMaxFee: wrappedI80F48toBigNumber(feeState.orderExecutionMaxFee),
+  };
 }

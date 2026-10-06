@@ -10,17 +10,22 @@ import {
   getMarginfiGroupDecoder,
   MARGINFI_ACCOUNT_DISCRIMINATOR,
   MARGINFI_GROUP_DISCRIMINATOR,
+  getOrderDecoder,
+  ORDER_DISCRIMINATOR,
   type Bank,
   type FeeState,
   type MarginfiAccount,
   type MarginfiGroup,
+  type Order,
 } from "./generated/marginfi";
 import { decodeAccountData } from "./vendor/account-data";
 
 export {
   BANK_DISCRIMINATOR,
   MARGINFI_ACCOUNT_DISCRIMINATOR,
+  ORDER_DISCRIMINATOR,
   BankOperationalState as OperationalStateRaw,
+  OrderTriggerType as OrderTriggerTypeRaw,
   OracleSetup as OracleSetupRaw,
   RiskTier as RiskTierRaw,
 } from "./generated/marginfi";
@@ -74,4 +79,12 @@ export function decodeFeeStateRaw(data: ReadonlyUint8Array): FeeState {
     getFeeStateDecoder(),
     "marginfi FeeState"
   );
+}
+
+/**
+ * Decodes a marginfi `Order` (take-profit / stop-loss) account.
+ * @throws if the discriminator doesn't match
+ */
+export function decodeOrderRaw(data: ReadonlyUint8Array): Order {
+  return decodeAccountData(data, ORDER_DISCRIMINATOR, getOrderDecoder(), "marginfi Order");
 }

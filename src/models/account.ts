@@ -52,6 +52,10 @@ import {
   makeBridgedSwapDebtTx,
   MakeBridgedSwapDebtTxParams,
   makeCloseMarginfiAccountIx,
+  makeCloseOrderIx,
+  MakeCloseOrderIxParams,
+  makeCloseOrderTx,
+  MakeCloseOrderTxParams,
   makeDepositIx,
   MakeDepositIxParams,
   makeDepositTx,
@@ -61,6 +65,10 @@ import {
   MakeFlashLoanTxParams,
   makeLoopTx,
   MakeLoopTxParams,
+  makePlaceOrderIx,
+  MakePlaceOrderIxParams,
+  makePlaceOrderTx,
+  MakePlaceOrderTxParams,
   makePulseHealthIx,
   makeRepayIx,
   MakeRepayIxParams,
@@ -76,6 +84,7 @@ import {
   MakeSwapDebtTxParams,
   makeTransferPositionsTx,
   MakeTransferPositionsTxParams,
+  makeUpdateOrderTx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
   makeWithdrawTx,
@@ -100,7 +109,8 @@ class MarginfiAccount implements MarginfiAccountType {
     public readonly authority: Address,
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
-    public healthCache: HealthCache
+    public healthCache: HealthCache,
+    public readonly activeOrders: number = 0
   ) {}
 
   /**
@@ -129,7 +139,8 @@ class MarginfiAccount implements MarginfiAccountType {
       account.authority,
       account.balances.map((b) => Balance.fromBalanceType(b)),
       account.accountFlags,
-      account.healthCache
+      account.healthCache,
+      account.activeOrders
     );
   }
 
@@ -382,6 +393,27 @@ class MarginfiAccount implements MarginfiAccountType {
    */
   async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
     return makePulseHealthIx(programAddress, this, bankMap);
+  }
+
+  async makePlaceOrderIx(params: Omit<MakePlaceOrderIxParams, "marginfiAccount">) {
+    return makePlaceOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  async makePlaceOrderTx(params: Omit<MakePlaceOrderTxParams, "marginfiAccount">) {
+    return makePlaceOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeCloseOrderIx(params: Omit<MakeCloseOrderIxParams, "marginfiAccount">) {
+    return makeCloseOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeCloseOrderTx(params: Omit<MakeCloseOrderTxParams, "marginfiAccount">) {
+    return makeCloseOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /** Replaces this account's order on the pair with new thresholds (close + place). */
+  async makeUpdateOrderTx(params: Omit<MakePlaceOrderTxParams, "marginfiAccount">) {
+    return makeUpdateOrderTx({ ...params, marginfiAccount: this });
   }
 
   /** Surrounds `ix` with wrapping `amount` SOL (UI units) into wSOL and unwrapping it after. */

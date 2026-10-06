@@ -12,6 +12,7 @@ import type {
   Transaction,
   TransactionSigner,
 } from "@solana/kit";
+import type { BigNumber } from "bignumber.js";
 
 import type { SwapEngineRunner } from "../services/swap-engine/types";
 
@@ -611,4 +612,52 @@ export interface MakeSetupIxParams {
     mint: Address;
     tokenProgram: Address;
   }[];
+}
+
+export interface OrderTriggerParams {
+  /** Pair net equity (USD) at or below which the stop-loss fires. */
+  stopLossUsd?: BigNumber;
+  /** Pair net equity (USD) at or above which the take-profit fires. */
+  takeProfitUsd?: BigNumber;
+  /** Max slippage the keeper may incur when executing, in percent (protocol cap: 10). */
+  maxSlippagePercent: number;
+}
+
+export interface MakePlaceOrderIxParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs. */
+  authority: TransactionSigner;
+  /** Bank of the asset-side (collateral) balance. */
+  collateralBank: Address;
+  /** Bank of the liability-side (debt) balance. */
+  debtBank: Address;
+  trigger: OrderTriggerParams;
+  /** Pays the order rent and the flat anti-spam fee. Defaults to `authority`. */
+  feePayer?: TransactionSigner;
+  /** Global fee wallet from the program's `FeeState`. */
+  globalFeeWallet: Address;
+}
+
+export interface MakePlaceOrderTxParams extends Omit<MakePlaceOrderIxParams, "globalFeeWallet"> {
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
+  txFormat: TransactionFormat;
+  /** Global fee wallet from the program's `FeeState`; read from chain when omitted. */
+  globalFeeWallet?: Address;
+}
+
+export interface MakeCloseOrderIxParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs. */
+  authority: TransactionSigner;
+  /** The order PDA to close (see `deriveOrderPda`). */
+  order: Address;
+  /** Receives the order's rent. Defaults to `authority`. */
+  feeRecipient?: Address;
+}
+
+export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams {
+  rpc: Rpc<GetLatestBlockhashApi>;
+  txFormat: TransactionFormat;
 }

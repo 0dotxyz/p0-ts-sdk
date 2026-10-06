@@ -23,8 +23,10 @@ import {
   getLendingPoolConfigureBankOracleScopeInstruction,
   getLendingPoolSetOraclePriceInstruction,
   getMarginfiAccountCloseInstructionAsync,
+  getMarginfiAccountCloseOrderInstruction,
   getMarginfiAccountInitializeInstruction,
   getMarginfiAccountInitializePdaInstruction,
+  getMarginfiAccountPlaceOrderInstructionAsync,
   getMarginfiGroupInitializeInstructionAsync,
   getTransferToNewAccountInstructionAsync,
   parseMarginfiInstruction,
@@ -51,8 +53,10 @@ import {
   type LendingPoolConfigureBankOracleScopeInput,
   type LendingPoolSetOraclePriceInput,
   type MarginfiAccountCloseAsyncInput,
+  type MarginfiAccountCloseOrderInput,
   type MarginfiAccountInitializeInput,
   type MarginfiAccountInitializePdaInput,
+  type MarginfiAccountPlaceOrderAsyncInput,
   type MarginfiGroupInitializeAsyncInput,
   type ParsedMarginfiInstruction,
   type TransferToNewAccountAsyncInput,
@@ -403,6 +407,26 @@ async function makeCloseAccountIx(
 }
 
 /**
+ * Places a take-profit / stop-loss order on a collateral/debt bank pair; derives the fee state.
+ * The `order` account must be derived by the caller (see `deriveOrderPda`): the IDL has no pda
+ * block for it.
+ */
+async function makePlaceOrderIx(
+  programAddress: Address,
+  input: MarginfiAccountPlaceOrderAsyncInput
+): Promise<Instruction> {
+  return getMarginfiAccountPlaceOrderInstructionAsync(input, { programAddress });
+}
+
+/** Closes an order and returns its rent to `feeRecipient`. */
+async function makeCloseOrderIx(
+  programAddress: Address,
+  input: MarginfiAccountCloseOrderInput
+): Promise<Instruction> {
+  return getMarginfiAccountCloseOrderInstruction(input, { programAddress });
+}
+
+/**
  * Refreshes the account's health cache.
  * @param remainingAccounts - Bank/oracle accounts for each active balance.
  */
@@ -459,6 +483,8 @@ const instructions = {
   makeLendingPoolConfigureBankOracleScopeIx,
   makeLendingPoolSetOraclePriceIx,
   makePulseHealthIx,
+  makePlaceOrderIx,
+  makeCloseOrderIx,
 };
 
 export default instructions;

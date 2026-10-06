@@ -14,6 +14,8 @@ export enum TransactionBuildingErrorCode {
   TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
   TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
   BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
+  ORDER_INVALID_TRIGGER = "ORDER_INVALID_TRIGGER",
+  ORDER_INVALID_SLIPPAGE = "ORDER_INVALID_SLIPPAGE",
 }
 
 /**
@@ -93,6 +95,15 @@ export interface TransactionBuildingErrorDetails {
     }>;
     /** Whether the bridge token would have been held as collateral ("deposit") or debt ("borrow"). */
     bridgeTokenSide: "deposit" | "borrow";
+  };
+  [TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER]: {
+    reason: string;
+    takeProfitUsd?: string;
+    stopLossUsd?: string;
+  };
+  [TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE]: {
+    maxSlippagePercent: number;
+    maxAllowedPercent: number;
   };
 }
 
@@ -305,6 +316,37 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.BRIDGE_CONFLICT,
       `Every bridge-token candidate conflicts with an existing opposite-side position: ${banksList}`,
       { conflictingBanks, bridgeTokenSide }
+    );
+  }
+
+  /**
+   * The order trigger can't be placed: no threshold set, a threshold not above 0, or take-profit
+   * at or below stop-loss (the program rejects all three with `InvalidOrderTakeProfitOrStopLoss`).
+   */
+  static orderInvalidTrigger(
+    reason: string,
+    takeProfitUsd?: string,
+    stopLossUsd?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER,
+      `Invalid order trigger: ${reason}`,
+      { reason, takeProfitUsd, stopLossUsd }
+    );
+  }
+
+  /**
+   * The order's max slippage is outside (0, cap]. The program accepts 0, but a keeper can't
+   * execute an order that allows no slippage, so the SDK rejects it.
+   */
+  static orderInvalidSlippage(
+    maxSlippagePercent: number,
+    maxAllowedPercent: number
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE,
+      `Max slippage percent must be in (0, ${maxAllowedPercent}], got ${maxSlippagePercent}`,
+      { maxSlippagePercent, maxAllowedPercent }
     );
   }
 

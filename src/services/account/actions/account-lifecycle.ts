@@ -367,6 +367,7 @@ export function generateDummyAccount(
     balances: Array.from({ length: 15 }, () => ({
       active: false,
       bankPk: DEFAULT_ADDRESS,
+      tag: 0,
       assetShares: new BigNumber(0),
       liabilityShares: new BigNumber(0),
       lastUpdate: 0,
@@ -384,5 +385,6 @@ export function generateDummyAccount(
       prices: [],
       simulationStatus: HealthCacheStatus.UNSET,
     },
+    activeOrders: 0,
   };
 }

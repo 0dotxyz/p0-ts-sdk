@@ -6,6 +6,8 @@ import {
   type ProgramDerivedAddress,
 } from "@solana/kit";
 
+import { compareAddressBytes } from "./conversion.utils";
+
 export const PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED = "liquidity_vault_auth";
 export const PDA_BANK_INSURANCE_VAULT_AUTH_SEED = "insurance_vault_auth";
 export const PDA_BANK_FEE_VAULT_AUTH_SEED = "fee_vault_auth";
@@ -18,6 +20,7 @@ export const PDA_BANK_EMISSIONS_AUTH_SEED = "emissions_auth_seed";
 export const PDA_BANK_EMISSIONS_VAULT_SEED = "emissions_vault";
 
 export const PDA_MARGINFI_ACCOUNT_SEED = "marginfi_account";
+export const PDA_ORDER_SEED = "order";
 
 /**
  * Derives the liquidity vault authority PDA for a bank
@@ -164,5 +167,29 @@ export function deriveMarginfiAccount(
       getU16Encoder().encode(accountIndex),
       getU16Encoder().encode(thirdPartyId),
     ],
+  });
+}
+
+/**
+ * Derives the order PDA for a marginfi account and bank pair
+ * Seeds: ["order", marginfiAccount, sha256(bank keys sorted by raw bytes, concatenated)]
+ *
+ * Matches the on-chain `keys_sha256_hash`: the bank keys are sorted in ascending byte-wise
+ * lexicographical order before hashing, so the caller may pass them in any order.
+ */
+export async function deriveOrderPda(
+  programId: Address,
+  marginfiAccount: Address,
+  bankKeys: Address[]
+): Promise<ProgramDerivedAddress> {
+  const addressEncoder = getAddressEncoder();
+  const sortedBankKeys = [...bankKeys].sort(compareAddressBytes);
+  const concatenated = new Uint8Array(sortedBankKeys.length * 32);
+  sortedBankKeys.forEach((key, i) => concatenated.set(addressEncoder.encode(key), i * 32));
+  const bankKeysHash = new Uint8Array(await crypto.subtle.digest("SHA-256", concatenated));
+
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_ORDER_SEED, addressEncoder.encode(marginfiAccount), bankKeysHash],
   });
 }

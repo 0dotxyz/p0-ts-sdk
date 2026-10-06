@@ -507,6 +507,25 @@ const cases: Record<string, () => Promise<Instruction>> = {
     instructions.makeCloseAccountIx(programAddress, { marginfiAccount, authority, feePayer }),
   makePulseHealthIx: () =>
     instructions.makePulseHealthIx(programAddress, { marginfiAccount, group }, remaining),
+  makePlaceOrderIx: () =>
+    instructions.makePlaceOrderIx(programAddress, {
+      group,
+      marginfiAccount,
+      feePayer,
+      authority,
+      order: key(90),
+      globalFeeWallet: key(62),
+      bankKeys: [key(91), key(92)],
+      trigger: { __kind: "Both", stopLoss: wrapped(5), takeProfit: wrapped(6), maxSlippage: 1000 },
+    }),
+  makeCloseOrderIx: () =>
+    instructions.makeCloseOrderIx(programAddress, {
+      group,
+      marginfiAccount,
+      authority,
+      order: key(90),
+      feeRecipient: key(93),
+    }),
 };
 
 describe("marginfi instruction wire format", () => {

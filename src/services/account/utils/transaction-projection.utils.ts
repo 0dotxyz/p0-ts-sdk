@@ -270,6 +270,7 @@ export function computeProjectedActiveBalancesNoCpi({
   const projectedBalances: BalanceType[] = account.balances.map((b) => ({
     active: b.active,
     bankPk: b.bankPk,
+    tag: b.tag,
     assetShares: new BigNumber(b.assetShares),
     liabilityShares: new BigNumber(b.liabilityShares),
     lastUpdate: b.lastUpdate,

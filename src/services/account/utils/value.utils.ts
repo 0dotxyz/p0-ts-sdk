@@ -163,6 +163,45 @@ export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPr
   return { assets: assetsValue, liabilities: liabilitiesValue };
 }
 
+interface OrderPairLegValueInput {
+  balance: BalanceType;
+  bank: BankType;
+  oraclePrice: OraclePrice;
+  assetShareValueMultiplier?: BigNumber;
+}
+
+/**
+ * Values an order's collateral/debt pair the way the program's trigger does
+ * (`get_tagged_account_health_components`): Equity requirement, so the time-weighted (EMA) price
+ * at weight 1, with the collateral at the low end of the confidence band and the debt at the high
+ * end. Isolated-tier collateral counts as 0. Take-profit fires at `netUsd >= takeProfit`, stop-loss
+ * at `netUsd <= stopLoss`.
+ *
+ * @param params.collateral - The order's asset-side balance with its bank and oracle price
+ * @param params.debt - The order's liability-side balance with its bank and oracle price
+ * @returns USD values of both legs and the net value the trigger compares against
+ */
+export function computeOrderPairNetValue(params: {
+  collateral: OrderPairLegValueInput;
+  debt: OrderPairLegValueInput;
+}): { collateralUsd: BigNumber; debtUsd: BigNumber; netUsd: BigNumber } {
+  const { collateral, debt } = params;
+  const { assets: collateralUsd } = getBalanceUsdValueWithPriceBias({
+    balance: collateral.balance,
+    bank: collateral.bank,
+    oraclePrice: collateral.oraclePrice,
+    marginRequirement: MarginRequirementType.Equity,
+    assetShareValueMultiplier: collateral.assetShareValueMultiplier,
+  });
+  const { liabilities: debtUsd } = getBalanceUsdValueWithPriceBias({
+    balance: debt.balance,
+    bank: debt.bank,
+    oraclePrice: debt.oraclePrice,
+    marginRequirement: MarginRequirementType.Equity,
+  });
+  return { collateralUsd, debtUsd, netUsd: collateralUsd.minus(debtUsd) };
+}
+
 /**
  * Computes the native token quantities for a balance.
  *

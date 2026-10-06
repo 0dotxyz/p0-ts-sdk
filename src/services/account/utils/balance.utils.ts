@@ -1,7 +1,7 @@
 import type { Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType } from "../types";
+import { BalanceType, MarginfiAccountType, OrderType } from "../types";
 
 /**
  * Creates an empty (inactive) balance object for a specific bank.
@@ -23,6 +23,7 @@ export function createEmptyBalance(bankPk: Address): BalanceType {
   const balance: BalanceType = {
     active: false,
     bankPk,
+    tag: 0,
     assetShares: new BigNumber(0),
     liabilityShares: new BigNumber(0),
     lastUpdate: 0,
@@ -105,4 +106,38 @@ export function isWholePosition(
 ): boolean {
   const closePositionTokenAmount = computeClosePositionTokenAmount(position, mintDecimals);
   return amount >= closePositionTokenAmount;
+}
+
+// The program's `EMPTY_BALANCE_THRESHOLD`: `Balance::get_side` ignores shares below 1, and a deposit
+// that pays off a debt can leave such dust liability shares on what is now a collateral balance.
+const EMPTY_BALANCE_THRESHOLD = 1;
+
+/**
+ * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
+ * account that owns it, without throwing: a leg whose tagged balance was closed comes back null
+ * (the order is orphaned and can no longer execute). The tag order in `order.tags` follows the
+ * caller-supplied bank key order at placement time, so the side is inferred from the balances.
+ *
+ * @param marginfiAccount - The parsed marginfi account that owns the order
+ * @param order - The order whose bank pair to resolve
+ */
+export function resolveOrderLegs(
+  marginfiAccount: MarginfiAccountType,
+  order: Pick<OrderType, "tags">
+): { collateralBank: Address | null; debtBank: Address | null } {
+  const taggedBalances = marginfiAccount.balances.filter(
+    (balance) => balance.active && balance.tag !== 0 && order.tags.includes(balance.tag)
+  );
+
+  return {
+    collateralBank:
+      taggedBalances.find(
+        (balance) =>
+          balance.liabilityShares.lt(EMPTY_BALANCE_THRESHOLD) &&
+          balance.assetShares.gte(EMPTY_BALANCE_THRESHOLD)
+      )?.bankPk ?? null,
+    debtBank:
+      taggedBalances.find((balance) => balance.liabilityShares.gte(EMPTY_BALANCE_THRESHOLD))
+        ?.bankPk ?? null,
+  };
 }
