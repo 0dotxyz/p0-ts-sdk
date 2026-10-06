@@ -2,7 +2,8 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import {
-  BankConfigOptRaw,
+  BankConfigFastRaw,
+  BankConfigGovRaw,
   BankConfigOpt,
   serializeBankConfigOpt,
   BankConfigCompactRaw,
@@ -22,13 +23,39 @@ import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 export async function makePoolConfigureBankIx(
   program: MarginfiProgram,
   bank: PublicKey,
-  args: BankConfigOptRaw
+  args: BankConfigFastRaw
 ): Promise<InstructionsWrapper> {
   const ix = await instructions.makePoolConfigureBankIx(
     program,
     {
       bank: bank,
     },
+    { bankConfigOpt: args }
+  );
+
+  return {
+    instructions: [ix],
+    keys: [],
+  };
+}
+
+/**
+ * Configures a bank's governance settings (weights, risk tier, asset tag, oracle limits,
+ * tokenless repayments, freezing, returning to operational). Signed by the group's governance admin.
+ *
+ * @param program - The marginfi program
+ * @param bank - The bank to configure
+ * @param args - The settings to change; `null` leaves a setting unchanged
+ * @returns The `lending_pool_configure_bank_gov` instruction
+ */
+export async function makePoolConfigureBankGovIx(
+  program: MarginfiProgram,
+  bank: PublicKey,
+  args: BankConfigGovRaw
+): Promise<InstructionsWrapper> {
+  const ix = await instructions.makePoolConfigureBankGovIx(
+    program,
+    { bank },
     { bankConfigOpt: args }
   );
 
@@ -91,7 +118,7 @@ export async function makePoolAddBankIx(
   bankMint: PublicKey,
   bankConfig: BankConfigOpt,
   tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
-  overrideOpt: { admin?: PublicKey; globalFeeWallet?: PublicKey } = {}
+  overrideOpt: { governanceAdmin?: PublicKey; globalFeeWallet?: PublicKey } = {}
 ): Promise<InstructionsWrapper> {
   const rawBankConfig = serializeBankConfigOpt(bankConfig);
 

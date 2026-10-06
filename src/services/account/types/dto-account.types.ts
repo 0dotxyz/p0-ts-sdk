@@ -7,7 +7,8 @@ export interface BalanceTypeDto {
   tag?: number;
   assetShares: string;
   liabilityShares: string;
-  emissionsOutstanding: string;
+  premiumRate: string;
+  premiumOutstanding: string;
   lastUpdate: number;
 }
 

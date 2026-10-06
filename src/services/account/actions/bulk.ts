@@ -1,9 +1,14 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
-import { computeHealthAccountMetas, computeHealthCheckAccounts, computeQuantityUi } from "../utils";
+import {
+  computeHealthAccountMetas,
+  computeHealthCheckAccounts,
+  computeQuantityUi,
+  needsPremiumRefresh,
+} from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
 import { makeRepayIx } from "./repay";
 import {
   makeWithdrawIx,
@@ -18,6 +23,7 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
+  makePreludeTxs,
   makeUnwrapSolIx,
   selectLutsForBanks,
   splitInstructionsToFitTransactions,
@@ -199,28 +205,11 @@ export async function makeBulkWithdrawTx(
 
   // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
   // tx for the whole batch (see the atomic-bundle note in the doc comment).
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
   const setupIxs = await makeSetupIx({
     connection,
     authority,
     tokens: setupTokens,
   });
-  if (setupIxs.length > 0) {
-    const setupTxs = splitInstructionsToFitTransactions([], setupIxs, {
-      blockhash,
-      payerKey: authority,
-      luts: selectedLuts,
-    });
-    additionalTxs.push(
-      ...setupTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: selectedLuts,
-        })
-      )
-    );
-  }
 
   // One shared refresh for the whole batch: kamino reserves + obligations for
   // the withdrawn kamino banks, rate cranks for the account's other jup/drift
@@ -231,21 +220,11 @@ export async function makeBulkWithdrawTx(
     bankAddresses,
     bankMetadataMap
   ).instructions;
-  if (refreshIxs.length > 0) {
-    const refreshTxs = splitInstructionsToFitTransactions([], refreshIxs, {
-      blockhash,
-      payerKey: authority,
-      luts: selectedLuts,
-    });
-    additionalTxs.push(
-      ...refreshTxs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CRANK,
-          addressLookupTables: selectedLuts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    blockhash,
+    payerKey: authority,
+    luts: selectedLuts,
+  });
 
   return {
     transactions: [...additionalTxs, ...withdrawTxs],
@@ -256,8 +235,9 @@ export async function makeBulkWithdrawTx(
 
 /**
  * Repay the FULL debt of every given bank from the wallet, packing as many
- * repays per transaction as fit. Repays carry no health pack and need no
- * oracle cranks, so most batches are a single transaction.
+ * repays per transaction as fit, followed by the premium refresh while
+ * premium-bearing debt remains. Most batches are a single transaction; one
+ * that splits with a premium refresh in it must land as one bundle.
  */
 export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<BulkLendTxsResult> {
   const {
@@ -302,9 +282,19 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     repayIxs.push(...repay.instructions);
   }
 
+  const premiumIxs =
+    !params.skipPremiumRefresh && needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
+      ? await makePremiumRefreshIxs(
+          program,
+          { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
+          [],
+          bankAddresses
+        )
+      : [];
+
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
-  const transactions = splitInstructionsToFitTransactions([], repayIxs, {
+  const transactions = splitInstructionsToFitTransactions([], [...repayIxs, ...premiumIxs], {
     blockhash,
     payerKey: authority,
     luts,
@@ -317,5 +307,10 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     })
   );
 
-  return { transactions, actionTxIndex: 0, mustBeAtomicBundle: false };
+  return {
+    transactions,
+    actionTxIndex: 0,
+    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay
+    mustBeAtomicBundle: premiumIxs.length > 0 && transactions.length > 1,
+  };
 }

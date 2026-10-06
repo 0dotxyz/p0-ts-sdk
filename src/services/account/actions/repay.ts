@@ -24,7 +24,7 @@ import {
   compileFlashloanPrecheck,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { appendPremiumRefresh, makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
 import {
   makeDriftWithdrawIx,
@@ -41,14 +41,12 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   addTransactionMetadata,
   ExtendedTransaction,
-  ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
-  selectLutsForBanks,
-  splitInstructionsToFitTransactions,
   TransactionType,
   getTxSize,
   getTotalAccountKeys,
+  makePreludeTxs,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -173,14 +171,18 @@ export async function makeRepayIx({
  * @returns Promise resolving to an ExtendedTransaction with metadata
  */
 export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTransaction> {
-  const { luts, ...depositIxParams } = params;
+  const { luts, ...repayIxParams } = params;
 
-  const ixs = await makeRepayIx(depositIxParams);
-  const tx = new Transaction().add(...ixs.instructions);
+  const ixs = await makeRepayIx(repayIxParams);
+  const closedBanks = params.repayAll ? [params.bank.address] : [];
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    ixs.instructions,
+    [],
+    closedBanks
+  );
+  const tx = new Transaction().add(...instructions);
   tx.feePayer = params.authority;
-
-  // Repays don't add health remaining-accounts, so only the target bank matters.
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
 
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.REPAY,
@@ -256,26 +258,11 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
-  // if atas are needed, add them
-  if (setupIxs.length > 0 || refreshIntegrationIxs.instructions.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs.instructions];
-    const txs = splitInstructionsToFitTransactions([], ixs, {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
-    });
-
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs.instructions, {
+    blockhash,
+    payerKey: marginfiAccount.authority,
+    luts: addressLookupTableAccounts ?? [],
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

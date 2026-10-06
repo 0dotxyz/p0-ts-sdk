@@ -32,6 +32,8 @@ export interface KaminoReserveConfigJSON {
   hostFixedInterestRateBps: number;
   /** `KaminoInterestRateBasis` as a raw u8; missing on older DTOs (= Legacy) */
   interestRateBasis?: number;
+  /** Missing on older DTOs (= not in emergency) */
+  emergencyMode?: number;
   depositLimit: string;
   borrowLimit: string;
   borrowRateCurve: KaminoBorrowRateCurveJSON;

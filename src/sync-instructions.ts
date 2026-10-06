@@ -25,7 +25,11 @@ import {
 } from "@solana/web3.js";
 import BN from "bn.js";
 
-import { deriveBankLiquidityVault, deriveBankLiquidityVaultAuthority } from "./utils";
+import {
+  deriveBankLiquidityVault,
+  deriveBankLiquidityVaultAuthority,
+  deriveRebalanceFeePool,
+} from "./utils";
 
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
 
@@ -49,12 +53,6 @@ function encodeU8(value: number): Buffer {
   return buf;
 }
 
-function encodeU16(value: number): Buffer {
-  const buf = Buffer.alloc(2);
-  buf.writeUInt16LE(value, 0);
-  return buf;
-}
-
 function encodeBool(value: boolean): Buffer {
   const buf = Buffer.alloc(1);
   buf.writeUInt8(value ? 1 : 0, 0);
@@ -75,10 +73,6 @@ function encodeOptionU8(value: number | null | undefined): Buffer {
   return Buffer.concat([Buffer.from([1]), encodeU8(value)]);
 }
 
-function encodePublicKey(pubkey: PublicKey): Buffer {
-  return Buffer.from(pubkey.toBytes());
-}
-
 // ============================================================================
 // Discriminators
 // ============================================================================
@@ -92,16 +86,11 @@ const DISCRIMINATORS = {
   LENDING_ACCOUNT_WITHDRAW: Buffer.from([36, 72, 74, 19, 210, 210, 192, 192]),
   LENDING_ACCOUNT_BORROW: Buffer.from([4, 126, 116, 53, 48, 5, 212, 31]),
   LENDING_ACCOUNT_LIQUIDATE: Buffer.from([214, 169, 151, 213, 251, 167, 86, 219]),
-  LENDING_POOL_ADD_BANK: Buffer.from([215, 68, 72, 78, 208, 218, 103, 182]),
-  LENDING_POOL_CONFIGURE_BANK: Buffer.from([121, 173, 156, 40, 93, 148, 56, 237]),
   LENDING_ACCOUNT_START_FLASHLOAN: Buffer.from([14, 131, 33, 220, 81, 186, 180, 107]),
   LENDING_ACCOUNT_END_FLASHLOAN: Buffer.from([105, 124, 201, 106, 153, 2, 8, 156]),
   TRANSFER_TO_NEW_ACCOUNT: Buffer.from([28, 79, 129, 231, 169, 69, 69, 65]),
-  MARGINFI_GROUP_INITIALIZE: Buffer.from([255, 67, 67, 26, 94, 31, 34, 20]),
   MARGINFI_ACCOUNT_CLOSE: Buffer.from([186, 221, 93, 34, 50, 97, 194, 241]),
   LENDING_POOL_ADD_BANK_PERMISSIONLESS: Buffer.from([127, 187, 121, 34, 187, 167, 238, 102]),
-  LENDING_POOL_CONFIGURE_BANK_ORACLE: Buffer.from([209, 82, 255, 171, 124, 21, 71, 81]),
-  LENDING_POOL_CONFIGURE_BANK_ORACLE_SCOPE: Buffer.from([134, 228, 127, 3, 117, 132, 85, 146]),
   LENDING_ACCOUNT_PULSE_HEALTH: Buffer.from([186, 52, 117, 97, 34, 74, 39, 253]),
   LENDING_ACCOUNT_SORT_BALANCES: Buffer.from([187, 194, 110, 84, 82, 170, 204, 9]),
   DRIFT_DEPOSIT: Buffer.from([252, 63, 250, 201, 98, 55, 130, 12]),
@@ -677,6 +666,11 @@ function makeCloseAccountIx(
     { pubkey: accounts.marginfiAccount, isSigner: false, isWritable: true },
     { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
+    {
+      pubkey: deriveRebalanceFeePool(programId, accounts.marginfiAccount)[0],
+      isSigner: false,
+      isWritable: false,
+    },
   ];
 
   return new TransactionInstruction({
@@ -755,185 +749,6 @@ function makeAccountTransferToNewAccountIx(
     keys,
     programId,
     data: DISCRIMINATORS.TRANSFER_TO_NEW_ACCOUNT,
-  });
-}
-
-function makeGroupInitIx(
-  programId: PublicKey,
-  accounts: {
-    marginfiGroup: PublicKey;
-    admin: PublicKey;
-    feeState: PublicKey; // PDA with seeds: ["feestate"] - caller must derive
-  },
-  args?: {
-    isArenaGroup?: boolean;
-  }
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.marginfiGroup, isSigner: true, isWritable: true },
-    { pubkey: accounts.admin, isSigner: true, isWritable: true },
-    { pubkey: accounts.feeState, isSigner: false, isWritable: false },
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-  ];
-
-  const data = Buffer.concat([
-    DISCRIMINATORS.MARGINFI_GROUP_INITIALIZE,
-    encodeBool(args?.isArenaGroup ?? false),
-  ]);
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data,
-  });
-}
-
-function makePoolConfigureBankIx(
-  programId: PublicKey,
-  accounts: {
-    group: PublicKey; // relations: ["bank"] - caller must provide
-    admin: PublicKey; // signer, relations: ["group"] - caller must provide
-    bank: PublicKey;
-  },
-  _args: {
-    bankConfigOpt: any; // Complex type - caller must handle serialization
-  }
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
-    { pubkey: accounts.admin, isSigner: true, isWritable: false },
-    { pubkey: accounts.bank, isSigner: false, isWritable: true },
-  ];
-
-  // Note: Complex bankConfigOpt encoding not implemented
-  // Caller should construct full data buffer themselves
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data: DISCRIMINATORS.LENDING_POOL_CONFIGURE_BANK,
-  });
-}
-
-function makeLendingPoolConfigureBankOracleIx(
-  programId: PublicKey,
-  accounts: {
-    group: PublicKey; // relations: ["bank"] - caller must provide
-    admin: PublicKey; // signer, relations: ["group"] - caller must provide
-    bank: PublicKey;
-  },
-  args: {
-    setup: number;
-    feedId: PublicKey;
-  },
-  remainingAccounts: AccountMeta[] = []
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
-    { pubkey: accounts.admin, isSigner: true, isWritable: false },
-    { pubkey: accounts.bank, isSigner: false, isWritable: true },
-  ];
-
-  keys.push(...remainingAccounts);
-
-  const data = Buffer.concat([
-    DISCRIMINATORS.LENDING_POOL_CONFIGURE_BANK_ORACLE,
-    encodeU8(args.setup),
-    encodePublicKey(args.feedId),
-  ]);
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data,
-  });
-}
-
-function makeLendingPoolConfigureBankOracleScopeIx(
-  programId: PublicKey,
-  accounts: {
-    group: PublicKey;
-    admin: PublicKey;
-    bank: PublicKey;
-  },
-  args: {
-    oracle: PublicKey;
-    entryIndex: number;
-  }
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.group, isSigner: false, isWritable: false },
-    { pubkey: accounts.admin, isSigner: true, isWritable: false },
-    { pubkey: accounts.bank, isSigner: false, isWritable: true },
-    { pubkey: args.oracle, isSigner: false, isWritable: false },
-  ];
-
-  const data = Buffer.concat([
-    DISCRIMINATORS.LENDING_POOL_CONFIGURE_BANK_ORACLE_SCOPE,
-    encodePublicKey(args.oracle),
-    encodeU16(args.entryIndex),
-  ]);
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data,
-  });
-}
-
-function makePoolAddBankIx(
-  programId: PublicKey,
-  accounts: {
-    marginfiGroup: PublicKey;
-    admin: PublicKey; // signer, relations: ["marginfiGroup"] - caller must provide
-    feePayer: PublicKey;
-    feeState: PublicKey; // PDA - caller must derive
-    globalFeeWallet: PublicKey; // relations: ["feeState"] - caller must provide
-    bankMint: PublicKey;
-    bank: PublicKey;
-    liquidityVaultAuthority: PublicKey; // PDA - caller must derive
-    liquidityVault: PublicKey; // PDA - caller must derive
-    insuranceVaultAuthority: PublicKey; // PDA - caller must derive
-    insuranceVault: PublicKey; // PDA - caller must derive
-    feeVaultAuthority: PublicKey; // PDA - caller must derive
-    feeVault: PublicKey; // PDA - caller must derive
-    tokenProgram: PublicKey;
-  },
-  _args: {
-    bankConfig: any; // Complex BankConfigCompactRaw type
-  }
-): TransactionInstruction {
-  const keys: AccountMeta[] = [
-    { pubkey: accounts.marginfiGroup, isSigner: false, isWritable: true },
-    { pubkey: accounts.admin, isSigner: true, isWritable: false },
-    { pubkey: accounts.feePayer, isSigner: true, isWritable: true },
-    { pubkey: accounts.feeState, isSigner: false, isWritable: false },
-    { pubkey: accounts.globalFeeWallet, isSigner: false, isWritable: true },
-    { pubkey: accounts.bankMint, isSigner: false, isWritable: false },
-    { pubkey: accounts.bank, isSigner: true, isWritable: true },
-    {
-      pubkey: accounts.liquidityVaultAuthority,
-      isSigner: false,
-      isWritable: false,
-    },
-    { pubkey: accounts.liquidityVault, isSigner: false, isWritable: true },
-    {
-      pubkey: accounts.insuranceVaultAuthority,
-      isSigner: false,
-      isWritable: false,
-    },
-    { pubkey: accounts.insuranceVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.feeVaultAuthority, isSigner: false, isWritable: false },
-    { pubkey: accounts.feeVault, isSigner: false, isWritable: true },
-    { pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-  ];
-
-  // Note: Complex bankConfig encoding not implemented
-  // Caller should construct full data buffer themselves
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data: DISCRIMINATORS.LENDING_POOL_ADD_BANK,
   });
 }
 
@@ -1228,16 +1043,11 @@ const syncInstructions = {
   makeKaminoWithdrawIx,
   makeBorrowIx,
   makeLendingAccountLiquidateIx,
-  makePoolAddBankIx,
-  makePoolConfigureBankIx,
   makeBeginFlashLoanIx,
   makeEndFlashLoanIx,
   makeAccountTransferToNewAccountIx,
-  makeGroupInitIx,
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,
-  makeLendingPoolConfigureBankOracleIx,
-  makeLendingPoolConfigureBankOracleScopeIx,
   makePulseHealthIx,
 };
 

@@ -31,7 +31,8 @@ export function createEmptyBalance(bankPk: PublicKey): BalanceType {
     tag: 0,
     assetShares: new BigNumber(0),
     liabilityShares: new BigNumber(0),
-    emissionsOutstanding: new BigNumber(0),
+    premiumRate: new BigNumber(0),
+    premiumOutstanding: new BigNumber(0),
     lastUpdate: 0,
   };
 

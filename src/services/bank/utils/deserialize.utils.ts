@@ -40,6 +40,8 @@ import {
 
 import {
   DEFAULT_ORACLE_MAX_AGE,
+  KAMINO_MARKET_EMERGENCY_FLAG,
+  PREMIUM_ACTIVE_FLAG,
   STAKED_ORACLE_DISABLED_FLAG,
   STAKED_ORACLE_USES_ONRAMP_FLAG,
 } from "~/constants";
@@ -149,6 +151,7 @@ export function parseBankRaw(
   const emissionsActiveLending = (flags & 2) > 0;
   const stakedOracleDisabled = (flags & STAKED_ORACLE_DISABLED_FLAG) > 0;
   const stakedOracleUsesOnramp = (flags & STAKED_ORACLE_USES_ONRAMP_FLAG) > 0;
+  const premiumActive = (flags & PREMIUM_ACTIVE_FLAG) > 0;
 
   // @todo existence checks here should be temporary - remove once all banks have emission configs
   const emissionsRate = accountParsed.emissionsRate.toNumber();
@@ -254,6 +257,10 @@ export function parseBankRaw(
     lendingPositionCount,
     borrowingPositionCount,
     emode,
+    premiumTag: accountParsed.premiumTag,
+    premiumActive,
+    premiumActivatedAt: accountParsed.premiumActivatedAt.toNumber(),
+    kaminoEmergency: (flags & KAMINO_MARKET_EMERGENCY_FLAG) > 0,
     rateLimiter,
     tokenSymbol,
     kaminoIntegrationAccounts,
@@ -301,6 +308,10 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     collectedProgramFeesOutstanding: new BigNumber(bankDto.collectedProgramFeesOutstanding ?? "0"),
     oracleKey: new PublicKey(bankDto.oracleKey),
     emode: dtoToEmodeSettings(bankDto.emode),
+    premiumTag: bankDto.premiumTag ?? 0,
+    premiumActive: bankDto.premiumActive ?? false,
+    premiumActivatedAt: bankDto.premiumActivatedAt ?? 0,
+    kaminoEmergency: bankDto.kaminoEmergency ?? false,
     rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiter(bankDto.rateLimiter) : undefined,
     tokenSymbol: bankDto.tokenSymbol,
     feesDestinationAccount: bankDto.feesDestinationAccount
@@ -475,6 +486,8 @@ export function dtoToBankRaw(bankDto: BankRawDto): BankRaw {
     borrowingPositionCount: bankDto.borrowingPositionCount
       ? Number(bankDto.borrowingPositionCount)
       : undefined,
+    premiumTag: bankDto.premiumTag ?? 0,
+    premiumActivatedAt: new BN(bankDto.premiumActivatedAt ?? 0),
 
     emode: dtoToEmodeSettingsRaw(bankDto.emode),
     integrationAcc1: new PublicKey(bankDto.integrationAcc1),
@@ -698,6 +711,10 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.PTPyth;
     case "ptfixed":
       return OracleSetup.PTFixed;
+    case "scopekamino":
+      return OracleSetup.ScopeKamino;
+    case "scopejuplend":
+      return OracleSetup.ScopeJuplend;
     default:
       return OracleSetup.Unknown;
   }

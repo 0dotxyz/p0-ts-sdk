@@ -74,6 +74,8 @@ interface BankRaw {
   rateLimiter?: BankRateLimiterRaw;
 
   emode: EmodeSettingsRaw;
+  premiumTag: number;
+  premiumActivatedAt: BN;
   feesDestinationAccount?: PublicKey;
   cache?: BankCacheRaw;
   lendingPositionCount?: number;
@@ -174,6 +176,43 @@ interface BankConfigOptRaw {
   cbWindowMaxDownBps: number | null;
 }
 
+/** `lending_pool_configure_bank` args: the admin's risk-reducing settings */
+type BankConfigFastRaw = Pick<
+  BankConfigOptRaw,
+  | "depositLimit"
+  | "borrowLimit"
+  | "operationalState"
+  | "interestRateConfig"
+  | "totalAssetValueInitLimit"
+  | "permissionlessBadDebtSettlement"
+  | "liquidationLiquidatorFee"
+  | "liquidationInsuranceFee"
+  | "circuitBreakerEnabled"
+  | "cbDeviationBpsTiers"
+  | "cbTierDurationsSeconds"
+  | "cbEscalationWindowMult"
+  | "cbEmaAlphaBps"
+  | "cbWindowSeconds"
+  | "cbWindowMaxUpBps"
+  | "cbWindowMaxDownBps"
+>;
+
+/** `lending_pool_configure_bank_gov` args: the governance admin's risk-increasing settings */
+type BankConfigGovRaw = Pick<
+  BankConfigOptRaw,
+  | "assetWeightInit"
+  | "assetWeightMaint"
+  | "liabilityWeightInit"
+  | "liabilityWeightMaint"
+  | "operationalState"
+  | "riskTier"
+  | "assetTag"
+  | "oracleMaxConfidence"
+  | "oracleMaxAge"
+  | "tokenlessRepaymentsAllowed"
+  | "freezeSettings"
+>;
+
 interface BankConfigCompactRaw extends Omit<
   BankConfigRaw,
   "oracleKeys" | "oracleSetup" | "fixedPrice" | "interestRateConfig"
@@ -250,7 +289,9 @@ type OracleSetupRaw =
   | { kaminoLst: Record<string, never> }
   | { juplendLst: Record<string, never> }
   | { ptPyth: Record<string, never> }
-  | { ptFixed: Record<string, never> };
+  | { ptFixed: Record<string, never> }
+  | { scopeKamino: Record<string, never> }
+  | { scopeJuplend: Record<string, never> };
 
 interface OracleConfigOptRaw {
   setup: OracleSetupRaw;
@@ -304,4 +345,6 @@ export type {
   OperationalStateRaw,
   OracleConfigOptRaw,
   BankConfigOptRaw,
+  BankConfigFastRaw,
+  BankConfigGovRaw,
 };

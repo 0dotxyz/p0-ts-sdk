@@ -11,7 +11,10 @@ export interface BalanceType {
   tag: number;
   assetShares: BigNumber;
   liabilityShares: BigNumber;
-  emissionsOutstanding: BigNumber;
+  /** Stored premium APR snapshot (0.05 = 5%): the rate premium accrues at until the next refresh. */
+  premiumRate: BigNumber;
+  /** Premium already accrued into the balance, in native units of the bank's mint. */
+  premiumOutstanding: BigNumber;
   lastUpdate: number;
 }
 

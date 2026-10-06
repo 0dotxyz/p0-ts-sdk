@@ -30,6 +30,7 @@ import {
   fetchBankIntegrationMetadata,
   getKaminoCTokenMultiplier,
   getJupLendFTokenMultiplier,
+  withKaminoReserveEmergency,
 } from "~/services/integration";
 import { getDriftCTokenMultiplier } from "~/services/integration/drift";
 import { fetchProgramForMints } from "~/services/misc";
@@ -403,6 +404,10 @@ export class Project0Client {
           assetShareMultiplierByBank.set(
             bank.address.toBase58(),
             getKaminoCTokenMultiplier(reserve)
+          );
+          bankMap.set(
+            bank.address.toBase58(),
+            Bank.fromBankType(withKaminoReserveEmergency(bank, reserve))
           );
           break;
         }

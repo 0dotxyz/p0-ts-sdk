@@ -1042,6 +1042,7 @@ class MarginfiAccount implements MarginfiAccountType {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    mustBeAtomicBundle: boolean;
   }> {
     return makeRollPtTx({
       ...params,
@@ -1109,10 +1110,11 @@ class MarginfiAccount implements MarginfiAccountType {
    * @see {@link makeDepositTx} for detailed implementation
    */
   async makeDepositTx(
-    params: Omit<MakeDepositTxParams, "accountAddress" | "authority" | "group">
+    params: Omit<MakeDepositTxParams, "accountAddress" | "authority" | "group" | "marginfiAccount">
   ): Promise<ExtendedTransaction> {
     return makeDepositTx({
       ...params,
+      marginfiAccount: this,
       accountAddress: this.address,
       authority: this.authority,
       group: this.group,
@@ -1128,10 +1130,11 @@ class MarginfiAccount implements MarginfiAccountType {
    * @see {@link makeDriftDepositTx} for detailed implementation
    */
   async makeDriftDepositTx(
-    params: Omit<MakeDriftDepositTxParams, "accountAddress" | "authority" | "group">
+    params: Omit<MakeDriftDepositTxParams, "accountAddress" | "authority" | "group" | "marginfiAccount">
   ): Promise<ExtendedV0Transaction> {
     return makeDriftDepositTx({
       ...params,
+      marginfiAccount: this,
       accountAddress: this.address,
       authority: this.authority,
       group: this.group,
@@ -1147,10 +1150,11 @@ class MarginfiAccount implements MarginfiAccountType {
    * @see {@link makeKaminoDepositTx} for detailed implementation
    */
   async makeKaminoDepositTx(
-    params: Omit<MakeKaminoDepositTxParams, "accountAddress" | "authority" | "group">
+    params: Omit<MakeKaminoDepositTxParams, "accountAddress" | "authority" | "group" | "marginfiAccount">
   ): Promise<ExtendedV0Transaction> {
     return makeKaminoDepositTx({
       ...params,
+      marginfiAccount: this,
       accountAddress: this.address,
       authority: this.authority,
       group: this.group,
@@ -1249,10 +1253,11 @@ class MarginfiAccount implements MarginfiAccountType {
    * @see {@link makeRepayTx} for detailed implementation
    */
   async makeRepayTx(
-    params: Omit<MakeRepayTxParams, "accountAddress" | "authority">
+    params: Omit<MakeRepayTxParams, "accountAddress" | "authority" | "marginfiAccount">
   ): Promise<ExtendedTransaction> {
     return makeRepayTx({
       ...params,
+      marginfiAccount: this,
       accountAddress: this.address,
       authority: this.authority,
     });

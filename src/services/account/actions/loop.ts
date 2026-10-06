@@ -20,6 +20,7 @@ import {
   selectSwapBridges,
   sharedBridgeLegContext,
   tryBridgeCandidates,
+  exceedsCostlyPositionLimit,
 } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -39,14 +40,12 @@ import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
   ExtendedV0Transaction,
   getTxSize,
   getTotalAccountKeys,
   InstructionsWrapper,
   makeWrapSolIxs,
-  splitInstructionsToFitTransactions,
-  TransactionType,
+  makePreludeTxs,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
 import {
@@ -66,12 +65,19 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 }> {
   const {
     marginfiAccount,
+    bankMap,
     depositOpts,
     borrowOpts,
     addressLookupTableAccounts,
     connection,
     additionalIxs = [],
   } = params;
+
+  if (exceedsCostlyPositionLimit(marginfiAccount.balances, bankMap, depositOpts.depositBank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(
+      depositOpts.depositBank.address.toBase58()
+    );
+  }
 
   // Get blockhash
   const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
@@ -131,8 +137,6 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: ExtendedV0Transaction[] = [];
-
   // wrap sol if needed
   if (depositOpts.depositBank.mint.equals(NATIVE_MINT) && depositOpts.inputDepositAmount) {
     setupIxs.push(
@@ -140,28 +144,15 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     );
   }
 
-  // if atas are needed, add them
-  if (
-    setupIxs.length > 0 ||
-    additionalIxs.length > 0 ||
-    refreshIntegrationIxs.instructions.length > 0
-  ) {
-    const ixs = [...additionalIxs, ...setupIxs, ...refreshIntegrationIxs.instructions];
-    const txs = splitInstructionsToFitTransactions([], ixs, {
+  const additionalTxs = makePreludeTxs(
+    [...additionalIxs, ...setupIxs],
+    refreshIntegrationIxs.instructions,
+    {
       blockhash,
       payerKey: marginfiAccount.authority,
       luts: addressLookupTableAccounts ?? [],
-    });
-
-    additionalTxs.push(
-      ...txs.map((tx) =>
-        addTransactionMetadata(tx, {
-          type: TransactionType.CREATE_ATA,
-          addressLookupTables: addressLookupTableAccounts,
-        })
-      )
-    );
-  }
+    }
+  );
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

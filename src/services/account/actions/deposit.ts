@@ -18,8 +18,12 @@ import {
   MakeJuplendDepositIxParams,
   MakeJuplendDepositTxParams,
 } from "../types";
+import { exceedsCostlyPositionLimit } from "../utils";
+
+import { appendPremiumRefresh } from "./account-lifecycle";
 
 import { SYSTEM_PROGRAM_ID } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import {
   addTransactionMetadata,
@@ -27,7 +31,6 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
-  selectLutsForBanks,
   TransactionType,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
@@ -185,8 +188,9 @@ export async function makeDriftDepositTx(
   params: MakeDriftDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
-
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.driftIntegrationAccounts) {
     throw new Error("Bank has no drift integration accounts");
@@ -196,6 +200,12 @@ export async function makeDriftDepositTx(
     amount,
     ...depositIxParams,
   });
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    depositIxs.instructions,
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -204,7 +214,7 @@ export async function makeDriftDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -390,8 +400,9 @@ export async function makeKaminoDepositTx(
   params: MakeKaminoDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
-
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.kaminoIntegrationAccounts) {
     throw new Error("Bank has no kamino integration accounts");
@@ -424,6 +435,12 @@ export async function makeKaminoDepositTx(
     amount,
     ...depositIxParams,
   });
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    [...refreshIxs, ...depositIxs.instructions],
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -432,7 +449,7 @@ export async function makeKaminoDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIxs, ...depositIxs.instructions],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -569,13 +586,19 @@ export async function makeDepositIx({
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<ExtendedTransaction> {
   const { luts, ...depositIxParams } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   const ixs = await makeDepositIx(depositIxParams);
-  const tx = new Transaction().add(...ixs.instructions);
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    ixs.instructions,
+    [params.bank.address],
+    []
+  );
+  const tx = new Transaction().add(...instructions);
   tx.feePayer = params.authority;
-
-  // Deposits don't add health remaining-accounts, so only the target bank matters.
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
 
   const solanaTx = addTransactionMetadata(tx, {
     type: TransactionType.DEPOSIT,
@@ -713,8 +736,9 @@ export async function makeJuplendDepositTx(
   params: MakeJuplendDepositTxParams
 ): Promise<ExtendedV0Transaction> {
   const { luts, connection, amount, ...depositIxParams } = params;
-
-  const selectedLuts = selectLutsForBanks(luts, [depositIxParams.bank]);
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, params.bankMap, params.bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(params.bank.address.toBase58());
+  }
 
   if (!depositIxParams.bank.jupLendIntegrationAccounts) {
     throw new Error("Bank has no JupLend integration accounts");
@@ -724,6 +748,12 @@ export async function makeJuplendDepositTx(
     amount,
     ...depositIxParams,
   });
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    depositIxs.instructions,
+    [params.bank.address],
+    []
+  );
 
   const blockhash =
     params.blockhash ??
@@ -732,7 +762,7 @@ export async function makeJuplendDepositTx(
   const depositTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...depositIxs.instructions],
+        instructions,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)

@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { AssetTag, BankType } from "~/services/bank";
 import { InstructionsWrapper } from "~/services/transaction";
@@ -18,6 +19,7 @@ import { makeRefreshObligationIx, makeRefreshReservesBatchIx } from "~/vendor/kl
  * @param newBanksPk - Public keys of new banks being added to the account
  * @param bankMetadataMap - Map containing Bank-specific metadata (reserve states, lending markets)
  * @returns InstructionsWrapper containing refresh reserve and obligation instructions
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND) when a Kamino bank has no reserve state in `bankMetadataMap`
  */
 export function makeRefreshKaminoBanksIxs(
   marginfiAccount: MarginfiAccountType,
@@ -44,45 +46,29 @@ export function makeRefreshKaminoBanksIxs(
   if (kaminoBanks.length > 0) {
     const newBanksPkBase = newBanksPk.map((pk) => pk.toBase58());
 
-    const banksToRefreshObligations = kaminoBanks.filter((bank) =>
-      newBanksPkBase.includes(bank.address.toBase58())
-    );
+    const refreshes = kaminoBanks.map((kaminoBank) => {
+      const kaminoStates = bankMetadataMap[kaminoBank.address.toBase58()]?.kaminoStates;
+      if (!kaminoStates || !kaminoBank.kaminoIntegrationAccounts) {
+        throw TransactionBuildingError.kaminoReserveNotFound(
+          kaminoBank.address.toBase58(),
+          kaminoBank.mint.toBase58(),
+          kaminoBank.tokenSymbol
+        );
+      }
+      return {
+        bank: kaminoBank.address.toBase58(),
+        reserve: kaminoBank.kaminoIntegrationAccounts.kaminoReserve,
+        obligation: kaminoBank.kaminoIntegrationAccounts.kaminoObligation,
+        lendingMarket: kaminoStates.reserveState.lendingMarket,
+      };
+    });
 
-    const refreshReserveData = kaminoBanks
-      .map((kaminoBank) => {
-        const bankMetadata = bankMetadataMap?.[kaminoBank.address.toBase58()];
-        if (!bankMetadata?.kaminoStates) return;
-        if (!kaminoBank.kaminoIntegrationAccounts) return;
+    ixs.push(makeRefreshReservesBatchIx(refreshes));
 
-        const kaminoReserve = kaminoBank.kaminoIntegrationAccounts.kaminoReserve;
-        const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
-
-        return {
-          reserve: kaminoReserve,
-          lendingMarket,
-        };
-      })
-      .filter((bank): bank is NonNullable<typeof bank> => !!bank);
-
-    //refresh obligations
-    const reserveIx = makeRefreshReservesBatchIx(refreshReserveData);
-
-    ixs.push(reserveIx);
-
-    for (const kaminoBank of banksToRefreshObligations) {
-      const bankMetadata = bankMetadataMap?.[kaminoBank.address.toBase58()];
-      if (!bankMetadata?.kaminoStates) continue;
-      if (!kaminoBank.kaminoIntegrationAccounts) continue;
-
-      const kaminoReserve = kaminoBank.kaminoIntegrationAccounts.kaminoReserve;
-      const lendingMarket = bankMetadata.kaminoStates.reserveState.lendingMarket;
-
-      const obligationIx = makeRefreshObligationIx(
-        lendingMarket,
-        kaminoBank.kaminoIntegrationAccounts.kaminoObligation,
-        kaminoReserve
-      );
-      ixs.push(obligationIx);
+    for (const { bank, reserve, obligation, lendingMarket } of refreshes) {
+      if (newBanksPkBase.includes(bank)) {
+        ixs.push(makeRefreshObligationIx(lendingMarket, obligation, reserve));
+      }
     }
   }
 

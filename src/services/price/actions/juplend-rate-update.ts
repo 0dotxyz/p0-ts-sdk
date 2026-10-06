@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { AssetTag, BankType } from "~/services/bank";
 import type { InstructionsWrapper } from "~/services/transaction/types";
@@ -22,6 +23,7 @@ import { makeUpdateJupLendRate } from "~/vendor/jup-lend";
  * @param banksToExclude - Public keys of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (JupLend lending states)
  * @returns InstructionsWrapper containing update_rate instructions
+ * @throws TransactionBuildingError (JUPLEND_STATE_NOT_FOUND) when a JupLend bank has no lending state in `bankMetadataMap`
  */
 export function makeUpdateJupLendRateIxs(
   marginfiAccount: MarginfiAccountType,
@@ -46,15 +48,17 @@ export function makeUpdateJupLendRateIxs(
   const jupLendBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.JUPLEND);
 
   if (jupLendBanks.length > 0) {
-    const updateRateIxs = jupLendBanks
-      .map((bank) => {
-        const bankMetadata = bankMetadataMap?.[bank.address.toBase58()];
-        if (!bankMetadata?.jupLendStates) return;
-        return makeUpdateJupLendRate({
-          lendingState: bankMetadata.jupLendStates.jupLendingState,
-        });
-      })
-      .filter((ix): ix is TransactionInstruction => !!ix);
+    const updateRateIxs = jupLendBanks.map((bank) => {
+      const jupLendStates = bankMetadataMap[bank.address.toBase58()]?.jupLendStates;
+      if (!jupLendStates) {
+        throw TransactionBuildingError.jupLendStateNotFound(
+          bank.address.toBase58(),
+          bank.mint.toBase58(),
+          bank.tokenSymbol
+        );
+      }
+      return makeUpdateJupLendRate({ lendingState: jupLendStates.jupLendingState });
+    });
 
     ixs.push(...updateRateIxs);
   }

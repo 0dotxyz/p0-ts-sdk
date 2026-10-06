@@ -79,6 +79,8 @@ export interface KaminoReserveConfig {
    * Absent on reserves serialized before this field existed — treated as `Legacy`.
    */
   interestRateBasis?: number;
+  /** Nonzero while the reserve is in emergency mode; marginfi then gives its collateral zero initial weight */
+  emergencyMode: number;
   /** Maximum deposit limit of liquidity in native units, u64::MAX for inf */
   depositLimit: BN;
   /** Maximum amount borrowed, u64::MAX for inf, 0 to disable borrows (protected deposits) */

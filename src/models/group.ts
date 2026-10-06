@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { MarginfiIdlType } from "../idl";
 import {
   BankConfigOpt,
-  BankConfigOptRaw,
+  BankConfigFastRaw,
   BankRateLimiterType,
   fetchMultipleBanks,
   InstructionsWrapper,
@@ -14,6 +14,8 @@ import {
   MarginfiGroupRaw,
   MarginfiGroupType,
   parseBankRateLimiterRaw,
+  PremiumEntry,
+  rateFromU32,
 } from "../services";
 import { AccountType, MarginfiProgram } from "../types";
 
@@ -28,11 +30,19 @@ class MarginfiGroup implements MarginfiGroupType {
   public admin: PublicKey;
   /** Group-level net-outflow rate limiter (USD windows); see isGroupRateLimiterEnabled */
   public rateLimiter?: BankRateLimiterType;
+  /** Live entries of the variable borrow premium table */
+  public premiumEntries: PremiumEntry[];
 
-  constructor(admin: PublicKey, address: PublicKey, rateLimiter?: BankRateLimiterType) {
+  constructor(
+    admin: PublicKey,
+    address: PublicKey,
+    rateLimiter: BankRateLimiterType | undefined,
+    premiumEntries: PremiumEntry[]
+  ) {
     this.admin = admin;
     this.address = address;
     this.rateLimiter = rateLimiter;
+    this.premiumEntries = premiumEntries;
   }
 
   static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiGroup> {
@@ -60,12 +70,13 @@ class MarginfiGroup implements MarginfiGroupType {
   // ----------------------------------------------------------------------------
 
   static fromAccountParsed(address: PublicKey, accountData: MarginfiGroupRaw): MarginfiGroup {
-    // rateLimiter is camelCased by anchor's Program account client; decoding via the raw
-    // BorshCoder (fromBuffer) yields snake_case fields and leaves it undefined here.
     const rateLimiter = accountData.rateLimiter
       ? parseBankRateLimiterRaw(accountData.rateLimiter)
       : undefined;
-    return new MarginfiGroup(accountData.admin, address, rateLimiter);
+    const premiumEntries = accountData.premiumEntries
+      .slice(0, accountData.premiumSettings.entryCount)
+      .map((entry) => ({ ...entry, rate: rateFromU32(entry.rate) }));
+    return new MarginfiGroup(accountData.admin, address, rateLimiter, premiumEntries);
   }
 
   static fromBuffer(address: PublicKey, rawData: Buffer, idl: MarginfiIdlType) {
@@ -93,7 +104,7 @@ class MarginfiGroup implements MarginfiGroupType {
   public async makePoolConfigureBankIx(
     program: MarginfiProgram,
     bank: PublicKey,
-    args: BankConfigOptRaw
+    args: BankConfigFastRaw
   ): Promise<InstructionsWrapper> {
     return makePoolConfigureBankIx(program, bank, args);
   }

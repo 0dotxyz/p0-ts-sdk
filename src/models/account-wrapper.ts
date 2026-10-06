@@ -29,7 +29,13 @@ import {
   TransactionBuilderResult,
   TransferPositionsResult,
   computeLowestEmodeWeights,
+  computePremiumBreakdown,
+  computePremiumImpact,
+  computePremiumRatesByBank,
   createActiveEmodePairFromPairs,
+  PremiumAction,
+  PremiumCollateralBreakdown,
+  PremiumImpact,
 } from "~/services/account";
 import { BankType, EmodePair, ActionEmodeImpact, fetchBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
@@ -557,6 +563,7 @@ export class MarginfiAccountWrapper {
     transactions: ExtendedV0Transaction[];
     actionTxIndex: number;
     quoteResponse: SwapQuoteResult | undefined;
+    mustBeAtomicBundle: boolean;
   }> {
     const fullParams: MakeRollPtTxParams = {
       ...params,
@@ -750,6 +757,8 @@ export class MarginfiAccountWrapper {
       amount,
       luts: this.client.addressLookupTables,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -786,6 +795,8 @@ export class MarginfiAccountWrapper {
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -821,6 +832,8 @@ export class MarginfiAccountWrapper {
       luts: this.client.addressLookupTables,
       connection: this.client.program.provider.connection,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -979,6 +992,8 @@ export class MarginfiAccountWrapper {
       repayAll,
       luts: this.client.addressLookupTables,
       opts,
+      bankMap: this.client.bankMap,
+      bankMetadataMap: this.client.bankIntegrationMap,
     });
   }
 
@@ -1154,6 +1169,44 @@ export class MarginfiAccountWrapper {
   getEmodeImpacts(): Record<string, ActionEmodeImpact> {
     const bankAddresses = this.client.banks.map((b) => b.address);
     return this.account.computeEmodeImpacts(this.client.emodePairs, bankAddresses);
+  }
+
+  // ----------------------------------------------------------------------------
+  // Variable borrow premium — derived from client.group.premiumEntries + account balances
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Premium rate (APR fraction) each premium-active bank would charge this account for a borrow,
+   * given its current collateral, by bank address. See {@link computePremiumRatesByBank}.
+   */
+  getPremiumRatesByBank(): Map<string, BigNumber> {
+    return computePremiumRatesByBank(this.premiumRateParams());
+  }
+
+  /**
+   * Per-collateral breakdown of the premium rate `liabilityBank` would charge this account.
+   * See {@link computePremiumBreakdown}.
+   */
+  getPremiumBreakdown(liabilityBank: PublicKey): PremiumCollateralBreakdown[] {
+    return computePremiumBreakdown(this.premiumRateParams(), liabilityBank);
+  }
+
+  /**
+   * How `actions` would change this account's premium rates and yearly premium.
+   * See {@link computePremiumImpact}.
+   */
+  computePremiumImpact(actions: PremiumAction[]): PremiumImpact {
+    return computePremiumImpact({ ...this.premiumRateParams(), actions });
+  }
+
+  private premiumRateParams() {
+    return {
+      activeBalances: this.account.activeBalances,
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      premiumEntries: this.client.group.premiumEntries,
+    };
   }
 
   // ----------------------------------------------------------------------------

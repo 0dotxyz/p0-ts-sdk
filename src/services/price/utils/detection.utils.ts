@@ -67,6 +67,8 @@ export function getOracleSourceFromOracleSetup(oracleSetup: OracleSetup) {
       oracleSourceKey = "fixed";
       break;
     case OracleSetup.Scope:
+    case OracleSetup.ScopeKamino:
+    case OracleSetup.ScopeJuplend:
       oracleSourceKey = "scope";
       break;
     default:

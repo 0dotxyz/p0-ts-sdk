@@ -40,6 +40,7 @@ const reserve: KaminoReserve = {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,
     interestRateBasis: KaminoInterestRateBasis.TrueApr,
+    emergencyMode: 1,
     depositLimit: new BN("10000000000000000"),
     borrowLimit: new BN("9000000000000000"),
     borrowRateCurve: {
