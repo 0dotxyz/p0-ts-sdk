@@ -146,6 +146,11 @@ export interface WrappedI80F48 {
   value: number[];
 }
 
+export type OrderTrigger =
+  | { stopLoss: { threshold: WrappedI80F48; maxSlippage: number } }
+  | { takeProfit: { threshold: WrappedI80F48; maxSlippage: number } }
+  | { both: { stopLoss: WrappedI80F48; takeProfit: WrappedI80F48; maxSlippage: number } };
+
 export type Amount = BigNumber | number | string;
 
 export type AmountType = "uiToken" | "cToken";

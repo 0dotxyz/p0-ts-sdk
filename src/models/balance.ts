@@ -29,7 +29,8 @@ class Balance implements BalanceType {
     public assetShares: BigNumber,
     public liabilityShares: BigNumber,
     public emissionsOutstanding: BigNumber,
-    public lastUpdate: number
+    public lastUpdate: number,
+    public tag: number
   ) {}
 
   static from(balanceRaw: BalanceRaw): Balance {
@@ -40,7 +41,8 @@ class Balance implements BalanceType {
       props.assetShares,
       props.liabilityShares,
       props.emissionsOutstanding,
-      props.lastUpdate
+      props.lastUpdate,
+      props.tag
     );
   }
 
@@ -51,7 +53,8 @@ class Balance implements BalanceType {
       balance.assetShares,
       balance.liabilityShares,
       balance.emissionsOutstanding,
-      balance.lastUpdate
+      balance.lastUpdate,
+      balance.tag
     );
   }
 
