@@ -50,12 +50,6 @@ export async function getFallbackPricesForMints(
 }
 
 /**
- * @deprecated Renamed to {@link getFallbackPricesForMints} — the endpoint is
- * no longer Birdeye-backed.
- */
-export const getBirdeyePricesForMints = getFallbackPricesForMints;
-
-/**
  * Fetches fallback prices and maps them by feed ID
  * @param feedMint - Array of objects containing feedId and mintAddress pairs
  * @returns Promise resolving to record of prices indexed by feed ID
@@ -88,9 +82,3 @@ export const getFallbackPricesByFeedId = async (
 
   return priceByFeedId;
 };
-
-/**
- * @deprecated Renamed to {@link getFallbackPricesByFeedId} — the endpoint is
- * no longer Birdeye-backed.
- */
-export const getBirdeyeFallbackPricesByFeedId = getFallbackPricesByFeedId;

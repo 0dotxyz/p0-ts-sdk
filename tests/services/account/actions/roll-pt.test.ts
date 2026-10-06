@@ -84,15 +84,16 @@ vi.mock("~/services/account/actions/deposit", () => ({
 vi.mock("~/services/account/actions/flash-loan", async () => {
   const { makeTransactionMessage, TransactionType } = await import("~/services/transaction");
   return {
-    makeFlashLoanTx: async ({ ixs, latestBlockhash, luts, authority }: any) => {
+    makeFlashLoanTx: async ({ ixs, latestBlockhash, txFormat, authority }: any) => {
       store.flashloanIxs = ixs;
-      store.flashloanLuts = luts;
+      store.flashloanLuts = txFormat.luts;
       store.simIxLengths.push(ixs.length);
       return {
         message: makeTransactionMessage({
           instructions: ixs,
           feePayer: authority,
           latestBlockhash,
+          txFormat: { version: 0, luts: {} },
         }),
         type: TransactionType.FLASHLOAN,
       };
@@ -262,7 +263,7 @@ function makeParams(
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
     },
     rollOpts: { maturedMarket: pk(60), successorMarket: pk(67), slippageBps: 50 },
-    luts: {},
+    txFormat: { version: 0, luts: {} },
   };
   return { ...base, ...rest, rollOpts: { ...base.rollOpts, ...rollOverrides } };
 }

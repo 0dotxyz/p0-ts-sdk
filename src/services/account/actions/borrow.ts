@@ -89,7 +89,7 @@ export async function makeBorrowIx({
  * @throws see {@link makeBorrowIx}
  */
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTransaction> {
-  const { rpc, luts, latestBlockhash, bankMetadataMap, ...borrowIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, bankMetadataMap, ...borrowIxParams } = params;
   const { bank, bankMap, marginfiAccount } = params;
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
@@ -107,8 +107,8 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTr
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts: selectLutsForAccountAction(
-        luts,
+      txFormat: selectLutsForAccountAction(
+        txFormat,
         bank,
         marginfiAccount.balances,
         bankMap,

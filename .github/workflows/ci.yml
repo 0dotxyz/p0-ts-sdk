@@ -42,6 +42,10 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # code_rules §2: no generated (Codama) type may reach the published declarations.
+      - name: No generated types in public declarations
+        run: "! grep -l TAccount dist/*.d.ts"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

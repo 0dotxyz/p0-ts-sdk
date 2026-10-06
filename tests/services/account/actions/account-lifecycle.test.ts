@@ -39,7 +39,7 @@ describe("create account index", () => {
       authority,
       group,
       rpc: rpc as never,
-      luts: {},
+      txFormat: { version: 0, luts: {} },
     });
 
     expect(rpc.getMultipleAccounts).toHaveBeenCalledTimes(1);
@@ -55,7 +55,7 @@ describe("create account index", () => {
       authority,
       group,
       rpc: rpc as never,
-      luts: {},
+      txFormat: { version: 0, luts: {} },
       accountIndex: 4,
       thirdPartyId: 7,
     });

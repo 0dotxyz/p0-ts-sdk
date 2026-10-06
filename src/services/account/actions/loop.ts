@@ -1,7 +1,8 @@
-import type {
-  AddressesByLookupTableAddress,
-  BlockhashLifetimeConstraint,
-  Instruction,
+import {
+  getTransactionMessageSizeLimit,
+  type AddressesByLookupTableAddress,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
 } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
@@ -38,7 +39,7 @@ import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeSwapDebtTx } from "./swap-debt";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
@@ -48,7 +49,9 @@ import {
   makeWrapSolIxs,
   SolanaTransaction,
   splitInstructionsToFitTransactions,
+  TransactionFormat,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
 
@@ -60,7 +63,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
    *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
   mustBeAtomicBundle: boolean;
 }> {
-  const { authority, depositOpts, borrowOpts, luts, rpc, additionalIxs = [] } = params;
+  const { authority, depositOpts, borrowOpts, txFormat, rpc, additionalIxs = [] } = params;
 
   const { value: latestBlockhash } = await rpc
     .getLatestBlockhash({ commitment: "confirmed" })
@@ -133,7 +136,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
+      txFormat,
     });
 
     additionalTxs.push(
@@ -168,7 +171,7 @@ async function buildLoopFlashloanTx(params: LoopParams) {
     const flashloanTx = await finalizeLoopFlashloanTx({
       params,
       innerIxs: descriptor.innerIxs,
-      luts: descriptor.luts,
+      txFormat: descriptor.txFormat,
       swapIxCount: 0,
       swapLutCount: 0,
       sizeConstraint: descriptor.sizeConstraint,
@@ -203,7 +206,7 @@ async function buildLoopFlashloanTx(params: LoopParams) {
   const flashloanTx = await finalizeLoopFlashloanTx({
     params,
     innerIxs: finalIxs,
-    luts: { ...descriptor.luts, ...engineResult.swapLuts },
+    txFormat: withLookupTables(descriptor.txFormat, engineResult.swapLuts),
     swapIxCount: engineResult.swapInstructions.length,
     swapLutCount: Object.keys(engineResult.swapLuts).length,
     sizeConstraint: descriptor.sizeConstraint,
@@ -238,7 +241,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     borrowOpts,
     depositOpts,
     bankMetadataMap,
-    luts,
+    txFormat,
   } = params;
 
   const cuRequestIxs = [
@@ -270,7 +273,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
       marginfiAccount,
       bankMap,
       bankMetadataMap,
-      luts: luts ?? {},
+      txFormat,
       primaryIx: {
         type: "borrow",
         bank: borrowOpts.borrowBank,
@@ -341,7 +344,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     destinationTokenAccount,
     sizeConstraint,
     maxSwapTotalAccounts,
-    luts: luts ?? {},
+    txFormat,
   };
 
   return { descriptor, swapNeeded, borrowIxs, depositIxs };
@@ -391,7 +394,7 @@ async function runLoopSwapEngine(
     rpc,
     footprint: {
       instructions: descriptor.innerIxs,
-      luts: descriptor.luts,
+      txFormat: descriptor.txFormat,
       payer: authority.address,
       sizeConstraint: descriptor.sizeConstraint,
       maxSwapTotalAccounts: descriptor.maxSwapTotalAccounts,
@@ -416,14 +419,14 @@ async function runLoopSwapEngine(
 async function finalizeLoopFlashloanTx({
   params,
   innerIxs,
-  luts,
+  txFormat,
   swapIxCount,
   swapLutCount,
   sizeConstraint,
 }: {
   params: LoopParams;
   innerIxs: Instruction[];
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   swapIxCount: number;
   swapLutCount: number;
   sizeConstraint: number;
@@ -434,7 +437,7 @@ async function finalizeLoopFlashloanTx({
     compileFlashloanPrecheck({
       allIxs: innerIxs,
       payer: authority.address,
-      luts,
+      txFormat,
       sizeConstraint,
       swapIxCount,
       swapLutCount,
@@ -450,7 +453,7 @@ async function finalizeLoopFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts,
+    txFormat,
     latestBlockhash,
     ixs: innerIxs,
   });
@@ -458,7 +461,10 @@ async function finalizeLoopFlashloanTx({
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededLoop(
       txSize,
       totalKeys,

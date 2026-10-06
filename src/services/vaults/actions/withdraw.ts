@@ -65,7 +65,7 @@ export async function makeVaultWithdrawIx({
 export async function makeVaultWithdrawTx(
   params: MakeVaultWithdrawTxParams
 ): Promise<SolanaTransaction> {
-  const { luts, latestBlockhash, ...withdrawIxParams } = params;
+  const { txFormat, latestBlockhash, ...withdrawIxParams } = params;
 
   const withdrawIxs = await makeVaultWithdrawIx(withdrawIxParams);
 
@@ -76,7 +76,7 @@ export async function makeVaultWithdrawTx(
       latestBlockhash:
         latestBlockhash ??
         (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
+      txFormat,
     }),
     type: TransactionType.VAULT_WITHDRAW,
   };
@@ -123,7 +123,7 @@ export async function makeVaultCompleteWithdrawalIx({
 export async function makeVaultCompleteWithdrawalTx(
   params: MakeVaultCompleteWithdrawalTxParams
 ): Promise<SolanaTransaction> {
-  const { luts, latestBlockhash, ...completeIxParams } = params;
+  const { txFormat, latestBlockhash, ...completeIxParams } = params;
 
   const completeIxs = await makeVaultCompleteWithdrawalIx(completeIxParams);
 
@@ -134,7 +134,7 @@ export async function makeVaultCompleteWithdrawalTx(
       latestBlockhash:
         latestBlockhash ??
         (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
+      txFormat,
     }),
     type: TransactionType.VAULT_COMPLETE_WITHDRAWAL,
   };

@@ -1,7 +1,8 @@
-import type {
-  AddressesByLookupTableAddress,
-  BlockhashLifetimeConstraint,
-  Instruction,
+import {
+  getTransactionMessageSizeLimit,
+  type AddressesByLookupTableAddress,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
 } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
@@ -37,7 +38,7 @@ import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { AssetTag } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -47,6 +48,7 @@ import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
@@ -85,7 +87,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     withdrawOpts,
     depositOpts,
     bankMetadataMap,
-    luts,
+    txFormat,
   } = params;
 
   const { value: latestBlockhash } = await rpc
@@ -144,7 +146,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
+      txFormat,
     });
 
     additionalTxs.push(
@@ -172,7 +174,7 @@ async function buildSwapCollateralFlashloanTx({
   swapOpts,
   bankMetadataMap,
   assetShareValueMultiplierByBank,
-  luts,
+  txFormat,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -269,7 +271,7 @@ async function buildSwapCollateralFlashloanTx({
       marginfiAccount,
       bankMap,
       bankMetadataMap,
-      luts: luts ?? {},
+      txFormat,
       primaryIx: { type: "withdraw", bank: withdrawBank, tokenProgram: withdrawTokenProgram },
       secondaryIx: { type: "deposit", bank: depositBank, tokenProgram: depositTokenProgram },
     });
@@ -288,7 +290,7 @@ async function buildSwapCollateralFlashloanTx({
       rpc,
       footprint: {
         instructions: [...cuRequestIxs, ...withdrawIxs, ...depositIxs],
-        luts: luts ?? {},
+        txFormat,
         payer: authority.address,
         sizeConstraint: swapConstraints.sizeConstraint,
         maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -312,7 +314,7 @@ async function buildSwapCollateralFlashloanTx({
     swapQuote = engineResult.quoteResponse;
   }
 
-  const flashloanLuts = { ...luts, ...swapLookupTables };
+  const flashloanFormat = withLookupTables(txFormat, swapLookupTables);
 
   const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, ...swapInstructions, ...depositIxs];
 
@@ -320,7 +322,7 @@ async function buildSwapCollateralFlashloanTx({
     compileFlashloanPrecheck({
       allIxs: allNonFlIxs,
       payer: authority.address,
-      luts: flashloanLuts,
+      txFormat: flashloanFormat,
       sizeConstraint: sizeConstraintUsed,
       swapIxCount: swapInstructions.length,
       swapLutCount: Object.keys(swapLookupTables).length,
@@ -335,7 +337,7 @@ async function buildSwapCollateralFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts: flashloanLuts,
+    txFormat: flashloanFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
@@ -343,7 +345,10 @@ async function buildSwapCollateralFlashloanTx({
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,

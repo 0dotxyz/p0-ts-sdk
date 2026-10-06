@@ -6,7 +6,7 @@
  * 2. Fetch a marginfi account
  * 3. Create a wrapper for clean API
  * 4. Check max borrow capacity
- * 5. Build and simulate borrow transaction
+ * 5. Build and simulate a borrow transaction
  *
  * Setup:
  * 1. Copy .env.example to .env
@@ -14,20 +14,10 @@
  * 3. Run: tsx 02-borrow.ts
  */
 
-import {
-  Project0Client,
-  MarginfiAccountWrapper,
-  MarginfiAccount,
-  AssetTag,
-  simulateBundle,
-} from "../src";
-import {
-  getConnection,
-  getMarginfiConfig,
-  getAccountAddress,
-  getWalletPubkey,
-  MINTS,
-} from "./config";
+import { compileTransaction, getBase64EncodedWireTransaction } from "@solana/kit";
+
+import { Project0Client, AssetTag } from "../src";
+import { getRpc, getMarginfiConfig, getAccountAddress, MINTS } from "./config";
 
 // ============================================================================
 // Configuration
@@ -45,20 +35,18 @@ async function borrowExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -69,10 +57,12 @@ async function borrowExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
-  const wrappedAccount = new MarginfiAccountWrapper(account, client);
+  // Refreshes the health cache by simulation: the max amounts below are computed from it.
+  const wrappedAccount = await client.fetchAccount(accountAddress);
+  const account = wrappedAccount.getUnderlyingAccount();
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Select Bank
@@ -86,8 +76,8 @@ async function borrowExample() {
   }
 
   const usdcBank = usdcBanks[0];
-  console.log(`✅ Bank selected: ${usdcBank.address.toBase58()}`);
-  console.log(`   Mint: ${usdcBank.mint.toBase58()}`);
+  console.log(`✅ Bank selected: ${usdcBank.address}`);
+  console.log(`   Mint: ${usdcBank.mint}`);
 
   // --------------------------------------------------------------------------
   // Step 5: Check Borrow Capacity
@@ -108,37 +98,34 @@ async function borrowExample() {
     `\n📝 Building borrow transaction for ${actualBorrowAmount} USDC...`
   );
 
-  const borrowResult = await wrappedAccount.makeBorrowTx(
-    usdcBank.address,
-    actualBorrowAmount
-  );
+  const borrowTx = await wrappedAccount.makeBorrowTx(usdcBank.address, actualBorrowAmount);
 
   console.log(`✅ Transaction built successfully`);
-  console.log(`   Total transactions: ${borrowResult.transactions.length}`);
-  console.log(`   Action transaction index: ${borrowResult.actionTxIndex}`);
 
   // --------------------------------------------------------------------------
-  // Step 7: Simulate Transaction Bundle
+  // Step 7: Simulate Transaction
   // --------------------------------------------------------------------------
-  console.log("\n🔄 Simulating transaction bundle...");
+  console.log("\n🔄 Simulating transaction...");
+
+  const wireTransaction = getBase64EncodedWireTransaction(compileTransaction(borrowTx.message));
 
   try {
-    const simulationResults = await simulateBundle(connection.rpcEndpoint, borrowResult.transactions);
+    const simulation = await rpc
+      .simulateTransaction(wireTransaction, {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+      })
+      .send();
 
-    console.log("\n✅ Bundle simulation successful!");
-    simulationResults.forEach((result, index) => {
-      console.log(`\n   Transaction ${index + 1}:`);
-      if (result.err) {
-        console.log(`   ❌ Error: ${JSON.stringify(result.err)}`);
-        if (result.logs && result.logs.length > 0) {
-          console.log(`   Logs:`);
-          result.logs.forEach(log => console.log(`     ${log}`));
-        }
-      } else {
-        console.log(`   ✅ Success`);
-        console.log(`   Compute units: ${result.unitsConsumed || 'N/A'}`);
-      }
-    });
+    if (simulation.value.err) {
+      console.error("\n❌ Simulation failed:", simulation.value.err);
+      console.error("\nLogs:", simulation.value.logs);
+      return;
+    }
+
+    console.log("\n✅ Simulation successful!");
+    console.log(`   Compute units used: ${simulation.value.unitsConsumed}`);
   } catch (error) {
     console.error("\n❌ Simulation error:", error);
     throw error;

@@ -26,7 +26,7 @@ import type { SwapEngineRequest } from "~/services/account/services/swap-engine"
 import { SwapProvider } from "~/services/account/types";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
-import { TransactionType } from "~/services/transaction";
+import { TransactionFormat, TransactionType } from "~/services/transaction";
 
 const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
@@ -90,6 +90,7 @@ describe("makeLoopTx", () => {
       },
       borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
       swapOpts: {},
+      txFormat: { version: 0, luts: {} },
       swapEngineRunner: async (request) => {
         requests.push(request);
         const payer = createNoopSigner(request.taker);
@@ -191,5 +192,108 @@ describe("makeLoopTx", () => {
     // min-out of the swap plus the 1 mSOL principal (9 decimals)
     expect(deposit.data.amount).toBe(minOutNative + 1_000_000_000n);
     expect(unwrapOption(deposit.data.depositUpToLimit)).toBeNull();
+  });
+
+  it("builds version 1 messages with the same flashloan layout and tells the swap engine the format", async () => {
+    const minOutNative = 426_000_000n;
+
+    const build = async (txFormat: TransactionFormat) => {
+      const requests: SwapEngineRequest[] = [];
+      const result = await makeLoopTx({
+        programAddress,
+        marginfiAccount,
+        authority,
+        rpc: createSolanaRpc(rpcEndpoint),
+        bankMap,
+        bankMetadataMap: {},
+        assetShareValueMultiplierByBank: new Map(),
+        depositOpts: {
+          depositBank: banks.default,
+          tokenProgram,
+          inputDepositAmount: 1,
+          loopMode: "DEPOSIT",
+          marketPrice: 190,
+        },
+        borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
+        swapOpts: {},
+        txFormat,
+        swapEngineRunner: async (request) => {
+          requests.push(request);
+          const [routeAta] = await findAssociatedTokenPda({
+            mint: routeMint,
+            owner: request.taker,
+            tokenProgram,
+          });
+          return {
+            swapInstructions: [
+              { programAddress: swapProgram, accounts: [], data: new Uint8Array([1]) },
+            ],
+            setupInstructions: [
+              getSetComputeUnitLimitInstruction({ units: 123 }),
+              getCreateAssociatedTokenIdempotentInstruction({
+                payer: createNoopSigner(request.taker),
+                ata: routeAta,
+                owner: request.taker,
+                mint: routeMint,
+              }),
+            ],
+            swapLuts: {},
+            quoteResponse: {
+              inAmount: "500000000",
+              outAmount: "450000000",
+              otherAmountThreshold: minOutNative.toString(),
+              slippageBps: 50,
+            },
+            outputAmountNative: minOutNative,
+            provider: SwapProvider.JUPITER,
+          };
+        },
+      });
+
+      const flashloanIxs = result.transactions[result.actionTxIndex].message.instructions;
+      const begin = parseMarginfiIx(flashloanIxs[0]);
+      if (begin?.instructionType !== MarginfiInstruction.LendingAccountStartFlashloan) {
+        throw new Error("unexpected flashloan layout");
+      }
+      return {
+        result,
+        requests,
+        endIndex: begin.data.endIndex,
+        kinds: flashloanIxs.map((ix) => {
+          if (ix.programAddress === swapProgram) return "swap";
+          if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) return "compute budget";
+          return parseMarginfiIx(ix)?.instructionType;
+        }),
+      };
+    };
+
+    const v0 = await build({ version: 0, luts: {} });
+    const v1 = await build({ version: 1 });
+
+    expect(v0.result.transactions.map((tx) => tx.message.version)).toEqual([0, 0]);
+    expect(v1.result.transactions.map((tx) => tx.message.version)).toEqual([1, 1]);
+    expect(v1.result.transactions.map((tx) => tx.type)).toEqual([
+      TransactionType.CREATE_ATA,
+      TransactionType.FLASHLOAN,
+    ]);
+
+    // The compute-budget placeholders stay in the version 1 flashloan, so the end index holds.
+    expect(v1.kinds).toEqual([
+      MarginfiInstruction.LendingAccountStartFlashloan,
+      "compute budget",
+      "compute budget",
+      MarginfiInstruction.LendingAccountBorrow,
+      "swap",
+      MarginfiInstruction.LendingAccountDeposit,
+      MarginfiInstruction.LendingAccountEndFlashloan,
+    ]);
+    expect(v1.kinds).toEqual(v0.kinds);
+    expect(v1.endIndex).toBe(6n);
+    expect(v1.endIndex).toBe(v0.endIndex);
+
+    expect(v0.requests).toHaveLength(1);
+    expect(v0.requests[0].footprint?.txFormat).toEqual({ version: 0, luts: {} });
+    expect(v1.requests).toHaveLength(1);
+    expect(v1.requests[0].footprint?.txFormat).toEqual({ version: 1 });
   });
 });

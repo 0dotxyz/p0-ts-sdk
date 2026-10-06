@@ -44,7 +44,7 @@ export async function makeFlashLoanTx({
   ixs,
   bankMap,
   latestBlockhash,
-  luts,
+  txFormat,
 }: MakeFlashLoanTxParams): Promise<SolanaTransaction> {
   const endIndex = ixs.length + 1;
 
@@ -74,7 +74,7 @@ export async function makeFlashLoanTx({
       instructions: [...beginFlashLoanIxs, ...ixs, ...endFlashLoanIxs],
       feePayer: authority,
       latestBlockhash,
-      luts,
+      txFormat,
     }),
     type: TransactionType.FLASHLOAN,
   };

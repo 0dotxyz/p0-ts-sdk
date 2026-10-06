@@ -1,4 +1,4 @@
-import type { BlockhashLifetimeConstraint } from "@solana/kit";
+import { getTransactionMessageSizeLimit, type BlockhashLifetimeConstraint } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
@@ -31,7 +31,7 @@ import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
@@ -41,6 +41,7 @@ import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
@@ -79,7 +80,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     repayOpts,
     borrowOpts,
     bankMetadataMap,
-    luts,
+    txFormat,
     additionalIxs = [],
   } = params;
 
@@ -140,7 +141,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     const messages = splitInstructionsToFitTransactions([], ixs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
+      txFormat,
     });
 
     additionalTxs.push(
@@ -167,7 +168,7 @@ async function buildSwapDebtFlashloanTx({
   borrowOpts,
   swapOpts,
   bankMetadataMap,
-  luts,
+  txFormat,
   rpc,
   latestBlockhash,
   swapEngineRunner,
@@ -216,7 +217,7 @@ async function buildSwapDebtFlashloanTx({
     marginfiAccount,
     bankMap,
     bankMetadataMap,
-    luts: luts ?? {},
+    txFormat,
     primaryIx: { type: "borrow", bank: borrowBank, tokenProgram: borrowTokenProgram },
     secondaryIx: { type: "repay", bank: repayBank, tokenProgram: repayTokenProgram },
   });
@@ -259,7 +260,7 @@ async function buildSwapDebtFlashloanTx({
     rpc,
     footprint: {
       instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
-      luts: luts ?? {},
+      txFormat,
       payer: authority.address,
       sizeConstraint: swapConstraints.sizeConstraint,
       maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
@@ -295,7 +296,7 @@ async function buildSwapDebtFlashloanTx({
     ),
   });
 
-  const flashloanLuts = { ...luts, ...engineResult.swapLuts };
+  const flashloanFormat = withLookupTables(txFormat, engineResult.swapLuts);
 
   const allNonFlIxs = [
     ...cuRequestIxs,
@@ -307,7 +308,7 @@ async function buildSwapDebtFlashloanTx({
   compileFlashloanPrecheck({
     allIxs: allNonFlIxs,
     payer: authority.address,
-    luts: flashloanLuts,
+    txFormat: flashloanFormat,
     sizeConstraint: swapConstraints.sizeConstraint,
     swapIxCount: engineResult.swapInstructions.length,
     swapLutCount: Object.keys(engineResult.swapLuts).length,
@@ -321,7 +322,7 @@ async function buildSwapDebtFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts: flashloanLuts,
+    txFormat: flashloanFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
@@ -329,7 +330,10 @@ async function buildSwapDebtFlashloanTx({
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,

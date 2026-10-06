@@ -40,12 +40,11 @@ import {
   isStandardDepositable,
   isBridgeConflictError,
 } from "../src";
-import { PublicKey } from "@solana/web3.js";
+import { address, compileTransaction, type Address } from "@solana/kit";
 import {
-  getConnection,
+  getRpc,
   getMarginfiConfig,
   getAccountAddress,
-  getWalletPubkey,
   getSwapConfig,
   MINTS,
   UNIVERSAL_BRIDGE_MINTS,
@@ -56,10 +55,10 @@ import {
 // ============================================================================
 
 // Collateral to loop into (the wallet must hold DEPOSIT_AMOUNT of it)
-const DEPOSIT_MINT = process.env.DEPOSIT_MINT ? new PublicKey(process.env.DEPOSIT_MINT) : MINTS.SOL;
+const DEPOSIT_MINT = process.env.DEPOSIT_MINT ? address(process.env.DEPOSIT_MINT) : MINTS.SOL;
 
 // Debt to lever with
-const BORROW_MINT = process.env.BORROW_MINT ? new PublicKey(process.env.BORROW_MINT) : MINTS.USDC;
+const BORROW_MINT = process.env.BORROW_MINT ? address(process.env.BORROW_MINT) : MINTS.USDC;
 
 // Principal deposited from the wallet (UI units)
 const DEPOSIT_AMOUNT = Number(process.env.DEPOSIT_AMOUNT ?? "0.01");
@@ -77,20 +76,18 @@ async function loopExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -101,10 +98,11 @@ async function loopExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const account = await MarginfiAccount.fetch(accountAddress, rpc);
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Select Deposit and Borrow Banks
@@ -114,25 +112,25 @@ async function loopExample() {
   // Deposit bank: only DEFAULT/SOL asset-tag, Operational banks accept deposits (excludes
   // ReduceOnly banks and Kamino/Drift/JupLend wrappers — depositing into those reverts).
   const depositBank = client.banks.find(
-    (bank) => bank.mint.equals(DEPOSIT_MINT) && isStandardDepositable(bank)
+    (bank) => bank.mint === DEPOSIT_MINT && isStandardDepositable(bank)
   );
   if (!depositBank) {
-    throw new Error(`No depositable bank found for deposit mint: ${DEPOSIT_MINT.toBase58()}`);
+    throw new Error(`No depositable bank found for deposit mint: ${DEPOSIT_MINT}`);
   }
 
   // Borrow bank: only standard banks with a borrow limit can be borrowed from.
   const borrowBank = client.banks.find(
-    (bank) => bank.mint.equals(BORROW_MINT) && isStandardBorrowable(bank)
+    (bank) => bank.mint === BORROW_MINT && isStandardBorrowable(bank)
   );
   if (!borrowBank) {
-    throw new Error(`No borrowable bank found for borrow mint: ${BORROW_MINT.toBase58()}`);
+    throw new Error(`No borrowable bank found for borrow mint: ${BORROW_MINT}`);
   }
 
   console.log(
-    `✅ Deposit bank: ${depositBank.tokenSymbol ?? depositBank.mint.toBase58()} (${depositBank.address.toBase58()})`
+    `✅ Deposit bank: ${depositBank.tokenSymbol ?? depositBank.mint} (${depositBank.address})`
   );
   console.log(
-    `✅ Borrow bank: ${borrowBank.tokenSymbol ?? borrowBank.mint.toBase58()} (${borrowBank.address.toBase58()})`
+    `✅ Borrow bank: ${borrowBank.tokenSymbol ?? borrowBank.mint} (${borrowBank.address})`
   );
 
   // --------------------------------------------------------------------------
@@ -141,12 +139,10 @@ async function loopExample() {
   // Leverage L on principal P means borrowing (L - 1) × P worth of the borrow asset — the loop
   // swaps that borrow into more collateral. Sized here with oracle USD prices; the app seeds this
   // with Jupiter market prices instead (tradeable price) and falls back to the oracle.
-  const priceOf = (bankAddress: PublicKey): number => {
-    const price = client.oraclePriceByBank
-      .get(bankAddress.toBase58())
-      ?.priceRealtime.price.toNumber();
+  const priceOf = (bankAddress: Address): number => {
+    const price = client.oraclePriceByBank.get(bankAddress)?.priceRealtime.price.toNumber();
     if (!price || price <= 0) {
-      throw new Error(`Missing oracle price for bank ${bankAddress.toBase58()}`);
+      throw new Error(`Missing oracle price for bank ${bankAddress}`);
     }
     return price;
   };
@@ -179,7 +175,6 @@ async function loopExample() {
   // to USDC → wSOL → USDT); we pass the example's universal list to also try JitoSOL.
   const result = await wrappedAccount
     .makeBridgedLoopTx({
-      connection,
       depositOpts: {
         inputDepositAmount: DEPOSIT_AMOUNT,
         depositBank,
@@ -212,10 +207,10 @@ async function loopExample() {
 
   const isBridged = result.bridgeMint !== undefined;
   if (isBridged) {
-    const bridgeBank = client.banks.find((b) => b.mint.equals(result.bridgeMint!));
+    const bridgeBank = client.getBanksByMint(result.bridgeMint!)[0];
     console.log(
       `✅ Direct route didn't fit — bridged double-hop built via ` +
-        `${bridgeBank?.tokenSymbol ?? result.bridgeMint!.toBase58()} (${result.transactions.length} txs, 2 legs)`
+        `${bridgeBank?.tokenSymbol ?? result.bridgeMint} (${result.transactions.length} txs, 2 legs)`
     );
   } else {
     console.log(
@@ -244,7 +239,12 @@ async function loopExample() {
   console.log("\n🔄 Simulating transaction bundle...");
 
   try {
-    const simulationResults = await simulateBundle(connection.rpcEndpoint, result.transactions);
+    // Compile the messages (fee payer, blockhash and lookup tables are already set) and simulate
+    // them as one bundle without signatures.
+    const simulationResults = await simulateBundle(
+      rpcEndpoint,
+      result.transactions.map((tx) => compileTransaction(tx.message))
+    );
 
     console.log("\n✅ Bundle simulation results:");
     let allSuccessful = true;

@@ -70,7 +70,7 @@ export async function makeVaultDepositIx({
 export async function makeVaultDepositTx(
   params: MakeVaultDepositTxParams
 ): Promise<SolanaTransaction> {
-  const { luts, latestBlockhash, ...depositIxParams } = params;
+  const { txFormat, latestBlockhash, ...depositIxParams } = params;
 
   const depositIxs = await makeVaultDepositIx(depositIxParams);
 
@@ -81,7 +81,7 @@ export async function makeVaultDepositTx(
       latestBlockhash:
         latestBlockhash ??
         (await params.rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      luts,
+      txFormat,
     }),
     type: TransactionType.VAULT_DEPOSIT,
   };

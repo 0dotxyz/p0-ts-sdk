@@ -4,6 +4,7 @@ import {
   fetchAddressesForLookupTables,
   getBase64EncodedWireTransaction,
   getBase64Encoder,
+  getTransactionMessageSizeLimit,
   type Address,
   type BlockhashLifetimeConstraint,
   type ReadonlyUint8Array,
@@ -38,7 +39,7 @@ import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import {
   getTxSize,
@@ -46,7 +47,9 @@ import {
   makeTransactionMessage,
   SolanaTransaction,
   splitInstructionsToFitTransactions,
+  TransactionFormat,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { uiToNative } from "~/utils";
 import {
@@ -87,7 +90,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   actionTxIndex: number;
   quoteResponse: SwapQuoteResult | undefined;
 }> {
-  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, luts } = params;
+  const { marginfiAccount, authority, rpc, withdrawOpts, depositOpts, rollOpts, txFormat } = params;
 
   // Resolve the matured vault's `merge` (redeem PT → SY) accounts and the successor CLMM pool's
   // `trade_pt` (buy SY → PT) accounts up front. The merge's SY is exactly the CLMM pool's quote
@@ -144,7 +147,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     const messages = splitInstructionsToFitTransactions([], setupIxs, {
       latestBlockhash,
       feePayer: authority,
-      luts: luts ?? {},
+      txFormat,
     });
     additionalTxs.push(
       ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
@@ -182,7 +185,7 @@ async function buildRollPtFlashloanTx({
     bankMap,
     withdrawOpts,
     depositOpts,
-    luts: accountLuts,
+    txFormat: accountFormat,
     rollOpts,
   } = params;
   const {
@@ -241,19 +244,23 @@ async function buildRollPtFlashloanTx({
     opts: { wrapAndUnwrapSol: false },
   });
 
-  // LUTs for the bundle: the matured vault ALT (merge remaining accounts) + the CLMM pool ALT
+  // LUTs for a v0 bundle: the matured vault ALT (merge remaining accounts) + the CLMM pool ALT
   // (trade_pt remaining accounts). A dedicated PT-roll LUT (`rollOpts.lookupTable`) can replace
   // them to compress bytes; account *locks* are bounded by the fixed, compact CLMM footprint.
   const exponentLuts = {
     [merge.lookupTable.address]: merge.lookupTable.addresses,
     [clmm.lookupTable.address]: clmm.lookupTable.addresses,
   };
-  const luts = rollOpts.lookupTable
-    ? {
-        ...(await fetchAddressesForLookupTables([rollOpts.lookupTable], rpc)),
-        ...exponentLuts,
-      }
-    : { ...accountLuts, ...exponentLuts };
+  const txFormat: TransactionFormat =
+    rollOpts.lookupTable && accountFormat.version === 0
+      ? {
+          version: 0,
+          luts: {
+            ...(await fetchAddressesForLookupTables([rollOpts.lookupTable], rpc)),
+            ...exponentLuts,
+          },
+        }
+      : withLookupTables(accountFormat, exponentLuts);
 
   // 4. Size the redeem deterministically: merge pays floor(pt × sy_for_pt / pt_supply) —
   //    Exponent's `Vault::pt_redemption_rate` — computed from the vault state fetched at
@@ -311,14 +318,14 @@ async function buildRollPtFlashloanTx({
     programAddress,
     marginfiAccount,
     bankMap,
-    addressLookupTableAccounts: luts,
+    txFormat,
     ixs: allNonFlIxs,
   });
 
   compileFlashloanPrecheck({
     allIxs: allNonFlIxs,
     payer: authority.address,
-    luts,
+    txFormat,
     sizeConstraint,
     swapIxCount: 0,
     swapLutCount: 0,
@@ -329,14 +336,17 @@ async function buildRollPtFlashloanTx({
     marginfiAccount,
     authority,
     bankMap,
-    luts,
+    txFormat,
     latestBlockhash,
     ixs: allNonFlIxs,
   });
 
   const txSize = getTxSize(flashloanTx.message);
   const totalKeys = getTotalAccountKeys(flashloanTx.message);
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(txSize, totalKeys, undefined);
   }
 
@@ -472,7 +482,7 @@ async function quoteClmmTradeOut({
     instructions: [createPtAta, quoteIx],
     feePayer: payer,
     latestBlockhash,
-    luts: { [clmm.lookupTable.address]: clmm.lookupTable.addresses },
+    txFormat: { version: 0, luts: { [clmm.lookupTable.address]: clmm.lookupTable.addresses } },
   });
   const sim = await simulateTx(compileTransaction(message));
 

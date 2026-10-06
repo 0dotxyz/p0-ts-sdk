@@ -153,7 +153,7 @@ describe("native stake actions", () => {
   it("merges the source stake account into the destination", async () => {
     const { message } = await makeMergeStakeAccountsTx({
       rpc: {} as never,
-      luts: {},
+      txFormat: { version: 0, luts: {} },
       latestBlockhash: {
         blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N",
         lastValidBlockHeight: 1n,

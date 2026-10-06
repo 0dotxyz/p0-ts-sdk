@@ -2,7 +2,9 @@ import {
   appendTransactionMessageInstructions,
   compressTransactionMessageUsingAddressLookupTables,
   createTransactionMessage,
+  getTransactionMessageSizeLimit,
   pipe,
+  setTransactionMessageConfig,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   type Address,
@@ -12,11 +14,11 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SolanaTransaction } from "../types";
+import { SolanaTransaction, TransactionFormat } from "../types";
 
 import { getTotalAccountKeys, getTxSize } from "./tx-size";
 
-import { MAX_TX_SIZE, ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
+import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE, V1_TRANSACTION_CONFIG } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType } from "~/services/bank/types/bank.types";
 
@@ -34,16 +36,19 @@ const NATIVE_STAKE_LUT_KEYS = new Set<string>(
  * Native-stake accounts can only supply native-stake positions and borrow SOL, so such
  * transactions are fully served by the lean set; any non-(STAKED|SOL) bank falls back to
  * the general set. Degrades gracefully: if the map wasn't split (e.g. only the general
- * set was provided), it returns the input unchanged.
+ * set was provided), it returns the input unchanged. A v1 format has no tables and is
+ * returned unchanged.
  *
- * @param luts - Combined lookup tables available to the transaction
+ * @param txFormat - The transaction format, carrying the combined lookup tables when v0
  * @param banks - Every bank the transaction touches (target bank + health-check banks)
  */
 export function selectLutsForBanks(
-  luts: AddressesByLookupTableAddress,
+  txFormat: TransactionFormat,
   banks: BankType[]
-): AddressesByLookupTableAddress {
-  const entries = Object.entries(luts);
+): TransactionFormat {
+  if (txFormat.version === 1) return txFormat;
+
+  const entries = Object.entries(txFormat.luts);
   const nativeStakeLuts = Object.fromEntries(
     entries.filter(([key]) => NATIVE_STAKE_LUT_KEYS.has(key))
   );
@@ -58,9 +63,9 @@ export function selectLutsForBanks(
     );
 
   if (allStakedOrSol && Object.keys(nativeStakeLuts).length > 0) {
-    return nativeStakeLuts;
+    return { version: 0, luts: nativeStakeLuts };
   }
-  return Object.keys(generalLuts).length > 0 ? generalLuts : luts;
+  return Object.keys(generalLuts).length > 0 ? { version: 0, luts: generalLuts } : txFormat;
 }
 
 /**
@@ -70,12 +75,12 @@ export function selectLutsForBanks(
  * typing for `balances` to avoid an import cycle with the account module.
  */
 export function selectLutsForAccountAction(
-  luts: AddressesByLookupTableAddress,
+  txFormat: TransactionFormat,
   targetBank: BankType,
   balances: { active: boolean; bankPk: Address }[],
   bankMap: Map<string, BankType>,
   extraBankAddresses: Address[] = []
-): AddressesByLookupTableAddress {
+): TransactionFormat {
   const banks: BankType[] = [targetBank];
   for (const balance of balances) {
     if (!balance.active) continue;
@@ -86,7 +91,18 @@ export function selectLutsForAccountAction(
     const bank = bankMap.get(address);
     if (bank) banks.push(bank);
   }
-  return selectLutsForBanks(luts, banks);
+  return selectLutsForBanks(txFormat, banks);
+}
+
+/**
+ * Adds `luts` (e.g. a swap route's tables) to a v0 format. A v1 format has no tables and is
+ * returned unchanged.
+ */
+export function withLookupTables(
+  txFormat: TransactionFormat,
+  luts: AddressesByLookupTableAddress
+): TransactionFormat {
+  return txFormat.version === 1 ? txFormat : { version: 0, luts: { ...txFormat.luts, ...luts } };
 }
 
 /**
@@ -103,38 +119,50 @@ export function isFlashloan(tx: SolanaTransaction): boolean {
 }
 
 /**
- * Builds a v0 transaction message: `feePayer` pays and signs, `latestBlockhash` sets the lifetime
- * and accounts found in `luts` are compressed into lookups.
+ * Builds a transaction message: `feePayer` pays and signs and `latestBlockhash` sets the lifetime.
+ * A v0 message compresses accounts found in the format's `luts` into lookups. A v1 message inlines
+ * every account, is limited to 4096 bytes instead of 1232, and carries its compute budget in the
+ * message config rather than in ComputeBudget instructions, which it ignores.
  *
  * @param params.instructions - Instructions in execution order
  * @param params.feePayer - Fee payer signer
  * @param params.latestBlockhash - Blockhash lifetime (e.g. from `getLatestBlockhash`)
- * @param params.luts - Lookup tables to compress accounts with
+ * @param params.txFormat - Message version, with the lookup tables to compress accounts with for v0
  * @returns The compilable, lifetime-bound transaction message
  */
 export function makeTransactionMessage({
   instructions,
   feePayer,
   latestBlockhash,
-  luts = {},
+  txFormat,
 }: {
   instructions: Instruction[];
   feePayer: TransactionSigner;
   latestBlockhash: BlockhashLifetimeConstraint;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }): SolanaTransaction["message"] {
+  if (txFormat.version === 1) {
+    return pipe(
+      createTransactionMessage({ version: 1 }),
+      (message) => setTransactionMessageFeePayerSigner(feePayer, message),
+      (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
+      (message) => appendTransactionMessageInstructions(instructions, message),
+      (message) => setTransactionMessageConfig(V1_TRANSACTION_CONFIG, message)
+    );
+  }
+
   return pipe(
     createTransactionMessage({ version: 0 }),
     (message) => setTransactionMessageFeePayerSigner(feePayer, message),
     (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
     (message) => appendTransactionMessageInstructions(instructions, message),
-    (message) => compressTransactionMessageUsingAddressLookupTables(message, luts)
+    (message) => compressTransactionMessageUsingAddressLookupTables(message, txFormat.luts)
   );
 }
 
 /**
  * Splits your instructions into as many transaction messages as needed
- * so that none exceed MAX_TX_SIZE (minus `sizeMargin`, if given) nor
+ * so that none exceed the size limit of their version (minus `sizeMargin`, if given) nor
  * `maxAccountLocks` account locks (if given).
  */
 export function splitInstructionsToFitTransactions(
@@ -143,8 +171,8 @@ export function splitInstructionsToFitTransactions(
   opts: {
     latestBlockhash: BlockhashLifetimeConstraint;
     feePayer: TransactionSigner;
-    luts: AddressesByLookupTableAddress;
-    /** Bytes reserved below MAX_TX_SIZE, e.g. for compute-budget ixs appended at send time. */
+    txFormat: TransactionFormat;
+    /** Bytes reserved below the size limit, e.g. for compute-budget ixs appended at send time. */
     sizeMargin?: number;
     /** Also cap the total account locks per transaction (e.g. MAX_ACCOUNT_LOCKS). */
     maxAccountLocks?: number;
@@ -152,14 +180,13 @@ export function splitInstructionsToFitTransactions(
 ): SolanaTransaction["message"][] {
   const result: SolanaTransaction["message"][] = [];
   let buffer: Instruction[] = [];
-  const maxSize = MAX_TX_SIZE - (opts.sizeMargin ?? 0);
 
   function buildTx(extraIxs: Instruction[]): SolanaTransaction["message"] {
     return makeTransactionMessage({
       instructions: [...mandatoryIxs, ...extraIxs],
       feePayer: opts.feePayer,
       latestBlockhash: opts.latestBlockhash,
-      luts: opts.luts,
+      txFormat: opts.txFormat,
     });
   }
 
@@ -167,7 +194,7 @@ export function splitInstructionsToFitTransactions(
   function fits(extraIxs: Instruction[]): boolean {
     try {
       const tx = buildTx(extraIxs);
-      if (getTxSize(tx) > maxSize) return false;
+      if (getTxSize(tx) > getTransactionMessageSizeLimit(tx) - (opts.sizeMargin ?? 0)) return false;
       if (opts.maxAccountLocks !== undefined && getTotalAccountKeys(tx) > opts.maxAccountLocks) {
         return false;
       }

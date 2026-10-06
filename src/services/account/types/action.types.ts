@@ -18,7 +18,7 @@ import type { SwapEngineRunner } from "../services/swap-engine/types";
 import { MarginfiAccountType } from "./account.types";
 
 import { BankType } from "~/services/bank";
-import { SolanaTransaction } from "~/services/transaction";
+import { SolanaTransaction, TransactionFormat } from "~/services/transaction";
 import { Amount, TypedAmount, BankIntegrationMetadataMap } from "~/types";
 
 export enum SwapProvider {
@@ -116,7 +116,7 @@ export interface MakeDepositIxParams {
 /** Transaction options shared by the single-action builders. */
 export interface ActionTxParams {
   rpc: Rpc<GetLatestBlockhashApi>;
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   /** Fetched from `rpc` when omitted. */
   latestBlockhash?: BlockhashLifetimeConstraint;
 }
@@ -225,10 +225,12 @@ export interface MakeCloseAccountIxParams {
 
 export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
   rpc: Rpc<GetLatestBlockhashApi>;
+  txFormat: TransactionFormat;
 }
 
 export interface MakeAccountTransferToNewAccountTxParams {
   rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
+  txFormat: TransactionFormat;
   programAddress: Address;
   /** The account being transferred. */
   marginfiAccount: MarginfiAccountType;
@@ -259,7 +261,7 @@ export interface MakeFlashLoanTxParams {
   bankMap: Map<string, BankType>;
   ixs: Instruction[];
   latestBlockhash: BlockhashLifetimeConstraint;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }
 
 export type TransferPositionSide = "collateral" | "debt";
@@ -282,7 +284,7 @@ export interface MakeTransferPositionsTxParams {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   /** Token program per transferred bank (bank address → token program). */
   tokenProgramsByBank: Map<string, Address>;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   /** Head-room added to each borrow over the estimated debt for interest accrual. Default 10 bps. */
   borrowPaddingBps?: number;
   /** Max positions per transfer; a larger selection is rejected. Default 5. */
@@ -314,7 +316,7 @@ export interface MakeBulkWithdrawTxParams {
   bankMetadataMap: BankIntegrationMetadataMap;
   /** Token program per withdrawn bank (bank address → token program). */
   tokenProgramsByBank: Map<string, Address>;
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }
 
 export interface MakeBulkRepayTxParams {
@@ -328,7 +330,7 @@ export interface MakeBulkRepayTxParams {
   bankMap: Map<string, BankType>;
   /** Token program per repaid bank (bank address → token program). */
   tokenProgramsByBank: Map<string, Address>;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }
 
 export interface BulkLendTxsResult {
@@ -369,7 +371,7 @@ export interface MakeLoopTxParams {
     marketPrice: number;
   };
   swapOpts: SwapOpts;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   additionalIxs?: Instruction[];
   /**
    * Optional override for how the swap engine runs. Defaults to the in-process
@@ -409,7 +411,7 @@ export interface LoopFlashloanDescriptor {
   // Remaining tx budget for the swap, already net of the flashloan wrapper cost
   sizeConstraint: number;
   maxSwapTotalAccounts: number;
-  luts: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }
 
 export interface MakeRepayWithCollatTxParams {
@@ -436,7 +438,7 @@ export interface MakeRepayWithCollatTxParams {
     totalPositionAmount: number;
   };
   swapOpts: SwapOpts;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -463,7 +465,7 @@ export interface MakeSwapCollateralTxParams {
     tokenProgram: Address;
   };
   swapOpts: SwapOpts;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;
 }
@@ -510,7 +512,7 @@ export interface MakeRollPtTxParams {
   rollOpts: RollPtOpts;
   /** See {@link RollQuoteSimulator}. Defaults to `rpc.simulateTransaction`. */
   simulateTx?: RollQuoteSimulator;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
 }
 
 /** One token-account balance snapshot from a {@link makeRollPtTx} quote simulation. */
@@ -596,7 +598,7 @@ export interface MakeSwapDebtTxParams {
     marketPrice: number;
   };
   swapOpts: SwapOpts;
-  luts?: AddressesByLookupTableAddress;
+  txFormat: TransactionFormat;
   additionalIxs?: Instruction[];
   /** See `MakeLoopTxParams.swapEngineRunner`. */
   swapEngineRunner?: SwapEngineRunner;

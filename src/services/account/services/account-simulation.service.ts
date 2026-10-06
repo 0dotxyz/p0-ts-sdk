@@ -300,12 +300,14 @@ export async function simulateAccountHealthCache(params: {
     ],
     feePayer: authority,
     latestBlockhash,
+    txFormat: { version: 0, luts: {} },
   });
 
   const healthTx = makeTransactionMessage({
     instructions: [computeIx, ...healthPulseIxs],
     feePayer: authority,
     latestBlockhash,
+    txFormat: { version: 0, luts: {} },
   });
 
   const simulationResult = await simulateBundle(

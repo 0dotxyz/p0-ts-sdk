@@ -17,7 +17,7 @@ A modern, type-safe TypeScript SDK for interacting with the P0 Protocol on Solan
 - 🧪 **Well-tested**: Unit and integration tests with Vitest
 - 📚 **Rich examples**: 7+ runnable examples covering all core features
 - 🔄 **Modern tooling**: Built with tsup, ESLint, Prettier
-- 🎯 **Solana-native**: Built on Anchor with full on-chain integration
+- 🎯 **Solana-native**: Built on [`@solana/kit`](https://github.com/anza-xyz/kit) with Codama-generated program clients
 - ⚡ **Production-ready**: Used in production applications
 
 ## Installation
@@ -35,17 +35,19 @@ pnpm add @0dotxyz/p0-ts-sdk
 ### 1. Initialize the Client
 
 ```typescript
-import { Connection, PublicKey } from "@solana/web3.js";
+import { address, createSolanaRpc } from "@solana/kit";
 import { Project0Client, getConfig } from "@0dotxyz/p0-ts-sdk";
 
-// Connect to Solana
-const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+// Connect to Solana. The endpoint is also used for bundle simulation (`simulateBundle`), which
+// health-cache simulation needs.
+const rpcEndpoint = "https://api.mainnet-beta.solana.com";
+const rpc = createSolanaRpc(rpcEndpoint);
 
 // Get configuration (mainnet-beta)
 const config = getConfig("production");
 
 // Initialize the client (loads all banks and oracle prices)
-const client = await Project0Client.initialize(connection, config);
+const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
 console.log(`Loaded ${client.banks.length} banks`);
 ```
@@ -53,15 +55,12 @@ console.log(`Loaded ${client.banks.length} banks`);
 ### 2. Load Your Account
 
 ```typescript
-import { MarginfiAccount, MarginfiAccountWrapper } from "@0dotxyz/p0-ts-sdk";
+const accountAddress = address("YOUR_MARGINFI_ACCOUNT_ADDRESS");
 
-const accountAddress = new PublicKey("YOUR_MARGINFI_ACCOUNT_ADDRESS");
-
-// Fetch your account
-const account = await MarginfiAccount.fetch(accountAddress, client.program);
-
-// Wrap it for cleaner API
-const wrappedAccount = new MarginfiAccountWrapper(account, client);
+// Fetch your account (refreshes its health cache by simulation) and wrap it for a cleaner API.
+// Pass your wallet's `TransactionSigner` as the third argument to sign what it builds; without
+// one, transactions are built for a noop signer of the account authority (simulation only).
+const wrappedAccount = await client.fetchAccount(accountAddress, false, walletSigner);
 ```
 
 ### 3. Find a Bank
@@ -70,29 +69,41 @@ const wrappedAccount = new MarginfiAccountWrapper(account, client);
 import { AssetTag } from "@0dotxyz/p0-ts-sdk";
 
 // Option 1: Get bank by address
-const bank = client.getBank(new PublicKey("BANK_ADDRESS"));
+const bank = client.getBank(address("BANK_ADDRESS"));
 
 // Option 2: Get all banks for a mint (e.g., USDC)
-const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-const usdcBanks = client.getBanksByMint(USDC_MINT);
+const USDC_MINT = address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+const usdcBank = client.getBanksByMint(USDC_MINT, AssetTag.DEFAULT)[0];
 ```
 
 ### 4. Deposit Tokens
 
 ```typescript
-// Build deposit transaction
+import {
+  compileTransaction,
+  getBase64EncodedWireTransaction,
+  signTransactionMessageWithSigners,
+} from "@solana/kit";
+
+// Build deposit transaction: a Kit transaction message with fee payer, blockhash and lookup
+// tables set, and the wrapper's signer embedded
 const depositTx = await wrappedAccount.makeDepositTx(
   usdcBank.address,
   "100" // Amount in UI units (100 USDC)
 );
 
 // Simulate (optional, but recommended)
-const simulation = await connection.simulateTransaction(depositTx);
+const simulation = await rpc
+  .simulateTransaction(getBase64EncodedWireTransaction(compileTransaction(depositTx.message)), {
+    encoding: "base64",
+    sigVerify: false,
+  })
+  .send();
 console.log(`Compute units: ${simulation.value.unitsConsumed}`);
 
 // Sign and send
-// depositTx.sign([wallet]);
-// await connection.sendTransaction(depositTx);
+// const signed = await signTransactionMessageWithSigners(depositTx.message);
+// await rpc.sendTransaction(getBase64EncodedWireTransaction(signed), { encoding: "base64" }).send();
 ```
 
 ### 5. Borrow Against Collateral
@@ -117,11 +128,11 @@ const borrowTx = await wrappedAccount.makeBorrowTx(
 import { MarginRequirementType } from "@0dotxyz/p0-ts-sdk";
 
 // Get free collateral in USD
-const freeCollateral = wrappedAccount.computeFreeCollateral();
+const freeCollateral = wrappedAccount.computeFreeCollateralFromCache();
 console.log(`Free collateral: $${freeCollateral.toString()}`);
 
 // Get health components
-const health = wrappedAccount.computeHealthComponents(MarginRequirementType.Initial);
+const health = wrappedAccount.computeHealthComponentsFromCache(MarginRequirementType.Initial);
 
 const healthFactor = health.assets.div(health.liabilities);
 console.log(`Health factor: ${healthFactor.toString()}`);
@@ -138,6 +149,9 @@ Check out the [`examples/`](./examples) directory for complete, runnable example
 - **[05-oracle-prices.ts](./examples/05-oracle-prices.ts)** - Work with oracle price feeds
 - **[06a-account-health-simulated.ts](./examples/06a-account-health-simulated.ts)** - Monitor account health
 - **[06b-account-health-calculated.ts](./examples/06b-account-health-calculated.ts)** - Calculate health metrics
+- **10-16, 99** - Flash-loan flows: swap collateral/debt, loops (direct, bridged, pinned route), PT roll
+- **12-14** - Native stake: mint/redeem staked LSTs, merge stake accounts
+- **[18-mint-holders.ts](./examples/18-mint-holders.ts)** - Find every account holding a mint
 
 Each example includes:
 
@@ -162,7 +176,7 @@ tsx 01-deposit.ts
 The main SDK client that manages protocol interactions.
 
 ```typescript
-const client = await Project0Client.initialize(connection, config);
+const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
 // Pre-loaded data (fetched once at initialization)
 client.banks                // All available banks
@@ -174,6 +188,7 @@ client.addressLookupTables // For transaction optimization
 // Methods
 client.getBank(address)             // Get bank by address
 client.getBanksByMint(mint, tag?)   // Get all banks for a mint
+client.fetchAccount(address)        // Fetch + wrap a marginfi account
 ```
 
 **Benefits:**
@@ -188,16 +203,16 @@ client.getBanksByMint(mint, tag?)   // Get all banks for a mint
 Your lending account on the protocol.
 
 ```typescript
-// Fetch raw account
-const account = await MarginfiAccount.fetch(address, client.program);
+// Fetch the account (no health-cache simulation)
+const account = await MarginfiAccount.fetch(accountAddress, rpc);
 
-// Wrap for clean API (recommended)
-const wrapped = new MarginfiAccountWrapper(account, client);
+// Wrap for clean API (recommended); `signer` defaults to a noop signer for the authority
+const wrapped = new MarginfiAccountWrapper(account, client, signer);
 
 // All methods have access to banks, oracles, etc.
 wrapped.computeMaxBorrowForBank(bankAddress);
 wrapped.makeDepositTx(bankAddress, amount);
-wrapped.computeFreeCollateral();
+wrapped.computeFreeCollateralFromCache();
 ```
 
 ### Bank
@@ -231,17 +246,19 @@ balance.active; // Is position active?
 The SDK provides optimized entry points:
 
 ```typescript
-// Main SDK (core functionality)
-import { Project0Client, MarginfiAccount, getConfig } from "@0dotxyz/p0-ts-sdk";
+// Main SDK (core functionality, oracle prices)
+import { Project0Client, MarginfiAccount, fetchOracleData, getConfig } from "@0dotxyz/p0-ts-sdk";
 
-// Vendor utilities (oracle integrations, Jupiter, etc.)
-import { fetchOracleData, OraclePrice } from "@0dotxyz/p0-ts-sdk/vendor";
+// Vendor integrations (Kamino, Drift, JupLend, Gamma, ... decoders and types)
+import { decodeKlendReserve } from "@0dotxyz/p0-ts-sdk/vendor";
+
+// Jupiter API client
+import { createJupiterClient } from "@0dotxyz/p0-ts-sdk/jupiter";
 ```
 
 **Why separate vendor exports?**
 
 - Reduces bundle size for simple use cases
-- Oracle libraries (Pyth, Switchboard) are large
 - Tree-shake what you don't need
 
 ## 🎯 Key Features
@@ -282,10 +299,10 @@ Built-in account health monitoring:
 import { MarginRequirementType } from "@0dotxyz/p0-ts-sdk";
 
 // Free collateral (how much you can still borrow)
-const free = wrapped.computeFreeCollateral();
+const free = wrapped.computeFreeCollateralFromCache();
 
 // Health components (assets vs liabilities)
-const health = wrapped.computeHealthComponents(
+const health = wrapped.computeHealthComponentsFromCache(
   MarginRequirementType.Initial // or Maintenance
 );
 
@@ -371,9 +388,10 @@ p0-ts-sdk/
 │   │   ├── account/          # Account operations
 │   │   ├── price/            # Oracle price fetching
 │   │   └── ...
-│   ├── instructions/         # Transaction builders
-│   ├── types/                # TypeScript types
-│   ├── idl/                  # Anchor IDL
+│   ├── instructions.ts       # Marginfi instruction wrappers (internal)
+│   ├── accounts.ts           # Marginfi account decoders
+│   ├── generated/            # Codama clients (internal, `pnpm generate`)
+│   ├── types.ts              # TypeScript types
 │   └── utils/                # Helpers
 ├── tests/
 │   ├── unit/                 # Unit tests (mocked)
@@ -461,8 +479,8 @@ This SDK is built on top of the [marginfi protocol](https://github.com/mrgnlabs/
 
 Additional thanks to:
 
-- [Solana Web3.js](https://github.com/solana-labs/solana-web3.js) - Solana JavaScript API
-- [Anchor](https://github.com/coral-xyz/anchor) - Solana development framework
+- [Solana Kit](https://github.com/anza-xyz/kit) - Solana JavaScript SDK
+- [Codama](https://github.com/codama-idl/codama) - program client generation
 
 ## ⚠️ Disclaimer
 

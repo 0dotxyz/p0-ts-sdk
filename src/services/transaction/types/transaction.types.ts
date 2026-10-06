@@ -1,4 +1,5 @@
 import type {
+  AddressesByLookupTableAddress,
   TransactionMessage,
   TransactionMessageWithBlockhashLifetime,
   TransactionMessageWithFeePayer,
@@ -192,9 +193,20 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
 };
 
 /**
- * A transaction built by the SDK: a v0 message with fee payer, blockhash lifetime and lookup
- * tables applied, and every signer embedded in its account metas. Sign it with
- * `signTransactionMessageWithSigners`, or compile it for a wallet with `compileTransaction`.
+ * The message format the builders produce: a v0 message that compresses accounts with `luts`
+ * (1232 bytes), or a v1 message that inlines every account (4096 bytes, no lookup tables).
+ * It also decides how instructions are packed, which swap routes fit and whether a flow needs a
+ * bundle, so pick the newest version the signing wallet supports.
+ */
+export type TransactionFormat =
+  | { version: 0; luts: AddressesByLookupTableAddress }
+  | { version: 1 };
+
+/**
+ * A transaction built by the SDK: a v0 message with lookup tables applied, or a v1 message with
+ * its resource limits set, with fee payer and blockhash lifetime and every signer embedded in its
+ * account metas. Sign it with `signTransactionMessageWithSigners`, or compile it for a wallet with
+ * `compileTransaction`.
  */
 export type SolanaTransaction = {
   message: TransactionMessage &

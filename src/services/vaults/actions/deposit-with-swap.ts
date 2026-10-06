@@ -1,4 +1,8 @@
-import { assertAccountExists, fetchEncodedAccount } from "@solana/kit";
+import {
+  assertAccountExists,
+  fetchEncodedAccount,
+  getTransactionMessageSizeLimit,
+} from "@solana/kit";
 import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
@@ -23,6 +27,7 @@ import {
   makeWrapSolIxs,
   SolanaTransaction,
   TransactionType,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 import { makeGammaDepositIx } from "~/vendor/gamma/instructions";
@@ -53,7 +58,7 @@ export async function makeVaultDepositWithSwapTx(
     inputDecimals,
     swapOpts,
     swapEngineRunner,
-    luts,
+    txFormat,
     latestBlockhash,
   } = params;
 
@@ -111,7 +116,7 @@ export async function makeVaultDepositWithSwapTx(
         createShareAtaIx,
         await makeGammaDepositIx({ ...depositAccounts, amount: 0n }),
       ],
-      luts,
+      txFormat,
       payer: authority.address,
       // No flash loan around it: the swap may use the whole transaction.
       sizeConstraint: MAX_TX_SIZE,
@@ -131,10 +136,13 @@ export async function makeVaultDepositWithSwapTx(
     feePayer: authority,
     latestBlockhash:
       latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-    luts: { ...luts, ...engineResult.swapLuts },
+    txFormat: withLookupTables(txFormat, engineResult.swapLuts),
   });
 
-  if (getTxSize(message) > MAX_TX_SIZE || getTotalAccountKeys(message) > MAX_ACCOUNT_LOCKS) {
+  if (
+    getTxSize(message) > getTransactionMessageSizeLimit(message) ||
+    getTotalAccountKeys(message) > MAX_ACCOUNT_LOCKS
+  ) {
     throw new Error("vault deposit-with-swap: swap route too large to fit in one transaction");
   }
 

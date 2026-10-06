@@ -78,7 +78,7 @@ function makeRequest(): SwapEngineRequest {
     rpc: {} as SwapEngineRequest["rpc"],
     footprint: {
       instructions: [],
-      luts: {},
+      txFormat: { version: 0, luts: {} },
       payer: DEFAULT,
       sizeConstraint: 1000,
       maxSwapTotalAccounts: 50,

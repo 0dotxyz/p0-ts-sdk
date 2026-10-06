@@ -20,8 +20,8 @@ import {
 /**
  * Bridge / double-hop swaps — the flow-agnostic mechanics.
  *
- * When a single swap op (collateral-swap / debt-swap / loop) can't fit the per-tx limits (1232
- * bytes AND 64 account-locks) for a pair, the caller decomposes it into two ops through a
+ * When a single swap op (collateral-swap / debt-swap / loop) can't fit the per-tx limits (size
+ * AND 64 account-locks) for a pair, the caller decomposes it into two ops through a
  * high-liquidity BRIDGE token and submits both as ONE atomic Jito bundle (one merged quote, one
  * signature). This module owns the parts that are identical across flows and encode marginfi
  * internals; per-flow leg building/sizing lives in the one-call `makeBridged*Tx` builders next to
@@ -111,9 +111,10 @@ function ixIdentity(ix: Instruction): string {
 
 /**
  * Merge both legs' setup (ATA-create) txs into ONE tx: concat their instructions (dedupe by
- * structural identity — the first and second legs share the bridge ATA-create) and recompile. The
- * instructions keep their lookup-table accounts, so no tables are needed. Returns null if the
- * merged instructions don't fit a single tx. (Cranks are NOT merged — see module doc.)
+ * structural identity — the first and second legs share the bridge ATA-create) and recompile, as
+ * v1 only when every leg is v1: v0 instructions keep their lookup-table accounts (so no tables are
+ * needed), and those corrupt a v1 header. Returns null if the merged instructions don't fit a
+ * single tx. (Cranks are NOT merged — see module doc.)
  */
 function mergeSetupTxs(
   txs: SolanaTransaction[],
@@ -136,7 +137,9 @@ function mergeSetupTxs(
   const split = splitInstructionsToFitTransactions([], ixs, {
     latestBlockhash,
     feePayer: payer,
-    luts: {},
+    txFormat: txs.every((tx) => tx.message.version === 1)
+      ? { version: 1 }
+      : { version: 0, luts: {} },
   });
   if (split.length !== 1) return null; // merged setup spilled to >1 tx
   return { message: split[0], type: TransactionType.CREATE_ATA };

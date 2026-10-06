@@ -31,6 +31,7 @@ import {
 import { ActionEmodeImpact, BankType, EmodePair, requireBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
 import { fetchProgramForMints } from "~/services/misc";
+import { TransactionFormat } from "~/services/transaction";
 import { Amount, MintData } from "~/types";
 
 /** Params every wrapped flow gets from the client and the wrapper's signer. */
@@ -42,7 +43,7 @@ type ClientFilled =
   | "bankMap"
   | "bankMetadataMap"
   | "assetShareValueMultiplierByBank"
-  | "luts";
+  | "txFormat";
 
 /**
  * A {@link MarginfiAccount} bound to a {@link Project0Client}: its builders and computations
@@ -134,6 +135,7 @@ export class MarginfiAccountWrapper {
   }
 
   private get context() {
+    const txFormat: TransactionFormat = { version: 0, luts: this.client.addressLookupTables };
     return {
       programAddress: this.client.programAddress,
       authority: this.signer,
@@ -141,7 +143,7 @@ export class MarginfiAccountWrapper {
       bankMap: this.client.bankMap,
       bankMetadataMap: this.client.bankIntegrationMap,
       assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
-      luts: this.client.addressLookupTables,
+      txFormat,
     };
   }
 
@@ -305,6 +307,7 @@ export class MarginfiAccountWrapper {
   ) {
     return this.account.makeAccountTransferToNewAccountTx({
       rpc: this.client.rpc,
+      txFormat: { version: 0, luts: {} },
       programAddress: this.client.programAddress,
       authority: this.signer,
       newMarginfiAccount,
