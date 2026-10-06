@@ -1264,6 +1264,7 @@ exports[`bank integration metadata > serializes the states to the JSON wire form
             ],
           },
           "depositLimit": "240000000000000",
+          "emergencyMode": 0,
           "hostFixedInterestRateBps": 0,
           "interestRateBasis": 1,
           "protocolTakeRatePct": 10,

@@ -211,6 +211,7 @@ export function toBankDto(bank: BankType): BankTypeDto {
     premiumTag: bank.premiumTag,
     premiumActive: bank.premiumActive,
     premiumActivatedAt: bank.premiumActivatedAt,
+    kaminoEmergency: bank.kaminoEmergency,
     rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
     feesDestinationAccount: bank.feesDestinationAccount,

@@ -6,6 +6,7 @@ import { getAssetQuantity, getLiabilityQuantity } from "./shares.utils";
 
 import { MarginRequirementType } from "~/services/account/types";
 import { OraclePrice, PriceBias, getPrice } from "~/services/price";
+import type { KaminoReserve } from "~/vendor/klend";
 
 /**
  * Determines if a margin requirement type uses the time-weighted (TWAP/EMA) price.
@@ -92,11 +93,11 @@ export function getAssetWeight(params: GetAssetWeightParams): BigNumber {
     return new BigNumber(0);
   }
 
-  // ReduceOnly banks should not be counted as collateral for Initial checks.
-  // Mirrors the program ((ReduceOnly, Initial) => Ok((ZERO, ...))). Maintenance/Equity keep normal weights.
+  // ReduceOnly banks and Kamino banks in emergency mode (no borrow power on-chain) should not be
+  // counted as collateral for Initial checks. Maintenance/Equity keep normal weights.
   if (
     marginRequirement === MarginRequirementType.Initial &&
-    bank.config.operationalState === OperationalState.ReduceOnly
+    (bank.config.operationalState === OperationalState.ReduceOnly || bank.kaminoEmergency)
   ) {
     return new BigNumber(0);
   }
@@ -415,4 +416,18 @@ export function computeTvl(bank: BankType, oraclePrice: OraclePrice): BigNumber 
       priceBias: PriceBias.None,
     })
   );
+}
+
+/**
+ * Joins a Kamino bank with its reserve's emergency mode. Decoding a bank or converting its DTO
+ * only sees the market's emergency (bank flags bit 14), so call this wherever a Kamino bank meets
+ * its reserve; otherwise initial health, max borrow and max withdraw overstate borrowing power
+ * while the reserve is in emergency.
+ *
+ * @param bank - The Kamino bank
+ * @param reserve - The bank's Kamino reserve
+ * @returns The bank, with `kaminoEmergency` also set when the reserve is in emergency mode
+ */
+export function withKaminoReserveEmergency(bank: BankType, reserve: KaminoReserve): BankType {
+  return { ...bank, kaminoEmergency: bank.kaminoEmergency || reserve.config.emergencyMode !== 0 };
 }

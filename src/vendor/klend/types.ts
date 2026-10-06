@@ -57,6 +57,8 @@ export interface KaminoReserveConfig {
   borrowLimit: bigint;
   borrowRateCurve: { points: Array<KaminoBorrowRateCurvePoint> };
   tokenInfo: KaminoReserveTokenInfo;
+  /** Nonzero while the reserve is in emergency mode; marginfi then gives its collateral zero initial weight */
+  emergencyMode: number;
 }
 
 export interface KaminoBorrowRateCurvePoint {
@@ -152,6 +154,8 @@ export interface KaminoReserveJSON {
       switchboardConfiguration: { priceAggregator: string; twapAggregator: string };
       pythConfiguration: { price: string };
     };
+    /** Missing on older DTOs (= not in emergency) */
+    emergencyMode?: number;
   };
 }
 

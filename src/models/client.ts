@@ -28,7 +28,12 @@ import {
   makeCreateAccountIxWithProjection,
   makeCreateMarginfiAccountTx,
 } from "~/services/account";
-import { AssetTag, EmodePair, fetchBankIntegrationMetadata } from "~/services/bank";
+import {
+  AssetTag,
+  EmodePair,
+  fetchBankIntegrationMetadata,
+  withKaminoReserveEmergency,
+} from "~/services/bank";
 import { fetchProgramForMints } from "~/services/misc";
 import { computeStakedBankMultipliers } from "~/services/native-stake";
 import { fetchOracleData, OraclePrice } from "~/services/price";
@@ -289,6 +294,9 @@ export class Project0Client {
             bank.address,
             reserve ? getKaminoCTokenMultiplier(reserve) : new BigNumber(1)
           );
+          if (reserve) {
+            bankMap.set(bank.address, Bank.fromBankType(withKaminoReserveEmergency(bank, reserve)));
+          }
           break;
         }
         case AssetTag.DRIFT: {

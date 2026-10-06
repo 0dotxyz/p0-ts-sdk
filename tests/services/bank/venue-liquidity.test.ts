@@ -39,6 +39,7 @@ const makeReserve = (queuedCollateralAmount: bigint): KaminoReserve => ({
   config: {
     protocolTakeRatePct: 0,
     hostFixedInterestRateBps: 0,
+    emergencyMode: 0,
     interestRateBasis: KaminoInterestRateBasis.TrueApr,
     depositLimit: 0n,
     borrowLimit: 0n,

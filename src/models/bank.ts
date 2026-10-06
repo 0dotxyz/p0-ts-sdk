@@ -101,6 +101,7 @@ class Bank implements BankType {
     public readonly premiumTag: number,
     public readonly premiumActive: boolean,
     public readonly premiumActivatedAt: number,
+    public readonly kaminoEmergency: boolean,
     public readonly rateLimiter?: BankRateLimiterType,
     public readonly kaminoIntegrationAccounts?: {
       kaminoReserve: Address;
@@ -202,6 +203,7 @@ class Bank implements BankType {
       bankType.premiumTag,
       bankType.premiumActive,
       bankType.premiumActivatedAt,
+      bankType.kaminoEmergency,
       bankType.rateLimiter,
       bankType.kaminoIntegrationAccounts,
       bankType.driftIntegrationAccounts,

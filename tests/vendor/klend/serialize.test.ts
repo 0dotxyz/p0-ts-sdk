@@ -39,6 +39,7 @@ const reserve: KaminoReserve = {
   config: {
     protocolTakeRatePct: 15,
     hostFixedInterestRateBps: 25,
+    emergencyMode: 0,
     interestRateBasis: KaminoInterestRateBasis.TrueApr,
     depositLimit: 10000000000000000n,
     borrowLimit: 9000000000000000n,

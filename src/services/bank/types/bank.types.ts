@@ -233,6 +233,12 @@ export interface BankType {
   premiumActive: boolean;
   /** Unix seconds of the last premium activation; accrual never starts before it */
   premiumActivatedAt: number;
+  /**
+   * The Kamino market (flags bit 14) or reserve is in emergency mode, so the bank's collateral
+   * counts zero toward initial health. Decoding sets the market part;
+   * {@link withKaminoReserveEmergency} ORs in the reserve's `emergencyMode`.
+   */
+  kaminoEmergency: boolean;
   rateLimiter?: BankRateLimiterType;
   feesDestinationAccount?: Address;
   lendingPositionCount?: BigNumber;

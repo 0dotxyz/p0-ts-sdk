@@ -32,6 +32,7 @@ import type {
 import { decodeBankRaw, OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import {
   DEFAULT_ORACLE_MAX_AGE,
+  KAMINO_MARKET_EMERGENCY_FLAG,
   PREMIUM_ACTIVE_FLAG,
   STAKED_ORACLE_DISABLED_FLAG,
   STAKED_ORACLE_USES_ONRAMP_FLAG,
@@ -249,6 +250,7 @@ export function parseBankRaw(
     premiumTag: accountParsed.premiumTag,
     premiumActive,
     premiumActivatedAt: Number(accountParsed.premiumActivatedAt),
+    kaminoEmergency: (flags & KAMINO_MARKET_EMERGENCY_FLAG) > 0,
     rateLimiter,
     tokenSymbol,
     kaminoIntegrationAccounts,
@@ -299,6 +301,7 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     premiumTag: bankDto.premiumTag ?? 0,
     premiumActive: bankDto.premiumActive ?? false,
     premiumActivatedAt: bankDto.premiumActivatedAt ?? 0,
+    kaminoEmergency: bankDto.kaminoEmergency ?? false,
     rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiter(bankDto.rateLimiter) : undefined,
     tokenSymbol: bankDto.tokenSymbol,
     feesDestinationAccount: bankDto.feesDestinationAccount
