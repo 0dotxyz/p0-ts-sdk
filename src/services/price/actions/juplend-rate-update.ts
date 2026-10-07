@@ -22,7 +22,7 @@ import { makeUpdateJupLendRateIx } from "~/vendor/jup-lend";
  * @param banksToExclude - Addresses of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (JupLend lending states)
  * @returns update_rate instructions
- * @throws if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if an active bank is missing from `bankMap`
  * @throws TransactionBuildingError (JUPLEND_STATE_NOT_FOUND) when a JupLend bank has no lending
  * state in `bankMetadataMap`
  */
@@ -40,7 +40,7 @@ export function makeUpdateJupLendRateIxs(
 
   const allActiveBanks = activeBanksPk
     .filter((pk) => !banksToExcludeSet.has(pk))
-    .map((pk) => requireBank(bankMap, pk));
+    .map((pk) => requireBank(bankMap, pk, () => TransactionBuildingError.bankNotFound(pk)));
 
   // filter juplend banks
   const jupLendBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.JUPLEND);

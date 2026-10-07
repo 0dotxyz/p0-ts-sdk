@@ -238,7 +238,7 @@ async function buildRollPtFlashloanTx({
     marginfiAccount,
     authority,
     withdrawAll: isFullWithdraw,
-    opts: { createAtas: false, wrapAndUnwrapSol: false },
+    opts: { createAta: false, unwrapSol: false },
   });
 
   // 2. `merge`: PT_old → SY, post-maturity (1:1, no AMM). The redeemed SY is exactly the CLMM
@@ -256,7 +256,7 @@ async function buildRollPtFlashloanTx({
     amount: 0,
     marginfiAccount,
     authority,
-    opts: { wrapAndUnwrapSol: false },
+    opts: { wrapSol: false },
   });
 
   // LUTs for a v0 bundle: the matured vault ALT (merge remaining accounts) + the CLMM pool ALT

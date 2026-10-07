@@ -96,8 +96,8 @@ export async function makeBulkWithdrawTx(
         amount: 0,
         withdrawAll: true,
         opts: {
-          createAtas: false, // ATAs are created in the prelude txs
-          wrapAndUnwrapSol: false, // one unwrap ix is appended after the last withdraw
+          createAta: false, // ATAs are created in the prelude txs
+          unwrapSol: false, // one unwrap ix is appended after the last withdraw
           activeBanks: activeBalances
             .map((b) => b.bankPk)
             .filter((pk) => !withdrawnSoFar.includes(pk)),
@@ -198,7 +198,7 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
         authority,
         repayAll: true,
         opts: {
-          wrapAndUnwrapSol: true,
+          wrapSol: true,
         },
       }))
     );

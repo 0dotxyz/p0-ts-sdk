@@ -21,6 +21,7 @@ export enum TransactionBuildingErrorCode {
   COSTLY_POSITION_LIMIT_EXCEEDED = "COSTLY_POSITION_LIMIT_EXCEEDED",
   ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
   ACCOUNT_NOT_EMPTY = "ACCOUNT_NOT_EMPTY",
+  BANK_NOT_FOUND = "BANK_NOT_FOUND",
 }
 
 /**
@@ -122,6 +123,9 @@ export interface TransactionBuildingErrorDetails {
   [TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY]: {
     accountAddress: string;
     activeBanks: string[];
+  };
+  [TransactionBuildingErrorCode.BANK_NOT_FOUND]: {
+    bankAddress: string;
   };
 }
 
@@ -406,6 +410,19 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY,
       `Account ${accountAddress} has ${activeBanks.length} active balances`,
       { accountAddress, activeBanks }
+    );
+  }
+
+  /**
+   * A bank the transaction needs (e.g. one of the account's active banks) isn't in `bankMap`.
+   */
+  static bankNotFound(
+    bankAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BANK_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BANK_NOT_FOUND,
+      `Bank ${bankAddress} not found in bankMap`,
+      { bankAddress }
     );
   }
 

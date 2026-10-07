@@ -300,8 +300,8 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     marginfiAccount,
     authority,
     opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
+      createAta: false,
+      unwrapSol: false,
     },
   });
 
@@ -314,7 +314,7 @@ async function buildLoopNonSwapIxs(params: LoopParams): Promise<{
     authority,
     bankMetadataMap,
     opts: {
-      wrapAndUnwrapSol: false,
+      wrapSol: false,
     },
   });
 

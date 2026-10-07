@@ -313,8 +313,8 @@ export async function buildCollateralLegIxs(
       assetShareValueMultiplierByBank: ctx.assetShareValueMultiplierByBank,
       withdrawAll: true,
       opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
+        createAta: false,
+        unwrapSol: false,
         activeBanks: [],
         groupRateLimiterEnabled: ctx.groupRateLimiterEnabled,
       },
@@ -327,7 +327,7 @@ export async function buildCollateralLegIxs(
       marginfiAccount: ctx.accountB,
       authority: ctx.authority,
       bankMetadataMap: ctx.bankMetadataMap,
-      opts: { wrapAndUnwrapSol: false },
+      opts: { wrapSol: false },
     }),
   };
 }
@@ -398,8 +398,8 @@ async function buildInnerIxs(
         marginfiAccount: ctx.accountB,
         authority: ctx.authority,
         opts: {
-          createAtas: false,
-          wrapAndUnwrapSol: false,
+          createAta: false,
+          unwrapSol: false,
           activeBanks,
         },
       }))
@@ -415,7 +415,7 @@ async function buildInnerIxs(
         authority: ctx.authority,
         repayAll: true,
         opts: {
-          wrapAndUnwrapSol: false,
+          wrapSol: false,
         },
       }))
     );

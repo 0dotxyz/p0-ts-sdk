@@ -342,7 +342,7 @@ export async function makeCreateMissingAtaIxs({
 /**
  * Refreshes `marginfiAccount`'s on-chain health cache from its active banks. Permissionless: no
  * signer needed.
- * @throws Error if `bankMap` misses one of the banks
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the banks
  */
 export async function makePulseHealthIx({
   programAddress,

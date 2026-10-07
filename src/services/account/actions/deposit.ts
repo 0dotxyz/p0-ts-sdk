@@ -25,7 +25,7 @@ import { deriveLendingMarketAuthority, deriveUserState, makeRefreshingIxs } from
 /**
  * Deposits `amount` (UI units of the bank's mint) into `bank`, routed to the bank's venue
  * (marginfi, Kamino, Drift or JupLend). A wSOL deposit first wraps native SOL, net of
- * `opts.wSolBalanceUi`, unless `opts.wrapAndUnwrapSol` is false.
+ * `opts.wSolBalanceUi`, unless `opts.wrapSol` is false.
  * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
  * integration accounts are missing
  */
@@ -41,7 +41,7 @@ export async function makeDepositIx({
 }: MakeDepositIxParams): Promise<Instruction[]> {
   const depositIxs: Instruction[] = [];
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.wrapSol ?? true)) {
     depositIxs.push(
       ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(opts.wSolBalanceUi ?? 0)))
     );

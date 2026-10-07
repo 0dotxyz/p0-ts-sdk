@@ -18,7 +18,8 @@ import { makeRefreshObligationIx, makeRefreshReservesBatchIx } from "~/vendor/kl
  * @param newBanksPk - Addresses of new banks being added to the account
  * @param bankMetadataMap - Map containing Bank-specific metadata (reserve states, lending markets)
  * @returns Refresh reserve and obligation instructions
- * @throws if an active or new bank is missing from `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if an active or new bank is missing from
+ * `bankMap`
  * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND) when a Kamino bank has no reserve
  * state in `bankMetadataMap`
  */
@@ -35,7 +36,7 @@ export function makeRefreshKaminoBanksIxs(
     .map((balance) => balance.bankPk);
 
   const allActiveBanks = [...new Set([...activeBanksPk, ...newBanksPk]).values()].map((pk) =>
-    requireBank(bankMap, pk)
+    requireBank(bankMap, pk, () => TransactionBuildingError.bankNotFound(pk))
   );
 
   // filter kamino banks

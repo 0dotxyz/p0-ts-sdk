@@ -21,8 +21,10 @@ import { uiToNative } from "~/utils";
 
 /**
  * Borrows `amount` (UI units of the bank's mint) from `bank` into the authority's ATA. Creates the
- * ATA and unwraps wSOL unless `opts` disables it.
- * @throws Error if `bankMap` misses one of the account's active banks
+ * ATA and unwraps wSOL unless `opts` disables it; unwrapping closes the wSOL ATA, so wSOL already
+ * in it is unwrapped too.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
  */
 export async function makeBorrowIx({
   programAddress,
@@ -42,7 +44,7 @@ export async function makeBorrowIx({
     tokenProgram,
   });
 
-  if (opts.createAtas ?? true) {
+  if (opts.createAta ?? true) {
     borrowIxs.push(
       getCreateAssociatedTokenIdempotentInstruction({
         payer: authority,
@@ -75,7 +77,7 @@ export async function makeBorrowIx({
     )
   );
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.unwrapSol ?? true)) {
     borrowIxs.push(await makeUnwrapSolIx(authority));
   }
 
@@ -84,21 +86,28 @@ export async function makeBorrowIx({
 
 /**
  * Builds a borrow transaction around {@link makeBorrowIx}, preceded by the refreshes of the
- * account's integration banks. The authority pays and signs; `latestBlockhash` is fetched when
- * omitted.
+ * account's integration banks, including those `opts.activeBanks` adds. The authority pays and
+ * signs; `latestBlockhash` is fetched when omitted.
  * @throws see {@link makeBorrowIx}
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if an integration bank's venue state is missing from `bankMetadataMap`
  */
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, bankMetadataMap, ...borrowIxParams } = params;
-  const { bank, bankMap, marginfiAccount } = params;
+  const { bank, bankMap, marginfiAccount, opts } = params;
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
 
+  // A Kamino bank opened earlier in the bundle still needs its reserve refreshed; Drift and
+  // JupLend deposits update their venue themselves
+  const accountBanks = getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  const openedBanks = (opts?.activeBanks ?? []).filter((b) => !accountBanks.includes(b));
   const refreshIxs = await makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [bank.address],
-    bankMetadataMap
+    bankMetadataMap,
+    [bank.address, ...openedBanks]
   );
 
   return {
@@ -112,7 +121,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTr
         bank,
         marginfiAccount.balances,
         bankMap,
-        params.opts?.activeBanks
+        opts?.activeBanks
       ),
     }),
     type: TransactionType.BORROW,

@@ -19,7 +19,7 @@ import { makeUpdateSpotMarketCumulativeInterestIx } from "~/vendor/drift";
  * @param banksToExclude - Addresses of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (Drift spot market states)
  * @returns Drift spot market update instructions
- * @throws if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if an active bank is missing from `bankMap`
  * @throws TransactionBuildingError (DRIFT_STATE_NOT_FOUND) when a Drift bank has no spot market
  * state in `bankMetadataMap`
  */
@@ -37,7 +37,7 @@ export async function makeUpdateDriftMarketIxs(
 
   const allActiveBanks = activeBanksPk
     .filter((pk) => !banksToExcludeSet.has(pk))
-    .map((pk) => requireBank(bankMap, pk));
+    .map((pk) => requireBank(bankMap, pk, () => TransactionBuildingError.bankNotFound(pk)));
 
   // filter drift banks
   const driftBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);

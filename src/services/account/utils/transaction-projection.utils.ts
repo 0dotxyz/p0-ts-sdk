@@ -6,6 +6,7 @@ import { BalanceType, HealthCacheStatus, MarginfiAccountType } from "../types";
 import { computeBalancePremium } from "./premium.utils";
 
 import { DEFAULT_ADDRESS, MAX_BALANCES } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 import { requireBank } from "~/services/bank/utils/lookup.utils";
@@ -20,7 +21,7 @@ import { composeRemainingAccounts } from "~/utils";
  * program runs the check) as `[bank, oracle, venue/pricing keys]`, sorted by bank key descending
  * like the program sorts balances before walking them, then `trailingBanks` unsorted. A
  * withdraw-all passes its closed bank as trailing: the group rate limiter looks up its price there.
- * @throws Error if a bank isn't in `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if a bank isn't in `bankMap`
  */
 export function computeHealthAccounts(
   bankMap: Map<string, BankType>,
@@ -28,7 +29,9 @@ export function computeHealthAccounts(
   trailingBanks: Address[] = []
 ): Address[] {
   const riskKeys = (bankAddress: Address) =>
-    computeBankRiskAccountKeys(requireBank(bankMap, bankAddress));
+    computeBankRiskAccountKeys(
+      requireBank(bankMap, bankAddress, () => TransactionBuildingError.bankNotFound(bankAddress))
+    );
   return [
     ...composeRemainingAccounts([...new Set(activeBanks)].map(riskKeys)),
     ...trailingBanks.flatMap(riskKeys),

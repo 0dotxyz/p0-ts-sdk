@@ -218,7 +218,7 @@ async function buildSwapDebtFlashloanTx({
     tokenProgram: borrowTokenProgram,
     marginfiAccount,
     authority,
-    opts: { createAtas: false, wrapAndUnwrapSol: false },
+    opts: { createAta: false, unwrapSol: false },
   };
   const repayParams = {
     programAddress,
@@ -226,7 +226,7 @@ async function buildSwapDebtFlashloanTx({
     tokenProgram: repayTokenProgram,
     marginfiAccount,
     authority,
-    opts: { wrapAndUnwrapSol: false },
+    opts: { wrapSol: false },
   };
 
   // Footprint for engine route sizing: borrow + repay ixs at estimate amounts (their

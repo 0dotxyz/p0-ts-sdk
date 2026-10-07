@@ -354,7 +354,8 @@ class MarginfiAccount implements MarginfiAccountType {
 
   /**
    * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
-   * @throws Error if `bankMap` misses one of `projectedActiveBanks`
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of
+   * `projectedActiveBanks`
    */
   async makeEndFlashLoanIx(
     programAddress: Address,
@@ -387,7 +388,8 @@ class MarginfiAccount implements MarginfiAccountType {
 
   /**
    * Refreshes this account's on-chain health cache.
-   * @throws Error if `bankMap` misses one of the account's active banks
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+   * active banks
    */
   async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
     return makePulseHealthIx({ programAddress, marginfiAccount: this, bankMap });

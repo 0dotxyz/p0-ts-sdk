@@ -93,7 +93,7 @@ export interface SwapQuoteResult {
 
 export interface WrapSolOpts {
   /** Wrap native SOL for a wSOL deposit or repay (default true). */
-  wrapAndUnwrapSol?: boolean;
+  wrapSol?: boolean;
   /** wSOL already in the ATA; only the rest is wrapped (default 0). */
   wSolBalanceUi?: number;
 }
@@ -224,10 +224,13 @@ export interface MakeBorrowIxOpts {
    * transaction or bundle change them (default: the account's active banks).
    */
   activeBanks?: Address[];
-  /** Unwrap wSOL received to native SOL (default true). */
-  wrapAndUnwrapSol?: boolean;
+  /**
+   * Unwrap the received wSOL to native SOL (default true). This closes the wSOL ATA, so wSOL already
+   * in it is unwrapped too.
+   */
+  unwrapSol?: boolean;
   /** Create the destination ATA idempotently (default true). */
-  createAtas?: boolean;
+  createAta?: boolean;
 }
 
 export interface MakeBorrowIxParams {

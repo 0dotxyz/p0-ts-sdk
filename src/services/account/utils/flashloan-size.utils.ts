@@ -227,19 +227,19 @@ async function buildBudgetIx(
       return makeBorrowIx({
         ...common,
         bankMap,
-        opts: { createAtas: false, wrapAndUnwrapSol: false },
+        opts: { createAta: false, unwrapSol: false },
       });
     case "repay":
-      return makeRepayIx({ ...common, repayAll: false, opts: { wrapAndUnwrapSol: false } });
+      return makeRepayIx({ ...common, repayAll: false, opts: { wrapSol: false } });
     case "deposit":
-      return makeDepositIx({ ...common, bankMetadataMap, opts: { wrapAndUnwrapSol: false } });
+      return makeDepositIx({ ...common, bankMetadataMap, opts: { wrapSol: false } });
     case "withdraw":
       return makeWithdrawIx({
         ...common,
         bankMap,
         bankMetadataMap,
         withdrawAll: false,
-        opts: { createAtas: false, wrapAndUnwrapSol: false },
+        opts: { createAta: false, unwrapSol: false },
       });
   }
 }

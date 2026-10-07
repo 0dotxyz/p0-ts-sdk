@@ -233,8 +233,8 @@ async function buildSwapCollateralFlashloanTx({
     bankMetadataMap,
     withdrawAll: isFullWithdraw,
     opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
+      createAta: false,
+      unwrapSol: false,
     },
   });
 
@@ -252,7 +252,7 @@ async function buildSwapCollateralFlashloanTx({
     authority,
     bankMetadataMap,
     opts: {
-      wrapAndUnwrapSol: false,
+      wrapSol: false,
     },
   });
 

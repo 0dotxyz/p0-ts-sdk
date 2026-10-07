@@ -22,7 +22,7 @@ import type { BankIntegrationMetadataMap } from "~/types";
  * @param bankMetadataMap - Map containing Bank-specific metadata (integration states)
  * @param kaminoNewBanksPk - Banks to union into the Kamino refresh set, defaults to `banksToExclude`
  * @returns Instructions ordered kamino -> drift -> juplend
- * @throws if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if an active bank is missing from `bankMap`
  */
 export async function makeRefreshIntegrationBanksIxs(
   marginfiAccount: MarginfiAccountType,

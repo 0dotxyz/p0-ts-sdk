@@ -33,8 +33,9 @@ import { deriveLendingMarketAuthority, deriveUserState } from "~/vendor/klend";
  * the destination ATA and unwraps wSOL unless `opts` disables it.
  * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
  * integration accounts are missing
- * @throws Error if a `cToken` amount is given for a non-Kamino bank, or `bankMap` misses one of
- * the account's active banks
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
+ * @throws Error if a `cToken` amount is given for a non-Kamino bank
  */
 export async function makeWithdrawIx({
   programAddress,
@@ -62,7 +63,7 @@ export async function makeWithdrawIx({
     tokenProgram,
   });
 
-  if (opts.createAtas ?? true) {
+  if (opts.createAta ?? true) {
     withdrawIxs.push(
       getCreateAssociatedTokenIdempotentInstruction({
         payer: authority,
@@ -244,7 +245,7 @@ export async function makeWithdrawIx({
       );
   }
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.unwrapSol ?? true)) {
     withdrawIxs.push(await makeUnwrapSolIx(authority));
   }
 

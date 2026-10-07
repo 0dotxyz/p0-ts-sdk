@@ -53,7 +53,7 @@ import { nativeToUi, uiToNative } from "~/utils";
 /**
  * Repays `amount` (UI units of the bank's mint) of `bank`'s liability; `repayAll` closes the
  * balance. A wSOL repay first wraps native SOL, net of `opts.wSolBalanceUi`, unless
- * `opts.wrapAndUnwrapSol` is false.
+ * `opts.wrapSol` is false.
  */
 export async function makeRepayIx({
   programAddress,
@@ -67,7 +67,7 @@ export async function makeRepayIx({
 }: MakeRepayIxParams): Promise<Instruction[]> {
   const repayIxs: Instruction[] = [];
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.wrapSol ?? true)) {
     repayIxs.push(
       ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(opts.wSolBalanceUi ?? 0)))
     );
@@ -278,8 +278,8 @@ async function buildRepayWithCollatFlashloanTx({
     bankMetadataMap,
     withdrawAll,
     opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
+      createAta: false,
+      unwrapSol: false,
     },
   });
 
@@ -289,7 +289,7 @@ async function buildRepayWithCollatFlashloanTx({
     tokenProgram: repayOpts.tokenProgram,
     marginfiAccount,
     authority,
-    opts: { wrapAndUnwrapSol: false },
+    opts: { wrapSol: false },
   };
 
   if (swapNeeded) {
