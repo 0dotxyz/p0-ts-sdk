@@ -35,6 +35,7 @@ import {
   makeKaminoDepositIx,
 } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTxs } from "./orders";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
@@ -151,14 +152,19 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     payerKey: marginfiAccount.authority,
     luts: addressLookupTableAccounts ?? [],
   });
+  const orderTxs = await makeOrderChangesTxs({
+    ...params,
+    luts: addressLookupTableAccounts ?? [],
+    blockhash,
+  });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const transactions = [...additionalTxs, flashloanTx, ...orderTxs];
 
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0 || orderTxs.length > 0,
   };
 }
 
@@ -613,6 +619,10 @@ async function tryBridgedCollateralSwap(
     bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
   });
 
+  const orderTxs = await makeOrderChangesTxs({
+    ...params,
+    luts: params.addressLookupTableAccounts ?? [],
+  });
   const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
   return tryBridgeCandidates({
     usableBridgeBanks,
@@ -680,11 +690,12 @@ async function tryBridgedCollateralSwap(
         assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
         feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
         maxBundleTxs: bridgeOpts?.maxBundleTxs,
+        reservedTxs: orderTxs.length,
       });
       if (!result) return null;
 
       return {
-        transactions: result.transactions,
+        transactions: [...result.transactions, ...orderTxs],
         actionTxIndex: result.transactions.length - 1,
         quoteResponse: mergeBridgeQuotes(result.firstLegQuote, result.secondLegQuote),
         bridgeMint: bridgeBank.mint,

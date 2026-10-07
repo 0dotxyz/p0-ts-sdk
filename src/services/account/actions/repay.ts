@@ -26,6 +26,7 @@ import {
 
 import { appendPremiumRefresh, makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTxs, prependOrderCloses } from "./orders";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
@@ -47,6 +48,7 @@ import {
   getTxSize,
   getTotalAccountKeys,
   makePreludeTxs,
+  selectLutsForBanks,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -174,10 +176,15 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<ExtendedTr
   const { luts, ...repayIxParams } = params;
 
   const ixs = await makeRepayIx(repayIxParams);
+  const actionIxs = await prependOrderCloses(
+    params,
+    ixs.instructions,
+    selectLutsForBanks(luts, [params.bank])
+  );
   const closedBanks = params.repayAll ? [params.bank.address] : [];
   const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
     params,
-    ixs.instructions,
+    actionIxs,
     [],
     closedBanks
   );
@@ -263,13 +270,18 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     payerKey: marginfiAccount.authority,
     luts: addressLookupTableAccounts ?? [],
   });
+  const orderTxs = await makeOrderChangesTxs({
+    ...params,
+    luts: addressLookupTableAccounts ?? [],
+    blockhash,
+  });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const transactions = [...additionalTxs, flashloanTx, ...orderTxs];
   return {
     transactions,
     swapQuote,
     amountToRepay,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0 || orderTxs.length > 0,
   };
 }
 

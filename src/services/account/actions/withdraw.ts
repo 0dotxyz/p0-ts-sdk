@@ -19,6 +19,8 @@ import {
 } from "../types";
 import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
 
+import { prependOrderCloses } from "./orders";
+
 import instructions from "~/instructions";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
@@ -233,6 +235,12 @@ export async function makeDriftWithdrawTx(
     params.bankMetadataMap
   );
 
+  const ixs = await prependOrderCloses(
+    params,
+    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+    selectedLuts
+  );
+
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
@@ -240,7 +248,7 @@ export async function makeDriftWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+        instructions: ixs,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -551,6 +559,12 @@ export async function makeWithdrawTx(
     params.bankMetadataMap
   );
 
+  const ixs = await prependOrderCloses(
+    params,
+    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+    selectedLuts
+  );
+
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
@@ -558,7 +572,7 @@ export async function makeWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+        instructions: ixs,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -612,6 +626,12 @@ export async function makeKaminoWithdrawTx(
     ...withdrawIxParams,
   });
 
+  const ixs = await prependOrderCloses(
+    params,
+    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+    selectedLuts
+  );
+
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
@@ -619,7 +639,7 @@ export async function makeKaminoWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+        instructions: ixs,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
@@ -798,6 +818,12 @@ export async function makeJuplendWithdrawTx(
     params.bankMetadataMap
   );
 
+  const ixs = await prependOrderCloses(
+    params,
+    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+    selectedLuts
+  );
+
   const {
     value: { blockhash },
   } = await connection.getLatestBlockhashAndContext("confirmed");
@@ -805,7 +831,7 @@ export async function makeJuplendWithdrawTx(
   const withdrawTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
+        instructions: ixs,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)
