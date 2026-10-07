@@ -452,7 +452,7 @@ const DECOMPOSABLE_SWAP_ERROR_CODES = new Set<TransactionBuildingErrorCode>([
  * could still succeed when split into two legs through a bridge token (a double-hop).
  *
  * This is the predicate a caller's catch→retry uses to decide whether to attempt a bridged swap
- * (see {@link composeBridgedSwap}). Size overflows surface as `SWAP_SIZE_EXCEEDED_*` and no-route /
+ * (see `makeBridgedTx`). Size overflows surface as `SWAP_SIZE_EXCEEDED_*` and no-route /
  * unquotable failures as `SWAP_QUOTE_FAILED`; the swap engine also classifies an oversized route
  * (which would otherwise throw a raw serialization `RangeError`) as `SWAP_SIZE_EXCEEDED_LOOP`.
  */

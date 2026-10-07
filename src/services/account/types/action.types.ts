@@ -429,7 +429,8 @@ export interface BulkLendTxsResult {
 /** RPC methods the swap flows use: blockhash, ATA and mint lookups, swap lookup tables. */
 export type SwapFlowRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
 
-export interface MakeLoopTxParams {
+/** Params the flashloan swap flows share: loop, collateral and debt swaps, repay with collateral. */
+export interface SwapFlowTxParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
@@ -438,6 +439,22 @@ export interface MakeLoopTxParams {
   bankMap: Map<string, BankType>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
+  swapOpts: SwapOpts;
+  txFormat: TransactionFormat;
+  /**
+   * Optional override for how the swap engine runs. Defaults to the in-process
+   * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
+   * so the multi-provider fan-out happens server-side.
+   *
+   * Also the seam for caller-controlled routing: wrap the default runner to inspect, veto, or
+   * replace the selected route before it's spliced into the flashloan (see
+   * `examples/16c-loop-pinned-route.ts`). For a fully static, pre-reviewed route use
+   * `swapOpts.swapIxs` instead.
+   */
+  swapEngineRunner?: SwapEngineRunner;
+}
+
+export interface MakeLoopTxParams extends SwapFlowTxParams {
   depositOpts: {
     // if deposit looping, this principal amount will be added
     inputDepositAmount: number;
@@ -454,20 +471,7 @@ export interface MakeLoopTxParams {
     // market price (USD per token, UI units) used for the no-slippage deposit estimate
     marketPrice: number;
   };
-  swapOpts: SwapOpts;
-  txFormat: TransactionFormat;
   additionalIxs?: Instruction[];
-  /**
-   * Optional override for how the swap engine runs. Defaults to the in-process
-   * `runSwapEngine`; the app injects a runner that forwards to `/api/tx/swap-engine`
-   * so the multi-provider fan-out happens server-side.
-   *
-   * Also the seam for caller-controlled routing: wrap the default runner to inspect, veto, or
-   * replace the selected route before it's spliced into the flashloan (see
-   * `examples/16c-loop-pinned-route.ts`). For a fully static, pre-reviewed route use
-   * `swapOpts.swapIxs` instead.
-   */
-  swapEngineRunner?: SwapEngineRunner;
 }
 
 /**
@@ -498,15 +502,7 @@ export interface LoopFlashloanDescriptor {
   txFormat: TransactionFormat;
 }
 
-export interface MakeRepayWithCollatTxParams {
-  programAddress: Address;
-  marginfiAccount: MarginfiAccountType;
-  /** The account authority; signs and pays. */
-  authority: TransactionSigner;
-  rpc: SwapFlowRpc;
-  bankMap: Map<string, BankType>;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  bankMetadataMap: BankIntegrationMetadataMap;
+export interface MakeRepayWithCollatTxParams extends SwapFlowTxParams {
   withdrawOpts: {
     // Amount of the total position
     totalPositionAmount: number;
@@ -521,21 +517,9 @@ export interface MakeRepayWithCollatTxParams {
     // Amount of the total position use to determine max repay amount
     totalPositionAmount: number;
   };
-  swapOpts: SwapOpts;
-  txFormat: TransactionFormat;
-  /** See `MakeLoopTxParams.swapEngineRunner`. */
-  swapEngineRunner?: SwapEngineRunner;
 }
 
-export interface MakeSwapCollateralTxParams {
-  programAddress: Address;
-  marginfiAccount: MarginfiAccountType;
-  /** The account authority; signs and pays. */
-  authority: TransactionSigner;
-  rpc: SwapFlowRpc;
-  bankMap: Map<string, BankType>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+export interface MakeSwapCollateralTxParams extends SwapFlowTxParams {
   withdrawOpts: {
     // Amount of the total position (used for withdrawAll case)
     totalPositionAmount: number;
@@ -548,10 +532,6 @@ export interface MakeSwapCollateralTxParams {
     depositBank: BankType;
     tokenProgram: Address;
   };
-  swapOpts: SwapOpts;
-  txFormat: TransactionFormat;
-  /** See `MakeLoopTxParams.swapEngineRunner`. */
-  swapEngineRunner?: SwapEngineRunner;
 }
 
 /**
@@ -656,15 +636,7 @@ export interface RollPtOpts {
   lookupTable?: Address;
 }
 
-export interface MakeSwapDebtTxParams {
-  programAddress: Address;
-  marginfiAccount: MarginfiAccountType;
-  /** The account authority; signs and pays. */
-  authority: TransactionSigner;
-  rpc: SwapFlowRpc;
-  bankMap: Map<string, BankType>;
-  bankMetadataMap: BankIntegrationMetadataMap;
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
+export interface MakeSwapDebtTxParams extends SwapFlowTxParams {
   // Source debt (what we're repaying)
   repayOpts: {
     // Amount of the total debt position (used for repayAll case)
@@ -683,11 +655,7 @@ export interface MakeSwapDebtTxParams {
     // Market price (USD per token, UI units) used to size the borrow amount.
     marketPrice: number;
   };
-  swapOpts: SwapOpts;
-  txFormat: TransactionFormat;
   additionalIxs?: Instruction[];
-  /** See `MakeLoopTxParams.swapEngineRunner`. */
-  swapEngineRunner?: SwapEngineRunner;
 }
 
 export interface MakeCreateMissingAtaIxsParams {

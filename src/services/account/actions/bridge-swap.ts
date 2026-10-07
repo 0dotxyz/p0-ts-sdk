@@ -5,319 +5,291 @@ import {
   type Instruction,
   type TransactionSigner,
 } from "@solana/kit";
-import { BigNumber } from "bignumber.js";
 
-import { MarginfiAccountType, SwapQuoteResult } from "../types";
+import { SwapFlowTxParams, SwapQuoteResult } from "../types";
 import { computeProjectedActiveBalancesNoCpi } from "../utils";
 
-import { BankType } from "~/services/bank";
+import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
+import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
+import { BankType } from "~/services/bank/types";
+import { isStandardBorrowable, isStandardDepositable } from "~/services/bank/utils/capacity.utils";
+import { fetchProgramForMints } from "~/services/misc";
 import {
   SolanaTransaction,
   splitInstructionsToFitTransactions,
+  TransactionFormat,
   TransactionType,
 } from "~/services/transaction";
 
-/**
- * Bridge / double-hop swaps — the flow-agnostic mechanics.
+/*
+ * Bridged swaps
  *
- * When a single swap op (collateral-swap / debt-swap / loop) can't fit the per-tx limits (size
- * AND 64 account-locks) for a pair, the caller decomposes it into two ops through a
- * high-liquidity BRIDGE token and submits both as ONE atomic Jito bundle (one merged quote, one
- * signature). This module owns the parts that are identical across flows and encode marginfi
- * internals; per-flow leg building/sizing lives in the one-call `makeBridged*Tx` builders next to
- * their direct builders (`./loop.ts`, `./swap-collateral.ts`, `./swap-debt.ts`), backed by the
- * shared selection/iteration support in `../utils/bridge.utils.ts`, with candidate
- * ordering still injectable per call (product policy).
+ * When a swap A → C doesn't fit one transaction or has no route, it's split into two flashloan
+ * legs through a liquid bridge token (e.g. USDC), sent as one atomic Jito bundle of at most 5 txs:
  *
- * Two non-obvious invariants are baked in here so no caller has to rediscover them:
+ *                    open leg (creates the USDC position)   close leg (removes it)
+ *   collateral swap  withdraw A, A → USDC, deposit USDC     withdraw USDC, USDC → C, deposit C
+ *   debt swap        borrow USDC, USDC → A, repay A         borrow C, C → USDC, repay USDC
+ *   loop             borrow USDC, USDC → P, deposit P       borrow X, X → USDC, repay USDC
  *
- *  1. **Cranks cannot be merged across legs.** An oracle crank carries responses signed for a specific
- *     slot; combining the first and second legs' crank instructions in one tx breaks their verification.
- *     So each leg's crank stays its own tx, immediately before that leg's flashloan. Only setup
- *     (ATA-create) txs — which are slot-independent — are merged. Worst case is 5 txs (`setup,
- *     firstLegCrank, firstLegFL, secondLegCrank, secondLegFL`), Jito's ceiling; the bundle-tip
- *     instruction fits in-place in the small setup/crank txs. (Since Switchboard cranking was removed, a
- *     leg's crank txs hold its venue refreshes.)
+ * (A loop deposits P and borrows X.)
  *
- *  2. **The second leg must be built against the first leg's full projected effect.** It touches
- *     collateral/debt the first leg mutates but hasn't executed yet at build time. Built against the raw
- *     account, the second leg's flashloan/crank balance projection either throws ("balance should be
- *     projected active") or references a stale bank the first leg already closed (InvalidBankAccount). So
- *     the second leg is built against a clone of the account with the first leg's own instructions
- *     replayed onto it. The bundle is atomic, so at execution this state really holds.
+ * Every bundle follows two rules:
+ * - The close leg is built against the account as the open leg leaves it.
+ * - Each leg's venue refreshes run right before its own flashloan, not together up front: the
+ *   open leg changes venue state the close leg reads (a Kamino withdraw leaves its reserve stale).
  */
 
-/** Default max txs in a bridged bundle: setup + firstLegCrank + firstLegFL + secondLegCrank + secondLegFL = Jito ceiling. */
-const MAX_BRIDGED_BUNDLE_TXS = 5;
+const MAX_BUNDLE_TXS = 5;
 
-/** A single built swap leg (its txs + the swap-engine quote). */
-export interface BridgedSwapLeg {
+/** Default bridge mints, most liquid first. */
+export const DEFAULT_BRIDGE_MINTS: Address[] = [USDC_MINT, WSOL_MINT, USDT_MINT];
+
+/** Per-call options for the bridged fallback of the `makeBridged*Tx` builders. */
+export interface BridgeOpts {
+  /**
+   * Bridge mints to try, highest priority first (default {@link DEFAULT_BRIDGE_MINTS}). The
+   * swap's own mints are skipped.
+   */
+  bridgeCandidateMints?: Address[];
+  /** Known token programs by mint; the others are read from chain. */
+  tokenProgramByMint?: Map<string, Address>;
+  abortSignal?: AbortSignal;
+}
+
+/** Result of a `makeBridged*Tx` builder: the transaction built without a bridge, or the bridged bundle. */
+export interface BridgedTxResult {
   transactions: SolanaTransaction[];
+  /** Index of the tx that completes the action (the swap tx, or the bundle's last leg). */
+  actionTxIndex: number;
+  /** For a bridged bundle: the swap into the bridge followed by the swap out of it. */
   quoteResponse: SwapQuoteResult | undefined;
+  /** The bridge token's mint — set only when the bridged double-hop path was used. */
+  bridgeMint?: Address;
+  /** true → send as ONE atomic Jito bundle (bridged legs are one operation / integration
+   *  refreshes go stale within a slot); false → sequential sends are safe (cranked oracles
+   *  allow ≥ ~1 min staleness). */
+  mustBeAtomicBundle: boolean;
 }
 
-export interface ComposeBridgedSwapParams {
-  /** The already-built first leg (A → bridge). */
-  firstLeg: BridgedSwapLeg;
+/** A built leg of a bridged swap. */
+export type BridgeLeg = Pick<BridgedTxResult, "transactions" | "quoteResponse">;
+
+export interface MakeBridgedTxParams extends SwapFlowTxParams {
+  /** Added to the open leg. */
+  additionalIxs?: Instruction[];
+  bridgeOpts?: BridgeOpts;
+  /** Whether the bridge is held as collateral (collateral swap) or debt (debt swap, loop). */
+  side: "deposit" | "borrow";
+  sourceMint: Address;
+  destinationMint: Address;
+  /** Builds the swap without a bridge; tried first. */
+  buildWithoutBridge: () => Promise<BridgedTxResult>;
   /**
-   * Build the second leg (bridge → C) against the first leg's projected post-state. The caller sizes it
-   * from the first leg's guaranteed output/borrow (so it can't fail from first-leg slippage) and passes
-   * the supplied `projectedAccount` as the leg's marginfi account.
+   * Builds the leg that opens the bridge position, e.g. for a collateral swap A → C through USDC:
+   * withdraw A, swap A → USDC, deposit USDC. null skips the bridge.
    */
-  buildSecondLeg: (projectedAccount: MarginfiAccountType) => Promise<BridgedSwapLeg>;
-  marginfiAccount: MarginfiAccountType;
-  programAddress: Address;
-  banksMap: Map<string, BankType>;
-  /** Per-bank cToken multiplier (1 for vanilla SPL banks) — for the first leg's effect projection. */
-  assetShareValueMultiplierByBank: Map<string, BigNumber>;
-  feePayer: TransactionSigner;
-  /** Override the bundle-size ceiling (default {@link MAX_BRIDGED_BUNDLE_TXS}). */
-  maxBundleTxs?: number;
-}
-
-export interface ComposeBridgedSwapResult {
-  /** The atomic bundle: `[mergedSetup?, firstLegCrank?, firstLegFL, secondLegCrank?, secondLegFL]`. */
-  transactions: SolanaTransaction[];
+  buildOpenBridgeLeg: (leg: {
+    bridgeBank: BankType;
+    bridgeTokenProgram: Address;
+    context: SwapFlowTxParams & { additionalIxs?: Instruction[] };
+  }) => Promise<BridgeLeg | null>;
   /**
-   * The two legs' raw quotes. Presentation (the user-facing merged quote and destination amount) is
-   * flow-specific — collateral maps `firstLeg.in → secondLeg.out`, debt maps `firstLeg.out → secondLeg.in`, etc. — so the
-   * caller builds it (see {@link mergeBridgeQuotes} for the collateral/loop-deposit shape).
+   * Builds the leg that closes the bridge position, e.g. withdraw USDC, swap USDC → C, deposit C.
+   * `context` holds the account as the open leg leaves it, and `openLegQuote` sizes what to
+   * withdraw or repay. null skips the bridge.
    */
-  firstLegQuote: SwapQuoteResult;
-  secondLegQuote: SwapQuoteResult;
-}
-
-interface ClassifiedTxs {
-  setups: SolanaTransaction[];
-  cranks: SolanaTransaction[];
-  flashloans: SolanaTransaction[]; // order preserved
-}
-
-function classifyTxs(txs: SolanaTransaction[]): ClassifiedTxs {
-  const out: ClassifiedTxs = { setups: [], cranks: [], flashloans: [] };
-  for (const tx of txs) {
-    if (tx.type === TransactionType.CREATE_ATA) out.setups.push(tx);
-    else if (tx.type === TransactionType.CRANK) out.cranks.push(tx);
-    else out.flashloans.push(tx); // FLASHLOAN / LOOP / REPAY_COLLAT / …
-  }
-  return out;
-}
-
-/** Structural identity of an instruction (program + ordered keys + data) — for setup dedupe. */
-function ixIdentity(ix: Instruction): string {
-  const keys = (ix.accounts ?? []).map((account) => account.address).join(",");
-  return `${ix.programAddress}|${keys}|${getBase64Decoder().decode(ix.data ?? new Uint8Array())}`;
+  buildCloseBridgeLeg: (leg: {
+    bridgeBank: BankType;
+    bridgeTokenProgram: Address;
+    context: SwapFlowTxParams;
+    openLegQuote: SwapQuoteResult;
+  }) => Promise<BridgeLeg | null>;
 }
 
 /**
- * Merge both legs' setup (ATA-create) txs into ONE tx: concat their instructions (dedupe by
- * structural identity — the first and second legs share the bridge ATA-create) and recompile, as
- * v1 only when every leg is v1: v0 instructions keep their lookup-table accounts (so no tables are
- * needed), and those corrupt a v1 header. Returns null if the merged instructions don't fit a
- * single tx. (Cranks are NOT merged — see module doc.)
+ * Returns `buildWithoutBridge`'s result, or when its swap doesn't fit one transaction or has no route,
+ * the first bridge (in `bridgeOpts.bridgeCandidateMints` order) whose open and close legs fit one
+ * bundle. A pinned route (`swapOpts.swapIxs`) is never split.
+ * @throws `buildWithoutBridge`'s error when it can't be split or no bridge fits
+ * @throws TransactionBuildingError (BRIDGE_CONFLICT) if every bridge is blocked by a position on
+ * the opposite side of its bank
  */
-function mergeSetupTxs(
-  txs: SolanaTransaction[],
-  payer: TransactionSigner,
-  latestBlockhash: BlockhashLifetimeConstraint
-): SolanaTransaction | null {
-  if (txs.length === 0) return null;
-  if (txs.length === 1) return txs[0];
+export async function makeBridgedTx(params: MakeBridgedTxParams): Promise<BridgedTxResult> {
+  try {
+    // Try direct swap first
+    return await params.buildWithoutBridge();
+  } catch (error) {
+    if (!isDecomposableSwapError(error) || params.swapOpts.swapIxs) throw error;
+    // Try bridged swap
+    const bridged = await findBridgedBundle(params);
+    if (!bridged) throw error;
+    return bridged;
+  }
+}
 
+async function findBridgedBundle(params: MakeBridgedTxParams): Promise<BridgedTxResult | null> {
+  const { side, bridgeOpts, marginfiAccount } = params;
+  const isStandard = side === "deposit" ? isStandardDepositable : isStandardBorrowable;
+  const usable: BankType[] = [];
+  const conflicting: BankType[] = [];
+  for (const mint of new Set(bridgeOpts?.bridgeCandidateMints ?? DEFAULT_BRIDGE_MINTS)) {
+    if (mint === params.sourceMint || mint === params.destinationMint) continue;
+    const bank = [...params.bankMap.values()].find((b) => b.mint === mint && isStandard(b));
+    if (!bank) continue;
+    // marginfi can't hold an asset and a liability in the same bank
+    const balance = marginfiAccount.balances.find((b) => b.active && b.bankPk === bank.address);
+    const conflicts =
+      side === "deposit" ? balance?.liabilityShares.gt(0) : balance?.assetShares.gt(0);
+    (conflicts ? conflicting : usable).push(bank);
+  }
+
+  if (usable.length === 0 && conflicting.length > 0) {
+    throw TransactionBuildingError.bridgeConflict(
+      conflicting.map((bank) => ({
+        bankAddress: bank.address,
+        mint: bank.mint,
+        symbol: bank.tokenSymbol,
+      })),
+      side
+    );
+  }
+
+  const tokenPrograms = new Map(bridgeOpts?.tokenProgramByMint);
+  const unknownMints = usable.map((bank) => bank.mint).filter((mint) => !tokenPrograms.has(mint));
+  if (unknownMints.length > 0) {
+    for (const { mint, program } of await fetchProgramForMints(params.rpc, unknownMints)) {
+      tokenPrograms.set(mint, program);
+    }
+  }
+
+  for (const bank of usable) {
+    if (bridgeOpts?.abortSignal?.aborted) {
+      throw new DOMException("Operation was aborted", "AbortError");
+    }
+    const tokenProgram = tokenPrograms.get(bank.mint);
+    if (!tokenProgram) continue;
+    try {
+      const bridged = await buildBridgedBundle(params, bank, tokenProgram);
+      if (bridged) return bridged;
+    } catch (error) {
+      // A leg that can't be built through this bridge may still be through the next one
+      if (!(error instanceof TransactionBuildingError)) throw error;
+    }
+  }
+  return null;
+}
+
+async function buildBridgedBundle(
+  params: MakeBridgedTxParams,
+  bridgeBank: BankType,
+  bridgeTokenProgram: Address
+): Promise<BridgedTxResult | null> {
+  const context: SwapFlowTxParams = {
+    programAddress: params.programAddress,
+    marginfiAccount: params.marginfiAccount,
+    authority: params.authority,
+    rpc: params.rpc,
+    bankMap: params.bankMap,
+    bankMetadataMap: params.bankMetadataMap,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+    swapOpts: params.swapOpts,
+    txFormat: params.txFormat,
+    swapEngineRunner: params.swapEngineRunner,
+  };
+  const openLeg = await params.buildOpenBridgeLeg({
+    bridgeBank,
+    bridgeTokenProgram,
+    context: { ...context, additionalIxs: params.additionalIxs },
+  });
+  if (!openLeg?.quoteResponse) return null;
+
+  const isSetup = (tx: SolanaTransaction) => tx.type === TransactionType.CREATE_ATA;
+  const isRefresh = (tx: SolanaTransaction) => tx.type === TransactionType.CRANK;
+  const isAction = (tx: SolanaTransaction) => !isSetup(tx) && !isRefresh(tx);
+
+  const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
+    account: params.marginfiAccount,
+    instructions: openLeg.transactions.filter(isAction).flatMap((tx) => tx.message.instructions),
+    programAddress: params.programAddress,
+    banksMap: params.bankMap,
+    assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
+  });
+  const closeLeg = await params.buildCloseBridgeLeg({
+    bridgeBank,
+    bridgeTokenProgram,
+    context: {
+      ...context,
+      marginfiAccount: { ...params.marginfiAccount, balances: projectedBalances },
+    },
+    openLegQuote: openLeg.quoteResponse,
+  });
+  if (!closeLeg?.quoteResponse) return null;
+
+  const transactions = [
+    ...mergeSetups(
+      [...openLeg.transactions, ...closeLeg.transactions].filter(isSetup),
+      params.authority,
+      openLeg.transactions[0].message.lifetimeConstraint
+    ),
+    ...openLeg.transactions.filter(isRefresh),
+    ...openLeg.transactions.filter(isAction),
+    ...closeLeg.transactions.filter(isRefresh),
+    ...closeLeg.transactions.filter(isAction),
+  ];
+  if (transactions.length > MAX_BUNDLE_TXS) return null;
+
+  // A deposited bridge is swapped into by the open leg, a borrowed one by the close leg
+  const [into, outOf] =
+    params.side === "deposit"
+      ? [openLeg.quoteResponse, closeLeg.quoteResponse]
+      : [closeLeg.quoteResponse, openLeg.quoteResponse];
+  return {
+    transactions,
+    actionTxIndex: transactions.length - 1,
+    quoteResponse: {
+      inAmount: into.inAmount,
+      outAmount: outOf.outAmount,
+      otherAmountThreshold: outOf.otherAmountThreshold,
+      slippageBps: Math.round(
+        (1 - (1 - into.slippageBps / 10_000) * (1 - outOf.slippageBps / 10_000)) * 10_000
+      ),
+      provider: into.provider,
+    },
+    bridgeMint: bridgeBank.mint,
+    mustBeAtomicBundle: true,
+  };
+}
+
+function mergeSetups(
+  setups: SolanaTransaction[],
+  feePayer: TransactionSigner,
+  latestBlockhash: BlockhashLifetimeConstraint
+): SolanaTransaction[] {
+  if (setups.length <= 1) return setups;
+
+  // Both legs create the bridge ATA
   const seen = new Set<string>();
-  const ixs = txs
+  const instructions = setups
     .flatMap((tx) => tx.message.instructions)
     .filter((ix) => {
-      const id = ixIdentity(ix);
+      const id = [
+        ix.programAddress,
+        ...(ix.accounts ?? []).map((account) => account.address),
+        getBase64Decoder().decode(ix.data ?? new Uint8Array()),
+      ].join("|");
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
     });
 
-  const split = splitInstructionsToFitTransactions([], ixs, {
+  // A version 0 leg's instructions keep their lookup-table accounts, which version 1 can't encode
+  const txFormat: TransactionFormat = setups.every((tx) => tx.message.version === 1)
+    ? { version: 1 }
+    : { version: 0, luts: {} };
+  return splitInstructionsToFitTransactions([], instructions, {
     latestBlockhash,
-    feePayer: payer,
-    txFormat: txs.every((tx) => tx.message.version === 1)
-      ? { version: 1 }
-      : { version: 0, luts: {} },
-  });
-  if (split.length !== 1) return null; // merged setup spilled to >1 tx
-  return { message: split[0], type: TransactionType.CREATE_ATA };
-}
-
-/**
- * Return `account` as it will look AFTER the first leg executes — its balances with the first
- * leg's own instructions replayed onto them (source position removed, bridge position added, using
- * the exact withdraw-all / borrow semantics the first leg used). The second leg must be built
- * against this projected account, not the raw one — see invariant (2) in the module doc.
- */
-function projectAccountAfterFirstLeg(
-  account: MarginfiAccountType,
-  firstLegFlashloanTxs: SolanaTransaction[],
-  programAddress: Address,
-  banksMap: Map<string, BankType>,
-  multipliers: Map<string, BigNumber>
-): MarginfiAccountType {
-  const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
-    account,
-    instructions: firstLegFlashloanTxs.flatMap((tx) => tx.message.instructions),
-    programAddress,
-    banksMap,
-    assetShareValueMultiplierByBank: multipliers,
-  });
-
-  return { ...account, balances: projectedBalances };
-}
-
-/**
- * Compose the two legs into one ordered bundle. Setups merge to one tx; cranks stay separate, each
- * immediately before its flashloan. Returns null if the merge spills or the bundle exceeds the cap.
- */
-function composeBundle(
-  firstLegTxs: SolanaTransaction[],
-  secondLegTxs: SolanaTransaction[],
-  payer: TransactionSigner,
-  latestBlockhash: BlockhashLifetimeConstraint,
-  maxBundleTxs: number
-): SolanaTransaction[] | null {
-  const c1 = classifyTxs(firstLegTxs);
-  const c2 = classifyTxs(secondLegTxs);
-
-  const mergedSetup = mergeSetupTxs([...c1.setups, ...c2.setups], payer, latestBlockhash);
-  if ([...c1.setups, ...c2.setups].length > 0 && !mergedSetup) return null;
-
-  const result: SolanaTransaction[] = [
-    ...(mergedSetup ? [mergedSetup] : []),
-    ...c1.cranks,
-    ...c1.flashloans, // firstLegFL(s)
-    ...c2.cranks,
-    ...c2.flashloans, // secondLegFL(s)
-  ];
-  if (result.length > maxBundleTxs) return null;
-  return result;
-}
-
-/**
- * Compound two legs' slippage and price-impact into the combined risk of the bridged route. Both are
- * "fraction of value lost" quantities, so they compound multiplicatively: `1 - (1 - a)(1 - b)`.
- * Shared by all three merge shapes below.
- */
-function compoundQuoteRisk(
-  firstLeg: SwapQuoteResult,
-  secondLeg: SwapQuoteResult
-): { slippageBps: number; priceImpactPct: string | undefined } {
-  const compound = (a?: string, b?: string): string | undefined => {
-    if (a == null && b == null) return undefined;
-    const x = Number(a ?? 0);
-    const y = Number(b ?? 0);
-    return String(1 - (1 - x) * (1 - y));
-  };
-  return {
-    slippageBps: Math.round(
-      (1 - (1 - firstLeg.slippageBps / 10_000) * (1 - secondLeg.slippageBps / 10_000)) * 10_000
-    ),
-    priceImpactPct: compound(firstLeg.priceImpactPct, secondLeg.priceImpactPct),
-  };
-}
-
-/**
- * Merge two leg quotes for the "in = first-leg input, out = second-leg output" shape
- * (collateral-swap, loop-deposit): A in → C out, with compounded slippage and price-impact.
- */
-export function mergeBridgeQuotes(
-  firstLeg: SwapQuoteResult,
-  secondLeg: SwapQuoteResult
-): SwapQuoteResult {
-  return {
-    inAmount: firstLeg.inAmount,
-    outAmount: secondLeg.outAmount,
-    otherAmountThreshold: secondLeg.otherAmountThreshold,
-    ...compoundQuoteRisk(firstLeg, secondLeg),
-    provider: firstLeg.provider,
-  };
-}
-
-/**
- * Merge two leg quotes for a bridged DEBT swap (repay A → borrow bridge, then repay bridge → borrow
- * C). The user-facing quote maps old-debt-repaid (first leg's *output*) → new-debt-borrowed (second
- * leg's *input*).
- */
-export function mergeBridgeQuotesDebt(
-  firstLeg: SwapQuoteResult,
-  secondLeg: SwapQuoteResult
-): SwapQuoteResult {
-  return {
-    inAmount: firstLeg.outAmount,
-    outAmount: secondLeg.inAmount,
-    otherAmountThreshold: secondLeg.inAmount,
-    ...compoundQuoteRisk(firstLeg, secondLeg),
-    provider: firstLeg.provider,
-  };
-}
-
-/**
- * Merge two leg quotes for a bridged LOOP (loop-deposit borrowing the bridge, then debt-swap bridge
- * → X). The user-facing quote maps new-debt-borrowed (second leg's *input*) → collateral-deposited
- * (first leg's *output*).
- */
-export function mergeBridgeQuotesLoop(
-  firstLeg: SwapQuoteResult,
-  secondLeg: SwapQuoteResult
-): SwapQuoteResult {
-  return {
-    inAmount: secondLeg.inAmount,
-    outAmount: firstLeg.outAmount,
-    otherAmountThreshold: firstLeg.otherAmountThreshold,
-    ...compoundQuoteRisk(firstLeg, secondLeg),
-    provider: firstLeg.provider,
-  };
-}
-
-/**
- * Compose an already-built first leg and a caller-built second leg into one atomic bridged-swap
- * bundle. Owns the flow-agnostic mechanics — first-leg-effect projection, separate-crank composition, and
- * quote merging (see module doc for the invariants). Returns null if the second leg can't be quoted or the
- * bundle doesn't fit; the caller treats that as "this bridge candidate didn't work, try the next".
- */
-export async function composeBridgedSwap(
-  params: ComposeBridgedSwapParams
-): Promise<ComposeBridgedSwapResult | null> {
-  const {
-    firstLeg,
-    buildSecondLeg,
-    marginfiAccount,
-    programAddress,
-    banksMap,
-    assetShareValueMultiplierByBank,
     feePayer,
-    maxBundleTxs = MAX_BRIDGED_BUNDLE_TXS,
-  } = params;
-
-  if (!firstLeg.quoteResponse) return null;
-
-  const projectedAccount = projectAccountAfterFirstLeg(
-    marginfiAccount,
-    classifyTxs(firstLeg.transactions).flashloans,
-    programAddress,
-    banksMap,
-    assetShareValueMultiplierByBank
-  );
-
-  const secondLeg = await buildSecondLeg(projectedAccount);
-  if (!secondLeg.quoteResponse) return null;
-
-  const transactions = composeBundle(
-    firstLeg.transactions,
-    secondLeg.transactions,
-    feePayer,
-    firstLeg.transactions[0].message.lifetimeConstraint,
-    maxBundleTxs
-  );
-  if (!transactions) return null;
-
-  return {
-    transactions,
-    firstLegQuote: firstLeg.quoteResponse,
-    secondLegQuote: secondLeg.quoteResponse,
-  };
+    txFormat,
+  }).map((message) => ({ message, type: TransactionType.CREATE_ATA }));
 }

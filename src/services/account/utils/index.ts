@@ -19,7 +19,6 @@ export * from "./transaction-projection.utils";
 export * from "./max-amounts.utils";
 export * from "./emode.utils";
 export * from "./flashloan-size.utils";
-export * from "./bridge.utils";
 export * from "./swap.utils";
 export * from "./ix-patch.utils";
 export * from "./fetch.utils";
