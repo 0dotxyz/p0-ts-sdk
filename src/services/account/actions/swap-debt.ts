@@ -25,7 +25,7 @@ import {
   tryBridgeCandidates,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
@@ -87,7 +87,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [

@@ -20,14 +20,14 @@ import { MarginfiAccountType } from "../types/account.types";
 import { computeQuantityUi, isCostlyBank } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
-import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
+import { makeCreateAccountIxWithProjection, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS, MAX_COSTLY_POSITIONS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_BALANCES, MAX_COSTLY_POSITIONS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
@@ -41,9 +41,6 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
-
-/** Fixed marginfi balance slots per account. */
-const MAX_BALANCES = 16;
 
 /** Default hard cap on positions moved in one transfer. Keeps the whole transfer inside one tx. */
 const DEFAULT_MAX_TRANSFER_POSITIONS = 5;
@@ -619,7 +616,7 @@ export async function makeTransferPositionsTx(
 
   // Setup ATAs for every transferred mint, then refresh integration reserves/rates. Both must land
   // before the flashloan (the withdraw legs send to these ATAs and read the refreshed state).
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: positions.map((p) => ({ mint: p.bank.mint, tokenProgram: p.tokenProgram })),

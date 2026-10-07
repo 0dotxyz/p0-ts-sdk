@@ -14,8 +14,8 @@ import expected from "../fixtures/lending-actions-v2.8.3.json";
 import accountFixtures from "../fixtures/mainnet-accounts.json";
 
 import {
-  makeCloseMarginfiAccountIx,
-  makeCreateMarginfiAccountIx,
+  makeCloseAccountIx,
+  makeCreateAccountIx,
 } from "~/services/account/actions/account-lifecycle";
 import { makeBorrowIx } from "~/services/account/actions/borrow";
 import { makeDepositIx } from "~/services/account/actions/deposit";
@@ -119,14 +119,14 @@ describe("lending action instructions", () => {
     juplendDeposit: () => makeDepositIx({ ...deposit, bank: banks.juplend, amount: 9 }),
     juplendWithdraw: () => makeWithdrawIx({ ...withdraw, bank: banks.juplend, amount: 2 }),
     createAccount: () =>
-      makeCreateMarginfiAccountIx({
+      makeCreateAccountIx({
         programAddress,
         authority,
         group,
         accountIndex: 4,
         thirdPartyId: 7,
       }),
-    closeAccount: () => makeCloseMarginfiAccountIx({ programAddress, marginfiAccount, authority }),
+    closeAccount: () => makeCloseAccountIx({ programAddress, marginfiAccount, authority }),
     beginFlashloan: () =>
       makeBeginFlashLoanIx(programAddress, marginfiAccount.address, 5, authority),
     endFlashloan: () =>

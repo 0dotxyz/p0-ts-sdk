@@ -28,6 +28,7 @@ import {
   MakeRollPtTxParams,
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
+  MakeTransferAccountTxParams,
   MakeTransferPositionsTxParams,
   MakeWithdrawIxOpts,
   MarginRequirementType,
@@ -305,23 +306,11 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Moves this account's positions to `newMarginfiAccount` (a fresh keypair signer) owned by
-   * `newAuthority`; `feePayer` defaults to the signer.
+   * Moves this account's positions to a new account owned by `newAuthority` and disables this one;
+   * `feePayer` defaults to the signer.
    */
-  async makeAccountTransferToNewAccountTx(
-    newMarginfiAccount: TransactionSigner,
-    newAuthority: Address,
-    feePayer?: TransactionSigner
-  ) {
-    return this.account.makeAccountTransferToNewAccountTx({
-      rpc: this.client.rpc,
-      txFormat: { version: 0, luts: {} },
-      programAddress: this.client.programAddress,
-      authority: this.signer,
-      newMarginfiAccount,
-      newAuthority,
-      feePayer,
-    });
+  async makeTransferAccountTx(params: Omit<MakeTransferAccountTxParams, ClientFilled>) {
+    return this.account.makeTransferAccountTx({ ...this.context, ...params });
   }
 
   /** Closes this (empty) account; the signer receives the rent. */

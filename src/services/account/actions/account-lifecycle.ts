@@ -1,40 +1,35 @@
-import {
-  assertAccountExists,
-  fetchEncodedAccount,
-  type Address,
-  type Instruction,
-  type TransactionSigner,
-} from "@solana/kit";
+import type { Instruction } from "@solana/kit";
 import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
-import { BigNumber } from "bignumber.js";
 
 import {
   AccountFlags,
-  HealthCacheStatus,
-  MakeAccountTransferToNewAccountTxParams,
+  AppendPremiumRefreshParams,
   MakeCloseAccountIxParams,
   MakeCloseAccountTxParams,
   MakeCreateAccountIxParams,
   MakeCreateAccountTxParams,
-  MakeSetupIxParams,
+  MakeCreateMissingAtaIxsParams,
+  MakePremiumRefreshIxsParams,
+  MakePulseHealthIxParams,
+  MakeTransferAccountIxParams,
+  MakeTransferAccountTxParams,
   MarginfiAccountType,
-  PremiumRefreshParams,
 } from "../types";
 import {
   computeHealthAccounts,
+  fetchGlobalFeeWallet,
   findRandomAvailableAccountIndex,
+  generateDummyMarginfiAccount,
   getActiveBalances,
   needsPremiumRefresh,
 } from "../utils";
 
-import { decodeFeeStateRaw } from "~/accounts";
-import { BUNDLE_TX_SIZE, DEFAULT_ADDRESS, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
+import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
-import { BankType } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   fitsInOneTransaction,
@@ -45,21 +40,13 @@ import {
   TransactionFormat,
   TransactionType,
 } from "~/services/transaction";
-import { deriveFeeState, deriveMarginfiAccount } from "~/utils";
+import { deriveMarginfiAccount } from "~/utils";
 
 /**
- * Creates an instruction to close a Marginfi account.
- *
- * Generates the instruction needed to close an existing Marginfi account and reclaim rent.
- * The account must have no active balances before it can be closed.
- *
- * @param params - Configuration object
- * @param params.programAddress - The marginfi program address
- * @param params.marginfiAccount - The Marginfi account to close
- * @param params.authority - The account authority; signs and receives the rent
- * @returns Instruction to close the account
+ * Closes `marginfiAccount` and returns its rent to the authority, who signs and pays. The program
+ * rejects the close while the account has active balances or is disabled.
  */
-export async function makeCloseMarginfiAccountIx({
+export async function makeCloseAccountIx({
   programAddress,
   marginfiAccount,
   authority,
@@ -72,33 +59,32 @@ export async function makeCloseMarginfiAccountIx({
 }
 
 /**
- * Creates a transaction to close a Marginfi account.
- *
- * Generates a complete transaction to close an existing Marginfi account and reclaim rent.
- * The account must have no active balances before it can be closed.
- *
- * @param params - Configuration object
- * @param params.rpc - RPC client, for the blockhash
- * @param params.programAddress - The marginfi program address
- * @param params.marginfiAccount - The Marginfi account to close
- * @param params.authority - The account authority; signs, pays and receives the rent
- * @returns Transaction to close the account
+ * Builds a close transaction around {@link makeCloseAccountIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ * @throws TransactionBuildingError (ACCOUNT_DISABLED) if the account is disabled, e.g. transferred
+ * @throws TransactionBuildingError (ACCOUNT_NOT_EMPTY) if the account has active balances
  */
-export async function makeCloseMarginfiAccountTx({
-  rpc,
-  txFormat,
-  ...closeIxParams
-}: MakeCloseAccountTxParams): Promise<SolanaTransaction> {
-  const closeIx = await makeCloseMarginfiAccountIx(closeIxParams);
-  const { value: latestBlockhash } = await rpc
-    .getLatestBlockhash({ commitment: "confirmed" })
-    .send();
+export async function makeCloseAccountTx(
+  params: MakeCloseAccountTxParams
+): Promise<SolanaTransaction> {
+  const { rpc, txFormat, latestBlockhash, ...closeIxParams } = params;
+  const { marginfiAccount } = params;
+  if (marginfiAccount.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED)) {
+    throw TransactionBuildingError.accountDisabled(marginfiAccount.address);
+  }
+  const activeBanks = getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  if (activeBanks.length > 0) {
+    throw TransactionBuildingError.accountNotEmpty(marginfiAccount.address, activeBanks);
+  }
+
+  const closeIx = await makeCloseAccountIx(closeIxParams);
 
   return {
     message: makeTransactionMessage({
       instructions: [closeIx],
-      feePayer: closeIxParams.authority,
-      latestBlockhash,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       txFormat,
     }),
     type: TransactionType.CLOSE_ACCOUNT,
@@ -106,64 +92,80 @@ export async function makeCloseMarginfiAccountTx({
 }
 
 /**
- * Creates a transaction to transfer a Marginfi account to a new authority.
- *
- * Migrates the account's positions into a brand-new account (`newMarginfiAccount`)
- * owned by `newAuthority`; the old account is left disabled. The new-account
- * keypair signs to create itself, the current authority signs to authorize, and
- * `feePayer` pays. `globalFeeWallet` is read from the program's fee state.
- *
- * @param params - Configuration object
- * @param params.rpc - RPC client, for the fee state and the blockhash
- * @param params.programAddress - The marginfi program address
- * @param params.marginfiAccount - The account being transferred
- * @param params.authority - The account's current authority
- * @param params.newMarginfiAccount - Signer for the freshly generated destination account
- * @param params.newAuthority - The wallet that will own the new account
- * @param params.feePayer - Optional. Pays rent/fees. Defaults to `authority`.
- * @returns Transaction to transfer the account
- * @throws if the program's fee state account doesn't exist
- * @throws TransactionBuildingError (ACCOUNT_DISABLED) when the account is disabled, e.g. already
- * transferred
+ * Moves `marginfiAccount`'s positions into a new account owned by `newAuthority`, at the PDA of
+ * (`group`, `newAuthority`, `accountIndex`, `thirdPartyId`), and disables the old account. The
+ * authority signs; `feePayer` pays the new account's rent and the program's flat transfer fee.
  */
-export async function makeAccountTransferToNewAccountTx({
-  rpc,
+export async function makeTransferAccountIx({
   programAddress,
   marginfiAccount,
   authority,
-  newMarginfiAccount,
   newAuthority,
+  accountIndex,
+  thirdPartyId,
   feePayer = authority,
-  txFormat,
-}: MakeAccountTransferToNewAccountTxParams): Promise<SolanaTransaction> {
-  if (marginfiAccount.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED)) {
-    throw TransactionBuildingError.accountDisabled(marginfiAccount.address);
-  }
+  globalFeeWallet,
+}: MakeTransferAccountIxParams): Promise<Instruction> {
+  const [newMarginfiAccount] = await deriveMarginfiAccount(
+    programAddress,
+    marginfiAccount.group,
+    newAuthority,
+    accountIndex,
+    thirdPartyId
+  );
 
-  const [feeStateAddress] = await deriveFeeState(programAddress);
-  const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
-  assertAccountExists(feeStateAccount);
-
-  const transferIx = await instructions.makeAccountTransferToNewAccountIx(programAddress, {
+  return instructions.makeAccountTransferToNewAccountPdaIx(programAddress, {
     group: marginfiAccount.group,
     oldMarginfiAccount: marginfiAccount.address,
     newMarginfiAccount,
     authority,
     feePayer,
     newAuthority,
-    globalFeeWallet: decodeFeeStateRaw(feeStateAccount.data).globalFeeWallet,
-    feeState: feeStateAddress,
+    globalFeeWallet,
+    accountIndex,
+    thirdPartyId: thirdPartyId ?? null,
   });
+}
 
-  const { value: latestBlockhash } = await rpc
-    .getLatestBlockhash({ commitment: "confirmed" })
-    .send();
+/**
+ * Builds a transfer transaction around {@link makeTransferAccountIx}, reading the global fee
+ * wallet from the program's fee state. Without `accountIndex` a random free index under
+ * `newAuthority` is picked via `rpc`. `feePayer` pays; `latestBlockhash` is fetched when omitted.
+ * @throws TransactionBuildingError (ACCOUNT_DISABLED) if the account is disabled, e.g. already
+ * transferred
+ * @throws if the program's fee state account doesn't exist
+ * @throws Error if `accountIndex` is omitted and no free index is found
+ */
+export async function makeTransferAccountTx(
+  params: MakeTransferAccountTxParams
+): Promise<SolanaTransaction> {
+  const { rpc, txFormat, latestBlockhash, accountIndex, ...transferIxParams } = params;
+  const { programAddress, marginfiAccount, newAuthority, thirdPartyId } = params;
+  const feePayer = params.feePayer ?? params.authority;
+  if (marginfiAccount.accountFlags.includes(AccountFlags.ACCOUNT_DISABLED)) {
+    throw TransactionBuildingError.accountDisabled(marginfiAccount.address);
+  }
+
+  const transferIx = await makeTransferAccountIx({
+    ...transferIxParams,
+    accountIndex:
+      accountIndex ??
+      (await findRandomAvailableAccountIndex(
+        rpc,
+        programAddress,
+        marginfiAccount.group,
+        newAuthority,
+        thirdPartyId
+      )),
+    globalFeeWallet: await fetchGlobalFeeWallet(rpc, programAddress),
+  });
 
   return {
     message: makeTransactionMessage({
       instructions: [transferIx],
       feePayer,
-      latestBlockhash,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
       txFormat,
     }),
     type: TransactionType.TRANSFER_AUTH,
@@ -171,22 +173,9 @@ export async function makeAccountTransferToNewAccountTx({
 }
 
 /**
- * Creates a new Marginfi account transaction with a projected account instance.
- *
- * Generates a transaction to create a new Marginfi account and returns a projected account instance
- * that can be used for operations before the account actually exists on-chain.
- *
- * @param params - Configuration object
- * @param params.rpc - RPC client, for the blockhash and, without `accountIndex`, a free index
- * @param params.programAddress - The marginfi program address
- * @param params.authority - Owner of the new account; signs and pays
- * @param params.group - The Marginfi group address
- * @param params.txFormat - Message version, with the lookup tables for v0
- * @param params.latestBlockhash - Optional recent blockhash (fetched if not provided)
- * @param params.accountIndex - Optional index in the account PDA seeds; a random free one when
- * omitted
- * @param params.thirdPartyId - Optional third-party id in the account PDA seeds
- * @returns Object containing the projected account and creation transaction
+ * {@link makeCreateAccountTx} plus the new account as an empty account
+ * ({@link generateDummyMarginfiAccount}), to build further actions against before it exists
+ * on-chain.
  * @throws Error if `accountIndex` is omitted and no free index is found
  */
 export async function makeCreateAccountTxWithProjection(
@@ -210,24 +199,19 @@ export async function makeCreateAccountTxWithProjection(
   );
 
   return {
-    account: generateDummyAccount(params.group, params.authority.address, marginfiAccountAddress),
-    tx: await makeCreateMarginfiAccountTx({ ...params, accountIndex }),
+    account: generateDummyMarginfiAccount(
+      params.group,
+      params.authority.address,
+      marginfiAccountAddress
+    ),
+    tx: await makeCreateAccountTx({ ...params, accountIndex }),
   };
 }
 
 /**
- * Creates a new Marginfi account instruction with a projected account instance.
- *
- * Generates an instruction to create a new Marginfi account and returns a projected account instance
- * that can be used for operations before the account actually exists on-chain.
- *
- * @param params - Configuration object
- * @param params.programAddress - The marginfi program address
- * @param params.authority - Owner of the new account; signs and pays
- * @param params.group - The Marginfi group address
- * @param params.accountIndex - Index in the account PDA seeds
- * @param params.thirdPartyId - Optional third-party id in the account PDA seeds
- * @returns Object containing the projected account and creation instruction
+ * {@link makeCreateAccountIx} plus the new account as an empty account
+ * ({@link generateDummyMarginfiAccount}), to build further actions against before it exists
+ * on-chain.
  */
 export async function makeCreateAccountIxWithProjection(
   params: MakeCreateAccountIxParams
@@ -241,25 +225,29 @@ export async function makeCreateAccountIxWithProjection(
   );
 
   return {
-    account: generateDummyAccount(params.group, params.authority.address, marginfiAccountAddress),
-    ix: await makeCreateMarginfiAccountIx(params),
+    account: generateDummyMarginfiAccount(
+      params.group,
+      params.authority.address,
+      marginfiAccountAddress
+    ),
+    ix: await makeCreateAccountIx(params),
   };
 }
 
 /**
- * Builds a transaction around {@link makeCreateMarginfiAccountIx}. Without `accountIndex` a random
+ * Builds a create transaction around {@link makeCreateAccountIx}. Without `accountIndex` a random
  * free index is picked via `rpc`; use {@link makeCreateAccountTxWithProjection} to learn the new
  * account's address. The authority pays and signs; `latestBlockhash` is fetched when omitted.
  * @throws Error if `accountIndex` is omitted and no free index is found
  */
-export async function makeCreateMarginfiAccountTx({
+export async function makeCreateAccountTx({
   rpc,
   txFormat,
   latestBlockhash,
   accountIndex,
   ...createIxParams
 }: MakeCreateAccountTxParams): Promise<SolanaTransaction> {
-  const initMarginfiAccountIx = await makeCreateMarginfiAccountIx({
+  const createIx = await makeCreateAccountIx({
     ...createIxParams,
     accountIndex:
       accountIndex ??
@@ -274,7 +262,7 @@ export async function makeCreateMarginfiAccountTx({
 
   return {
     message: makeTransactionMessage({
-      instructions: [initMarginfiAccountIx],
+      instructions: [createIx],
       feePayer: createIxParams.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
@@ -288,7 +276,7 @@ export async function makeCreateMarginfiAccountTx({
  * Creates a marginfi account at its PDA (`group`, authority, `accountIndex`, `thirdPartyId`). The
  * authority owns the account, pays its rent and signs.
  */
-export async function makeCreateMarginfiAccountIx({
+export async function makeCreateAccountIx({
   programAddress,
   authority,
   group,
@@ -313,69 +301,63 @@ export async function makeCreateMarginfiAccountIx({
   });
 }
 
-export async function makeSetupIx({
+/**
+ * Creates the authority's associated token accounts for `tokens` that don't exist yet (one per
+ * mint), paid by the authority.
+ */
+export async function makeCreateMissingAtaIxs({
   rpc,
   authority,
   tokens,
-}: MakeSetupIxParams): Promise<Instruction[]> {
-  try {
-    // Filter out duplicate mints
-    const uniqueTokens = tokens.filter(
-      (token, index, self) => index === self.findIndex((t) => t.mint === token.mint)
-    );
+}: MakeCreateMissingAtaIxsParams): Promise<Instruction[]> {
+  const uniqueTokens = tokens.filter(
+    (token, index, self) => index === self.findIndex((t) => t.mint === token.mint)
+  );
 
-    const userAtas = await Promise.all(
-      uniqueTokens.map(
-        async ({ mint, tokenProgram }) =>
-          (await findAssociatedTokenPda({ mint, owner: authority.address, tokenProgram }))[0]
-      )
-    );
-    const { value: userAtaAis } = await rpc
-      .getMultipleAccounts(userAtas, { encoding: "base64" })
-      .send();
+  const userAtas = await Promise.all(
+    uniqueTokens.map(
+      async ({ mint, tokenProgram }) =>
+        (await findAssociatedTokenPda({ mint, owner: authority.address, tokenProgram }))[0]
+    )
+  );
+  const { value: userAtaAis } = await rpc
+    .getMultipleAccounts(userAtas, { encoding: "base64" })
+    .send();
 
-    return uniqueTokens.flatMap(({ mint, tokenProgram }, i) =>
-      userAtaAis[i] === null
-        ? [
-            getCreateAssociatedTokenIdempotentInstruction({
-              payer: authority,
-              ata: userAtas[i],
-              owner: authority.address,
-              mint,
-              tokenProgram,
-            }),
-          ]
-        : []
-    );
-  } catch (error) {
-    console.error("[makeSetupIx] Failed to create setup instructions:", error);
-    return [];
-  }
+  return uniqueTokens.flatMap(({ mint, tokenProgram }, i) =>
+    userAtaAis[i] === null
+      ? [
+          getCreateAssociatedTokenIdempotentInstruction({
+            payer: authority,
+            ata: userAtas[i],
+            owner: authority.address,
+            mint,
+            tokenProgram,
+          }),
+        ]
+      : []
+  );
 }
 
 /**
- * Refreshes `marginfiAccount`'s on-chain health cache from its active banks, plus
- * `mandatoryBanks` and minus `excludedBanks` (the positions an action in the same transaction
- * opens or closes).
+ * Refreshes `marginfiAccount`'s on-chain health cache from its active banks. Permissionless: no
+ * signer needed.
  * @throws Error if `bankMap` misses one of the banks
  */
-export async function makePulseHealthIx(
-  programAddress: Address,
-  marginfiAccount: MarginfiAccountType,
-  bankMap: Map<string, BankType>,
-  mandatoryBanks: Address[],
-  excludedBanks: Address[]
-): Promise<Instruction[]> {
-  const activeBanks = getActiveBalances(marginfiAccount.balances)
-    .map((b) => b.bankPk)
-    .filter((bank) => !excludedBanks.includes(bank));
-  const ix = await instructions.makePulseHealthIx(
+export async function makePulseHealthIx({
+  programAddress,
+  marginfiAccount,
+  bankMap,
+  opts = {},
+}: MakePulseHealthIxParams): Promise<Instruction> {
+  const activeBanks =
+    opts.activeBanks ?? getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+
+  return instructions.makePulseHealthIx(
     programAddress,
     { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group },
-    computeHealthAccounts(bankMap, [...activeBanks, ...mandatoryBanks])
+    computeHealthAccounts(bankMap, activeBanks)
   );
-
-  return [ix];
 }
 
 /**
@@ -385,19 +367,15 @@ export async function makePulseHealthIx(
  *
  * Best-effort: returns no instructions when a bank to refresh has no venue state in
  * `bankMetadataMap`, since `pulse_health` skips the premium write when a leg can't be priced.
- *
- * @param programAddress - The marginfi program address
- * @param state - The account (before the action), bank map and venue state
- * @param mandatoryBanks - Banks the action opens (the deposited bank)
- * @param excludedBanks - Banks the action closes (fully repaid banks)
- * @returns Instructions to append after the action
  */
-export async function makePremiumRefreshIxs(
-  programAddress: Address,
-  { marginfiAccount, bankMap, bankMetadataMap }: PremiumRefreshParams,
-  mandatoryBanks: Address[],
-  excludedBanks: Address[]
-): Promise<Instruction[]> {
+export async function makePremiumRefreshIxs({
+  programAddress,
+  marginfiAccount,
+  bankMap,
+  bankMetadataMap,
+  mandatoryBanks,
+  excludedBanks,
+}: MakePremiumRefreshIxsParams): Promise<Instruction[]> {
   let refreshIxs: Instruction[];
   try {
     refreshIxs = await makeRefreshIntegrationBanksIxs(
@@ -419,14 +397,19 @@ export async function makePremiumRefreshIxs(
     }
     throw error;
   }
-  const pulseIxs = await makePulseHealthIx(
+  const activeBanks = [
+    ...getActiveBalances(marginfiAccount.balances)
+      .map((b) => b.bankPk)
+      .filter((bank) => !excludedBanks.includes(bank)),
+    ...mandatoryBanks,
+  ];
+  const pulseIx = await makePulseHealthIx({
     programAddress,
     marginfiAccount,
     bankMap,
-    mandatoryBanks,
-    excludedBanks
-  );
-  return [...refreshIxs, ...pulseIxs];
+    opts: { activeBanks },
+  });
+  return [...refreshIxs, pulseIx];
 }
 
 /**
@@ -434,27 +417,12 @@ export async function makePremiumRefreshIxs(
  * one transaction, and picks the lookup tables to compile it with. The refresh is left out when
  * `opts.skipPremiumRefresh` is set, no premium-bearing debt remains, venue state is missing, or
  * it would push the transaction past its size limit or MAX_ACCOUNT_LOCKS.
- *
- * @param params - The builder's params: account (before the action), bank map, venue state,
- * acted-on bank, authority and transaction format
- * @param actionIxs - The action's instructions
- * @param mandatoryBanks - Banks the action opens (the deposited bank)
- * @param excludedBanks - Banks the action closes (fully repaid banks)
  * @returns The transaction's instructions and format (with the lookup tables it needs)
  */
 export async function appendPremiumRefresh(
-  params: PremiumRefreshParams & {
-    programAddress: Address;
-    bank: BankType;
-    authority: TransactionSigner;
-    txFormat: TransactionFormat;
-    opts?: { skipPremiumRefresh?: boolean };
-  },
-  actionIxs: Instruction[],
-  mandatoryBanks: Address[],
-  excludedBanks: Address[]
+  params: AppendPremiumRefreshParams
 ): Promise<{ instructions: Instruction[]; txFormat: TransactionFormat }> {
-  const { marginfiAccount, bankMap, bank, txFormat } = params;
+  const { actionIxs, marginfiAccount, bankMap, bank, txFormat, excludedBanks } = params;
   const actionOnly = { instructions: actionIxs, txFormat: selectLutsForBanks(txFormat, [bank]) };
   if (
     params.opts?.skipPremiumRefresh ||
@@ -463,12 +431,7 @@ export async function appendPremiumRefresh(
     return actionOnly;
   }
 
-  const premiumIxs = await makePremiumRefreshIxs(
-    params.programAddress,
-    params,
-    mandatoryBanks,
-    excludedBanks
-  );
+  const premiumIxs = await makePremiumRefreshIxs(params);
   const withPremium = {
     instructions: [...actionIxs, ...premiumIxs],
     txFormat: selectLutsForAccountAction(txFormat, bank, marginfiAccount.balances, bankMap),
@@ -484,41 +447,4 @@ export async function appendPremiumRefresh(
       maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
     });
   return fits ? withPremium : actionOnly;
-}
-
-export function generateDummyAccount(
-  group: Address,
-  authority: Address,
-  accountKey: Address
-): MarginfiAccountType {
-  // an empty account with 15 empty balances, to build transactions before it exists on-chain
-  return {
-    address: accountKey,
-    group,
-    authority,
-    balances: Array.from({ length: 15 }, () => ({
-      active: false,
-      bankPk: DEFAULT_ADDRESS,
-      tag: 0,
-      assetShares: new BigNumber(0),
-      liabilityShares: new BigNumber(0),
-      premiumRate: new BigNumber(0),
-      premiumOutstanding: new BigNumber(0),
-      lastUpdate: 0,
-    })),
-    accountFlags: [],
-    healthCache: {
-      assetValue: new BigNumber(0),
-      liabilityValue: new BigNumber(0),
-      assetValueMaint: new BigNumber(0),
-      liabilityValueMaint: new BigNumber(0),
-      assetValueEquity: new BigNumber(0),
-      liabilityValueEquity: new BigNumber(0),
-      timestamp: new BigNumber(0),
-      flags: [],
-      prices: [],
-      simulationStatus: HealthCacheStatus.UNSET,
-    },
-    activeOrders: 0,
-  };
 }

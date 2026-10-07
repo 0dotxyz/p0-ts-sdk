@@ -203,12 +203,12 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
       ? makeRefreshingIxs(kaminoAccounts.kaminoReserve, reserve, kaminoAccounts.kaminoObligation)
       : [];
 
-  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh(
-    params,
-    [...refreshIxs, ...depositIxs],
-    [bank.address],
-    []
-  );
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs: [...refreshIxs, ...depositIxs],
+    mandatoryBanks: [bank.address],
+    excludedBanks: [],
+  });
 
   return {
     message: makeTransactionMessage({

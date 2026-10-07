@@ -38,8 +38,6 @@ import {
   computeProjectedActiveBanksNoCpi,
   decodeMarginfiAccount,
   getBalance,
-  makeAccountTransferToNewAccountTx,
-  MakeAccountTransferToNewAccountTxParams,
   makeBeginFlashLoanIx,
   makeBorrowIx,
   MakeBorrowIxParams,
@@ -51,7 +49,7 @@ import {
   MakeBridgedSwapCollateralTxParams,
   makeBridgedSwapDebtTx,
   MakeBridgedSwapDebtTxParams,
-  makeCloseMarginfiAccountIx,
+  makeCloseAccountIx,
   makeCloseOrderIx,
   MakeCloseOrderIxParams,
   makeCloseOrderTx,
@@ -82,6 +80,8 @@ import {
   MakeSwapCollateralTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
+  makeTransferAccountTx,
+  MakeTransferAccountTxParams,
   makeTransferPositionsTx,
   MakeTransferPositionsTxParams,
   makeUpdateOrderTx,
@@ -376,15 +376,13 @@ class MarginfiAccount implements MarginfiAccountType {
     return makeFlashLoanTx({ ...params, marginfiAccount: this });
   }
 
-  async makeAccountTransferToNewAccountTx(
-    params: Omit<MakeAccountTransferToNewAccountTxParams, "marginfiAccount">
-  ) {
-    return makeAccountTransferToNewAccountTx({ ...params, marginfiAccount: this });
+  async makeTransferAccountTx(params: Omit<MakeTransferAccountTxParams, "marginfiAccount">) {
+    return makeTransferAccountTx({ ...params, marginfiAccount: this });
   }
 
   /** Closes this (empty) account; `authority` signs and receives the rent. */
   async makeCloseAccountIx(programAddress: Address, authority: TransactionSigner) {
-    return makeCloseMarginfiAccountIx({ programAddress, marginfiAccount: this, authority });
+    return makeCloseAccountIx({ programAddress, marginfiAccount: this, authority });
   }
 
   /**
@@ -392,7 +390,7 @@ class MarginfiAccount implements MarginfiAccountType {
    * @throws Error if `bankMap` misses one of the account's active banks
    */
   async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
-    return makePulseHealthIx(programAddress, this, bankMap, [], []);
+    return makePulseHealthIx({ programAddress, marginfiAccount: this, bankMap });
   }
 
   async makePlaceOrderIx(params: Omit<MakePlaceOrderIxParams, "marginfiAccount">) {

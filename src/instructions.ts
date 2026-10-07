@@ -28,7 +28,7 @@ import {
   getMarginfiAccountInitializePdaInstruction,
   getMarginfiAccountPlaceOrderInstructionAsync,
   getMarginfiGroupInitializeInstructionAsync,
-  getTransferToNewAccountInstructionAsync,
+  getTransferToNewAccountPdaInstructionAsync,
   parseMarginfiInstruction,
   type BankConfigCompactArgs,
   type DriftDepositAsyncInput,
@@ -59,7 +59,7 @@ import {
   type MarginfiAccountPlaceOrderAsyncInput,
   type MarginfiGroupInitializeAsyncInput,
   type ParsedMarginfiInstruction,
-  type TransferToNewAccountAsyncInput,
+  type TransferToNewAccountPdaAsyncInput,
 } from "./generated/marginfi";
 
 import { TOKEN_2022_PROGRAM_ID } from "~/constants";
@@ -297,12 +297,15 @@ async function makeEndFlashLoanIx(
   );
 }
 
-/** Moves the account's positions to `newMarginfiAccount` owned by `newAuthority`. */
-async function makeAccountTransferToNewAccountIx(
+/**
+ * Moves the account's positions to `newMarginfiAccount`, the PDA of (`group`, `newAuthority`,
+ * `accountIndex`, `thirdPartyId`), and disables the old account; derives the fee state.
+ */
+async function makeAccountTransferToNewAccountPdaIx(
   programAddress: Address,
-  input: TransferToNewAccountAsyncInput
+  input: TransferToNewAccountPdaAsyncInput
 ): Promise<Instruction> {
-  return getTransferToNewAccountInstructionAsync(input, { programAddress });
+  return getTransferToNewAccountPdaInstructionAsync(input, { programAddress });
 }
 
 /** Initializes a marginfi group; `marginfiGroup` and `admin` must sign. */
@@ -475,7 +478,7 @@ const instructions = {
   makePoolConfigureBankGovIx,
   makeBeginFlashLoanIx,
   makeEndFlashLoanIx,
-  makeAccountTransferToNewAccountIx,
+  makeAccountTransferToNewAccountPdaIx,
   makeGroupInitIx,
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,

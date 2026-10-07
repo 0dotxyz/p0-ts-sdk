@@ -34,7 +34,7 @@ import {
   isDepositIx,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
@@ -135,7 +135,7 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
   // fixed `merge` account — validated as an initialized token account even post-maturity, when no
   // YT is actually moved), the shared SY (merge dst + trade src), and the new PT (trade dest +
   // deposit source). No base, and no YT *byproduct* — the YT ATA just has to exist.
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [

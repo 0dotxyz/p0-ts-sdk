@@ -26,7 +26,7 @@ import {
   findRandomAvailableAccountIndex,
   getEmodePairs,
   makeCreateAccountIxWithProjection,
-  makeCreateMarginfiAccountTx,
+  makeCreateAccountTx,
 } from "~/services/account";
 import {
   AssetTag,
@@ -105,7 +105,7 @@ export class Project0Client {
     accountIndex?: number,
     thirdPartyId?: number
   ) {
-    return makeCreateMarginfiAccountTx({
+    return makeCreateAccountTx({
       rpc: this.rpc,
       programAddress: this.programAddress,
       authority,

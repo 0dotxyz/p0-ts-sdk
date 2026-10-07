@@ -3,7 +3,7 @@ import type { Address, Instruction } from "@solana/kit";
 import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } from "../types";
 import { computeQuantityUi, needsPremiumRefresh } from "../utils";
 
-import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
+import { makeCreateMissingAtaIxs, makePremiumRefreshIxs } from "./account-lifecycle";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -128,7 +128,7 @@ export async function makeBulkWithdrawTx(
 
   // Prelude: ATAs for every withdrawn mint, then one shared integration-refresh
   // tx for the whole batch (see the atomic-bundle note in the doc comment).
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: setupTokens,
@@ -206,12 +206,14 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
 
   const premiumIxs =
     !params.skipPremiumRefresh && needsPremiumRefresh(marginfiAccount, bankMap, bankAddresses)
-      ? await makePremiumRefreshIxs(
+      ? await makePremiumRefreshIxs({
           programAddress,
-          { marginfiAccount, bankMap, bankMetadataMap: params.bankMetadataMap },
-          [],
-          bankAddresses
-        )
+          marginfiAccount,
+          bankMap,
+          bankMetadataMap: params.bankMetadataMap,
+          mandatoryBanks: [],
+          excludedBanks: bankAddresses,
+        })
       : [];
 
   const { value: latestBlockhash } = await rpc

@@ -25,6 +25,7 @@ import {
   MARGINFI_ACCOUNT_DISCRIMINATOR,
   ORDER_DISCRIMINATOR,
 } from "~/accounts";
+import { MAX_BALANCES } from "~/constants";
 import { deriveFeeState, deriveMarginfiAccount, wrappedI80F48toBigNumber } from "~/utils";
 
 const DISCRIMINATOR_FILTER: GetProgramAccountsMemcmpFilter = {
@@ -75,7 +76,6 @@ const GROUP_OFFSET = 8n; // after the 8-byte discriminator
 const BALANCES_OFFSET = 72; // 8 discriminator + 32 group + 32 authority
 const BALANCE_SIZE = 104; // one Balance struct (repr(C), align 8)
 const BANK_PK_OFFSET_IN_BALANCE = 1; // active: u8 at +0, bankPk: pubkey at +1
-const MAX_BALANCES = 16; // LendingAccount holds a fixed [Balance; 16]
 
 /**
  * Scans the group for every marginfi account holding `bank` in one of its 16 balance slots.

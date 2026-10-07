@@ -20,6 +20,7 @@ export enum TransactionBuildingErrorCode {
   ORDER_INVALID_SLIPPAGE = "ORDER_INVALID_SLIPPAGE",
   COSTLY_POSITION_LIMIT_EXCEEDED = "COSTLY_POSITION_LIMIT_EXCEEDED",
   ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
+  ACCOUNT_NOT_EMPTY = "ACCOUNT_NOT_EMPTY",
 }
 
 /**
@@ -117,6 +118,10 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.ACCOUNT_DISABLED]: {
     accountAddress: string;
+  };
+  [TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY]: {
+    accountAddress: string;
+    activeBanks: string[];
   };
 }
 
@@ -387,6 +392,20 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.ACCOUNT_DISABLED,
       `Account ${accountAddress} is disabled`,
       { accountAddress }
+    );
+  }
+
+  /**
+   * The marginfi account still has active balances, so it can't be closed.
+   */
+  static accountNotEmpty(
+    accountAddress: string,
+    activeBanks: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY,
+      `Account ${accountAddress} has ${activeBanks.length} active balances`,
+      { accountAddress, activeBanks }
     );
   }
 

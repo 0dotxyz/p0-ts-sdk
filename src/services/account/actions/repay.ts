@@ -29,7 +29,7 @@ import {
   compileFlashloanPrecheck,
 } from "../utils";
 
-import { appendPremiumRefresh, makeSetupIx } from "./account-lifecycle";
+import { appendPremiumRefresh, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -105,12 +105,12 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
   const { rpc, txFormat, latestBlockhash, ...repayIxParams } = params;
 
   const repayIxs = await makeRepayIx(repayIxParams);
-  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh(
-    params,
-    repayIxs,
-    [],
-    params.repayAll ? [params.bank.address] : []
-  );
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs: repayIxs,
+    mandatoryBanks: [],
+    excludedBanks: params.repayAll ? [params.bank.address] : [],
+  });
 
   return {
     message: makeTransactionMessage({
@@ -151,7 +151,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [

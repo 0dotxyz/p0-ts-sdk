@@ -413,15 +413,17 @@ const cases: Record<string, () => Promise<Instruction>> = {
       { marginfiAccount, group, authority },
       remaining
     ),
-  makeAccountTransferToNewAccountIx: () =>
-    instructions.makeAccountTransferToNewAccountIx(programAddress, {
+  makeAccountTransferToNewAccountPdaIx: () =>
+    instructions.makeAccountTransferToNewAccountPdaIx(programAddress, {
       group,
       oldMarginfiAccount: marginfiAccount,
-      newMarginfiAccount: signer(60),
+      newMarginfiAccount: key(60),
       authority,
       feePayer,
       newAuthority: key(61),
       globalFeeWallet: key(62),
+      accountIndex: 3,
+      thirdPartyId: null,
     }),
   makeGroupInitIx: () =>
     instructions.makeGroupInitIx(programAddress, { marginfiGroup: signer(1), admin: authority }),

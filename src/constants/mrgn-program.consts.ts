@@ -15,6 +15,8 @@ export const PREMIUM_ACTIVE_FLAG: number = 1 << 13;
 export const KAMINO_MARKET_EMERGENCY_FLAG: number = 1 << 14;
 /** Max integration (Kamino, Drift, Solend, JupLend) + staked positions one account can open (0.1.12) */
 export const MAX_COSTLY_POSITIONS = 4;
+/** Fixed balance slots per marginfi account (`LendingAccount.balances: [Balance; 16]`) */
+export const MAX_BALANCES = 16;
 
 // Program keys
 export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");

@@ -1,11 +1,11 @@
 import { unwrapOption, type Address, type Instruction, type Option } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType, MarginfiAccountType } from "../types";
+import { BalanceType, HealthCacheStatus, MarginfiAccountType } from "../types";
 
 import { computeBalancePremium } from "./premium.utils";
 
-import { DEFAULT_ADDRESS } from "~/constants";
+import { DEFAULT_ADDRESS, MAX_BALANCES } from "~/constants";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 import { requireBank } from "~/services/bank/utils/lookup.utils";
@@ -510,5 +510,49 @@ export function computeProjectedActiveBalancesNoCpi({
     impactedAssetsBanks: Array.from(impactedAssetsBanks),
     impactedLiabilityBanks: Array.from(impactedLiabilityBanks),
     withdrawnBanks: Array.from(withdrawnBanks),
+  };
+}
+
+/**
+ * An empty marginfi account (no active balances, zeroed health cache, no flags), used as the
+ * projected account for transactions built before the account exists on-chain.
+ * @param group - The marginfi group the account belongs to
+ * @param authority - The account's authority
+ * @param accountKey - The account address (its PDA)
+ * @returns The empty account
+ */
+export function generateDummyMarginfiAccount(
+  group: Address,
+  authority: Address,
+  accountKey: Address
+): MarginfiAccountType {
+  return {
+    address: accountKey,
+    group,
+    authority,
+    balances: Array.from({ length: MAX_BALANCES }, () => ({
+      active: false,
+      bankPk: DEFAULT_ADDRESS,
+      tag: 0,
+      assetShares: new BigNumber(0),
+      liabilityShares: new BigNumber(0),
+      premiumRate: new BigNumber(0),
+      premiumOutstanding: new BigNumber(0),
+      lastUpdate: 0,
+    })),
+    accountFlags: [],
+    healthCache: {
+      assetValue: new BigNumber(0),
+      liabilityValue: new BigNumber(0),
+      assetValueMaint: new BigNumber(0),
+      liabilityValueMaint: new BigNumber(0),
+      assetValueEquity: new BigNumber(0),
+      liabilityValueEquity: new BigNumber(0),
+      timestamp: new BigNumber(0),
+      flags: [],
+      prices: [],
+      simulationStatus: HealthCacheStatus.UNSET,
+    },
+    activeOrders: 0,
   };
 }

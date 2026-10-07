@@ -288,7 +288,11 @@ export async function simulateAccountHealthCache(params: {
     bankIntegrationMap ?? {}
   );
 
-  const healthPulseIxs = await makePulseHealthIx(programAddress, marginfiAccount, banksMap, [], []);
+  const healthPulseIx = await makePulseHealthIx({
+    programAddress,
+    marginfiAccount,
+    bankMap: banksMap,
+  });
 
   const additionalTx = makeTransactionMessage({
     instructions: [
@@ -304,7 +308,7 @@ export async function simulateAccountHealthCache(params: {
   });
 
   const healthTx = makeTransactionMessage({
-    instructions: [computeIx, ...healthPulseIxs],
+    instructions: [computeIx, healthPulseIx],
     feePayer: authority,
     latestBlockhash,
     txFormat: { version: 0, luts: {} },

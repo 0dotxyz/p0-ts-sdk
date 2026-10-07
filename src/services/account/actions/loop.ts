@@ -33,7 +33,7 @@ import {
   tryBridgeCandidates,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { composeBridgedSwap, mergeBridgeQuotesLoop } from "./bridge-swap";
 import { makeDepositIx } from "./deposit";
@@ -78,8 +78,7 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  // Setup Ata's if needed for borrow & deposit tokens
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [

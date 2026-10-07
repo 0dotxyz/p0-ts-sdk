@@ -53,7 +53,7 @@ vi.mock("~/services/account/utils", async (importActual) => ({
 }));
 
 vi.mock("~/services/account/actions/account-lifecycle", () => ({
-  makeSetupIx: async () => store.setupIxs,
+  makeCreateMissingAtaIxs: async () => store.setupIxs,
 }));
 
 vi.mock("~/services/account/actions/withdraw", () => ({

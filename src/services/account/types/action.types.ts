@@ -139,6 +139,25 @@ export interface PremiumRefreshParams {
   bankMetadataMap: BankIntegrationMetadataMap;
 }
 
+export interface MakePremiumRefreshIxsParams extends PremiumRefreshParams {
+  programAddress: Address;
+  /** Banks the action opens (the deposited bank) */
+  mandatoryBanks: Address[];
+  /** Banks the action closes (fully repaid banks) */
+  excludedBanks: Address[];
+}
+
+export interface AppendPremiumRefreshParams extends MakePremiumRefreshIxsParams {
+  /** The action's instructions */
+  actionIxs: Instruction[];
+  /** The acted-on bank */
+  bank: BankType;
+  /** Pays the transaction */
+  authority: TransactionSigner;
+  txFormat: TransactionFormat;
+  opts?: { skipPremiumRefresh?: boolean };
+}
+
 export interface MakeDepositTxParams
   extends MakeDepositIxParams, ActionTxParams, PremiumRefreshParams {
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -226,13 +245,18 @@ export interface MakeBorrowIxParams {
 
 export interface MakeBorrowTxParams extends MakeBorrowIxParams, AccountActionTxParams {}
 
+export interface MakeCreateAccountIxOpts {}
+
 export interface MakeCreateAccountIxParams {
   programAddress: Address;
-  /** Owner of the new account; also pays its rent. */
+  /** Owner of the new account; signs and pays its rent. */
   authority: TransactionSigner;
   group: Address;
+  /** Index in the account PDA seeds */
   accountIndex: number;
+  /** Third-party id in the account PDA seeds (default 0) */
   thirdPartyId?: number;
+  opts?: MakeCreateAccountIxOpts;
 }
 
 export interface MakeCreateAccountTxParams
@@ -242,31 +266,59 @@ export interface MakeCreateAccountTxParams
   accountIndex?: number;
 }
 
+export interface MakeCloseAccountIxOpts {}
+
 export interface MakeCloseAccountIxParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs, pays and receives the rent. */
   authority: TransactionSigner;
+  opts?: MakeCloseAccountIxOpts;
 }
 
-export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams {
-  rpc: Rpc<GetLatestBlockhashApi>;
-  txFormat: TransactionFormat;
-}
+export interface MakeCloseAccountTxParams extends MakeCloseAccountIxParams, ActionTxParams {}
 
-export interface MakeAccountTransferToNewAccountTxParams {
-  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
-  txFormat: TransactionFormat;
+export interface MakeTransferAccountIxOpts {}
+
+export interface MakeTransferAccountIxParams {
   programAddress: Address;
-  /** The account being transferred. */
+  /** The account being transferred; it is left disabled. */
   marginfiAccount: MarginfiAccountType;
-  /** The account's current authority. */
+  /** The account's current authority; signs. */
   authority: TransactionSigner;
-  /** Freshly generated keypair for the destination account; must sign. */
-  newMarginfiAccount: TransactionSigner;
   /** The wallet that will own the new account. */
   newAuthority: Address;
-  /** Pays rent/fees. Defaults to `authority`. */
+  /** Index in the new account's PDA seeds (with `newAuthority`) */
+  accountIndex: number;
+  /** Third-party id in the new account's PDA seeds (default 0) */
+  thirdPartyId?: number;
+  /** Pays the new account's rent and the flat transfer fee. Defaults to `authority`. */
   feePayer?: TransactionSigner;
+  /** Global fee wallet from the program's `FeeState`. */
+  globalFeeWallet: Address;
+  opts?: MakeTransferAccountIxOpts;
+}
+
+export interface MakeTransferAccountTxParams
+  extends Omit<MakeTransferAccountIxParams, "globalFeeWallet" | "accountIndex">, ActionTxParams {
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
+  /** Index in the new account's PDA seeds; a free one is picked via `rpc` when omitted. */
+  accountIndex?: number;
+}
+
+export interface MakePulseHealthIxOpts {
+  /**
+   * The account's active banks when this instruction runs, if earlier instructions in the
+   * transaction or bundle change them (default: the account's active banks).
+   */
+  activeBanks?: Address[];
+}
+
+export interface MakePulseHealthIxParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  bankMap: Map<string, BankType>;
+  opts?: MakePulseHealthIxOpts;
 }
 
 export interface TransactionBuilderResult {
@@ -635,7 +687,7 @@ export interface MakeSwapDebtTxParams {
   swapEngineRunner?: SwapEngineRunner;
 }
 
-export interface MakeSetupIxParams {
+export interface MakeCreateMissingAtaIxsParams {
   rpc: Rpc<GetMultipleAccountsApi>;
   authority: TransactionSigner;
   tokens: {

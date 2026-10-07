@@ -1,8 +1,8 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`marginfi instruction wire format > makeAccountTransferToNewAccountIx 1`] = `
+exports[`marginfi instruction wire format > makeAccountTransferToNewAccountPdaIx 1`] = `
 {
-  "data": "1c4f81e7a9454541",
+  "data": "acd2e0dc92d4fd31030000",
   "keys": [
     [
       "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
@@ -16,7 +16,7 @@ exports[`marginfi instruction wire format > makeAccountTransferToNewAccountIx 1`
     ],
     [
       "548jb4wcUtpbNS1TAva8TXJmeXd5QpCCXUzNVogwpzMR",
-      true,
+      false,
       true,
     ],
     [
@@ -41,6 +41,11 @@ exports[`marginfi instruction wire format > makeAccountTransferToNewAccountIx 1`
     ],
     [
       "L5cHh2ZTRJmRVcH9VAf9xguvnqnsyZbRarYtUXHR1Xg",
+      false,
+      false,
+    ],
+    [
+      "Sysvar1nstructions1111111111111111111111111",
       false,
       false,
     ],
