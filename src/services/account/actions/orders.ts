@@ -26,7 +26,6 @@ import {
   ExtendedV0Transaction,
   fitsInOneTransaction,
   InstructionsWrapper,
-  splitInstructionsToFitTransactions,
   TransactionType,
 } from "~/services/transaction";
 import { MarginfiProgram, OrderTrigger } from "~/types";
@@ -281,22 +280,34 @@ export async function prependOrderCloses(
 }
 
 /**
- * Builds the transactions that close `ordersToClose`, then place `placeOrder`, after a
+ * Builds the transaction that closes `ordersToClose`, then places `placeOrder`, after a
  * multi-transaction action, to send in the same atomic bundle. Also adds order changes to an
  * action built earlier without rebuilding it, e.g. a loop's take-profit / stop-loss set after its
  * quote.
  *
  * @param params - The account, the orders to close, the order to place and the lookup tables
- * @returns The transactions to run after the action, none when there's nothing to change
- * @throws {TransactionBuildingError} `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an
- *   invalid `placeOrder.trigger`
+ * @returns The transaction to run after the action, none when there's nothing to change
+ * @throws {TransactionBuildingError} `ORDER_CLOSES_DONT_FIT` if the changes don't fit in one
+ *   transaction; `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an invalid
+ *   `placeOrder.trigger`
  */
-export async function makeOrderChangesTxs(
+export async function makeOrderChangesTx(
   params: MakeOrderChangesTxParams
-): Promise<ExtendedV0Transaction[]> {
+): Promise<ExtendedV0Transaction | undefined> {
   const { program, marginfiAccount, ordersToClose = [], placeOrder, luts } = params;
   const ixs = await makeOrderChangesIxs(params);
-  if (ixs.length === 0) return [];
+  if (ixs.length === 0) return undefined;
+  if (
+    !fitsInOneTransaction(ixs, {
+      payerKey: marginfiAccount.authority,
+      luts,
+      ...SEND_PIPELINE_MARGINS,
+    })
+  ) {
+    throw TransactionBuildingError.orderClosesDontFit(
+      ordersToClose.map((order) => order.toBase58())
+    );
+  }
 
   let type = TransactionType.CLOSE_ORDER;
   if (placeOrder) {
@@ -308,14 +319,5 @@ export async function makeOrderChangesTxs(
       ? TransactionType.UPDATE_ORDER
       : TransactionType.PLACE_ORDER;
   }
-  const blockhash =
-    params.blockhash ??
-    (await params.connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
-
-  return splitInstructionsToFitTransactions([], ixs, {
-    blockhash,
-    payerKey: marginfiAccount.authority,
-    luts,
-    ...SEND_PIPELINE_MARGINS,
-  }).map((tx) => addTransactionMetadata(tx, { type, addressLookupTables: luts }));
+  return compileOrderTx(params, marginfiAccount.authority, [{ instructions: ixs, keys: [] }], type);
 }

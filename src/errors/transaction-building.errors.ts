@@ -382,16 +382,17 @@ export class TransactionBuildingError<
   }
 
   /**
-   * Closing the orders an action touches doesn't fit in the action's transaction. Single-transaction
-   * builders throw rather than leave the closes out, since an order on a changed position can still
-   * fire: close the orders on their own first, then retry the action.
+   * Closing the orders an action touches doesn't fit in one transaction: next to the action, or in
+   * the one order transaction after a multi-transaction action. Builders throw rather than leave the
+   * closes out, since an order on a changed position can still fire: close the orders on their own
+   * first, then retry the action.
    */
   static orderClosesDontFit(
     orderAddresses: string[]
   ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT> {
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT,
-      `Closing ${orderAddresses.length} order(s) doesn't fit in the action's transaction`,
+      `Closing ${orderAddresses.length} order(s) doesn't fit in one transaction`,
       { orderAddresses }
     );
   }

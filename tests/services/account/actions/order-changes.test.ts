@@ -21,7 +21,7 @@ import {
   makeBorrowTx,
   makeBulkRepayTx,
   makeDepositTx,
-  makeOrderChangesTxs,
+  makeOrderChangesTx,
   makeRepayTx,
   makeRepayWithCollatTx,
   MarginfiAccountType,
@@ -321,7 +321,7 @@ describe("multi-transaction builders", () => {
   });
 });
 
-describe("makeOrderChangesTxs", () => {
+describe("makeOrderChangesTx", () => {
   const pair = { collateralBank: sol.address, debtBank: usdc.address };
   const placeOrder = {
     ...pair,
@@ -333,7 +333,7 @@ describe("makeOrderChangesTxs", () => {
     pair.debtBank,
   ]);
   const changes = (params: { ordersToClose?: PublicKey[]; place?: boolean }) =>
-    makeOrderChangesTxs({
+    makeOrderChangesTx({
       program,
       marginfiAccount: holder,
       ordersToClose: params.ordersToClose,
@@ -344,7 +344,7 @@ describe("makeOrderChangesTxs", () => {
 
   it("builds nothing, and fetches nothing, without changes", async () => {
     const offline = { getLatestBlockhashAndContext: vi.fn() } as unknown as Connection;
-    const txs = await makeOrderChangesTxs({
+    const tx = await makeOrderChangesTx({
       program,
       marginfiAccount: holder,
       ordersToClose: [],
@@ -352,26 +352,35 @@ describe("makeOrderChangesTxs", () => {
       luts: [],
     });
 
-    expect(txs).toEqual([]);
+    expect(tx).toBeUndefined();
     expect(offline.getLatestBlockhashAndContext).not.toHaveBeenCalled();
   });
 
   it("closes, then places, as an update when the pair's own order is among the closes", async () => {
-    const txs = await changes({ ordersToClose: [PublicKey.unique(), pairOrder], place: true });
-    const data = ixData(txs[0]);
+    const tx = await changes({ ordersToClose: [PublicKey.unique(), pairOrder], place: true });
+    const data = ixData(tx!);
 
-    expect(txs).toHaveLength(1);
-    expect(txs[0].type).toBe(TransactionType.UPDATE_ORDER);
+    expect(tx?.type).toBe(TransactionType.UPDATE_ORDER);
     expect(data.slice(0, 2).every(isClose)).toBe(true);
     expect(isPlace(data[2])).toBe(true);
   });
 
   it("tags a placement on a new pair and closes alone by what they do", async () => {
-    const [placed] = await changes({ ordersToClose: [PublicKey.unique()], place: true });
-    const [closed] = await changes({ ordersToClose: [PublicKey.unique()] });
+    const placed = await changes({ ordersToClose: [PublicKey.unique()], place: true });
+    const closed = await changes({ ordersToClose: [PublicKey.unique()] });
 
-    expect(placed.type).toBe(TransactionType.PLACE_ORDER);
-    expect(closed.type).toBe(TransactionType.CLOSE_ORDER);
+    expect(placed?.type).toBe(TransactionType.PLACE_ORDER);
+    expect(closed?.type).toBe(TransactionType.CLOSE_ORDER);
+  });
+
+  it("throws ORDER_CLOSES_DONT_FIT rather than spill into a second transaction", async () => {
+    const error = await changes({ ordersToClose: orders(30), place: true }).catch(
+      (e: unknown) => e
+    );
+
+    expect((error as TransactionBuildingError).code).toBe(
+      TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT
+    );
   });
 });
 

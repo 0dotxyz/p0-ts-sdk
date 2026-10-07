@@ -26,7 +26,7 @@ import {
 
 import { appendPremiumRefresh, makeSetupIx } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
-import { makeOrderChangesTxs, prependOrderCloses } from "./orders";
+import { makeOrderChangesTx, prependOrderCloses } from "./orders";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
@@ -270,18 +270,19 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     payerKey: marginfiAccount.authority,
     luts: addressLookupTableAccounts ?? [],
   });
-  const orderTxs = await makeOrderChangesTxs({
+  const orderTx = await makeOrderChangesTx({
     ...params,
     luts: addressLookupTableAccounts ?? [],
     blockhash,
   });
 
-  const transactions = [...additionalTxs, flashloanTx, ...orderTxs];
+  const transactions = [...additionalTxs, flashloanTx];
+  if (orderTx) transactions.push(orderTx);
   return {
     transactions,
     swapQuote,
     amountToRepay,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0 || orderTxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 

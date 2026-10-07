@@ -35,7 +35,7 @@ import {
   makeKaminoDepositIx,
 } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
-import { makeOrderChangesTxs } from "./orders";
+import { makeOrderChangesTx } from "./orders";
 import {
   makeDriftWithdrawIx,
   makeJuplendWithdrawIx,
@@ -152,19 +152,20 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     payerKey: marginfiAccount.authority,
     luts: addressLookupTableAccounts ?? [],
   });
-  const orderTxs = await makeOrderChangesTxs({
+  const orderTx = await makeOrderChangesTx({
     ...params,
     luts: addressLookupTableAccounts ?? [],
     blockhash,
   });
 
-  const transactions = [...additionalTxs, flashloanTx, ...orderTxs];
+  const transactions = [...additionalTxs, flashloanTx];
+  if (orderTx) transactions.push(orderTx);
 
   return {
     transactions,
     actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0 || orderTxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 
@@ -619,7 +620,7 @@ async function tryBridgedCollateralSwap(
     bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
   });
 
-  const orderTxs = await makeOrderChangesTxs({
+  const orderTx = await makeOrderChangesTx({
     ...params,
     luts: params.addressLookupTableAccounts ?? [],
   });
@@ -690,12 +691,12 @@ async function tryBridgedCollateralSwap(
         assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
         feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
         maxBundleTxs: bridgeOpts?.maxBundleTxs,
-        reservedTxs: orderTxs.length,
+        reservedTxs: orderTx ? 1 : 0,
       });
       if (!result) return null;
 
       return {
-        transactions: [...result.transactions, ...orderTxs],
+        transactions: orderTx ? [...result.transactions, orderTx] : result.transactions,
         actionTxIndex: result.transactions.length - 1,
         quoteResponse: mergeBridgeQuotes(result.firstLegQuote, result.secondLegQuote),
         bridgeMint: bridgeBank.mint,

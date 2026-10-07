@@ -177,9 +177,9 @@ export interface PremiumRefreshParams {
 /**
  * Orders a transaction builder closes with its action, e.g. every order on a bank the action
  * touches: an order covers its two balances in full, so it mustn't fire on the changed position.
- * The single-transaction builders put the closes in front of the action and throw
- * `ORDER_CLOSES_DONT_FIT` when they don't fit; the others return them with the action and set
- * `mustBeAtomicBundle` when the two span more than one transaction.
+ * Single-transaction builders put the closes in front of the action and flashloan builders in one
+ * transaction after it, throwing `ORDER_CLOSES_DONT_FIT` when they don't fit; bulk builders pack
+ * them in with the action. A result of more than one transaction sets `mustBeAtomicBundle`.
  */
 export interface OrderChangesParams {
   /** Order PDAs to close (see `deriveOrderPda`) */

@@ -21,7 +21,7 @@ import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecy
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
-import { makeOrderChangesTxs } from "./orders";
+import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
 
@@ -724,22 +724,22 @@ export async function makeTransferPositionsTx(
     payerKey: accountA.authority,
     luts: luts,
   });
-  const orderTxs = [
-    ...(await makeOrderChangesTxs({ ...params, luts, blockhash })),
-    ...(await makeOrderChangesTxs({
-      ...params,
-      marginfiAccount: accountB,
-      ordersToClose: params.destinationOrdersToClose,
-      luts,
-      blockhash,
-    })),
-  ];
+  const sourceOrderTx = await makeOrderChangesTx({ ...params, luts, blockhash });
+  const destinationOrderTx = await makeOrderChangesTx({
+    ...params,
+    marginfiAccount: accountB,
+    ordersToClose: params.destinationOrdersToClose,
+    luts,
+    blockhash,
+  });
 
-  const transactions = [...additionalTxs, flashloanTx, ...orderTxs];
+  const transactions = [...additionalTxs, flashloanTx];
+  if (sourceOrderTx) transactions.push(sourceOrderTx);
+  if (destinationOrderTx) transactions.push(destinationOrderTx);
   return {
     transactions,
     actionTxIndex: additionalTxs.length,
     destinationAccount: accountB,
-    mustBeAtomicBundle: refreshIxs.length > 0 || orderTxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
