@@ -22,6 +22,7 @@ export enum TransactionBuildingErrorCode {
   ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
   ACCOUNT_NOT_EMPTY = "ACCOUNT_NOT_EMPTY",
   BANK_NOT_FOUND = "BANK_NOT_FOUND",
+  BULK_INVALID_SELECTION = "BULK_INVALID_SELECTION",
 }
 
 /**
@@ -126,6 +127,10 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.BANK_NOT_FOUND]: {
     bankAddress: string;
+  };
+  [TransactionBuildingErrorCode.BULK_INVALID_SELECTION]: {
+    reason: string;
+    bankAddresses: string[];
   };
 }
 
@@ -423,6 +428,21 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.BANK_NOT_FOUND,
       `Bank ${bankAddress} not found in bankMap`,
       { bankAddress }
+    );
+  }
+
+  /**
+   * The banks passed to a bulk withdraw or repay can't all be acted on (none given, a repeat, or one
+   * without the position).
+   */
+  static bulkInvalidSelection(
+    reason: string,
+    bankAddresses: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BULK_INVALID_SELECTION> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BULK_INVALID_SELECTION,
+      `Invalid bulk selection: ${reason}`,
+      { reason, bankAddresses }
     );
   }
 

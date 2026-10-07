@@ -397,6 +397,11 @@ export interface MakeBulkWithdrawTxParams {
   /** Token program per withdrawn bank (bank address → token program). */
   tokenProgramsByBank: Map<string, Address>;
   txFormat: TransactionFormat;
+  /**
+   * Whether the group rate limiter is on (default true). Each withdraw-all then appends the closed
+   * bank's accounts, where the limiter reads its price; pass false when it's off to save bytes.
+   */
+  groupRateLimiterEnabled?: boolean;
 }
 
 export interface MakeBulkRepayTxParams {
