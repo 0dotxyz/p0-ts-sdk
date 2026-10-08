@@ -73,7 +73,7 @@ export interface BridgedTxResult {
 }
 
 /** A built leg of a bridged swap. */
-export type BridgeLeg = Pick<BridgedTxResult, "transactions" | "quoteResponse">;
+export type BridgeLeg = Pick<BridgedTxResult, "transactions" | "actionTxIndex" | "quoteResponse">;
 
 export interface MakeBridgedTxParams extends SwapFlowTxParams {
   /** Added to the open leg. */
@@ -204,13 +204,15 @@ async function buildBridgedBundle(
   });
   if (!openLeg?.quoteResponse) return null;
 
+  // A leg's transactions before `actionTxIndex` are its prelude: setups merge across both legs,
+  // anything else stays right before the leg's own action
+  const prelude = (leg: BridgeLeg) => leg.transactions.slice(0, leg.actionTxIndex);
+  const action = (leg: BridgeLeg) => leg.transactions.slice(leg.actionTxIndex);
   const isSetup = (tx: SolanaTransaction) => tx.type === TransactionType.CREATE_ATA;
-  const isRefresh = (tx: SolanaTransaction) => tx.type === TransactionType.CRANK;
-  const isAction = (tx: SolanaTransaction) => !isSetup(tx) && !isRefresh(tx);
 
   const { projectedBalances } = computeProjectedActiveBalancesNoCpi({
     account: params.marginfiAccount,
-    instructions: openLeg.transactions.filter(isAction).flatMap((tx) => tx.message.instructions),
+    instructions: action(openLeg).flatMap((tx) => tx.message.instructions),
     programAddress: params.programAddress,
     banksMap: params.bankMap,
     assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
@@ -228,14 +230,14 @@ async function buildBridgedBundle(
 
   const transactions = [
     ...mergeSetups(
-      [...openLeg.transactions, ...closeLeg.transactions].filter(isSetup),
+      [...prelude(openLeg), ...prelude(closeLeg)].filter(isSetup),
       params.authority,
       openLeg.transactions[0].message.lifetimeConstraint
     ),
-    ...openLeg.transactions.filter(isRefresh),
-    ...openLeg.transactions.filter(isAction),
-    ...closeLeg.transactions.filter(isRefresh),
-    ...closeLeg.transactions.filter(isAction),
+    ...prelude(openLeg).filter((tx) => !isSetup(tx)),
+    ...action(openLeg),
+    ...prelude(closeLeg).filter((tx) => !isSetup(tx)),
+    ...action(closeLeg),
   ];
   if (transactions.length > MAX_BUNDLE_TXS) return null;
 

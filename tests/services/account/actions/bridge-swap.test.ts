@@ -85,6 +85,7 @@ const quote = (q: Partial<SwapQuoteResult> = {}): SwapQuoteResult => ({
 });
 const leg = (fill: number, q?: Partial<SwapQuoteResult>): BridgeLeg => ({
   transactions: [tx(TransactionType.FLASHLOAN, fill)],
+  actionTxIndex: 0,
   quoteResponse: quote(q),
 });
 
@@ -216,6 +217,7 @@ describe("makeBridgedTx", () => {
             tx(TransactionType.CRANK, 11),
             tx(TransactionType.FLASHLOAN, 12),
           ],
+          actionTxIndex: 2,
           quoteResponse: quote(),
         }),
         buildCloseBridgeLeg: async () => ({
@@ -224,6 +226,7 @@ describe("makeBridgedTx", () => {
             tx(TransactionType.CRANK, 21),
             tx(TransactionType.FLASHLOAN, 22),
           ],
+          actionTxIndex: 2,
           quoteResponse: quote(),
         }),
       })
@@ -249,6 +252,24 @@ describe("makeBridgedTx", () => {
     });
   });
 
+  it("places a leg's action by actionTxIndex, whatever its tag", async () => {
+    const result = await makeBridgedTx(
+      params({
+        buildOpenBridgeLeg: async () => ({
+          transactions: [tx(TransactionType.CRANK, 11), tx(TransactionType.CREATE_ATA, 12)],
+          actionTxIndex: 1,
+          quoteResponse: quote(),
+        }),
+      })
+    );
+
+    const firstKeys = result.transactions.map(
+      (t) => t.message.instructions[0].accounts?.[0].address
+    );
+    // The mis-tagged action isn't merged into a setup or moved ahead of its refresh
+    expect(firstKeys).toEqual([key(11), key(12), key(20)]);
+  });
+
   it("skips a bridge whose bundle exceeds five transactions", async () => {
     const crowded = (fill: number): BridgeLeg => ({
       transactions: [
@@ -256,6 +277,7 @@ describe("makeBridgedTx", () => {
         tx(TransactionType.CRANK, fill + 1),
         tx(TransactionType.FLASHLOAN, fill + 2),
       ],
+      actionTxIndex: 2,
       quoteResponse: quote(),
     });
     const result = await makeBridgedTx(
@@ -359,6 +381,8 @@ describe("makeBridgedTx setup merge", () => {
         type: TransactionType.CREATE_ATA,
       },
     ],
+    // A setup-only leg, to isolate the merge
+    actionTxIndex: 1,
     quoteResponse: quote(),
   });
 
