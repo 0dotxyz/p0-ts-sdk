@@ -3,6 +3,7 @@
 exports[`marginfi account DTO > decodes the 'most positions' account into the API DTO 1`] = `
 {
   "accountFlags": [],
+  "activeOrders": 0,
   "address": "7WtHhGysBGoKBtDBMLoepjKXhaSqL12kjCLZGsVFYJoa",
   "authority": "DBP9NJGGpee67t1ZMH4ozS7BnkcdwyLp5svj2SmPkuqT",
   "balances": [
@@ -12,6 +13,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "JBcir4DPRPYVUpks9hkS1jtHMXejfeBo4xJGv3AYYHg6",
       "lastUpdate": 1702521980,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -19,6 +23,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "HmpMfL8942u22htC4EMiWgLX931g3sacXFR6KjuLgKLV",
       "lastUpdate": 1770330826,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -26,6 +33,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "DeyH7QxWvnbbaVB4zFrf4hoq7Q8z1ZT14co42BGwGtfM",
       "lastUpdate": 1757625865,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -33,6 +43,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "DMoqjmsuoru986HgfjqrKEvPv8YBufvBGADHUonkadC5",
       "lastUpdate": 1710296298,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -40,6 +53,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh",
       "lastUpdate": 1770305672,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -47,6 +63,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "Bohoc1ikHLD7xKJuzTyiTyCwzaL5N7ggJQu75A8mKYM8",
       "lastUpdate": 1782828010,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -54,6 +73,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "Amtw3n7GZe5SWmyhMhaFhDTi39zbTkLeWErBsmZXwpDa",
       "lastUpdate": 1743997159,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -61,6 +83,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "Ac4KV5K5isDqtABtg6h5DiwzZMe3Sp9bc3pBiCUvUpaQ",
       "lastUpdate": 1782396833,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -68,6 +93,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "8LaUZadNqtzuCG7iCvZd7d5cbquuYfv19KjAg6GPuuCb",
       "lastUpdate": 1722819364,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -75,6 +103,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K",
       "lastUpdate": 1728197884,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -82,6 +113,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "6Fk3bzhqmUqupk6sN5CbfYMdafvyzDdqDNHW5CsJzq8K",
       "lastUpdate": 1716649486,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -89,6 +123,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "5wZz2MV3dFJVq3Wp4tBoqrgrSGZqeLCdLE1L4w6okm9g",
       "lastUpdate": 1778334692,
       "liabilityShares": "1894972798.6289489698",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -96,6 +133,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "44digRwKFeyiqDaxJRE6iag4cbXECKjG54v5ozxdu5mu",
       "lastUpdate": 1702646273,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -103,6 +143,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "3xn7strvpinirQ5KxEgVFemb6qYeHG39krohoeRHRrRt",
       "lastUpdate": 1780001183,
       "liabilityShares": "279247250.92922812881",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -110,6 +153,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
       "lastUpdate": 1773706445,
       "liabilityShares": "5681870661.5517648814",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -117,6 +163,9 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
       "bankPk": "22DcjMZrMwC5Bpa5AGBsmjc5V9VuQrXG6N9ZtdUNyYGE",
       "lastUpdate": 1773706371,
       "liabilityShares": "4598063.1988750091048",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
   ],
   "group": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
@@ -301,6 +350,7 @@ exports[`marginfi account DTO > decodes the 'most positions' account into the AP
 exports[`marginfi account DTO > decodes the 'with borrows' account into the API DTO 1`] = `
 {
   "accountFlags": [],
+  "activeOrders": 0,
   "address": "EwLiQoZdyJFVcxPnLmS6ow3LJVMD1yFLkD45c3PaPWRp",
   "authority": "Fa7LNzj3SCV364hya9dx9evL29pC1awx24iHeCEwX6vU",
   "balances": [
@@ -310,6 +360,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "HshhP4nnfBvkGroaMeJZZtfQFZeg3ukLPmW294G5T4j9",
       "lastUpdate": 1786362022,
       "liabilityShares": "537133386.87518305157",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -317,6 +370,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "HmpMfL8942u22htC4EMiWgLX931g3sacXFR6KjuLgKLV",
       "lastUpdate": 1778666219,
       "liabilityShares": "235270091.96312004527",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -324,6 +380,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "HDYFgNRTFL2tVwGyAHaTr4SW7Y7riXjew48qKLHgi8es",
       "lastUpdate": 1780991154,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -331,6 +390,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "EmMhorGDR3N9ecNWVQjJi2QpFLkeHEvjZFdW6TuVgXjU",
       "lastUpdate": 1790152946,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -338,6 +400,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "EbuSnXdFz1R4VPdaJ96KQQQmeYgZTHSzpNW94Tw1PE3H",
       "lastUpdate": 1774854756,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -345,6 +410,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "Dj2CwMF3GM7mMT5hcyGXKuYSQ2kQ5zaVCkA1zX1qaTva",
       "lastUpdate": 1784277752,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -352,6 +420,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh",
       "lastUpdate": 1773689114,
       "liabilityShares": "14366673936.816717521",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -359,6 +430,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "Amtw3n7GZe5SWmyhMhaFhDTi39zbTkLeWErBsmZXwpDa",
       "lastUpdate": 1757639992,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -366,6 +440,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "Ac4KV5K5isDqtABtg6h5DiwzZMe3Sp9bc3pBiCUvUpaQ",
       "lastUpdate": 1780418797,
       "liabilityShares": "392288.76030274663444",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -373,6 +450,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "7GbG8B1aHpV4Q271ozU9EDEGPTLXpekv7m2UgyCgFzr5",
       "lastUpdate": 1789755652,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -380,6 +460,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "61Qx9kgWo9RVtPHf8Rku6gbaUtcnzgkpAuifQBUcMRVK",
       "lastUpdate": 1787384815,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -387,6 +470,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "3xn7strvpinirQ5KxEgVFemb6qYeHG39krohoeRHRrRt",
       "lastUpdate": 1781545576,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -394,6 +480,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
       "lastUpdate": 1774355856,
       "liabilityShares": "94173812.929205577265",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": true,
@@ -401,6 +490,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "22DcjMZrMwC5Bpa5AGBsmjc5V9VuQrXG6N9ZtdUNyYGE",
       "lastUpdate": 1774336536,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": false,
@@ -408,6 +500,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "11111111111111111111111111111111",
       "lastUpdate": 0,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
     {
       "active": false,
@@ -415,6 +510,9 @@ exports[`marginfi account DTO > decodes the 'with borrows' account into the API 
       "bankPk": "11111111111111111111111111111111",
       "lastUpdate": 0,
       "liabilityShares": "0",
+      "premiumOutstanding": "0",
+      "premiumRate": "0",
+      "tag": 0,
     },
   ],
   "group": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",

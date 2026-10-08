@@ -12,7 +12,6 @@
  */
 
 import {
-  blockhash,
   compileTransactionMessage,
   createNoopSigner,
   getTransactionMessageSize,
@@ -32,8 +31,8 @@ import { makeRepayIx } from "../actions/repay";
 import { makeWithdrawIx } from "../actions/withdraw";
 import { MarginfiAccountType } from "../types";
 
-import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
-import { BankType } from "~/services/bank";
+import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, SIZING_BLOCKHASH } from "~/constants";
+import { AssetTag, BankType } from "~/services/bank";
 import {
   getTotalAccountKeys,
   makeTransactionMessage,
@@ -56,12 +55,6 @@ const FL_IX_OVERHEAD = 52;
 // works — it only needs to make `overshoot` positive so the route is scored as "doesn't fit"
 // instead of crashing.
 const OVERSIZED_TX_SENTINEL = MAX_TX_SIZE * 4;
-
-// Size-only compilation needs a lifetime; any 32-byte blockhash gives the exact size.
-const SIZING_BLOCKHASH = {
-  blockhash: blockhash("11111111111111111111111111111111"),
-  lastValidBlockHeight: 0n,
-};
 
 export interface FlashloanSwapConstraints {
   /** Available bytes for swap instruction(s) */
@@ -234,19 +227,21 @@ async function buildBudgetIx(
       return makeBorrowIx({
         ...common,
         bankMap,
-        opts: { createAtas: false, wrapAndUnwrapSol: false },
+        opts: { createAta: false, unwrapSol: false },
       });
     case "repay":
-      return makeRepayIx({ ...common, repayAll: false, opts: { wrapAndUnwrapSol: false } });
+      return makeRepayIx({ ...common, repayAll: false, opts: { wrapSol: false } });
     case "deposit":
-      return makeDepositIx({ ...common, bankMetadataMap, opts: { wrapAndUnwrapSol: false } });
+      return makeDepositIx({ ...common, bankMetadataMap, opts: { wrapSol: false } });
     case "withdraw":
       return makeWithdrawIx({
         ...common,
+        // The footprint doesn't depend on the amount; a cToken amount needs no Kamino multiplier
+        amount: bank.config.assetTag === AssetTag.KAMINO ? { value: 1, type: "cToken" } : 1,
         bankMap,
         bankMetadataMap,
         withdrawAll: false,
-        opts: { createAtas: false, wrapAndUnwrapSol: false },
+        opts: { createAta: false, unwrapSol: false },
       });
   }
 }

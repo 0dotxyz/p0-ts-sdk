@@ -14,5 +14,7 @@ export * from "./liquidationRecord";
 export * from "./marginfiAccount";
 export * from "./marginfiGroup";
 export * from "./order";
+export * from "./rebalanceOrder";
+export * from "./rebalanceRecord";
 export * from "./sameAssetEmodeRegistry";
 export * from "./stakedSettings";

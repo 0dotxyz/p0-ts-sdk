@@ -55,6 +55,8 @@ export type PurgeDeleverageBalanceInstruction<
   TAccountMarginfiAccount extends string | AccountMeta<string> = string,
   TAccountRiskAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -68,6 +70,9 @@ export type PurgeDeleverageBalanceInstruction<
         ? ReadonlySignerAccount<TAccountRiskAdmin> & AccountSignerMeta<TAccountRiskAdmin>
         : TAccountRiskAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -102,11 +107,13 @@ export type PurgeDeleverageBalanceInput<
   TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   marginfiAccount: TAccountMarginfiAccount;
   riskAdmin: TAccountRiskAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getPurgeDeleverageBalanceInstruction<
@@ -114,13 +121,15 @@ export function getPurgeDeleverageBalanceInstruction<
   TAccountMarginfiAccount extends InstructionAccountInput,
   TAccountRiskAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: PurgeDeleverageBalanceInput<
     TAccountGroup,
     TAccountMarginfiAccount,
     TAccountRiskAdmin,
-    TAccountBank
+    TAccountBank,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): PurgeDeleverageBalanceInstruction<
@@ -134,7 +143,11 @@ export function getPurgeDeleverageBalanceInstruction<
     TAccountRiskAdmin,
     InstructionAccountInputAddress<TAccountRiskAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -148,11 +161,22 @@ export function getPurgeDeleverageBalanceInstruction<
     marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
     riskAdmin: { value: input.riskAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
+
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -160,6 +184,7 @@ export function getPurgeDeleverageBalanceInstruction<
       getAccountMeta("marginfiAccount", accounts.marginfiAccount),
       getAccountMeta("riskAdmin", accounts.riskAdmin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getPurgeDeleverageBalanceInstructionDataEncoder().encode({}),
     programAddress,
@@ -174,7 +199,11 @@ export function getPurgeDeleverageBalanceInstruction<
       TAccountRiskAdmin,
       InstructionAccountInputAddress<TAccountRiskAdmin>
     >,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -188,6 +217,7 @@ export type ParsedPurgeDeleverageBalanceInstruction<
     marginfiAccount: TAccountMetas[1];
     riskAdmin: TAccountMetas[2];
     bank: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: PurgeDeleverageBalanceInstructionData;
 };
@@ -200,10 +230,10 @@ export function parsePurgeDeleverageBalanceInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedPurgeDeleverageBalanceInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -219,6 +249,7 @@ export function parsePurgeDeleverageBalanceInstruction<
       marginfiAccount: getNextAccount(),
       riskAdmin: getNextAccount(),
       bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getPurgeDeleverageBalanceInstructionDataDecoder().decode(instruction.data),
   };

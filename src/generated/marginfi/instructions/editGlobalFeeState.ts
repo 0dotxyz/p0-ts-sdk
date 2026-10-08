@@ -34,6 +34,7 @@ import {
   type InstructionWithData,
   type Option,
   type OptionOrNullable,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -67,6 +68,8 @@ export type EditGlobalFeeStateInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGlobalFeeAdmin extends string | AccountMeta<string> = string,
   TAccountFeeState extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -76,6 +79,9 @@ export type EditGlobalFeeStateInstruction<
         ? ReadonlySignerAccount<TAccountGlobalFeeAdmin> & AccountSignerMeta<TAccountGlobalFeeAdmin>
         : TAccountGlobalFeeAdmin,
       TAccountFeeState extends string ? WritableAccount<TAccountFeeState> : TAccountFeeState,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -159,10 +165,12 @@ export function getEditGlobalFeeStateInstructionDataCodec(): Codec<
 export type EditGlobalFeeStateAsyncInput<
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Admin of the global FeeState */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState?: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
   admin: EditGlobalFeeStateInstructionDataArgs["admin"];
   feeWallet: EditGlobalFeeStateInstructionDataArgs["feeWallet"];
   bankInitFlatSolFee: EditGlobalFeeStateInstructionDataArgs["bankInitFlatSolFee"];
@@ -179,9 +187,14 @@ export type EditGlobalFeeStateAsyncInput<
 export async function getEditGlobalFeeStateInstructionAsync<
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: EditGlobalFeeStateAsyncInput<TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: EditGlobalFeeStateAsyncInput<
+    TAccountGlobalFeeAdmin,
+    TAccountFeeState,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   EditGlobalFeeStateInstruction<
@@ -193,6 +206,10 @@ export async function getEditGlobalFeeStateInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -206,6 +223,11 @@ export async function getEditGlobalFeeStateInstructionAsync<
   const originalAccounts = {
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -219,11 +241,16 @@ export async function getEditGlobalFeeStateInstructionAsync<
   if (!accounts.feeState.value) {
     accounts.feeState.value = await findFeeStatePda({ programAddress });
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getEditGlobalFeeStateInstructionDataEncoder().encode(
       args as EditGlobalFeeStateInstructionDataArgs
@@ -238,6 +265,10 @@ export async function getEditGlobalFeeStateInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -245,10 +276,12 @@ export async function getEditGlobalFeeStateInstructionAsync<
 export type EditGlobalFeeStateInput<
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Admin of the global FeeState */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
   admin: EditGlobalFeeStateInstructionDataArgs["admin"];
   feeWallet: EditGlobalFeeStateInstructionDataArgs["feeWallet"];
   bankInitFlatSolFee: EditGlobalFeeStateInstructionDataArgs["bankInitFlatSolFee"];
@@ -265,9 +298,14 @@ export type EditGlobalFeeStateInput<
 export function getEditGlobalFeeStateInstruction<
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: EditGlobalFeeStateInput<TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: EditGlobalFeeStateInput<
+    TAccountGlobalFeeAdmin,
+    TAccountFeeState,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): EditGlobalFeeStateInstruction<
   TProgramAddress,
@@ -275,7 +313,14 @@ export function getEditGlobalFeeStateInstruction<
     TAccountGlobalFeeAdmin,
     InstructionAccountInputAddress<TAccountGlobalFeeAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountFeeState, InstructionAccountInputAddress<TAccountFeeState>>
+  ResolvedInstructionAccountMeta<
+    TAccountFeeState,
+    InstructionAccountInputAddress<TAccountFeeState>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -287,6 +332,11 @@ export function getEditGlobalFeeStateInstruction<
   const originalAccounts = {
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: false },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -296,10 +346,17 @@ export function getEditGlobalFeeStateInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getEditGlobalFeeStateInstructionDataEncoder().encode(
       args as EditGlobalFeeStateInstructionDataArgs
@@ -314,6 +371,10 @@ export function getEditGlobalFeeStateInstruction<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -327,6 +388,7 @@ export type ParsedEditGlobalFeeStateInstruction<
     /** Admin of the global FeeState */
     globalFeeAdmin: TAccountMetas[0];
     feeState: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: EditGlobalFeeStateInstructionData;
 };
@@ -339,10 +401,10 @@ export function parseEditGlobalFeeStateInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedEditGlobalFeeStateInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -353,7 +415,11 @@ export function parseEditGlobalFeeStateInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { globalFeeAdmin: getNextAccount(), feeState: getNextAccount() },
+    accounts: {
+      globalFeeAdmin: getNextAccount(),
+      feeState: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getEditGlobalFeeStateInstructionDataDecoder().decode(instruction.data),
   };
 }

@@ -4,6 +4,8 @@ import { Decimal } from "decimal.js";
 
 import { Amount, WrappedI80F48 } from "../types";
 
+import { TransactionBuildingError } from "~/errors";
+
 const I80F48_FRACTIONAL_BYTES = 6;
 const I80F48_TOTAL_BYTES = 16;
 const I80F48_DIVISOR = new Decimal(2).pow(8 * I80F48_FRACTIONAL_BYTES);
@@ -118,6 +120,50 @@ export function bpsToPercentile(bps: number): number {
 }
 
 /**
+ * Orders two addresses by their raw 32-byte value (byte-wise lexicographic, like Rust's
+ * `Pubkey::cmp`), not by their base58 string.
+ * @returns A negative number when `a` sorts first, positive when `b` does, 0 when equal
+ */
+export function compareAddressBytes(a: Address, b: Address): number {
+  const addressEncoder = getAddressEncoder();
+  const A = addressEncoder.encode(a);
+  const B = addressEncoder.encode(b);
+  for (let i = 0; i < 32; i++) {
+    if (A[i] !== B[i]) return A[i] - B[i];
+  }
+  return 0;
+}
+
+// on-chain MAX_ORDER_SLIPPAGE = u32::MAX / 10
+const MAX_ORDER_SLIPPAGE_PERCENT = 10;
+const U32_MAX = 4294967295;
+
+/**
+ * Converts a slippage tolerance in percent to the on-chain u32 representation
+ * (a fraction of `u32::MAX`, where 100% = `u32::MAX`).
+ *
+ * @param percent - Slippage in percent, must be in (0, 10] (protocol cap). The program accepts 0,
+ *   but a keeper can't execute an order that allows no slippage, so 0 is rejected.
+ * @throws {TransactionBuildingError} `ORDER_INVALID_SLIPPAGE` if `percent` is outside (0, 10]
+ */
+export function percentToMaxSlippageU32(percent: number): number {
+  if (!(percent > 0) || percent > MAX_ORDER_SLIPPAGE_PERCENT) {
+    throw TransactionBuildingError.orderInvalidSlippage(percent, MAX_ORDER_SLIPPAGE_PERCENT);
+  }
+  // Floor: the program rejects anything above u32::MAX / 10 (integer division), and rounding
+  // 10% up lands one unit over that cap.
+  return Math.floor((percent / 100) * U32_MAX);
+}
+
+/**
+ * Inverse of {@link percentToMaxSlippageU32}: converts the on-chain u32 slippage
+ * representation back to a percent value.
+ */
+export function maxSlippageU32ToPercent(maxSlippage: number): number {
+  return (maxSlippage / U32_MAX) * 100;
+}
+
+/**
  * Prepares transaction remaining accounts by processing bank-oracle groups:
  * 1. Sorts groups in descending order by bank public key (pushes inactive accounts to end)
  * 2. Flattens the structure into a single public key array
@@ -133,19 +179,8 @@ export function bpsToPercentile(bps: number): number {
  *          composition
  */
 export const composeRemainingAccounts = (banksAndOracles: Address[][]): Address[] => {
-  const addressEncoder = getAddressEncoder();
-  banksAndOracles.sort((a, b) => {
-    const A = addressEncoder.encode(a[0]);
-    const B = addressEncoder.encode(b[0]);
-    // find the first differing byte
-    for (let i = 0; i < 32; i++) {
-      if (A[i] !== B[i]) {
-        // descending: bigger byte should come first
-        return B[i] - A[i];
-      }
-    }
-    return 0; // identical keys
-  });
+  // descending: bigger key first
+  banksAndOracles.sort((a, b) => compareAddressBytes(b[0], a[0]));
 
   // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
   return banksAndOracles.flat();

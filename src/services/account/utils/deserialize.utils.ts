@@ -11,24 +11,38 @@ import {
   HealthCacheTypeDto,
   HealthCacheType,
   HealthCacheStatus,
+  OrderTriggerKind,
+  OrderType,
 } from "../types";
-import type { MarginfiAccountRaw, BalanceRaw, HealthCacheRaw } from "../types/raw-account.types";
+import type {
+  MarginfiAccountRaw,
+  BalanceRaw,
+  HealthCacheRaw,
+  OrderRaw,
+} from "../types/raw-account.types";
 
-import { decodeMarginfiAccountRaw } from "~/accounts";
-import { toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
+import { decodeMarginfiAccountRaw, OrderTriggerTypeRaw } from "~/accounts";
+import { rateFromU32 } from "~/services/bank";
+import { maxSlippageU32ToPercent, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
   const active = balanceRaw.active === 1;
   const bankPk = balanceRaw.bankPk;
+  const tag = balanceRaw.tag;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
+  const premiumRate = rateFromU32(balanceRaw.premiumRateSnapshot);
+  const premiumOutstanding = wrappedI80F48toBigNumber(balanceRaw.premiumOutstanding);
   const lastUpdate = Number(balanceRaw.lastUpdate);
 
   return {
     active,
     bankPk,
+    tag,
     assetShares,
     liabilityShares,
+    premiumRate,
+    premiumOutstanding,
     lastUpdate,
   };
 }
@@ -89,6 +103,27 @@ export function parseMarginfiAccountRaw(
     balances,
     accountFlags,
     healthCache,
+    activeOrders: accountData.activeOrders,
+  };
+}
+
+export function parseOrderRaw(orderAddress: Address, orderRaw: OrderRaw): OrderType {
+  const trigger: OrderTriggerKind =
+    orderRaw.trigger === OrderTriggerTypeRaw.Both
+      ? "both"
+      : orderRaw.trigger === OrderTriggerTypeRaw.TakeProfit
+        ? "takeProfit"
+        : "stopLoss";
+
+  return {
+    address: orderAddress,
+    marginfiAccount: orderRaw.marginfiAccount,
+    trigger,
+    stopLoss: trigger === "takeProfit" ? null : wrappedI80F48toBigNumber(orderRaw.stopLoss),
+    takeProfit: trigger === "stopLoss" ? null : wrappedI80F48toBigNumber(orderRaw.takeProfit),
+    tags: [orderRaw.tags[0], orderRaw.tags[1]],
+    createdAt: Number(orderRaw.createdAt),
+    maxSlippagePercent: maxSlippageU32ToPercent(orderRaw.maxSlippage),
   };
 }
 
@@ -189,6 +224,7 @@ export function dtoToMarginfiAccount(
     balances: marginfiAccountDto.balances.map(dtoToBalance),
     accountFlags: marginfiAccountDto.accountFlags,
     healthCache: dtoToHealthCache(marginfiAccountDto.healthCache),
+    activeOrders: marginfiAccountDto.activeOrders ?? 0,
   };
 }
 
@@ -196,8 +232,11 @@ export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
   return {
     active: balanceDto.active,
     bankPk: address(balanceDto.bankPk),
+    tag: balanceDto.tag ?? 0,
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
+    premiumRate: new BigNumber(balanceDto.premiumRate ?? 0),
+    premiumOutstanding: new BigNumber(balanceDto.premiumOutstanding ?? 0),
     lastUpdate: balanceDto.lastUpdate,
   };
 }

@@ -9,6 +9,14 @@ export const TRANSFER_ACCOUNT_AUTHORITY_FLAG: number = 1 << 3;
 export const STAKED_ORACLE_DISABLED_FLAG: number = 1 << 9;
 /** Bank flags bit 10: staked oracle pricing includes the SPL single-pool on-ramp in NAV */
 export const STAKED_ORACLE_USES_ONRAMP_FLAG: number = 1 << 10;
+/** Bank flags bit 13: liabilities in this bank accrue the variable borrow premium */
+export const PREMIUM_ACTIVE_FLAG: number = 1 << 13;
+/** Bank flags bit 14: the Kamino bank's lending market is in emergency mode (zero initial weight) */
+export const KAMINO_MARKET_EMERGENCY_FLAG: number = 1 << 14;
+/** Max integration (Kamino, Drift, Solend, JupLend) + staked positions one account can open (0.1.12) */
+export const MAX_COSTLY_POSITIONS = 4;
+/** Fixed balance slots per marginfi account (`LendingAccount.balances: [Balance; 16]`) */
+export const MAX_BALANCES = 16;
 
 // Program keys
 export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");

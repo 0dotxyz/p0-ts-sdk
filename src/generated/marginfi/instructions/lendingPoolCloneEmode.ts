@@ -52,22 +52,28 @@ export function getLendingPoolCloneEmodeDiscriminatorBytes(): ReadonlyUint8Array
 export type LendingPoolCloneEmodeInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountSigner extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountCopyFromBank extends string | AccountMeta<string> = string,
   TAccountCopyToBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? ReadonlyAccount<TAccountGroup> : TAccountGroup,
-      TAccountSigner extends string
-        ? ReadonlySignerAccount<TAccountSigner> & AccountSignerMeta<TAccountSigner>
-        : TAccountSigner,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountCopyFromBank extends string
         ? ReadonlyAccount<TAccountCopyFromBank>
         : TAccountCopyFromBank,
       TAccountCopyToBank extends string ? WritableAccount<TAccountCopyToBank> : TAccountCopyToBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -99,34 +105,41 @@ export function getLendingPoolCloneEmodeInstructionDataCodec(): FixedSizeCodec<
 
 export type LendingPoolCloneEmodeInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountCopyFromBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountCopyToBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  signer: TAccountSigner;
+  governanceAdmin: TAccountGovernanceAdmin;
   copyFromBank: TAccountCopyFromBank;
   copyToBank: TAccountCopyToBank;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getLendingPoolCloneEmodeInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountSigner extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountCopyFromBank extends InstructionAccountInput,
   TAccountCopyToBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolCloneEmodeInput<
     TAccountGroup,
-    TAccountSigner,
+    TAccountGovernanceAdmin,
     TAccountCopyFromBank,
-    TAccountCopyToBank
+    TAccountCopyToBank,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolCloneEmodeInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<
     TAccountCopyFromBank,
     InstructionAccountInputAddress<TAccountCopyFromBank>
@@ -134,6 +147,10 @@ export function getLendingPoolCloneEmodeInstruction<
   ResolvedInstructionAccountMeta<
     TAccountCopyToBank,
     InstructionAccountInputAddress<TAccountCopyToBank>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -145,28 +162,43 @@ export function getLendingPoolCloneEmodeInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    signer: { value: input.signer ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     copyFromBank: { value: input.copyFromBank ?? null, isSigner: false, isWritable: false },
     copyToBank: { value: input.copyToBank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("signer", accounts.signer),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("copyFromBank", accounts.copyFromBank),
       getAccountMeta("copyToBank", accounts.copyToBank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolCloneEmodeInstructionDataEncoder().encode({}),
     programAddress,
   } as LendingPoolCloneEmodeInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountSigner, InstructionAccountInputAddress<TAccountSigner>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountCopyFromBank,
       InstructionAccountInputAddress<TAccountCopyFromBank>
@@ -174,6 +206,10 @@ export function getLendingPoolCloneEmodeInstruction<
     ResolvedInstructionAccountMeta<
       TAccountCopyToBank,
       InstructionAccountInputAddress<TAccountCopyToBank>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -185,9 +221,10 @@ export type ParsedLendingPoolCloneEmodeInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    signer: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     copyFromBank: TAccountMetas[2];
     copyToBank: TAccountMetas[3];
+    instructionSysvar: TAccountMetas[4];
   };
   data: LendingPoolCloneEmodeInstructionData;
 };
@@ -200,10 +237,10 @@ export function parseLendingPoolCloneEmodeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolCloneEmodeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 4,
+      expectedAccountMetas: 5,
     });
   }
   let accountIndex = 0;
@@ -216,9 +253,10 @@ export function parseLendingPoolCloneEmodeInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       group: getNextAccount(),
-      signer: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       copyFromBank: getNextAccount(),
       copyToBank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolCloneEmodeInstructionDataDecoder().decode(instruction.data),
   };

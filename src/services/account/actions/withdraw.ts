@@ -31,10 +31,14 @@ import { deriveLendingMarketAuthority, deriveUserState } from "~/vendor/klend";
  * (marginfi, Kamino, Drift or JupLend); `withdrawAll` closes the balance. A Kamino `amount` may
  * also be a `cToken` amount; a UI amount is converted with the bank's asset-share multiplier. Creates
  * the destination ATA and unwraps wSOL unless `opts` disables it.
- * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
- * integration accounts are missing
- * @throws Error if a `cToken` amount is given for a non-Kamino bank, or `bankMap` misses one of
- * the account's active banks
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if a Kamino, Drift or JupLend bank's venue state or integration
+ * accounts are missing
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if a `cToken` amount is given for a non-Kamino
+ * bank, or a partial Kamino withdraw's UI amount has no multiplier in
+ * `assetShareValueMultiplierByBank`
  */
 export async function makeWithdrawIx({
   programAddress,
@@ -51,7 +55,10 @@ export async function makeWithdrawIx({
 }: MakeWithdrawIxParams): Promise<Instruction[]> {
   const { value: amountValue, type: amountType } = resolveAmount(amount);
   if (amountType === "cToken" && bank.config.assetTag !== AssetTag.KAMINO) {
-    throw new Error(`cToken amounts only apply to Kamino banks (bank ${bank.address})`);
+    throw TransactionBuildingError.invalidAmount(
+      Number(amountValue),
+      "cToken amounts only apply to Kamino banks"
+    );
   }
 
   const withdrawIxs: Instruction[] = [];
@@ -62,7 +69,7 @@ export async function makeWithdrawIx({
     tokenProgram,
   });
 
-  if (opts.createAtas ?? true) {
+  if (opts.createAta ?? true) {
     withdrawIxs.push(
       getCreateAssociatedTokenIdempotentInstruction({
         payer: authority,
@@ -107,12 +114,18 @@ export async function makeWithdrawIx({
           bank.tokenSymbol
         );
       }
+      const multiplier = assetShareValueMultiplierByBank?.get(bank.address);
+      if (amountType === "uiToken" && !withdrawAll && !multiplier) {
+        throw TransactionBuildingError.invalidAmount(
+          Number(amountValue),
+          "a Kamino UI amount needs the bank's multiplier in assetShareValueMultiplierByBank"
+        );
+      }
+      // A withdraw-all ignores the amount
       const cTokenAmount =
-        amountType === "cToken"
+        amountType === "cToken" || !multiplier
           ? amountValue
-          : new BigNumber(amountValue).div(
-              assetShareValueMultiplierByBank?.get(bank.address) ?? new BigNumber(1)
-            );
+          : new BigNumber(amountValue).div(multiplier);
       const [lendingMarketAuthority] = await deriveLendingMarketAuthority(reserve.lendingMarket);
       const reserveFarmState =
         reserve.farmCollateral === DEFAULT_ADDRESS ? undefined : reserve.farmCollateral;
@@ -156,11 +169,6 @@ export async function makeWithdrawIx({
         );
       }
       const { spotMarketState, userRewards } = driftStates;
-      if (userRewards.length > 2) {
-        console.error(
-          `Warning: User has ${userRewards.length} Drift rewards, but only 2 are supported. Using first 2 only.`
-        );
-      }
       const { driftState, driftSigner, driftSpotMarketVault } = await getAllDerivedDriftAccounts(
         spotMarketState.marketIndex
       );
@@ -244,7 +252,7 @@ export async function makeWithdrawIx({
       );
   }
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.unwrapSol ?? true)) {
     withdrawIxs.push(await makeUnwrapSolIx(authority));
   }
 
@@ -253,21 +261,26 @@ export async function makeWithdrawIx({
 
 /**
  * Builds a withdraw transaction around {@link makeWithdrawIx}, preceded by the refreshes of the
- * account's integration banks. The authority pays and signs; `latestBlockhash` is fetched when
- * omitted.
+ * account's integration banks, including those `opts.activeBanks` adds. The authority pays and
+ * signs; `latestBlockhash` is fetched when omitted.
  * @throws see {@link makeWithdrawIx}
  */
 export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, ...withdrawIxParams } = params;
-  const { bank, bankMap, marginfiAccount, bankMetadataMap } = params;
+  const { bank, bankMap, marginfiAccount, bankMetadataMap, opts } = params;
 
   const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
 
+  // A Kamino bank opened earlier in the bundle still needs its reserve refreshed; Drift and
+  // JupLend deposits update their venue themselves
+  const accountBanks = getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  const openedBanks = (opts?.activeBanks ?? []).filter((b) => !accountBanks.includes(b));
   const refreshIxs = await makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [bank.address],
-    bankMetadataMap
+    bankMetadataMap,
+    [bank.address, ...openedBanks]
   );
 
   return {
@@ -281,7 +294,7 @@ export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<Sola
         bank,
         marginfiAccount.balances,
         bankMap,
-        params.opts?.activeBanks
+        opts?.activeBanks
       ),
     }),
     type: TransactionType.WITHDRAW,

@@ -60,6 +60,8 @@ export type SuperAdminDepositInstruction<
   TAccountLiquidityVault extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -79,6 +81,9 @@ export type SuperAdminDepositInstruction<
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -124,6 +129,7 @@ export type SuperAdminDepositInput<
   TAccountAdminTokenAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   admin: TAccountAdmin;
@@ -131,6 +137,7 @@ export type SuperAdminDepositInput<
   adminTokenAccount: TAccountAdminTokenAccount;
   liquidityVault: TAccountLiquidityVault;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   amount: SuperAdminDepositInstructionDataArgs["amount"];
 };
 
@@ -141,6 +148,7 @@ export function getSuperAdminDepositInstruction<
   TAccountAdminTokenAccount extends InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: SuperAdminDepositInput<
@@ -149,7 +157,8 @@ export function getSuperAdminDepositInstruction<
     TAccountBank,
     TAccountAdminTokenAccount,
     TAccountLiquidityVault,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): SuperAdminDepositInstruction<
@@ -168,6 +177,10 @@ export function getSuperAdminDepositInstruction<
   ResolvedInstructionAccountMeta<
     TAccountTokenProgram,
     InstructionAccountInputAddress<TAccountTokenProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -188,6 +201,11 @@ export function getSuperAdminDepositInstruction<
     },
     liquidityVault: { value: input.liquidityVault ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -202,6 +220,10 @@ export function getSuperAdminDepositInstruction<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -211,6 +233,7 @@ export function getSuperAdminDepositInstruction<
       getAccountMeta("adminTokenAccount", accounts.adminTokenAccount),
       getAccountMeta("liquidityVault", accounts.liquidityVault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getSuperAdminDepositInstructionDataEncoder().encode(
       args as SuperAdminDepositInstructionDataArgs
@@ -232,6 +255,10 @@ export function getSuperAdminDepositInstruction<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -248,6 +275,7 @@ export type ParsedSuperAdminDepositInstruction<
     adminTokenAccount: TAccountMetas[3];
     liquidityVault: TAccountMetas[4];
     tokenProgram: TAccountMetas[5];
+    instructionSysvar: TAccountMetas[6];
   };
   data: SuperAdminDepositInstructionData;
 };
@@ -260,10 +288,10 @@ export function parseSuperAdminDepositInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedSuperAdminDepositInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 6) {
+  if (instruction.accounts.length < 7) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 6,
+      expectedAccountMetas: 7,
     });
   }
   let accountIndex = 0;
@@ -281,6 +309,7 @@ export function parseSuperAdminDepositInstruction<
       adminTokenAccount: getNextAccount(),
       liquidityVault: getNextAccount(),
       tokenProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getSuperAdminDepositInstructionDataDecoder().decode(instruction.data),
   };

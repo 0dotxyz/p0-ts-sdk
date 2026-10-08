@@ -32,6 +32,7 @@ import {
   type InstructionWithData,
   type Option,
   type OptionOrNullable,
+  type ReadonlyAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
   type WritableSignerAccount,
@@ -59,6 +60,8 @@ export type LendingPoolCloseBankInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -69,6 +72,9 @@ export type LendingPoolCloseBankInstruction<
       TAccountAdmin extends string
         ? WritableSignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -111,10 +117,12 @@ export type LendingPoolCloseBankInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   bank: TAccountBank;
   admin: TAccountAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
   forceClose: LendingPoolCloseBankInstructionDataArgs["forceClose"];
 };
 
@@ -122,15 +130,25 @@ export function getLendingPoolCloseBankInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountBank extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: LendingPoolCloseBankInput<TAccountGroup, TAccountBank, TAccountAdmin>,
+  input: LendingPoolCloseBankInput<
+    TAccountGroup,
+    TAccountBank,
+    TAccountAdmin,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolCloseBankInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
   ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -143,6 +161,11 @@ export function getLendingPoolCloseBankInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: true },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -152,11 +175,18 @@ export function getLendingPoolCloseBankInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("bank", accounts.bank),
       getAccountMeta("admin", accounts.admin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolCloseBankInstructionDataEncoder().encode(
       args as LendingPoolCloseBankInstructionDataArgs
@@ -166,7 +196,11 @@ export function getLendingPoolCloseBankInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
     ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -179,6 +213,7 @@ export type ParsedLendingPoolCloseBankInstruction<
     group: TAccountMetas[0];
     bank: TAccountMetas[1];
     admin: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolCloseBankInstructionData;
 };
@@ -191,10 +226,10 @@ export function parseLendingPoolCloseBankInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolCloseBankInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -205,7 +240,12 @@ export function parseLendingPoolCloseBankInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), bank: getNextAccount(), admin: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      bank: getNextAccount(),
+      admin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolCloseBankInstructionDataDecoder().decode(instruction.data),
   };
 }

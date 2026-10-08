@@ -32,6 +32,8 @@ import type {
 import { decodeBankRaw, OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import {
   DEFAULT_ORACLE_MAX_AGE,
+  KAMINO_MARKET_EMERGENCY_FLAG,
+  PREMIUM_ACTIVE_FLAG,
   STAKED_ORACLE_DISABLED_FLAG,
   STAKED_ORACLE_USES_ONRAMP_FLAG,
 } from "~/constants";
@@ -148,6 +150,7 @@ export function parseBankRaw(
   const emissionsActiveLending = (flags & 2) > 0;
   const stakedOracleDisabled = (flags & STAKED_ORACLE_DISABLED_FLAG) > 0;
   const stakedOracleUsesOnramp = (flags & STAKED_ORACLE_USES_ONRAMP_FLAG) > 0;
+  const premiumActive = (flags & PREMIUM_ACTIVE_FLAG) > 0;
 
   const emissionsRate = Number(accountParsed.emissionsRate);
   const emissionsMint = accountParsed.emissionsMint;
@@ -244,6 +247,10 @@ export function parseBankRaw(
     lendingPositionCount,
     borrowingPositionCount,
     emode,
+    premiumTag: accountParsed.premiumTag,
+    premiumActive,
+    premiumActivatedAt: Number(accountParsed.premiumActivatedAt),
+    kaminoEmergency: (flags & KAMINO_MARKET_EMERGENCY_FLAG) > 0,
     rateLimiter,
     tokenSymbol,
     kaminoIntegrationAccounts,
@@ -291,6 +298,10 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     collectedProgramFeesOutstanding: new BigNumber(bankDto.collectedProgramFeesOutstanding ?? "0"),
     oracleKey: address(bankDto.oracleKey),
     emode: dtoToEmodeSettings(bankDto.emode),
+    premiumTag: bankDto.premiumTag ?? 0,
+    premiumActive: bankDto.premiumActive ?? false,
+    premiumActivatedAt: bankDto.premiumActivatedAt ?? 0,
+    kaminoEmergency: bankDto.kaminoEmergency ?? false,
     rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiter(bankDto.rateLimiter) : undefined,
     tokenSymbol: bankDto.tokenSymbol,
     feesDestinationAccount: bankDto.feesDestinationAccount
@@ -558,6 +569,10 @@ export function parseOracleSetup(oracleSetupRaw: OracleSetupRaw): OracleSetup {
       return OracleSetup.FixedJuplend;
     case OracleSetupRaw.Scope:
       return OracleSetup.Scope;
+    case OracleSetupRaw.ScopeKamino:
+      return OracleSetup.ScopeKamino;
+    case OracleSetupRaw.ScopeJuplend:
+      return OracleSetup.ScopeJuplend;
     case OracleSetupRaw.PythMSOL:
       return OracleSetup.PythMSOL;
     case OracleSetupRaw.KaminoMSOL:

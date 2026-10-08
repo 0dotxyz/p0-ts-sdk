@@ -30,6 +30,7 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -56,6 +57,8 @@ export type UpdateDeleverageWithdrawalsInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountMarginfiGroup extends string | AccountMeta<string> = string,
   TAccountDelegateFlowAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -68,6 +71,9 @@ export type UpdateDeleverageWithdrawalsInstruction<
         ? ReadonlySignerAccount<TAccountDelegateFlowAdmin> &
             AccountSignerMeta<TAccountDelegateFlowAdmin>
         : TAccountDelegateFlowAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -123,9 +129,11 @@ export function getUpdateDeleverageWithdrawalsInstructionDataCodec(): FixedSizeC
 export type UpdateDeleverageWithdrawalsInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountDelegateFlowAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   delegateFlowAdmin: TAccountDelegateFlowAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
   outflowUsd: UpdateDeleverageWithdrawalsInstructionDataArgs["outflowUsd"];
   updateSeq: UpdateDeleverageWithdrawalsInstructionDataArgs["updateSeq"];
   eventStartSlot: UpdateDeleverageWithdrawalsInstructionDataArgs["eventStartSlot"];
@@ -135,9 +143,14 @@ export type UpdateDeleverageWithdrawalsInput<
 export function getUpdateDeleverageWithdrawalsInstruction<
   TAccountMarginfiGroup extends InstructionAccountInput,
   TAccountDelegateFlowAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: UpdateDeleverageWithdrawalsInput<TAccountMarginfiGroup, TAccountDelegateFlowAdmin>,
+  input: UpdateDeleverageWithdrawalsInput<
+    TAccountMarginfiGroup,
+    TAccountDelegateFlowAdmin,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): UpdateDeleverageWithdrawalsInstruction<
   TProgramAddress,
@@ -148,6 +161,10 @@ export function getUpdateDeleverageWithdrawalsInstruction<
   ResolvedInstructionAccountMeta<
     TAccountDelegateFlowAdmin,
     InstructionAccountInputAddress<TAccountDelegateFlowAdmin>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -164,6 +181,11 @@ export function getUpdateDeleverageWithdrawalsInstruction<
       isSigner: true,
       isWritable: false,
     },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -173,10 +195,17 @@ export function getUpdateDeleverageWithdrawalsInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
       getAccountMeta("delegateFlowAdmin", accounts.delegateFlowAdmin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getUpdateDeleverageWithdrawalsInstructionDataEncoder().encode(
       args as UpdateDeleverageWithdrawalsInstructionDataArgs
@@ -191,6 +220,10 @@ export function getUpdateDeleverageWithdrawalsInstruction<
     ResolvedInstructionAccountMeta<
       TAccountDelegateFlowAdmin,
       InstructionAccountInputAddress<TAccountDelegateFlowAdmin>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -203,6 +236,7 @@ export type ParsedUpdateDeleverageWithdrawalsInstruction<
   accounts: {
     marginfiGroup: TAccountMetas[0];
     delegateFlowAdmin: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: UpdateDeleverageWithdrawalsInstructionData;
 };
@@ -215,10 +249,10 @@ export function parseUpdateDeleverageWithdrawalsInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedUpdateDeleverageWithdrawalsInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -229,7 +263,11 @@ export function parseUpdateDeleverageWithdrawalsInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { marginfiGroup: getNextAccount(), delegateFlowAdmin: getNextAccount() },
+    accounts: {
+      marginfiGroup: getNextAccount(),
+      delegateFlowAdmin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getUpdateDeleverageWithdrawalsInstructionDataDecoder().decode(instruction.data),
   };
 }

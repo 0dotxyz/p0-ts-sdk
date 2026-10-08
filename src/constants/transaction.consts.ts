@@ -1,3 +1,5 @@
+import { blockhash } from "@solana/kit";
+
 export const MAX_TX_SIZE: number = 1232;
 export const MAX_ACCOUNT_LOCKS = 64;
 export const BUNDLE_TX_SIZE: number = 81;
@@ -13,4 +15,10 @@ export const V1_TRANSACTION_CONFIG = {
   computeUnitLimit: 1_400_000,
   loadedAccountsDataSizeLimit: 64 * 1024 * 1024,
   priorityFeeLamports: 0n,
+};
+
+/** Size-only compilation needs a lifetime; any 32-byte blockhash gives the exact size. */
+export const SIZING_BLOCKHASH = {
+  blockhash: blockhash("11111111111111111111111111111111"),
+  lastValidBlockHeight: 0n,
 };

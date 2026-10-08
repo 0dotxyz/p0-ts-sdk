@@ -11,7 +11,11 @@ import { HealthCache } from "./health-cache";
 import { WSOL_MINT } from "~/constants";
 import {
   computeLowestEmodeWeights,
+  computePremiumBreakdown,
+  computePremiumImpact,
+  computePremiumRatesByBank,
   createActiveEmodePairFromPairs,
+  fetchGlobalFeeWallet,
   MakeBorrowIxOpts,
   MakeBridgedLoopTxParams,
   MakeBridgedSwapCollateralTxParams,
@@ -24,9 +28,14 @@ import {
   MakeRollPtTxParams,
   MakeSwapCollateralTxParams,
   MakeSwapDebtTxParams,
+  MakeTransferAccountTxParams,
   MakeTransferPositionsTxParams,
   MakeWithdrawIxOpts,
   MarginRequirementType,
+  OrderTriggerParams,
+  PremiumAction,
+  PremiumCollateralBreakdown,
+  PremiumImpact,
 } from "~/services/account";
 import { ActionEmodeImpact, BankType, EmodePair, requireBank } from "~/services/bank";
 import { isGroupRateLimiterEnabled } from "~/services/group";
@@ -280,7 +289,8 @@ export class MarginfiAccountWrapper {
 
   /**
    * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
-   * @throws Error if the client misses one of `projectedActiveBanks`
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if the client misses one of
+   * `projectedActiveBanks`
    */
   async makeEndFlashLoanIx(projectedActiveBanks: Address[]) {
     return this.account.makeEndFlashLoanIx(
@@ -297,23 +307,11 @@ export class MarginfiAccountWrapper {
   }
 
   /**
-   * Moves this account's positions to `newMarginfiAccount` (a fresh keypair signer) owned by
-   * `newAuthority`; `feePayer` defaults to the signer.
+   * Moves this account's positions to a new account owned by `newAuthority` and disables this one;
+   * `feePayer` defaults to the signer.
    */
-  async makeAccountTransferToNewAccountTx(
-    newMarginfiAccount: TransactionSigner,
-    newAuthority: Address,
-    feePayer?: TransactionSigner
-  ) {
-    return this.account.makeAccountTransferToNewAccountTx({
-      rpc: this.client.rpc,
-      txFormat: { version: 0, luts: {} },
-      programAddress: this.client.programAddress,
-      authority: this.signer,
-      newMarginfiAccount,
-      newAuthority,
-      feePayer,
-    });
+  async makeTransferAccountTx(params: Omit<MakeTransferAccountTxParams, ClientFilled>) {
+    return this.account.makeTransferAccountTx({ ...this.context, ...params });
   }
 
   /** Closes this (empty) account; the signer receives the rent. */
@@ -407,6 +405,49 @@ export class MarginfiAccountWrapper {
   }
 
   // ----------------------------------------------------------------------------
+  // Orders (take-profit / stop-loss)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Place-order instruction for a take-profit / stop-loss on the `collateralBank` (asset side) /
+   * `debtBank` (liability side) pair, for composing into a larger transaction.
+   * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if the program's fee state account
+   * doesn't exist
+   */
+  async makePlaceOrderIx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    const { programAddress, authority, rpc } = this.context;
+    return this.account.makePlaceOrderIx({
+      programAddress,
+      authority,
+      collateralBank,
+      debtBank,
+      trigger,
+      globalFeeWallet: await fetchGlobalFeeWallet(rpc, programAddress),
+    });
+  }
+
+  /** Close-order instruction for `order` (from `fetchOrdersForAccount` or `deriveOrderPda`). */
+  async makeCloseOrderIx(order: Address) {
+    const { programAddress, authority } = this.context;
+    return this.account.makeCloseOrderIx({ programAddress, authority, order });
+  }
+
+  /** Transaction placing a take-profit / stop-loss order on the `collateralBank`/`debtBank` pair. */
+  async makePlaceOrderTx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    return this.account.makePlaceOrderTx({ ...this.context, collateralBank, debtBank, trigger });
+  }
+
+  /** Transaction replacing the pair's existing order with new thresholds. */
+  async makeUpdateOrderTx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
+    return this.account.makeUpdateOrderTx({ ...this.context, collateralBank, debtBank, trigger });
+  }
+
+  /** Transaction closing `order` (from `fetchOrdersForAccount` or `deriveOrderPda`). */
+  async makeCloseOrderTx(order: Address) {
+    return this.account.makeCloseOrderTx({ ...this.context, order });
+  }
+
+  // ----------------------------------------------------------------------------
   // Emode
   // ----------------------------------------------------------------------------
 
@@ -442,6 +483,44 @@ export class MarginfiAccountWrapper {
     banks: Address[]
   ): Record<string, ActionEmodeImpact> {
     return this.account.computeEmodeImpacts(emodePairs, banks);
+  }
+
+  // ----------------------------------------------------------------------------
+  // Variable borrow premium — derived from client.group.premiumEntries + account balances
+  // ----------------------------------------------------------------------------
+
+  /**
+   * Premium rate (APR fraction) each premium-active bank would charge this account for a borrow,
+   * given its current collateral, by bank address. See {@link computePremiumRatesByBank}.
+   */
+  getPremiumRatesByBank(): Map<string, BigNumber> {
+    return computePremiumRatesByBank(this.premiumRateParams());
+  }
+
+  /**
+   * Per-collateral breakdown of the premium rate `liabilityBank` would charge this account.
+   * See {@link computePremiumBreakdown}.
+   */
+  getPremiumBreakdown(liabilityBank: Address): PremiumCollateralBreakdown[] {
+    return computePremiumBreakdown(this.premiumRateParams(), liabilityBank);
+  }
+
+  /**
+   * How `actions` would change this account's premium rates and yearly premium.
+   * See {@link computePremiumImpact}.
+   */
+  computePremiumImpact(actions: PremiumAction[]): PremiumImpact {
+    return computePremiumImpact({ ...this.premiumRateParams(), actions });
+  }
+
+  private premiumRateParams() {
+    return {
+      activeBalances: this.account.activeBalances,
+      banksMap: this.client.bankMap,
+      oraclePricesByBank: this.client.oraclePriceByBank,
+      assetShareValueMultiplierByBank: this.client.assetShareValueMultiplierByBank,
+      premiumEntries: this.client.group.premiumEntries,
+    };
   }
 
   // ----------------------------------------------------------------------------

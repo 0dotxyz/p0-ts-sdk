@@ -89,7 +89,7 @@ export function getLendingPoolAddBankJuplendDiscriminatorBytes(): ReadonlyUint8A
 export type LendingPoolAddBankJuplendInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountFeePayer extends string | AccountMeta<string> = string,
   TAccountBankMint extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
@@ -105,15 +105,18 @@ export type LendingPoolAddBankJuplendInstruction<
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? WritableAccount<TAccountGroup> : TAccountGroup,
-      TAccountAdmin extends string
-        ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
-        : TAccountAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountFeePayer extends string
         ? WritableSignerAccount<TAccountFeePayer> & AccountSignerMeta<TAccountFeePayer>
         : TAccountFeePayer,
@@ -148,6 +151,9 @@ export type LendingPoolAddBankJuplendInstruction<
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -250,7 +256,7 @@ export function getLendingPoolAddBankJuplendInstructionDataCodec(): FixedSizeCod
 
 export type LendingPoolAddBankJuplendAsyncInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
@@ -265,9 +271,10 @@ export type LendingPoolAddBankJuplendAsyncInput<
   TAccountIntegrationAcc2 extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   feePayer: TAccountFeePayer;
   /** Must match the mint used by the JupLend lending state. */
   bankMint: TAccountBankMint;
@@ -299,6 +306,7 @@ export type LendingPoolAddBankJuplendAsyncInput<
    */
   tokenProgram?: TAccountTokenProgram;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: LendingPoolAddBankJuplendInstructionDataArgs["oracle"];
   assetWeightInit: LendingPoolAddBankJuplendInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: LendingPoolAddBankJuplendInstructionDataArgs["assetWeightMaint"];
@@ -314,7 +322,7 @@ export type LendingPoolAddBankJuplendAsyncInput<
 
 export async function getLendingPoolAddBankJuplendInstructionAsync<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput,
   TAccountBank extends InstructionAccountInput,
@@ -329,11 +337,12 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
   TAccountIntegrationAcc2 extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolAddBankJuplendAsyncInput<
     TAccountGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountBankMint,
     TAccountBank,
@@ -347,14 +356,18 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
     TAccountFTokenMint,
     TAccountIntegrationAcc2,
     TAccountTokenProgram,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   LendingPoolAddBankJuplendInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -407,6 +420,10 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -419,7 +436,7 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: true },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     bankMint: { value: input.bankMint ?? null, isSigner: false, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
@@ -446,6 +463,11 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
     integrationAcc2: { value: input.integrationAcc2 ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -515,11 +537,15 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("bankMint", accounts.bankMint),
       getAccountMeta("bank", accounts.bank),
@@ -534,6 +560,7 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
       getAccountMeta("integrationAcc2", accounts.integrationAcc2),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolAddBankJuplendInstructionDataEncoder().encode(
       args as LendingPoolAddBankJuplendInstructionDataArgs
@@ -542,7 +569,10 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
   } as LendingPoolAddBankJuplendInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -595,13 +625,17 @@ export async function getLendingPoolAddBankJuplendInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
 
 export type LendingPoolAddBankJuplendInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
@@ -616,9 +650,10 @@ export type LendingPoolAddBankJuplendInput<
   TAccountIntegrationAcc2 extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   feePayer: TAccountFeePayer;
   /** Must match the mint used by the JupLend lending state. */
   bankMint: TAccountBankMint;
@@ -650,6 +685,7 @@ export type LendingPoolAddBankJuplendInput<
    */
   tokenProgram?: TAccountTokenProgram;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: LendingPoolAddBankJuplendInstructionDataArgs["oracle"];
   assetWeightInit: LendingPoolAddBankJuplendInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: LendingPoolAddBankJuplendInstructionDataArgs["assetWeightMaint"];
@@ -665,7 +701,7 @@ export type LendingPoolAddBankJuplendInput<
 
 export function getLendingPoolAddBankJuplendInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput,
   TAccountBank extends InstructionAccountInput,
@@ -680,11 +716,12 @@ export function getLendingPoolAddBankJuplendInstruction<
   TAccountIntegrationAcc2 extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolAddBankJuplendInput<
     TAccountGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountBankMint,
     TAccountBank,
@@ -698,13 +735,17 @@ export function getLendingPoolAddBankJuplendInstruction<
     TAccountFTokenMint,
     TAccountIntegrationAcc2,
     TAccountTokenProgram,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolAddBankJuplendInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<
     TAccountFeePayer,
     InstructionAccountInputAddress<TAccountFeePayer>
@@ -757,6 +798,10 @@ export function getLendingPoolAddBankJuplendInstruction<
   ResolvedInstructionAccountMeta<
     TAccountSystemProgram,
     InstructionAccountInputAddress<TAccountSystemProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -768,7 +813,7 @@ export function getLendingPoolAddBankJuplendInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: true },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     bankMint: { value: input.bankMint ?? null, isSigner: false, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
@@ -795,6 +840,11 @@ export function getLendingPoolAddBankJuplendInstruction<
     integrationAcc2: { value: input.integrationAcc2 ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -813,11 +863,15 @@ export function getLendingPoolAddBankJuplendInstruction<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("bankMint", accounts.bankMint),
       getAccountMeta("bank", accounts.bank),
@@ -832,6 +886,7 @@ export function getLendingPoolAddBankJuplendInstruction<
       getAccountMeta("integrationAcc2", accounts.integrationAcc2),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolAddBankJuplendInstructionDataEncoder().encode(
       args as LendingPoolAddBankJuplendInstructionDataArgs
@@ -840,7 +895,10 @@ export function getLendingPoolAddBankJuplendInstruction<
   } as LendingPoolAddBankJuplendInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -893,6 +951,10 @@ export function getLendingPoolAddBankJuplendInstruction<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -904,7 +966,7 @@ export type ParsedLendingPoolAddBankJuplendInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    admin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     feePayer: TAccountMetas[2];
     /** Must match the mint used by the JupLend lending state. */
     bankMint: TAccountMetas[3];
@@ -936,6 +998,7 @@ export type ParsedLendingPoolAddBankJuplendInstruction<
      */
     tokenProgram: TAccountMetas[14];
     systemProgram: TAccountMetas[15];
+    instructionSysvar: TAccountMetas[16];
   };
   data: LendingPoolAddBankJuplendInstructionData;
 };
@@ -948,10 +1011,10 @@ export function parseLendingPoolAddBankJuplendInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolAddBankJuplendInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 16) {
+  if (instruction.accounts.length < 17) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 16,
+      expectedAccountMetas: 17,
     });
   }
   let accountIndex = 0;
@@ -964,7 +1027,7 @@ export function parseLendingPoolAddBankJuplendInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       group: getNextAccount(),
-      admin: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       feePayer: getNextAccount(),
       bankMint: getNextAccount(),
       bank: getNextAccount(),
@@ -979,6 +1042,7 @@ export function parseLendingPoolAddBankJuplendInstruction<
       integrationAcc2: getNextAccount(),
       tokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolAddBankJuplendInstructionDataDecoder().decode(instruction.data),
   };

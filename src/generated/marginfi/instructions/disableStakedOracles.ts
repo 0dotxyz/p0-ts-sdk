@@ -54,20 +54,26 @@ export function getDisableStakedOraclesDiscriminatorBytes(): ReadonlyUint8Array 
 export type DisableStakedOraclesInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountStakedSettings extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? ReadonlyAccount<TAccountGroup> : TAccountGroup,
-      TAccountAdmin extends string
-        ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
-        : TAccountAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountStakedSettings extends string
         ? WritableAccount<TAccountStakedSettings>
         : TAccountStakedSettings,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -99,30 +105,45 @@ export function getDisableStakedOraclesInstructionDataCodec(): FixedSizeCodec<
 
 export type DisableStakedOraclesAsyncInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   stakedSettings?: TAccountStakedSettings;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export async function getDisableStakedOraclesInstructionAsync<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: DisableStakedOraclesAsyncInput<TAccountGroup, TAccountAdmin, TAccountStakedSettings>,
+  input: DisableStakedOraclesAsyncInput<
+    TAccountGroup,
+    TAccountGovernanceAdmin,
+    TAccountStakedSettings,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   DisableStakedOraclesInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountStakedSettings,
       InstructionAccountInputAddress<TAccountStakedSettings>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -135,8 +156,13 @@ export async function getDisableStakedOraclesInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     stakedSettings: { value: input.stakedSettings ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -150,51 +176,78 @@ export async function getDisableStakedOraclesInstructionAsync<
       { programAddress }
     );
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("stakedSettings", accounts.stakedSettings),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getDisableStakedOraclesInstructionDataEncoder().encode({}),
     programAddress,
   } as DisableStakedOraclesInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountStakedSettings,
       InstructionAccountInputAddress<TAccountStakedSettings>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
 
 export type DisableStakedOraclesInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   stakedSettings: TAccountStakedSettings;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getDisableStakedOraclesInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: DisableStakedOraclesInput<TAccountGroup, TAccountAdmin, TAccountStakedSettings>,
+  input: DisableStakedOraclesInput<
+    TAccountGroup,
+    TAccountGovernanceAdmin,
+    TAccountStakedSettings,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): DisableStakedOraclesInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<
     TAccountStakedSettings,
     InstructionAccountInputAddress<TAccountStakedSettings>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -206,29 +259,48 @@ export function getDisableStakedOraclesInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     stakedSettings: { value: input.stakedSettings ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("stakedSettings", accounts.stakedSettings),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getDisableStakedOraclesInstructionDataEncoder().encode({}),
     programAddress,
   } as DisableStakedOraclesInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountStakedSettings,
       InstructionAccountInputAddress<TAccountStakedSettings>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -240,8 +312,9 @@ export type ParsedDisableStakedOraclesInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    admin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     stakedSettings: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: DisableStakedOraclesInstructionData;
 };
@@ -254,10 +327,10 @@ export function parseDisableStakedOraclesInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedDisableStakedOraclesInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -270,8 +343,9 @@ export function parseDisableStakedOraclesInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       group: getNextAccount(),
-      admin: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       stakedSettings: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getDisableStakedOraclesInstructionDataDecoder().decode(instruction.data),
   };

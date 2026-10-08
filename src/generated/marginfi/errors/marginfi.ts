@@ -122,8 +122,8 @@ export const MARGINFI_ERROR__WRONG_NUMBER_OF_ORACLE_ACCOUNTS = 0x17a3; // 6051
 export const MARGINFI_ERROR__WRONG_ORACLE_ACCOUNT_KEYS = 0x17a4; // 6052
 /** StakeOraclesDisabled: Stake oracles are temporarily disabled */
 export const MARGINFI_ERROR__STAKE_ORACLES_DISABLED = 0x17a5; // 6053
-/** Vacated3: Vacated3 */
-export const MARGINFI_ERROR__VACATED3 = 0x17a6; // 6054
+/** AccountAlreadyTagged: Account is already tagged for liquidation */
+export const MARGINFI_ERROR__ACCOUNT_ALREADY_TAGGED = 0x17a6; // 6054
 /** OracleMaxConfidenceExceeded: Oracle max confidence exceeded: try again later */
 export const MARGINFI_ERROR__ORACLE_MAX_CONFIDENCE_EXCEEDED = 0x17a7; // 6055
 /** PythPushInsufficientVerificationLevel: Pyth Push oracle: insufficient verification level */
@@ -160,8 +160,8 @@ export const MARGINFI_ERROR__TOO_SEVERE_PAYOFF = 0x17b6; // 6070
 export const MARGINFI_ERROR__TOO_SEVERE_LIQUIDATION = 0x17b7; // 6071
 /** WorseHealthPostLiquidation: Liquidation would worsen account health */
 export const MARGINFI_ERROR__WORSE_HEALTH_POST_LIQUIDATION = 0x17b8; // 6072
-/** IntegrationPositionLimitExceeded: Exceeded the maximum allowed integration positions */
-export const MARGINFI_ERROR__INTEGRATION_POSITION_LIMIT_EXCEEDED = 0x17b9; // 6073
+/** CostlyPositionLimitExceeded: Exceeded the maximum allowed integration or staked positions */
+export const MARGINFI_ERROR__COSTLY_POSITION_LIMIT_EXCEEDED = 0x17b9; // 6073
 /** MaxInitLeverageExceeded: Maximum initial leverage exceeded */
 export const MARGINFI_ERROR__MAX_INIT_LEVERAGE_EXCEEDED = 0x17ba; // 6074
 /** BadEmodeConfig: The Emode config was invalid */
@@ -294,6 +294,16 @@ export const MARGINFI_ERROR__EXPONENT_VAULT_VALIDATION_FAILED = 0x17f9; // 6137
 export const MARGINFI_ERROR__INVALID_PT_START_PRICE = 0x17fa; // 6138
 /** StakePoolStale: Stake pool balance has not been updated recently enough */
 export const MARGINFI_ERROR__STAKE_POOL_STALE = 0x17fb; // 6139
+/** MixedBankConfigAuthority: Deprecated: bank configuration now uses explicit fast and governance instructions */
+export const MARGINFI_ERROR__MIXED_BANK_CONFIG_AUTHORITY = 0x17fc; // 6140
+/** InvalidGovernanceAdmin: Governance admin cannot be set to the default pubkey (all zeros); this would disable slow-authority operations */
+export const MARGINFI_ERROR__INVALID_GOVERNANCE_ADMIN = 0x17fd; // 6141
+/** MixedGroupConfigAuthority: Deprecated: group configuration now uses explicit fast and governance instructions */
+export const MARGINFI_ERROR__MIXED_GROUP_CONFIG_AUTHORITY = 0x17fe; // 6142
+/** InvalidFastBankOperationalState: Fast bank configuration may only make a risk-reducing operational-state transition */
+export const MARGINFI_ERROR__INVALID_FAST_BANK_OPERATIONAL_STATE = 0x17ff; // 6143
+/** InvalidGovernanceBankOperationalState: Governance bank configuration may only transition a bank to Operational */
+export const MARGINFI_ERROR__INVALID_GOVERNANCE_BANK_OPERATIONAL_STATE = 0x1800; // 6144
 /** WrongAssetTagForStandardInstructions: Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag */
 export const MARGINFI_ERROR__WRONG_ASSET_TAG_FOR_STANDARD_INSTRUCTIONS = 0x1838; // 6200
 /** WrongAssetTagForKaminoInstructions: Wrong asset tag for Kamino instructions, expected KAMINO asset tag */
@@ -450,9 +460,65 @@ export const MARGINFI_ERROR__CIRCUIT_BREAKER_INVALID_CONFIG = 0x19ca; // 6602
 export const MARGINFI_ERROR__CIRCUIT_BREAKER_REQUIRES_WARM_CACHE = 0x19cb; // 6603
 /** CircuitBreakerPriceJump: Oracle price deviates too far from the circuit breaker reference; action rejected */
 export const MARGINFI_ERROR__CIRCUIT_BREAKER_PRICE_JUMP = 0x19cc; // 6604
+/** DurableNonceNotAllowed: Durable nonce cannot be used for this instruction */
+export const MARGINFI_ERROR__DURABLE_NONCE_NOT_ALLOWED = 0x19cd; // 6605
+/** PremiumEntryInvalid: Premium entry has a zero collateral or liability tag */
+export const MARGINFI_ERROR__PREMIUM_ENTRY_INVALID = 0x19d2; // 6610
+/** PremiumMatrixFull: Too many premium entries for the group's capacity */
+export const MARGINFI_ERROR__PREMIUM_MATRIX_FULL = 0x19d3; // 6611
+/** InvalidPremiumAta: Premium ATA does not match the canonical ATA of the premium wallet */
+export const MARGINFI_ERROR__INVALID_PREMIUM_ATA = 0x19d4; // 6612
+/** PremiumWalletNotSet: Premium wallet is not configured on the fee state */
+export const MARGINFI_ERROR__PREMIUM_WALLET_NOT_SET = 0x19d5; // 6613
+/** PremiumEntryNotFound: Premium (collateral, liability) pair is not in the matrix */
+export const MARGINFI_ERROR__PREMIUM_ENTRY_NOT_FOUND = 0x19d6; // 6614
+/** PremiumSnapshotUnavailable: Premium rate cannot be computed (a collateral oracle failed); retry with valid oracles */
+export const MARGINFI_ERROR__PREMIUM_SNAPSHOT_UNAVAILABLE = 0x19d7; // 6615
+/** RebalanceVenueUnsupported: Rebalance venue not supported for on-chain rate verification */
+export const MARGINFI_ERROR__REBALANCE_VENUE_UNSUPPORTED = 0x1a2c; // 6700
+/** RebalanceCooldown: Rebalance cooldown has not elapsed */
+export const MARGINFI_ERROR__REBALANCE_COOLDOWN = 0x1a2d; // 6701
+/** RebalanceIncompleteMove: Rebalance moved no value */
+export const MARGINFI_ERROR__REBALANCE_INCOMPLETE_MOVE = 0x1a2e; // 6702
+/** RebalanceNotImproving: Rebalance destination rate not better than source by the required margin */
+export const MARGINFI_ERROR__REBALANCE_NOT_IMPROVING = 0x1a2f; // 6703
+/** RebalanceOvershoot: Rebalance improvement did not survive the move's own market impact */
+export const MARGINFI_ERROR__REBALANCE_OVERSHOOT = 0x1a30; // 6704
+/** RebalanceValueLeak: Rebalance leaked value beyond the allowed dust tolerance */
+export const MARGINFI_ERROR__REBALANCE_VALUE_LEAK = 0x1a31; // 6705
+/** RebalanceMintMismatch: Rebalance bank mint does not match the order mint */
+export const MARGINFI_ERROR__REBALANCE_MINT_MISMATCH = 0x1a32; // 6706
+/** RebalanceBankNotAllowed: Rebalance bank not in the order's allowed venue set */
+export const MARGINFI_ERROR__REBALANCE_BANK_NOT_ALLOWED = 0x1a33; // 6707
+/** RebalanceInvalidMinImprovement: Rebalance min improvement must be non-negative */
+export const MARGINFI_ERROR__REBALANCE_INVALID_MIN_IMPROVEMENT = 0x1a34; // 6708
+/** RebalanceExceedsAmount: Rebalance moved more than the order's amount */
+export const MARGINFI_ERROR__REBALANCE_EXCEEDS_AMOUNT = 0x1a35; // 6709
+/** RebalanceMalformedSandwich: Rebalance sandwich must contain exactly one start and one end instruction */
+export const MARGINFI_ERROR__REBALANCE_MALFORMED_SANDWICH = 0x1a36; // 6710
+/** RebalanceSettleTooEarly: Rebalance tip cannot be settled until the settlement delay has elapsed */
+export const MARGINFI_ERROR__REBALANCE_SETTLE_TOO_EARLY = 0x1a37; // 6711
+/** RebalanceForeignAccountLeg: Rebalance deposit/withdraw legs must all act on the rebalanced marginfi account */
+export const MARGINFI_ERROR__REBALANCE_FOREIGN_ACCOUNT_LEG = 0x1a38; // 6712
+/** RebalanceNoAllowlistPosition: Rebalance order requires a deposit in at least one allowed bank */
+export const MARGINFI_ERROR__REBALANCE_NO_ALLOWLIST_POSITION = 0x1a39; // 6713
+/** RebalanceUntrackedBalance: Rebalance opened a balance outside the referenced bank set */
+export const MARGINFI_ERROR__REBALANCE_UNTRACKED_BALANCE = 0x1a3a; // 6714
+/** RebalanceNotBestVenue: Rebalance passed over a higher-rate bank that still has deposit capacity */
+export const MARGINFI_ERROR__REBALANCE_NOT_BEST_VENUE = 0x1a3b; // 6715
+/** RebalanceStaleExecutionSeq: Rebalance execution sequence does not match the account's next value */
+export const MARGINFI_ERROR__REBALANCE_STALE_EXECUTION_SEQ = 0x1a3c; // 6716
+/** RebalanceAllowlistLiability: Rebalance allowlist contains a bank the account owes into */
+export const MARGINFI_ERROR__REBALANCE_ALLOWLIST_LIABILITY = 0x1a3d; // 6717
+/** RebalanceBankSourceAndDestination: Rebalance moves use a bank as both a source and a destination */
+export const MARGINFI_ERROR__REBALANCE_BANK_SOURCE_AND_DESTINATION = 0x1a3e; // 6718
+/** RebalanceForeignBankLeg: Rebalance deposit/withdraw legs must all act on a bank the order allows */
+export const MARGINFI_ERROR__REBALANCE_FOREIGN_BANK_LEG = 0x1a3f; // 6719
+/** RebalanceTaggedBalanceSplit: Rebalance must move an order-tagged balance whole, alone, into an empty bank */
+export const MARGINFI_ERROR__REBALANCE_TAGGED_BALANCE_SPLIT = 0x1a40; // 6720
 /** ScopeInvalidAccount: Scope oracle account is not owned by the Scope program or is malformed */
 export const MARGINFI_ERROR__SCOPE_INVALID_ACCOUNT = 0x1a90; // 6800
-/** ScopeInvalidEntry: Scope entry index is out of range or the entry has never been refreshed */
+/** ScopeInvalidEntry: Scope entry is out of range, never refreshed, or dated in the future */
 export const MARGINFI_ERROR__SCOPE_INVALID_ENTRY = 0x1a91; // 6801
 /** ScopeStalePrice: Scope price is stale */
 export const MARGINFI_ERROR__SCOPE_STALE_PRICE = 0x1a92; // 6802
@@ -461,6 +527,7 @@ export const MARGINFI_ERROR__USE_CONFIGURE_BANK_ORACLE_SCOPE = 0x1a93; // 6803
 
 export type MarginfiError =
   | typeof MARGINFI_ERROR__ACCOUNT_ALREADY_MIGRATED
+  | typeof MARGINFI_ERROR__ACCOUNT_ALREADY_TAGGED
   | typeof MARGINFI_ERROR__ACCOUNT_DISABLED
   | typeof MARGINFI_ERROR__ACCOUNT_FROZEN
   | typeof MARGINFI_ERROR__ACCOUNT_IN_FLASHLOAN
@@ -493,6 +560,7 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__CIRCUIT_BREAKER_INVALID_CONFIG
   | typeof MARGINFI_ERROR__CIRCUIT_BREAKER_PRICE_JUMP
   | typeof MARGINFI_ERROR__CIRCUIT_BREAKER_REQUIRES_WARM_CACHE
+  | typeof MARGINFI_ERROR__COSTLY_POSITION_LIMIT_EXCEEDED
   | typeof MARGINFI_ERROR__DAILY_WITHDRAWAL_LIMIT_EXCEEDED
   | typeof MARGINFI_ERROR__DELEVERAGE_WITHDRAWAL_UPDATE_EMPTY
   | typeof MARGINFI_ERROR__DELEVERAGE_WITHDRAWAL_UPDATE_FUTURE_SLOT
@@ -522,6 +590,7 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__DRIFT_USER_INIT_DEPOSIT_INSUFFICIENT
   | typeof MARGINFI_ERROR__DRIFT_WITHDRAW_FAILED
   | typeof MARGINFI_ERROR__DUPLICATE_BALANCE
+  | typeof MARGINFI_ERROR__DURABLE_NONCE_NOT_ALLOWED
   | typeof MARGINFI_ERROR__EMISSIONS_ALREADY_SETUP
   | typeof MARGINFI_ERROR__EMISSIONS_UPDATE_ERROR
   | typeof MARGINFI_ERROR__END_NOT_LAST
@@ -544,7 +613,6 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__ILLEGAL_FLAG
   | typeof MARGINFI_ERROR__ILLEGAL_FLASHLOAN
   | typeof MARGINFI_ERROR__ILLEGAL_UTILIZATION_RATIO
-  | typeof MARGINFI_ERROR__INTEGRATION_POSITION_LIMIT_EXCEEDED
   | typeof MARGINFI_ERROR__INTERNAL_LOGIC_ERROR
   | typeof MARGINFI_ERROR__INVALID_ASSET_OR_LIABILITIES_COUNT
   | typeof MARGINFI_ERROR__INVALID_BALANCE_COUNT
@@ -556,10 +624,13 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__INVALID_DRIFT_USER_STATS
   | typeof MARGINFI_ERROR__INVALID_EMISSIONS_DESTINATION_ACCOUNT
   | typeof MARGINFI_ERROR__INVALID_EMISSIONS_MINT
+  | typeof MARGINFI_ERROR__INVALID_FAST_BANK_OPERATIONAL_STATE
   | typeof MARGINFI_ERROR__INVALID_FEE_ATA
   | typeof MARGINFI_ERROR__INVALID_FEES_DESTINATION_ACCOUNT
   | typeof MARGINFI_ERROR__INVALID_FEE_WALLET
   | typeof MARGINFI_ERROR__INVALID_GLOBAL_FEE_WALLET
+  | typeof MARGINFI_ERROR__INVALID_GOVERNANCE_ADMIN
+  | typeof MARGINFI_ERROR__INVALID_GOVERNANCE_BANK_OPERATIONAL_STATE
   | typeof MARGINFI_ERROR__INVALID_GROUP
   | typeof MARGINFI_ERROR__INVALID_JUPLEND_F_TOKEN_VAULT
   | typeof MARGINFI_ERROR__INVALID_JUPLEND_LENDING
@@ -573,6 +644,7 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__INVALID_OBLIGATION_DEPOSIT_COUNT
   | typeof MARGINFI_ERROR__INVALID_ORACLE_SETUP
   | typeof MARGINFI_ERROR__INVALID_ORDER_TAKE_PROFIT_OR_STOP_LOSS
+  | typeof MARGINFI_ERROR__INVALID_PREMIUM_ATA
   | typeof MARGINFI_ERROR__INVALID_PRICE
   | typeof MARGINFI_ERROR__INVALID_PT_START_PRICE
   | typeof MARGINFI_ERROR__INVALID_RATE_LIMIT_PRICE
@@ -610,6 +682,8 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__MISSING_BANK_ACCOUNT
   | typeof MARGINFI_ERROR__MISSING_PYTH_ACCOUNT
   | typeof MARGINFI_ERROR__MISSING_PYTH_OR_BANK_ACCOUNT
+  | typeof MARGINFI_ERROR__MIXED_BANK_CONFIG_AUTHORITY
+  | typeof MARGINFI_ERROR__MIXED_GROUP_CONFIG_AUTHORITY
   | typeof MARGINFI_ERROR__NO_ASSET_FOUND
   | typeof MARGINFI_ERROR__NO_LIABILITIES_IN_LIABILITY_BANK
   | typeof MARGINFI_ERROR__NO_LIABILITY_FOUND
@@ -627,12 +701,38 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__ORDER_TRIGGER_NOT_MET
   | typeof MARGINFI_ERROR__OVERLIQUIDATION_ATTEMPT
   | typeof MARGINFI_ERROR__PAUSE_LIMIT_EXCEEDED
+  | typeof MARGINFI_ERROR__PREMIUM_ENTRY_INVALID
+  | typeof MARGINFI_ERROR__PREMIUM_ENTRY_NOT_FOUND
+  | typeof MARGINFI_ERROR__PREMIUM_MATRIX_FULL
+  | typeof MARGINFI_ERROR__PREMIUM_SNAPSHOT_UNAVAILABLE
+  | typeof MARGINFI_ERROR__PREMIUM_WALLET_NOT_SET
   | typeof MARGINFI_ERROR__PROTOCOL_NOT_PAUSED
   | typeof MARGINFI_ERROR__PROTOCOL_PAUSED
   | typeof MARGINFI_ERROR__PYTH_PUSH_INSUFFICIENT_VERIFICATION_LEVEL
   | typeof MARGINFI_ERROR__PYTH_PUSH_INVALID_ACCOUNT
   | typeof MARGINFI_ERROR__PYTH_PUSH_INVALID_WINDOW_SIZE
   | typeof MARGINFI_ERROR__PYTH_PUSH_STALE_PRICE
+  | typeof MARGINFI_ERROR__REBALANCE_ALLOWLIST_LIABILITY
+  | typeof MARGINFI_ERROR__REBALANCE_BANK_NOT_ALLOWED
+  | typeof MARGINFI_ERROR__REBALANCE_BANK_SOURCE_AND_DESTINATION
+  | typeof MARGINFI_ERROR__REBALANCE_COOLDOWN
+  | typeof MARGINFI_ERROR__REBALANCE_EXCEEDS_AMOUNT
+  | typeof MARGINFI_ERROR__REBALANCE_FOREIGN_ACCOUNT_LEG
+  | typeof MARGINFI_ERROR__REBALANCE_FOREIGN_BANK_LEG
+  | typeof MARGINFI_ERROR__REBALANCE_INCOMPLETE_MOVE
+  | typeof MARGINFI_ERROR__REBALANCE_INVALID_MIN_IMPROVEMENT
+  | typeof MARGINFI_ERROR__REBALANCE_MALFORMED_SANDWICH
+  | typeof MARGINFI_ERROR__REBALANCE_MINT_MISMATCH
+  | typeof MARGINFI_ERROR__REBALANCE_NO_ALLOWLIST_POSITION
+  | typeof MARGINFI_ERROR__REBALANCE_NOT_BEST_VENUE
+  | typeof MARGINFI_ERROR__REBALANCE_NOT_IMPROVING
+  | typeof MARGINFI_ERROR__REBALANCE_OVERSHOOT
+  | typeof MARGINFI_ERROR__REBALANCE_SETTLE_TOO_EARLY
+  | typeof MARGINFI_ERROR__REBALANCE_STALE_EXECUTION_SEQ
+  | typeof MARGINFI_ERROR__REBALANCE_TAGGED_BALANCE_SPLIT
+  | typeof MARGINFI_ERROR__REBALANCE_UNTRACKED_BALANCE
+  | typeof MARGINFI_ERROR__REBALANCE_VALUE_LEAK
+  | typeof MARGINFI_ERROR__REBALANCE_VENUE_UNSUPPORTED
   | typeof MARGINFI_ERROR__RESERVE_STALE
   | typeof MARGINFI_ERROR__RISK_ENGINE_INIT_REJECTED
   | typeof MARGINFI_ERROR__SAME_ASSET_AND_LIABILITY_BANKS
@@ -667,7 +767,6 @@ export type MarginfiError =
   | typeof MARGINFI_ERROR__UNEXPECTED_ORDER_EXECUTION_STATE
   | typeof MARGINFI_ERROR__USE_CONFIGURE_BANK_ORACLE_SCOPE
   | typeof MARGINFI_ERROR__USE_SET_ORACLE_PRICE
-  | typeof MARGINFI_ERROR__VACATED3
   | typeof MARGINFI_ERROR__WORSE_HEALTH_POST_EXECUTION
   | typeof MARGINFI_ERROR__WORSE_HEALTH_POST_LIQUIDATION
   | typeof MARGINFI_ERROR__WRONG_ASSET_TAG_FOR_KAMINO_INSTRUCTIONS
@@ -687,6 +786,7 @@ let marginfiErrorMessages: Record<MarginfiError, string> | undefined;
 if (process.env["NODE_ENV"] !== "production") {
   marginfiErrorMessages = {
     [MARGINFI_ERROR__ACCOUNT_ALREADY_MIGRATED]: `Account already migrated`,
+    [MARGINFI_ERROR__ACCOUNT_ALREADY_TAGGED]: `Account is already tagged for liquidation`,
     [MARGINFI_ERROR__ACCOUNT_DISABLED]: `Account disabled`,
     [MARGINFI_ERROR__ACCOUNT_FROZEN]: `Account is frozen by the group admin`,
     [MARGINFI_ERROR__ACCOUNT_IN_FLASHLOAN]: `Illegal action during flashloan`,
@@ -719,6 +819,7 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__CIRCUIT_BREAKER_INVALID_CONFIG]: `Invalid circuit breaker config`,
     [MARGINFI_ERROR__CIRCUIT_BREAKER_PRICE_JUMP]: `Oracle price deviates too far from the circuit breaker reference; action rejected`,
     [MARGINFI_ERROR__CIRCUIT_BREAKER_REQUIRES_WARM_CACHE]: `Circuit breaker cannot be enabled until the oracle price cache is warm (call pulse first)`,
+    [MARGINFI_ERROR__COSTLY_POSITION_LIMIT_EXCEEDED]: `Exceeded the maximum allowed integration or staked positions`,
     [MARGINFI_ERROR__DAILY_WITHDRAWAL_LIMIT_EXCEEDED]: `Daily withdrawal limit exceeded: try again later`,
     [MARGINFI_ERROR__DELEVERAGE_WITHDRAWAL_UPDATE_EMPTY]: `Deleverage withdrawal admin update must include outflow`,
     [MARGINFI_ERROR__DELEVERAGE_WITHDRAWAL_UPDATE_FUTURE_SLOT]: `Deleverage withdrawal admin update cannot reference future slots`,
@@ -748,6 +849,7 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__DRIFT_USER_INIT_DEPOSIT_INSUFFICIENT]: `Drift user initial deposit insufficient (minimum 10 units required)`,
     [MARGINFI_ERROR__DRIFT_WITHDRAW_FAILED]: `Drift withdrawal failed - token amount mismatch`,
     [MARGINFI_ERROR__DUPLICATE_BALANCE]: `Cannot reference duplicate balances`,
+    [MARGINFI_ERROR__DURABLE_NONCE_NOT_ALLOWED]: `Durable nonce cannot be used for this instruction`,
     [MARGINFI_ERROR__EMISSIONS_ALREADY_SETUP]: `Emissions already setup`,
     [MARGINFI_ERROR__EMISSIONS_UPDATE_ERROR]: `Update emissions error`,
     [MARGINFI_ERROR__END_NOT_LAST]: `The end instruction must be the last ix in the tx`,
@@ -770,7 +872,6 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__ILLEGAL_FLAG]: `Illegal flag`,
     [MARGINFI_ERROR__ILLEGAL_FLASHLOAN]: `Illegal flashloan`,
     [MARGINFI_ERROR__ILLEGAL_UTILIZATION_RATIO]: `Invalid bank utilization ratio`,
-    [MARGINFI_ERROR__INTEGRATION_POSITION_LIMIT_EXCEEDED]: `Exceeded the maximum allowed integration positions`,
     [MARGINFI_ERROR__INTERNAL_LOGIC_ERROR]: `Internal Marginfi logic error`,
     [MARGINFI_ERROR__INVALID_ASSET_OR_LIABILITIES_COUNT]: `Invalid asset or liabilities count`,
     [MARGINFI_ERROR__INVALID_BALANCE_COUNT]: `Invalid amount of balances referenced`,
@@ -782,10 +883,13 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__INVALID_DRIFT_USER_STATS]: `Invalid Drift user stats: account constraint violated`,
     [MARGINFI_ERROR__INVALID_EMISSIONS_DESTINATION_ACCOUNT]: `Invalid emissions destination account`,
     [MARGINFI_ERROR__INVALID_EMISSIONS_MINT]: `Invalid emissions mint: account constraint violated`,
+    [MARGINFI_ERROR__INVALID_FAST_BANK_OPERATIONAL_STATE]: `Fast bank configuration may only make a risk-reducing operational-state transition`,
     [MARGINFI_ERROR__INVALID_FEE_ATA]: `Invalid ATA for global fee account`,
     [MARGINFI_ERROR__INVALID_FEES_DESTINATION_ACCOUNT]: `Invalid fees destination account`,
     [MARGINFI_ERROR__INVALID_FEE_WALLET]: `Invalid fee wallet: account constraint violated`,
     [MARGINFI_ERROR__INVALID_GLOBAL_FEE_WALLET]: `Provided global fee wallet does not match group fee state cache`,
+    [MARGINFI_ERROR__INVALID_GOVERNANCE_ADMIN]: `Governance admin cannot be set to the default pubkey (all zeros); this would disable slow-authority operations`,
+    [MARGINFI_ERROR__INVALID_GOVERNANCE_BANK_OPERATIONAL_STATE]: `Governance bank configuration may only transition a bank to Operational`,
     [MARGINFI_ERROR__INVALID_GROUP]: `Invalid group: account constraint violated`,
     [MARGINFI_ERROR__INVALID_JUPLEND_F_TOKEN_VAULT]: `Invalid Juplend fToken vault`,
     [MARGINFI_ERROR__INVALID_JUPLEND_LENDING]: `Invalid Juplend lending: account constraint violated`,
@@ -799,6 +903,7 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__INVALID_OBLIGATION_DEPOSIT_COUNT]: `Kamino obligation must have exactly one active deposit, at index 0`,
     [MARGINFI_ERROR__INVALID_ORACLE_SETUP]: `Invalid oracle setup`,
     [MARGINFI_ERROR__INVALID_ORDER_TAKE_PROFIT_OR_STOP_LOSS]: `TP must be > 0, SL must be > 0 and TP > SL if both are set`,
+    [MARGINFI_ERROR__INVALID_PREMIUM_ATA]: `Premium ATA does not match the canonical ATA of the premium wallet`,
     [MARGINFI_ERROR__INVALID_PRICE]: `Invalid Price`,
     [MARGINFI_ERROR__INVALID_PT_START_PRICE]: `PT start price must be in (0, 1]`,
     [MARGINFI_ERROR__INVALID_RATE_LIMIT_PRICE]: `Invalid rate limit price: pass oracle or pre-crank cache`,
@@ -836,6 +941,8 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__MISSING_BANK_ACCOUNT]: `Missing Bank account`,
     [MARGINFI_ERROR__MISSING_PYTH_ACCOUNT]: `Missing Pyth account`,
     [MARGINFI_ERROR__MISSING_PYTH_OR_BANK_ACCOUNT]: `Missing Oracle, Bank, LST mint, or Sol Pool`,
+    [MARGINFI_ERROR__MIXED_BANK_CONFIG_AUTHORITY]: `Deprecated: bank configuration now uses explicit fast and governance instructions`,
+    [MARGINFI_ERROR__MIXED_GROUP_CONFIG_AUTHORITY]: `Deprecated: group configuration now uses explicit fast and governance instructions`,
     [MARGINFI_ERROR__NO_ASSET_FOUND]: `No asset found`,
     [MARGINFI_ERROR__NO_LIABILITIES_IN_LIABILITY_BANK]: `Liability bank has no liabilities`,
     [MARGINFI_ERROR__NO_LIABILITY_FOUND]: `No liability found`,
@@ -853,17 +960,43 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__ORDER_TRIGGER_NOT_MET]: `Order trigger is yet to be met`,
     [MARGINFI_ERROR__OVERLIQUIDATION_ATTEMPT]: `Trying to withdraw more assets than available`,
     [MARGINFI_ERROR__PAUSE_LIMIT_EXCEEDED]: `Pause limit exceeded`,
+    [MARGINFI_ERROR__PREMIUM_ENTRY_INVALID]: `Premium entry has a zero collateral or liability tag`,
+    [MARGINFI_ERROR__PREMIUM_ENTRY_NOT_FOUND]: `Premium (collateral, liability) pair is not in the matrix`,
+    [MARGINFI_ERROR__PREMIUM_MATRIX_FULL]: `Too many premium entries for the group's capacity`,
+    [MARGINFI_ERROR__PREMIUM_SNAPSHOT_UNAVAILABLE]: `Premium rate cannot be computed (a collateral oracle failed); retry with valid oracles`,
+    [MARGINFI_ERROR__PREMIUM_WALLET_NOT_SET]: `Premium wallet is not configured on the fee state`,
     [MARGINFI_ERROR__PROTOCOL_NOT_PAUSED]: `Protocol is not paused`,
     [MARGINFI_ERROR__PROTOCOL_PAUSED]: `Protocol is paused`,
     [MARGINFI_ERROR__PYTH_PUSH_INSUFFICIENT_VERIFICATION_LEVEL]: `Pyth Push oracle: insufficient verification level`,
     [MARGINFI_ERROR__PYTH_PUSH_INVALID_ACCOUNT]: `Pyth Push oracle: invalid account`,
     [MARGINFI_ERROR__PYTH_PUSH_INVALID_WINDOW_SIZE]: `TWAP window size does not match expected duration`,
     [MARGINFI_ERROR__PYTH_PUSH_STALE_PRICE]: `Pyth Push oracle: stale price`,
+    [MARGINFI_ERROR__REBALANCE_ALLOWLIST_LIABILITY]: `Rebalance allowlist contains a bank the account owes into`,
+    [MARGINFI_ERROR__REBALANCE_BANK_NOT_ALLOWED]: `Rebalance bank not in the order's allowed venue set`,
+    [MARGINFI_ERROR__REBALANCE_BANK_SOURCE_AND_DESTINATION]: `Rebalance moves use a bank as both a source and a destination`,
+    [MARGINFI_ERROR__REBALANCE_COOLDOWN]: `Rebalance cooldown has not elapsed`,
+    [MARGINFI_ERROR__REBALANCE_EXCEEDS_AMOUNT]: `Rebalance moved more than the order's amount`,
+    [MARGINFI_ERROR__REBALANCE_FOREIGN_ACCOUNT_LEG]: `Rebalance deposit/withdraw legs must all act on the rebalanced marginfi account`,
+    [MARGINFI_ERROR__REBALANCE_FOREIGN_BANK_LEG]: `Rebalance deposit/withdraw legs must all act on a bank the order allows`,
+    [MARGINFI_ERROR__REBALANCE_INCOMPLETE_MOVE]: `Rebalance moved no value`,
+    [MARGINFI_ERROR__REBALANCE_INVALID_MIN_IMPROVEMENT]: `Rebalance min improvement must be non-negative`,
+    [MARGINFI_ERROR__REBALANCE_MALFORMED_SANDWICH]: `Rebalance sandwich must contain exactly one start and one end instruction`,
+    [MARGINFI_ERROR__REBALANCE_MINT_MISMATCH]: `Rebalance bank mint does not match the order mint`,
+    [MARGINFI_ERROR__REBALANCE_NO_ALLOWLIST_POSITION]: `Rebalance order requires a deposit in at least one allowed bank`,
+    [MARGINFI_ERROR__REBALANCE_NOT_BEST_VENUE]: `Rebalance passed over a higher-rate bank that still has deposit capacity`,
+    [MARGINFI_ERROR__REBALANCE_NOT_IMPROVING]: `Rebalance destination rate not better than source by the required margin`,
+    [MARGINFI_ERROR__REBALANCE_OVERSHOOT]: `Rebalance improvement did not survive the move's own market impact`,
+    [MARGINFI_ERROR__REBALANCE_SETTLE_TOO_EARLY]: `Rebalance tip cannot be settled until the settlement delay has elapsed`,
+    [MARGINFI_ERROR__REBALANCE_STALE_EXECUTION_SEQ]: `Rebalance execution sequence does not match the account's next value`,
+    [MARGINFI_ERROR__REBALANCE_TAGGED_BALANCE_SPLIT]: `Rebalance must move an order-tagged balance whole, alone, into an empty bank`,
+    [MARGINFI_ERROR__REBALANCE_UNTRACKED_BALANCE]: `Rebalance opened a balance outside the referenced bank set`,
+    [MARGINFI_ERROR__REBALANCE_VALUE_LEAK]: `Rebalance leaked value beyond the allowed dust tolerance`,
+    [MARGINFI_ERROR__REBALANCE_VENUE_UNSUPPORTED]: `Rebalance venue not supported for on-chain rate verification`,
     [MARGINFI_ERROR__RESERVE_STALE]: `Kamino Reserve data is stale - run refresh_reserve on kamino program first`,
     [MARGINFI_ERROR__RISK_ENGINE_INIT_REJECTED]: `RiskEngine rejected due to either bad health or stale oracles`,
     [MARGINFI_ERROR__SAME_ASSET_AND_LIABILITY_BANKS]: `Asset and liability bank cannot be the same`,
     [MARGINFI_ERROR__SCOPE_INVALID_ACCOUNT]: `Scope oracle account is not owned by the Scope program or is malformed`,
-    [MARGINFI_ERROR__SCOPE_INVALID_ENTRY]: `Scope entry index is out of range or the entry has never been refreshed`,
+    [MARGINFI_ERROR__SCOPE_INVALID_ENTRY]: `Scope entry is out of range, never refreshed, or dated in the future`,
     [MARGINFI_ERROR__SCOPE_STALE_PRICE]: `Scope price is stale`,
     [MARGINFI_ERROR__SLIPPAGE_TOO_HIGH]: `Max slippage exceeds the allowed cap`,
     [MARGINFI_ERROR__SOLEND_C_TOKEN_BALANCE_MISMATCH]: `Solend cToken balance change does not match expected amount`,
@@ -893,7 +1026,6 @@ if (process.env["NODE_ENV"] !== "production") {
     [MARGINFI_ERROR__UNEXPECTED_ORDER_EXECUTION_STATE]: `Order execution state issue. Check not in flashloan, disabled, etc`,
     [MARGINFI_ERROR__USE_CONFIGURE_BANK_ORACLE_SCOPE]: `Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index`,
     [MARGINFI_ERROR__USE_SET_ORACLE_PRICE]: `Use set_oracle_price instead`,
-    [MARGINFI_ERROR__VACATED3]: `Vacated3`,
     [MARGINFI_ERROR__WORSE_HEALTH_POST_EXECUTION]: `Account health can only worsen if account is healthy`,
     [MARGINFI_ERROR__WORSE_HEALTH_POST_LIQUIDATION]: `Liquidation would worsen account health`,
     [MARGINFI_ERROR__WRONG_ASSET_TAG_FOR_KAMINO_INSTRUCTIONS]: `Wrong asset tag for Kamino instructions, expected KAMINO asset tag`,

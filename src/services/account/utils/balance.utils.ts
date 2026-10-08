@@ -1,7 +1,10 @@
 import type { Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { BalanceType } from "../types";
+import { BalanceType, MarginfiAccountType, OrderType } from "../types";
+
+import { MAX_COSTLY_POSITIONS } from "~/constants";
+import { AssetTag, BankType } from "~/services/bank";
 
 /**
  * Creates an empty (inactive) balance object for a specific bank.
@@ -23,8 +26,11 @@ export function createEmptyBalance(bankPk: Address): BalanceType {
   const balance: BalanceType = {
     active: false,
     bankPk,
+    tag: 0,
     assetShares: new BigNumber(0),
     liabilityShares: new BigNumber(0),
+    premiumRate: new BigNumber(0),
+    premiumOutstanding: new BigNumber(0),
     lastUpdate: 0,
   };
 
@@ -105,4 +111,81 @@ export function isWholePosition(
 ): boolean {
   const closePositionTokenAmount = computeClosePositionTokenAmount(position, mintDecimals);
   return amount >= closePositionTokenAmount;
+}
+
+// The program's `EMPTY_BALANCE_THRESHOLD`: `Balance::get_side` ignores shares below 1, and a deposit
+// that pays off a debt can leave such dust liability shares on what is now a collateral balance.
+const EMPTY_BALANCE_THRESHOLD = 1;
+
+/**
+ * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
+ * account that owns it, without throwing: a leg whose tagged balance was closed comes back null
+ * (the order is orphaned and can no longer execute). The tag order in `order.tags` follows the
+ * caller-supplied bank key order at placement time, so the side is inferred from the balances.
+ *
+ * @param marginfiAccount - The parsed marginfi account that owns the order
+ * @param order - The order whose bank pair to resolve
+ */
+export function resolveOrderLegs(
+  marginfiAccount: MarginfiAccountType,
+  order: Pick<OrderType, "tags">
+): { collateralBank: Address | null; debtBank: Address | null } {
+  const taggedBalances = marginfiAccount.balances.filter(
+    (balance) => balance.active && balance.tag !== 0 && order.tags.includes(balance.tag)
+  );
+
+  return {
+    collateralBank:
+      taggedBalances.find(
+        (balance) =>
+          balance.liabilityShares.lt(EMPTY_BALANCE_THRESHOLD) &&
+          balance.assetShares.gte(EMPTY_BALANCE_THRESHOLD)
+      )?.bankPk ?? null,
+    debtBank:
+      taggedBalances.find((balance) => balance.liabilityShares.gte(EMPTY_BALANCE_THRESHOLD))
+        ?.bankPk ?? null,
+  };
+}
+
+/**
+ * Whether a position in `bank` counts toward the program's per-account limit on integration
+ * (Kamino, Drift, Solend, JupLend) and staked positions.
+ *
+ * @param bank - The bank to check
+ * @returns True for integration and staked banks
+ */
+export function isCostlyBank(bank: BankType): boolean {
+  return [
+    AssetTag.KAMINO,
+    AssetTag.DRIFT,
+    AssetTag.SOLEND,
+    AssetTag.JUPLEND,
+    AssetTag.STAKED,
+  ].includes(bank.config.assetTag);
+}
+
+/**
+ * Whether depositing into `bank` opens a position past the program's limit of
+ * {@link MAX_COSTLY_POSITIONS} integration and staked positions. Topping up an existing position
+ * never does.
+ *
+ * @param balances - The account's balances before the deposit
+ * @param bankMap - Map of bank addresses to bank data
+ * @param bank - The bank deposited into
+ * @returns True when the program would reject the deposit (6073)
+ */
+export function exceedsCostlyPositionLimit(
+  balances: BalanceType[],
+  bankMap: Map<string, BankType>,
+  bank: BankType
+): boolean {
+  const active = balances.filter((balance) => balance.active);
+  if (!isCostlyBank(bank) || active.some((balance) => balance.bankPk === bank.address)) {
+    return false;
+  }
+  const held = active.filter((balance) => {
+    const heldBank = bankMap.get(balance.bankPk);
+    return heldBank !== undefined && isCostlyBank(heldBank);
+  }).length;
+  return held >= MAX_COSTLY_POSITIONS;
 }

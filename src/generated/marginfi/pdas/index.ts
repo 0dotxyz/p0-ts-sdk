@@ -24,5 +24,8 @@ export * from "./liquidationRecord";
 export * from "./liquidityVault";
 export * from "./liquidityVaultAuthority";
 export * from "./metadata";
+export * from "./rebalanceFeePool";
+export * from "./rebalanceOrder";
+export * from "./rebalanceRecord";
 export * from "./sameAssetEmodeRegistry";
 export * from "./stakedSettings";

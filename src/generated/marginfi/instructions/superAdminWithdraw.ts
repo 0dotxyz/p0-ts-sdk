@@ -63,6 +63,8 @@ export type SuperAdminWithdrawInstruction<
   TAccountLiquidityVault extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -85,6 +87,9 @@ export type SuperAdminWithdrawInstruction<
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -131,6 +136,7 @@ export type SuperAdminWithdrawAsyncInput<
   TAccountLiquidityVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   admin: TAccountAdmin;
@@ -139,6 +145,7 @@ export type SuperAdminWithdrawAsyncInput<
   liquidityVaultAuthority?: TAccountLiquidityVaultAuthority;
   liquidityVault: TAccountLiquidityVault;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   amount: SuperAdminWithdrawInstructionDataArgs["amount"];
 };
 
@@ -150,6 +157,7 @@ export async function getSuperAdminWithdrawInstructionAsync<
   TAccountLiquidityVaultAuthority extends InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: SuperAdminWithdrawAsyncInput<
@@ -159,7 +167,8 @@ export async function getSuperAdminWithdrawInstructionAsync<
     TAccountDestinationTokenAccount,
     TAccountLiquidityVaultAuthority,
     TAccountLiquidityVault,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
@@ -183,6 +192,10 @@ export async function getSuperAdminWithdrawInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -209,6 +222,11 @@ export async function getSuperAdminWithdrawInstructionAsync<
     },
     liquidityVault: { value: input.liquidityVault ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -229,6 +247,10 @@ export async function getSuperAdminWithdrawInstructionAsync<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -239,6 +261,7 @@ export async function getSuperAdminWithdrawInstructionAsync<
       getAccountMeta("liquidityVaultAuthority", accounts.liquidityVaultAuthority),
       getAccountMeta("liquidityVault", accounts.liquidityVault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getSuperAdminWithdrawInstructionDataEncoder().encode(
       args as SuperAdminWithdrawInstructionDataArgs
@@ -264,6 +287,10 @@ export async function getSuperAdminWithdrawInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -276,6 +303,7 @@ export type SuperAdminWithdrawInput<
   TAccountLiquidityVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   admin: TAccountAdmin;
@@ -284,6 +312,7 @@ export type SuperAdminWithdrawInput<
   liquidityVaultAuthority: TAccountLiquidityVaultAuthority;
   liquidityVault: TAccountLiquidityVault;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   amount: SuperAdminWithdrawInstructionDataArgs["amount"];
 };
 
@@ -295,6 +324,7 @@ export function getSuperAdminWithdrawInstruction<
   TAccountLiquidityVaultAuthority extends InstructionAccountInput,
   TAccountLiquidityVault extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: SuperAdminWithdrawInput<
@@ -304,7 +334,8 @@ export function getSuperAdminWithdrawInstruction<
     TAccountDestinationTokenAccount,
     TAccountLiquidityVaultAuthority,
     TAccountLiquidityVault,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): SuperAdminWithdrawInstruction<
@@ -327,6 +358,10 @@ export function getSuperAdminWithdrawInstruction<
   ResolvedInstructionAccountMeta<
     TAccountTokenProgram,
     InstructionAccountInputAddress<TAccountTokenProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -352,6 +387,11 @@ export function getSuperAdminWithdrawInstruction<
     },
     liquidityVault: { value: input.liquidityVault ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -366,6 +406,10 @@ export function getSuperAdminWithdrawInstruction<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -376,6 +420,7 @@ export function getSuperAdminWithdrawInstruction<
       getAccountMeta("liquidityVaultAuthority", accounts.liquidityVaultAuthority),
       getAccountMeta("liquidityVault", accounts.liquidityVault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getSuperAdminWithdrawInstructionDataEncoder().encode(
       args as SuperAdminWithdrawInstructionDataArgs
@@ -401,6 +446,10 @@ export function getSuperAdminWithdrawInstruction<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -418,6 +467,7 @@ export type ParsedSuperAdminWithdrawInstruction<
     liquidityVaultAuthority: TAccountMetas[4];
     liquidityVault: TAccountMetas[5];
     tokenProgram: TAccountMetas[6];
+    instructionSysvar: TAccountMetas[7];
   };
   data: SuperAdminWithdrawInstructionData;
 };
@@ -430,10 +480,10 @@ export function parseSuperAdminWithdrawInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedSuperAdminWithdrawInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 7) {
+  if (instruction.accounts.length < 8) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 7,
+      expectedAccountMetas: 8,
     });
   }
   let accountIndex = 0;
@@ -452,6 +502,7 @@ export function parseSuperAdminWithdrawInstruction<
       liquidityVaultAuthority: getNextAccount(),
       liquidityVault: getNextAccount(),
       tokenProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getSuperAdminWithdrawInstructionDataDecoder().decode(instruction.data),
   };

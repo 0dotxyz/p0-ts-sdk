@@ -5,11 +5,10 @@ import {
   type Instruction,
 } from "@solana/kit";
 import {
-  COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
   getSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
-import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda } from "@solana-program/token";
+import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import {
@@ -17,46 +16,46 @@ import {
   swapEngineProvidersFromOpts,
   swapEngineQuoteFieldsFromOpts,
 } from "../services/swap-engine";
-import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
+import { MakeSwapCollateralTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
+  exceedsCostlyPositionLimit,
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
   patchDepositAmount,
-  isDepositIx,
-  BridgeOpts,
-  BridgedTxResult,
-  resolveTokenProgramForMint,
-  selectSwapBridges,
-  sharedBridgeLegContext,
-  tryBridgeCandidates,
+  filterRouteSetupIxs,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
-import { composeBridgedSwap, mergeBridgeQuotes } from "./bridge-swap";
+import { makeCreateMissingAtaIxs } from "./account-lifecycle";
+import { BridgedTxResult, BridgeOpts, makeBridgedTx } from "./bridge-swap";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
-import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
+import { TransactionBuildingError } from "~/errors";
 import { AssetTag } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
-  TransactionType,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
 /**
- * Creates transactions to swap one collateral position to another using a flash loan.
- *
- * This allows users to change their collateral type (e.g., JitoSOL -> mSOL) without
- * withdrawing and affecting their health during the swap.
+ * Swaps one collateral position into another in one flashloan: withdraws `withdrawOpts`, swaps it
+ * into the deposit token (unless the two banks share a mint) and deposits the swap's guaranteed
+ * output, without the account's health dipping in between. Prelude transactions create missing
+ * ATAs and refresh integration banks.
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if `withdrawAmount` isn't positive
+ * @throws TransactionBuildingError (COSTLY_POSITION_LIMIT_EXCEEDED) if the deposit would open an
+ * integration or staked position beyond the account's limit
+ * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if no provider can quote the swap
+ * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
+ * one transaction
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapCollateralTx({
@@ -71,14 +70,9 @@ import { nativeToUi, uiToNative } from "~/utils";
  *   // ...
  * });
  */
-export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): Promise<{
-  transactions: SolanaTransaction[];
-  actionTxIndex: number;
-  quoteResponse: SwapQuoteResult | undefined;
-  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
-   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
-  mustBeAtomicBundle: boolean;
-}> {
+export async function makeSwapCollateralTx(
+  params: MakeSwapCollateralTxParams
+): Promise<SwapFlowTxResult> {
   const {
     marginfiAccount,
     authority,
@@ -94,7 +88,7 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [
@@ -117,42 +111,18 @@ export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): 
     latestBlockhash,
   });
 
-  // Filter Jupiter setup instructions to avoid duplicates with our setup
-  const jupiterSetupInstructions = setupInstructions.filter((ix) => {
-    // Filter out compute budget instructions
-    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
-      return false;
-    }
+  setupIxs.push(
+    ...filterRouteSetupIxs(setupInstructions, [
+      withdrawOpts.withdrawBank.mint,
+      depositOpts.depositBank.mint,
+    ])
+  );
 
-    if (ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
-      // Key 3 is always mint in create ATA instruction
-      const mintKey = ix.accounts?.[3]?.address;
-
-      if (mintKey === withdrawOpts.withdrawBank.mint || mintKey === depositOpts.depositBank.mint) {
-        return false;
-      }
-    }
-
-    return true;
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
   });
-
-  setupIxs.push(...jupiterSetupInstructions);
-
-  const additionalTxs: SolanaTransaction[] = [];
-
-  // If ATAs, additional instructions, or refreshes are needed, add them
-  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs];
-    const messages = splitInstructionsToFitTransactions([], ixs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
 
   const transactions = [...additionalTxs, flashloanTx];
 
@@ -178,7 +148,11 @@ async function buildSwapCollateralFlashloanTx({
   rpc,
   latestBlockhash,
   swapEngineRunner,
-}: MakeSwapCollateralTxParams & { latestBlockhash: BlockhashLifetimeConstraint }) {
+}: MakeSwapCollateralTxParams & { latestBlockhash: BlockhashLifetimeConstraint }): Promise<{
+  flashloanTx: SolanaTransaction;
+  setupInstructions: Instruction[];
+  swapQuote: SwapQuoteResult | undefined;
+}> {
   const {
     withdrawBank,
     tokenProgram: withdrawTokenProgram,
@@ -187,19 +161,23 @@ async function buildSwapCollateralFlashloanTx({
   } = withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
 
-  // Validate and clamp withdrawAmount
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
-    throw new Error("withdrawAmount must be greater than 0");
+    throw TransactionBuildingError.invalidAmount(withdrawAmount);
   }
 
-  // Use withdrawAmount if provided, otherwise use totalPositionAmount (full swap)
-  // Clamp to totalPositionAmount to prevent withdrawing more than exists
   const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
   const isFullWithdraw = isWholePosition(
     { amount: totalPositionAmount, isLending: true },
     actualWithdrawAmount,
     withdrawBank.mintDecimals
   );
+  // A full withdraw closes its balance before the deposit opens one, freeing that position.
+  const balancesAtDeposit = isFullWithdraw
+    ? marginfiAccount.balances.filter((balance) => balance.bankPk !== withdrawBank.address)
+    : marginfiAccount.balances;
+  if (exceedsCostlyPositionLimit(balancesAtDeposit, bankMap, depositBank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(depositBank.address);
+  }
 
   const cuRequestIxs = [
     getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
@@ -236,8 +214,8 @@ async function buildSwapCollateralFlashloanTx({
     bankMetadataMap,
     withdrawAll: isFullWithdraw,
     opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
+      createAta: false,
+      unwrapSol: false,
     },
   });
 
@@ -255,7 +233,7 @@ async function buildSwapCollateralFlashloanTx({
     authority,
     bankMetadataMap,
     opts: {
-      wrapAndUnwrapSol: false,
+      wrapSol: false,
     },
   });
 
@@ -298,15 +276,8 @@ async function buildSwapCollateralFlashloanTx({
       providers: swapEngineProvidersFromOpts(swapOpts),
     });
 
-    // Patch the seeded deposit to the real (minimum guaranteed) swap output.
-    const depositIxIndex = depositIxs.findIndex(isDepositIx);
-    if (depositIxIndex < 0) {
-      throw new Error("swap-collateral: could not locate deposit instruction for amount patching");
-    }
-    depositIxs[depositIxIndex] = patchDepositAmount(
-      depositIxs[depositIxIndex],
-      engineResult.outputAmountNative
-    );
+    // Without wSOL wrapping the deposit is a single instruction
+    depositIxs[0] = patchDepositAmount(depositIxs[0], engineResult.outputAmountNative);
 
     swapInstructions = engineResult.swapInstructions;
     setupInstructions = engineResult.setupInstructions;
@@ -329,9 +300,6 @@ async function buildSwapCollateralFlashloanTx({
     });
   }
 
-  // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
   const flashloanTx = await makeFlashLoanTx({
     programAddress,
     marginfiAccount,
@@ -356,13 +324,7 @@ async function buildSwapCollateralFlashloanTx({
     );
   }
 
-  return {
-    flashloanTx,
-    setupInstructions,
-    swapQuote,
-    withdrawIxs,
-    depositIxs,
-  };
+  return { flashloanTx, setupInstructions, swapQuote };
 }
 
 // ----------------------------------------------------------------------------
@@ -373,129 +335,55 @@ export interface MakeBridgedSwapCollateralTxParams extends MakeSwapCollateralTxP
   bridgeOpts?: BridgeOpts;
 }
 
-// Headroom (native units) between the second leg's swap input and the first leg's bridge min-out.
-// The swap input must never exceed what the withdraw actually delivers: marginfi share-rounding on
-// the deposit→withdraw round-trip can come back a lamport short, and the UI-number amount
-// round-trip can floor another. A few native units — value-invisible for any real token.
-const SECOND_LEG_ROUNDING_HEADROOM_NATIVE = 10;
+// The close leg's swap input stays this far (native units) under the open leg's bridge min-out:
+// share rounding on the deposit→withdraw round trip can come back a unit short, and the UI-amount
+// round trip can floor another
+const CLOSE_LEG_HEADROOM_NATIVE = 10;
 
 /**
- * {@link makeSwapCollateralTx} with a transparent bridged fallback: if the direct swap `A → C`
- * can't fit one tx or has no route, decompose it into `A → bridge` + `bridge → C` through a
- * high-liquidity bridge collateral, composed into one atomic bundle.
+ * {@link makeSwapCollateralTx}, or when the swap `A → C` doesn't fit one transaction or has no
+ * route, `A → bridge` then `bridge → C` through a liquid bridge collateral as one atomic bundle
+ * (see {@link makeBridgedTx}).
  */
 export async function makeBridgedSwapCollateralTx(
   params: MakeBridgedSwapCollateralTxParams
 ): Promise<BridgedTxResult> {
-  const { bridgeOpts, ...directParams } = params;
-  try {
-    return await makeSwapCollateralTx(directParams);
-  } catch (directError) {
-    if (!isDecomposableSwapError(directError)) throw directError;
-    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
-    // SDK-composed legs — never attempt the bridged fallback with one.
-    if (directParams.swapOpts.swapIxs) throw directError;
-    const bridged = await tryBridgedCollateralSwap(directParams, bridgeOpts);
-    if (bridged) return bridged;
-    throw directError;
-  }
-}
-
-async function tryBridgedCollateralSwap(
-  params: MakeSwapCollateralTxParams,
-  bridgeOpts: BridgeOpts | undefined
-): Promise<BridgedTxResult | null> {
-  const sourceBank = params.withdrawOpts.withdrawBank;
-  const destinationBank = params.depositOpts.depositBank;
-  const withdrawAmount =
-    params.withdrawOpts.withdrawAmount ?? params.withdrawOpts.totalPositionAmount;
-  // A collateral swap DEPOSITS the bridge → skip any candidate the account is borrowing.
-  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
-    sourceMint: sourceBank.mint,
-    destinationMint: destinationBank.mint,
-    bankMap: params.bankMap,
-    marginfiAccount: params.marginfiAccount,
-    bridgeTokenSide: "deposit",
-    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
-  });
-
-  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
-  return tryBridgeCandidates({
-    usableBridgeBanks,
-    conflictingBridgeBanks,
-    bridgeTokenSide: "deposit",
-    abortSignal: bridgeOpts?.abortSignal,
-    buildBundleThroughBridge: async (bridgeBank) => {
-      const bridgeTokenProgram = await resolveTokenProgramForMint(
-        bridgeBank.mint,
-        params.rpc,
-        tokenProgramCache
-      );
-
-      // First leg: A → bridge (deposits min-out bridge collateral).
-      const firstLeg = await makeSwapCollateralTx({
-        ...sharedBridgeLegContext(params),
-        withdrawOpts: {
-          totalPositionAmount: params.withdrawOpts.totalPositionAmount,
-          withdrawAmount,
-          withdrawBank: sourceBank,
-          tokenProgram: params.withdrawOpts.tokenProgram,
-        },
+  const { withdrawOpts, depositOpts } = params;
+  return makeBridgedTx({
+    ...params,
+    side: "deposit",
+    sourceMint: withdrawOpts.withdrawBank.mint,
+    destinationMint: depositOpts.depositBank.mint,
+    buildWithoutBridge: () => makeSwapCollateralTx(params),
+    buildOpenBridgeLeg: ({ bridgeBank, bridgeTokenProgram, context }) =>
+      makeSwapCollateralTx({
+        ...context,
+        withdrawOpts,
         depositOpts: { depositBank: bridgeBank, tokenProgram: bridgeTokenProgram },
-      });
-      if (!firstLeg.quoteResponse) return null;
-
-      // The second leg spends (a rounding-headroom hair under) the first leg's GUARANTEED bridge
-      // min-out, so it can't fail from first-leg slippage.
-      const bridgeMinOutNative = Number(firstLeg.quoteResponse.otherAmountThreshold);
-      const secondLegAmountNative = bridgeMinOutNative - SECOND_LEG_ROUNDING_HEADROOM_NATIVE;
-      if (secondLegAmountNative <= 0) return null;
-      const secondLegAmountUi = nativeToUi(secondLegAmountNative, bridgeBank.mintDecimals);
-
-      // Without a pre-existing bridge deposit, the second leg withdraws ALL of the bridge (the
-      // first leg deposited exactly min-out), so no dust position is ever left behind — the
-      // headroom lamports land in the wallet ATA, not as a marginfi position. `withdrawAmount ===
-      // totalPositionAmount` is what makes the builder emit a withdraw-all (the on-chain
-      // withdraw-all pulls all shares regardless of the amount). With a pre-existing bridge
-      // deposit, withdraw-all would sweep the user's own position into the swap, so keep the
-      // partial withdraw there — the headroom merges invisibly into their existing position.
-      const hasBridgeDeposit = params.marginfiAccount.balances.some(
+      }),
+    buildCloseBridgeLeg: async ({ bridgeBank, bridgeTokenProgram, context, openLegQuote }) => {
+      // Spend just under the open leg's guaranteed bridge output, so its slippage can't fail this leg
+      const bridgeMinOut = Number(openLegQuote.otherAmountThreshold);
+      const amountNative = bridgeMinOut - CLOSE_LEG_HEADROOM_NATIVE;
+      if (amountNative <= 0) return null;
+      const amount = nativeToUi(amountNative, bridgeBank.mintDecimals);
+      // Withdraw all of the bridge so no dust position stays behind, unless the account already
+      // held it: then a withdraw-all would sweep the user's own position into the swap
+      const heldBridge = params.marginfiAccount.balances.some(
         (b) => b.active && b.bankPk === bridgeBank.address && b.assetShares.gt(0)
       );
-
-      const result = await composeBridgedSwap({
-        firstLeg,
-        // The second leg builds against the first leg's projected effect.
-        buildSecondLeg: (projectedAccount) =>
-          makeSwapCollateralTx({
-            ...sharedBridgeLegContext(params),
-            marginfiAccount: projectedAccount,
-            withdrawOpts: {
-              totalPositionAmount: hasBridgeDeposit
-                ? nativeToUi(bridgeMinOutNative, bridgeBank.mintDecimals)
-                : secondLegAmountUi,
-              withdrawAmount: secondLegAmountUi,
-              withdrawBank: bridgeBank,
-              tokenProgram: bridgeTokenProgram,
-            },
-            depositOpts: params.depositOpts,
-          }),
-        marginfiAccount: params.marginfiAccount,
-        programAddress: params.programAddress,
-        banksMap: params.bankMap,
-        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-        feePayer: params.authority,
-        maxBundleTxs: bridgeOpts?.maxBundleTxs,
+      return makeSwapCollateralTx({
+        ...context,
+        withdrawOpts: {
+          totalPositionAmount: heldBridge
+            ? nativeToUi(bridgeMinOut, bridgeBank.mintDecimals)
+            : amount,
+          withdrawAmount: amount,
+          withdrawBank: bridgeBank,
+          tokenProgram: bridgeTokenProgram,
+        },
+        depositOpts,
       });
-      if (!result) return null;
-
-      return {
-        transactions: result.transactions,
-        actionTxIndex: result.transactions.length - 1,
-        quoteResponse: mergeBridgeQuotes(result.firstLegQuote, result.secondLegQuote),
-        bridgeMint: bridgeBank.mint,
-        mustBeAtomicBundle: true,
-      };
     },
   });
 }

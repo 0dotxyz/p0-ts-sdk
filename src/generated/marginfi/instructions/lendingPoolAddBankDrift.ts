@@ -93,7 +93,7 @@ export function getLendingPoolAddBankDriftDiscriminatorBytes(): ReadonlyUint8Arr
 export type LendingPoolAddBankDriftInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountFeePayer extends string | AccountMeta<string> = string,
   TAccountBankMint extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
@@ -109,15 +109,18 @@ export type LendingPoolAddBankDriftInstruction<
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? WritableAccount<TAccountGroup> : TAccountGroup,
-      TAccountAdmin extends string
-        ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
-        : TAccountAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountFeePayer extends string
         ? WritableSignerAccount<TAccountFeePayer> & AccountSignerMeta<TAccountFeePayer>
         : TAccountFeePayer,
@@ -154,6 +157,9 @@ export type LendingPoolAddBankDriftInstruction<
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -250,7 +256,7 @@ export function getLendingPoolAddBankDriftInstructionDataCodec(): FixedSizeCodec
 
 export type LendingPoolAddBankDriftAsyncInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
@@ -265,9 +271,10 @@ export type LendingPoolAddBankDriftAsyncInput<
   TAccountFeeVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   feePayer: TAccountFeePayer;
   /** Must match the mint used by `integration_acc_1` */
   bankMint: TAccountBankMint;
@@ -296,6 +303,7 @@ export type LendingPoolAddBankDriftAsyncInput<
   feeVault?: TAccountFeeVault;
   tokenProgram?: TAccountTokenProgram;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: LendingPoolAddBankDriftInstructionDataArgs["oracle"];
   assetWeightInit: LendingPoolAddBankDriftInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: LendingPoolAddBankDriftInstructionDataArgs["assetWeightMaint"];
@@ -312,7 +320,7 @@ export type LendingPoolAddBankDriftAsyncInput<
 
 export async function getLendingPoolAddBankDriftInstructionAsync<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput,
   TAccountBank extends InstructionAccountInput,
@@ -327,11 +335,12 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
   TAccountFeeVault extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolAddBankDriftAsyncInput<
     TAccountGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountBankMint,
     TAccountBank,
@@ -345,14 +354,18 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
     TAccountFeeVaultAuthority,
     TAccountFeeVault,
     TAccountTokenProgram,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   LendingPoolAddBankDriftInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -405,6 +418,10 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -417,7 +434,7 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: true },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     bankMint: { value: input.bankMint ?? null, isSigner: false, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
@@ -444,6 +461,11 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
     feeVault: { value: input.feeVault ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -539,11 +561,15 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("bankMint", accounts.bankMint),
       getAccountMeta("bank", accounts.bank),
@@ -558,6 +584,7 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
       getAccountMeta("feeVault", accounts.feeVault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolAddBankDriftInstructionDataEncoder().encode(
       args as LendingPoolAddBankDriftInstructionDataArgs
@@ -566,7 +593,10 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
   } as LendingPoolAddBankDriftInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -619,13 +649,17 @@ export async function getLendingPoolAddBankDriftInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
 
 export type LendingPoolAddBankDriftInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
@@ -640,9 +674,10 @@ export type LendingPoolAddBankDriftInput<
   TAccountFeeVault extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   feePayer: TAccountFeePayer;
   /** Must match the mint used by `integration_acc_1` */
   bankMint: TAccountBankMint;
@@ -671,6 +706,7 @@ export type LendingPoolAddBankDriftInput<
   feeVault: TAccountFeeVault;
   tokenProgram?: TAccountTokenProgram;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: LendingPoolAddBankDriftInstructionDataArgs["oracle"];
   assetWeightInit: LendingPoolAddBankDriftInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: LendingPoolAddBankDriftInstructionDataArgs["assetWeightMaint"];
@@ -687,7 +723,7 @@ export type LendingPoolAddBankDriftInput<
 
 export function getLendingPoolAddBankDriftInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountBankMint extends InstructionAccountInput,
   TAccountBank extends InstructionAccountInput,
@@ -702,11 +738,12 @@ export function getLendingPoolAddBankDriftInstruction<
   TAccountFeeVault extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolAddBankDriftInput<
     TAccountGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountBankMint,
     TAccountBank,
@@ -720,13 +757,17 @@ export function getLendingPoolAddBankDriftInstruction<
     TAccountFeeVaultAuthority,
     TAccountFeeVault,
     TAccountTokenProgram,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolAddBankDriftInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<
     TAccountFeePayer,
     InstructionAccountInputAddress<TAccountFeePayer>
@@ -779,6 +820,10 @@ export function getLendingPoolAddBankDriftInstruction<
   ResolvedInstructionAccountMeta<
     TAccountSystemProgram,
     InstructionAccountInputAddress<TAccountSystemProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -790,7 +835,7 @@ export function getLendingPoolAddBankDriftInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: true },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     bankMint: { value: input.bankMint ?? null, isSigner: false, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
@@ -817,6 +862,11 @@ export function getLendingPoolAddBankDriftInstruction<
     feeVault: { value: input.feeVault ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -835,11 +885,15 @@ export function getLendingPoolAddBankDriftInstruction<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("bankMint", accounts.bankMint),
       getAccountMeta("bank", accounts.bank),
@@ -854,6 +908,7 @@ export function getLendingPoolAddBankDriftInstruction<
       getAccountMeta("feeVault", accounts.feeVault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolAddBankDriftInstructionDataEncoder().encode(
       args as LendingPoolAddBankDriftInstructionDataArgs
@@ -862,7 +917,10 @@ export function getLendingPoolAddBankDriftInstruction<
   } as LendingPoolAddBankDriftInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -915,6 +973,10 @@ export function getLendingPoolAddBankDriftInstruction<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -926,7 +988,7 @@ export type ParsedLendingPoolAddBankDriftInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    admin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     feePayer: TAccountMetas[2];
     /** Must match the mint used by `integration_acc_1` */
     bankMint: TAccountMetas[3];
@@ -955,6 +1017,7 @@ export type ParsedLendingPoolAddBankDriftInstruction<
     feeVault: TAccountMetas[13];
     tokenProgram: TAccountMetas[14];
     systemProgram: TAccountMetas[15];
+    instructionSysvar: TAccountMetas[16];
   };
   data: LendingPoolAddBankDriftInstructionData;
 };
@@ -967,10 +1030,10 @@ export function parseLendingPoolAddBankDriftInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolAddBankDriftInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 16) {
+  if (instruction.accounts.length < 17) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 16,
+      expectedAccountMetas: 17,
     });
   }
   let accountIndex = 0;
@@ -983,7 +1046,7 @@ export function parseLendingPoolAddBankDriftInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       group: getNextAccount(),
-      admin: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       feePayer: getNextAccount(),
       bankMint: getNextAccount(),
       bank: getNextAccount(),
@@ -998,6 +1061,7 @@ export function parseLendingPoolAddBankDriftInstruction<
       feeVault: getNextAccount(),
       tokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolAddBankDriftInstructionDataDecoder().decode(instruction.data),
   };

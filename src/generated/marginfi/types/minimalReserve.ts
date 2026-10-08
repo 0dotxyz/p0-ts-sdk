@@ -26,6 +26,12 @@ import {
   type FixedSizeEncoder,
   type ReadonlyUint8Array,
 } from "@solana/kit";
+import {
+  getReserveConfigDecoder,
+  getReserveConfigEncoder,
+  type ReserveConfig,
+  type ReserveConfigArgs,
+} from ".";
 
 export type MinimalReserve = {
   version: bigint;
@@ -102,14 +108,18 @@ export type MinimalReserve = {
   absoluteReferralRateSf: ReadonlyUint8Array;
   /** Token or Token22. If token22, note that Kamino does not support all Token22 extensions. */
   tokenProgram: Address;
-  padding2Part1: ReadonlyUint8Array;
-  padding2Part2: ReadonlyUint8Array;
-  padding2Part3: ReadonlyUint8Array;
+  /**
+   * Undistributed reward tokens, native mint units. `distribute_rewards` moves these into
+   * `available_amount`, raising the cToken exchange rate.
+   */
+  rewardsAmountAvailable: bigint;
+  padding1: ReadonlyUint8Array;
+  padding2: ReadonlyUint8Array;
   padding3: ReadonlyUint8Array;
-  paddingPart1: ReadonlyUint8Array;
-  paddingPart2: ReadonlyUint8Array;
-  paddingPart3: ReadonlyUint8Array;
-  paddingPart4: ReadonlyUint8Array;
+  padding4: ReadonlyUint8Array;
+  padding5: ReadonlyUint8Array;
+  padding6: ReadonlyUint8Array;
+  padding7: ReadonlyUint8Array;
   /**
    * Mints collateral tokens
    * * A PDA
@@ -124,14 +134,14 @@ export type MinimalReserve = {
   mintTotalSupply: bigint;
   /** * A PDA */
   collateralSupplyVault: Address;
-  padding1ReserveCollateral: ReadonlyUint8Array;
-  padding2ReserveCollateral: ReadonlyUint8Array;
-  padding4Part1: ReadonlyUint8Array;
-  padding4Part2: ReadonlyUint8Array;
-  padding4Part3: ReadonlyUint8Array;
-  padding4Part4: ReadonlyUint8Array;
-  padding4Part5: ReadonlyUint8Array;
-  padding4Part6: ReadonlyUint8Array;
+  padding8: ReadonlyUint8Array;
+  padding9: ReadonlyUint8Array;
+  padding10: ReadonlyUint8Array;
+  padding11: ReadonlyUint8Array;
+  config: ReserveConfig;
+  padding12: ReadonlyUint8Array;
+  padding13: ReadonlyUint8Array;
+  padding14: ReadonlyUint8Array;
 };
 
 export type MinimalReserveArgs = {
@@ -209,14 +219,18 @@ export type MinimalReserveArgs = {
   absoluteReferralRateSf: ReadonlyUint8Array;
   /** Token or Token22. If token22, note that Kamino does not support all Token22 extensions. */
   tokenProgram: Address;
-  padding2Part1: ReadonlyUint8Array;
-  padding2Part2: ReadonlyUint8Array;
-  padding2Part3: ReadonlyUint8Array;
+  /**
+   * Undistributed reward tokens, native mint units. `distribute_rewards` moves these into
+   * `available_amount`, raising the cToken exchange rate.
+   */
+  rewardsAmountAvailable: number | bigint;
+  padding1: ReadonlyUint8Array;
+  padding2: ReadonlyUint8Array;
   padding3: ReadonlyUint8Array;
-  paddingPart1: ReadonlyUint8Array;
-  paddingPart2: ReadonlyUint8Array;
-  paddingPart3: ReadonlyUint8Array;
-  paddingPart4: ReadonlyUint8Array;
+  padding4: ReadonlyUint8Array;
+  padding5: ReadonlyUint8Array;
+  padding6: ReadonlyUint8Array;
+  padding7: ReadonlyUint8Array;
   /**
    * Mints collateral tokens
    * * A PDA
@@ -231,14 +245,14 @@ export type MinimalReserveArgs = {
   mintTotalSupply: number | bigint;
   /** * A PDA */
   collateralSupplyVault: Address;
-  padding1ReserveCollateral: ReadonlyUint8Array;
-  padding2ReserveCollateral: ReadonlyUint8Array;
-  padding4Part1: ReadonlyUint8Array;
-  padding4Part2: ReadonlyUint8Array;
-  padding4Part3: ReadonlyUint8Array;
-  padding4Part4: ReadonlyUint8Array;
-  padding4Part5: ReadonlyUint8Array;
-  padding4Part6: ReadonlyUint8Array;
+  padding8: ReadonlyUint8Array;
+  padding9: ReadonlyUint8Array;
+  padding10: ReadonlyUint8Array;
+  padding11: ReadonlyUint8Array;
+  config: ReserveConfigArgs;
+  padding12: ReadonlyUint8Array;
+  padding13: ReadonlyUint8Array;
+  padding14: ReadonlyUint8Array;
 };
 
 export function getMinimalReserveEncoder(): FixedSizeEncoder<MinimalReserveArgs> {
@@ -267,25 +281,25 @@ export function getMinimalReserveEncoder(): FixedSizeEncoder<MinimalReserveArgs>
     ["pendingReferrerFeesSf", fixEncoderSize(getBytesEncoder(), 16)],
     ["absoluteReferralRateSf", fixEncoderSize(getBytesEncoder(), 16)],
     ["tokenProgram", getAddressEncoder()],
-    ["padding2Part1", fixEncoderSize(getBytesEncoder(), 256)],
-    ["padding2Part2", fixEncoderSize(getBytesEncoder(), 128)],
-    ["padding2Part3", fixEncoderSize(getBytesEncoder(), 24)],
-    ["padding3", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart1", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart2", fixEncoderSize(getBytesEncoder(), 512)],
-    ["paddingPart3", fixEncoderSize(getBytesEncoder(), 128)],
-    ["paddingPart4", fixEncoderSize(getBytesEncoder(), 48)],
+    ["rewardsAmountAvailable", getU64Encoder()],
+    ["padding1", fixEncoderSize(getBytesEncoder(), 512)],
+    ["padding2", fixEncoderSize(getBytesEncoder(), 256)],
+    ["padding3", fixEncoderSize(getBytesEncoder(), 128)],
+    ["padding4", fixEncoderSize(getBytesEncoder(), 16)],
+    ["padding5", fixEncoderSize(getBytesEncoder(), 1024)],
+    ["padding6", fixEncoderSize(getBytesEncoder(), 128)],
+    ["padding7", fixEncoderSize(getBytesEncoder(), 48)],
     ["collateralMintPubkey", getAddressEncoder()],
     ["mintTotalSupply", getU64Encoder()],
     ["collateralSupplyVault", getAddressEncoder()],
-    ["padding1ReserveCollateral", fixEncoderSize(getBytesEncoder(), 512)],
-    ["padding2ReserveCollateral", fixEncoderSize(getBytesEncoder(), 512)],
-    ["padding4Part1", fixEncoderSize(getBytesEncoder(), 4096)],
-    ["padding4Part2", fixEncoderSize(getBytesEncoder(), 512)],
-    ["padding4Part3", fixEncoderSize(getBytesEncoder(), 256)],
-    ["padding4Part4", fixEncoderSize(getBytesEncoder(), 64)],
-    ["padding4Part5", fixEncoderSize(getBytesEncoder(), 32)],
-    ["padding4Part6", fixEncoderSize(getBytesEncoder(), 8)],
+    ["padding8", fixEncoderSize(getBytesEncoder(), 1024)],
+    ["padding9", fixEncoderSize(getBytesEncoder(), 1024)],
+    ["padding10", fixEncoderSize(getBytesEncoder(), 128)],
+    ["padding11", fixEncoderSize(getBytesEncoder(), 48)],
+    ["config", getReserveConfigEncoder()],
+    ["padding12", fixEncoderSize(getBytesEncoder(), 2048)],
+    ["padding13", fixEncoderSize(getBytesEncoder(), 512)],
+    ["padding14", fixEncoderSize(getBytesEncoder(), 256)],
   ]);
 }
 
@@ -315,25 +329,25 @@ export function getMinimalReserveDecoder(): FixedSizeDecoder<MinimalReserve> {
     ["pendingReferrerFeesSf", fixDecoderSize(getBytesDecoder(), 16)],
     ["absoluteReferralRateSf", fixDecoderSize(getBytesDecoder(), 16)],
     ["tokenProgram", getAddressDecoder()],
-    ["padding2Part1", fixDecoderSize(getBytesDecoder(), 256)],
-    ["padding2Part2", fixDecoderSize(getBytesDecoder(), 128)],
-    ["padding2Part3", fixDecoderSize(getBytesDecoder(), 24)],
-    ["padding3", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart1", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart2", fixDecoderSize(getBytesDecoder(), 512)],
-    ["paddingPart3", fixDecoderSize(getBytesDecoder(), 128)],
-    ["paddingPart4", fixDecoderSize(getBytesDecoder(), 48)],
+    ["rewardsAmountAvailable", getU64Decoder()],
+    ["padding1", fixDecoderSize(getBytesDecoder(), 512)],
+    ["padding2", fixDecoderSize(getBytesDecoder(), 256)],
+    ["padding3", fixDecoderSize(getBytesDecoder(), 128)],
+    ["padding4", fixDecoderSize(getBytesDecoder(), 16)],
+    ["padding5", fixDecoderSize(getBytesDecoder(), 1024)],
+    ["padding6", fixDecoderSize(getBytesDecoder(), 128)],
+    ["padding7", fixDecoderSize(getBytesDecoder(), 48)],
     ["collateralMintPubkey", getAddressDecoder()],
     ["mintTotalSupply", getU64Decoder()],
     ["collateralSupplyVault", getAddressDecoder()],
-    ["padding1ReserveCollateral", fixDecoderSize(getBytesDecoder(), 512)],
-    ["padding2ReserveCollateral", fixDecoderSize(getBytesDecoder(), 512)],
-    ["padding4Part1", fixDecoderSize(getBytesDecoder(), 4096)],
-    ["padding4Part2", fixDecoderSize(getBytesDecoder(), 512)],
-    ["padding4Part3", fixDecoderSize(getBytesDecoder(), 256)],
-    ["padding4Part4", fixDecoderSize(getBytesDecoder(), 64)],
-    ["padding4Part5", fixDecoderSize(getBytesDecoder(), 32)],
-    ["padding4Part6", fixDecoderSize(getBytesDecoder(), 8)],
+    ["padding8", fixDecoderSize(getBytesDecoder(), 1024)],
+    ["padding9", fixDecoderSize(getBytesDecoder(), 1024)],
+    ["padding10", fixDecoderSize(getBytesDecoder(), 128)],
+    ["padding11", fixDecoderSize(getBytesDecoder(), 48)],
+    ["config", getReserveConfigDecoder()],
+    ["padding12", fixDecoderSize(getBytesDecoder(), 2048)],
+    ["padding13", fixDecoderSize(getBytesDecoder(), 512)],
+    ["padding14", fixDecoderSize(getBytesDecoder(), 256)],
   ]);
 }
 

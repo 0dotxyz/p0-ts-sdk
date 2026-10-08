@@ -132,6 +132,7 @@ exports[`bank DTO > decodes the 'default (PythMSOL, emode, rate limite…' bank 
   "insuranceVaultAuthorityBump": 255,
   "insuranceVaultBump": 253,
   "jupLendIntegrationAccounts": undefined,
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": undefined,
   "lastUpdate": 1790234251,
   "lendingPositionCount": "-1164",
@@ -142,6 +143,9 @@ exports[`bank DTO > decodes the 'default (PythMSOL, emode, rate limite…' bank 
   "mint": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
   "mintDecimals": 9,
   "oracleKey": "7AviUf9nL62mcxNbQGKm4nKDQnPjswo6c5MX4D57HmyE",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "52776524379",
@@ -261,6 +265,7 @@ exports[`bank DTO > decodes the 'drift' bank into the API DTO 1`] = `
   "insuranceVaultAuthorityBump": 255,
   "insuranceVaultBump": 255,
   "jupLendIntegrationAccounts": undefined,
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": undefined,
   "lastUpdate": 1779228022,
   "lendingPositionCount": "0",
@@ -271,6 +276,9 @@ exports[`bank DTO > decodes the 'drift' bank into the API DTO 1`] = `
   "mint": "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",
   "mintDecimals": 9,
   "oracleKey": "9Br93wF7vgdtw5JZcXyH1TvM9W4vb3dBPBEBg6EKuGC7",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "0",
@@ -441,6 +449,7 @@ exports[`bank DTO > decodes the 'juplend' bank into the API DTO 1`] = `
     "jupFTokenVault": "HsjXF5USiSX2QUcDvsKM8GEVPoUH1eVDjxLB9obvYagK",
     "jupLendingState": "BeAqbxfrcXmzEYT2Ra62oW2MqkuFDHaCtps47Mzg6Zj3",
   },
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": undefined,
   "lastUpdate": 1789229660,
   "lendingPositionCount": "31",
@@ -451,6 +460,9 @@ exports[`bank DTO > decodes the 'juplend' bank into the API DTO 1`] = `
   "mint": "So11111111111111111111111111111111111111112",
   "mintDecimals": 9,
   "oracleKey": "7AviUf9nL62mcxNbQGKm4nKDQnPjswo6c5MX4D57HmyE",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "0",
@@ -585,6 +597,7 @@ exports[`bank DTO > decodes the 'kamino' bank into the API DTO 1`] = `
   "insuranceVaultAuthorityBump": 254,
   "insuranceVaultBump": 255,
   "jupLendIntegrationAccounts": undefined,
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": {
     "kaminoObligation": "CQNMXyiAmWiANZp4tTpACEnN5z4xmNDaYzirSFLX2hcY",
     "kaminoReserve": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
@@ -598,6 +611,9 @@ exports[`bank DTO > decodes the 'kamino' bank into the API DTO 1`] = `
   "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   "mintDecimals": 6,
   "oracleKey": "6HAuqASbHEh4w4REJEUUUCginTLfj1kwCh215ZLtMkrT",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "3128494376",
@@ -764,6 +780,7 @@ exports[`bank DTO > decodes the 'sol' bank into the API DTO 1`] = `
   "insuranceVaultAuthorityBump": 253,
   "insuranceVaultBump": 253,
   "jupLendIntegrationAccounts": undefined,
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": undefined,
   "lastUpdate": 1790254442,
   "lendingPositionCount": "-6551",
@@ -774,6 +791,9 @@ exports[`bank DTO > decodes the 'sol' bank into the API DTO 1`] = `
   "mint": "So11111111111111111111111111111111111111112",
   "mintDecimals": 9,
   "oracleKey": "7AviUf9nL62mcxNbQGKm4nKDQnPjswo6c5MX4D57HmyE",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "-11207623783",
@@ -889,6 +909,7 @@ exports[`bank DTO > decodes the 'staked' bank into the API DTO 1`] = `
   "insuranceVaultAuthorityBump": 253,
   "insuranceVaultBump": 253,
   "jupLendIntegrationAccounts": undefined,
+  "kaminoEmergency": false,
   "kaminoIntegrationAccounts": undefined,
   "lastUpdate": 1790168264,
   "lendingPositionCount": "1",
@@ -899,6 +920,9 @@ exports[`bank DTO > decodes the 'staked' bank into the API DTO 1`] = `
   "mint": "BNisp3omkr6Rg5nHESWafjUbeCpGPy6MYq1iRJRgSAsh",
   "mintDecimals": 9,
   "oracleKey": "7AviUf9nL62mcxNbQGKm4nKDQnPjswo6c5MX4D57HmyE",
+  "premiumActivatedAt": 0,
+  "premiumActive": false,
+  "premiumTag": 0,
   "rateLimiter": {
     "daily": {
       "curWindowOutflow": "-3694169839887",

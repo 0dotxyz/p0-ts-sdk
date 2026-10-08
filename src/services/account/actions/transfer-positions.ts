@@ -17,33 +17,30 @@ import {
   TransferPositionsResult,
 } from "../types";
 import { MarginfiAccountType } from "../types/account.types";
-import { computeQuantityUi } from "../utils";
+import { computeQuantityUi, isCostlyBank } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
-import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
+import { makeCreateAccountIxWithProjection, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_BALANCES, MAX_COSTLY_POSITIONS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   makeTransactionMessage,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionFormat,
   TransactionType,
 } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
-
-/** Fixed marginfi balance slots per account. */
-const MAX_BALANCES = 16;
 
 /** Default hard cap on positions moved in one transfer. Keeps the whole transfer inside one tx. */
 const DEFAULT_MAX_TRANSFER_POSITIONS = 5;
@@ -182,6 +179,16 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
     }
   }
 
+  const costlyCountB =
+    destPreexistingBanksOf(accountB, bankMap).filter(isCostlyBank).length +
+    positions.filter((p) => p.side === "collateral" && isCostlyBank(p.bank)).length;
+  if (costlyCountB > MAX_COSTLY_POSITIONS) {
+    throw TransactionBuildingError.transferPositionsInvalidSelection(
+      `destination account cannot hold ${costlyCountB} integration and staked positions (max ${MAX_COSTLY_POSITIONS})`,
+      positions.map((p) => p.bankAddress)
+    );
+  }
+
   return positions;
 }
 
@@ -189,16 +196,9 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
 // Integration reserve/rate refresh
 // --------------------------------------------------------------------------------------
 
-/**
- * On-chain reserve/rate refresh ixs the integration collateral legs depend on. Kamino has no
- * self-refresh, so its reserves must be re-derived and the bank-level obligations of the banks we
- * act on refreshed. JupLend deposit/withdraw self-refresh their own bank, so only *other* JupLend
- * banks that stay in a health pack need the permissionless rate crank.
- *
- * Following the swap-collateral / repay-with-collateral precedent these ride in a transaction that
- * precedes the flashloan rather than inside it: the builders return no signer keys, and keeping them
- * out of the flashloan preserves its byte/lock budget.
- */
+// Kamino has no self-refresh, so its reserves and the transferred banks' obligations are
+// refreshed; JupLend deposits/withdraws refresh their own bank, so only the *other* JupLend banks in
+// a health pack get a rate crank. These go in the prelude to keep the flashloan's byte budget.
 function buildIntegrationRefreshIxs(args: {
   accountA: MarginfiAccountType;
   destinationAccount?: MarginfiAccountType;
@@ -240,12 +240,6 @@ function buildIntegrationRefreshIxs(args: {
 // --------------------------------------------------------------------------------------
 // Instruction assembly
 // --------------------------------------------------------------------------------------
-
-function dedupeBanks(banks: BankType[]): BankType[] {
-  const seen = new Map<string, BankType>();
-  for (const bank of banks) seen.set(bank.address, bank);
-  return [...seen.values()];
-}
 
 export interface BuildContext {
   programAddress: Address;
@@ -306,8 +300,8 @@ export async function buildCollateralLegIxs(
       assetShareValueMultiplierByBank: ctx.assetShareValueMultiplierByBank,
       withdrawAll: true,
       opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
+        createAta: false,
+        unwrapSol: false,
         activeBanks: [],
         groupRateLimiterEnabled: ctx.groupRateLimiterEnabled,
       },
@@ -320,19 +314,14 @@ export async function buildCollateralLegIxs(
       marginfiAccount: ctx.accountB,
       authority: ctx.authority,
       bankMetadataMap: ctx.bankMetadataMap,
-      opts: { wrapAndUnwrapSol: false },
+      opts: { wrapSol: false },
     }),
   };
 }
 
-/**
- * Build the flashloan's inner instructions for the whole selection:
- *   [cu…, withdraws(A)…, deposits(B)…, borrows(B)…, repays(A)…]
- * All deposits precede all borrows so every intermediate destination state is healthier than the
- * transaction-final one. Withdraws and repays carry no health accounts (A is inside the flashloan);
- * withdraws only gain the withdrawn bank's oracle when the group limiter is enabled. Each borrow
- * carries the destination's health pack for its banks active at that point.
- */
+// [compute budget, withdraws (A), deposits (B), borrows (B), repays (A)]: every deposit precedes
+// every borrow, so each intermediate state of B is healthier than its final one. A is inside the
+// flashloan, so its withdraws and repays carry no health accounts.
 async function buildInnerIxs(
   ctx: BuildContext,
   positions: ClassifiedPosition[]
@@ -391,8 +380,8 @@ async function buildInnerIxs(
         marginfiAccount: ctx.accountB,
         authority: ctx.authority,
         opts: {
-          createAtas: false,
-          wrapAndUnwrapSol: false,
+          createAta: false,
+          unwrapSol: false,
           activeBanks,
         },
       }))
@@ -408,7 +397,7 @@ async function buildInnerIxs(
         authority: ctx.authority,
         repayAll: true,
         opts: {
-          wrapAndUnwrapSol: false,
+          wrapSol: false,
         },
       }))
     );
@@ -424,10 +413,7 @@ async function buildInnerIxs(
   ];
 }
 
-/**
- * Wrap the inner instructions in a single flashloan on the source account.
- * Order: `[preIxs…, beginFL(A), inner…, endFL(A)]`; the begin ix points at the end ix.
- */
+// [preIxs, begin (A), inner, end (A)]: `makeFlashLoanTx` can't put instructions before begin
 async function buildTransferFlashloanTx(args: {
   programAddress: Address;
   authority: TransactionSigner;
@@ -452,19 +438,23 @@ async function buildTransferFlashloanTx(args: {
   } = args;
 
   const endIndex = preIxs.length + innerIxs.length + 1;
-  const begin = await makeBeginFlashLoanIx(programAddress, accountA.address, endIndex, authority);
-  const end = await makeEndFlashLoanIx(
+  const begin = await makeBeginFlashLoanIx({
     programAddress,
-    accountA.address,
-    accountA.group,
+    marginfiAccount: accountA,
+    authority,
+    endIndex,
+  });
+  const end = await makeEndFlashLoanIx({
+    programAddress,
+    marginfiAccount: accountA,
+    authority,
     bankMap,
-    projectedActiveBanksA,
-    authority
-  );
+    activeBanks: projectedActiveBanksA,
+  });
 
   return {
     message: makeTransactionMessage({
-      instructions: [...preIxs, ...begin, ...innerIxs, ...end],
+      instructions: [...preIxs, begin, ...innerIxs, end],
       feePayer: authority,
       latestBlockhash,
       txFormat,
@@ -478,12 +468,9 @@ function destPreexistingBanksOf(
   bankMap: Map<string, BankType>
 ): BankType[] {
   if (!account) return [];
-  return dedupeBanks(
-    account.balances
-      .filter((b) => b.active)
-      .map((b) => bankMap.get(b.bankPk))
-      .filter((b): b is BankType => Boolean(b))
-  );
+  return account.balances
+    .filter((b) => b.active)
+    .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)));
 }
 
 // --------------------------------------------------------------------------------------
@@ -491,31 +478,22 @@ function destPreexistingBanksOf(
 // --------------------------------------------------------------------------------------
 
 /**
- * Atomically move a selected set of positions from account A to account B in a single flashloan.
- * Per position: collateral → `withdraw(A)` + `deposit(B)`; debt → `borrow(B)` + `repay(A)`. Returns
- * unsigned transactions ordered for sequential execution (setup/refresh + crank first, then the
- * flashloan); the caller signs and sends them.
+ * Moves the positions in `bankAddresses` from `marginfiAccount` (A) to `destinationAccount` (B, or
+ * a new account created in the same transaction) in one flashloan: collateral is withdrawn from A
+ * and deposited into B; debt is borrowed on B and repaid on A. Both accounts' health is checked
+ * on-chain. The selection is capped at `maxPositions` (default 5) so it fits one transaction;
+ * transfer more in batches. Supports `DEFAULT`, `SOL` and `STAKED` banks, and `KAMINO` and
+ * `JUPLEND` collateral. Dust from the borrow padding and withdraw-all stays in the wallet.
  *
- * The whole transfer must fit one transaction — the selection is capped at `maxPositions`
- * (default 5), and the built flashloan is size-checked, throwing `TRANSFER_POSITIONS_UNSPLITTABLE`
- * if it still overflows (possible with several integration positions). Transfer larger sets in
- * batches. Correctness (both accounts staying healthy) is enforced on-chain: `endFL(A)` checks A's
- * remainder and each `borrow(B)` checks B — no client-side health prediction.
- *
- * Supported asset tags: `DEFAULT`/`SOL`/`STAKED` on either leg, and the collateral-only integrations
- * `KAMINO`/`JUPLEND` on the collateral leg (dedicated builders + a preceding reserve/rate refresh).
- * `DRIFT`/`SOLEND` are rejected.
- *
- * Runtime notes:
- *  - Each borrow-before-repay transiently spikes the debt bank's rate-limit window; a bank near its
- *    cap can revert with `BankHourly/DailyRateLimitExceeded`. The whole flashloan reverts atomically,
- *    so this is safe and retryable — treat it as such.
- *  - Integration (Kamino/JupLend) reserve/rate refresh rides in the prelude transaction and requires
- *    `bankMetadataMap` to carry fresh `kaminoStates`/`jupLendStates`.
- *  - All transactions share one blockhash; execute them in order within its validity window. When
- *    `mustBeAtomicBundle` is true, they must also land atomically in one bundle.
- *  - Dust (borrow padding minus accrued interest; withdraw-all/cToken-conversion excess) remains in
- *    the wallet ATAs.
+ * Each borrow briefly adds to the debt bank's rate-limit window before its repay, so a bank near
+ * its cap can revert with `BankHourly/DailyRateLimitExceeded`; the flashloan reverts atomically,
+ * so retrying is safe.
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_INVALID_SELECTION) if the selection or the
+ * destination can't take the transfer
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_UNSUPPORTED_BANK) if a collateral position
+ * is in a Drift or Solend bank
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_UNSPLITTABLE) if the flashloan doesn't fit
+ * one transaction
  */
 export async function makeTransferPositionsTx(
   params: MakeTransferPositionsTxParams
@@ -532,7 +510,7 @@ export async function makeTransferPositionsTx(
   } = params;
 
   const borrowPaddingBps = params.borrowPaddingBps ?? DEFAULT_BORROW_PADDING_BPS;
-  const groupRateLimiterEnabled = params.groupRateLimiterEnabled ?? false;
+  const groupRateLimiterEnabled = params.groupRateLimiterEnabled ?? true;
 
   const positions = classifyAndValidate(params);
 
@@ -546,7 +524,8 @@ export async function makeTransferPositionsTx(
         rpc,
         programAddress,
         accountA.group,
-        accountA.authority
+        accountA.authority,
+        params.createDestinationOpts?.thirdPartyId
       ));
     const created = await makeCreateAccountIxWithProjection({
       programAddress,
@@ -609,7 +588,7 @@ export async function makeTransferPositionsTx(
 
   // Setup ATAs for every transferred mint, then refresh integration reserves/rates. Both must land
   // before the flashloan (the withdraw legs send to these ATAs and read the refreshed state).
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: positions.map((p) => ({ mint: p.bank.mint, tokenProgram: p.tokenProgram })),
@@ -622,18 +601,11 @@ export async function makeTransferPositionsTx(
     bankMetadataMap,
   });
 
-  const additionalTxs: SolanaTransaction[] = [];
-  const preludeIxs = [...setupIxs, ...refreshIxs];
-  if (preludeIxs.length > 0) {
-    const messages = splitInstructionsToFitTransactions([], preludeIxs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {

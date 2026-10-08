@@ -50,13 +50,22 @@ export type SolendMinimalReserve = {
   configLoanToValueRatio: number;
   configLiquidationBonus: number;
   configLiquidationThreshold: number;
-  paddingToFees64: ReadonlyUint8Array;
-  paddingToFees6: ReadonlyUint8Array;
+  configMinBorrowRate: number;
+  configOptimalBorrowRate: number;
+  configMaxBorrowRate: number;
+  padding1: ReadonlyUint8Array;
+  /** Total liquidity ceiling in native mint units; `u64::MAX` is unlimited. */
+  configDepositLimit: bigint;
+  padding2: ReadonlyUint8Array;
+  padding3: ReadonlyUint8Array;
+  configProtocolTakeRate: number;
   liquidityAccumulatedProtocolFeesWads: ReadonlyUint8Array;
-  paddingFinal128: ReadonlyUint8Array;
-  paddingFinal64: ReadonlyUint8Array;
-  paddingFinal32: ReadonlyUint8Array;
-  paddingFinal6: ReadonlyUint8Array;
+  padding4: ReadonlyUint8Array;
+  padding5: ReadonlyUint8Array;
+  configMaxUtilizationRate: number;
+  configSuperMaxBorrowRate: bigint;
+  padding6: ReadonlyUint8Array;
+  padding7: ReadonlyUint8Array;
 };
 
 export type SolendMinimalReserveArgs = {
@@ -82,13 +91,22 @@ export type SolendMinimalReserveArgs = {
   configLoanToValueRatio: number;
   configLiquidationBonus: number;
   configLiquidationThreshold: number;
-  paddingToFees64: ReadonlyUint8Array;
-  paddingToFees6: ReadonlyUint8Array;
+  configMinBorrowRate: number;
+  configOptimalBorrowRate: number;
+  configMaxBorrowRate: number;
+  padding1: ReadonlyUint8Array;
+  /** Total liquidity ceiling in native mint units; `u64::MAX` is unlimited. */
+  configDepositLimit: number | bigint;
+  padding2: ReadonlyUint8Array;
+  padding3: ReadonlyUint8Array;
+  configProtocolTakeRate: number;
   liquidityAccumulatedProtocolFeesWads: ReadonlyUint8Array;
-  paddingFinal128: ReadonlyUint8Array;
-  paddingFinal64: ReadonlyUint8Array;
-  paddingFinal32: ReadonlyUint8Array;
-  paddingFinal6: ReadonlyUint8Array;
+  padding4: ReadonlyUint8Array;
+  padding5: ReadonlyUint8Array;
+  configMaxUtilizationRate: number;
+  configSuperMaxBorrowRate: number | bigint;
+  padding6: ReadonlyUint8Array;
+  padding7: ReadonlyUint8Array;
 };
 
 export function getSolendMinimalReserveEncoder(): FixedSizeEncoder<SolendMinimalReserveArgs> {
@@ -112,13 +130,21 @@ export function getSolendMinimalReserveEncoder(): FixedSizeEncoder<SolendMinimal
     ["configLoanToValueRatio", getU8Encoder()],
     ["configLiquidationBonus", getU8Encoder()],
     ["configLiquidationThreshold", getU8Encoder()],
-    ["paddingToFees64", fixEncoderSize(getBytesEncoder(), 64)],
-    ["paddingToFees6", fixEncoderSize(getBytesEncoder(), 6)],
+    ["configMinBorrowRate", getU8Encoder()],
+    ["configOptimalBorrowRate", getU8Encoder()],
+    ["configMaxBorrowRate", getU8Encoder()],
+    ["padding1", fixEncoderSize(getBytesEncoder(), 17)],
+    ["configDepositLimit", getU64Encoder()],
+    ["padding2", fixEncoderSize(getBytesEncoder(), 32)],
+    ["padding3", fixEncoderSize(getBytesEncoder(), 9)],
+    ["configProtocolTakeRate", getU8Encoder()],
     ["liquidityAccumulatedProtocolFeesWads", fixEncoderSize(getBytesEncoder(), 16)],
-    ["paddingFinal128", fixEncoderSize(getBytesEncoder(), 128)],
-    ["paddingFinal64", fixEncoderSize(getBytesEncoder(), 64)],
-    ["paddingFinal32", fixEncoderSize(getBytesEncoder(), 32)],
-    ["paddingFinal6", fixEncoderSize(getBytesEncoder(), 6)],
+    ["padding4", fixEncoderSize(getBytesEncoder(), 64)],
+    ["padding5", fixEncoderSize(getBytesEncoder(), 17)],
+    ["configMaxUtilizationRate", getU8Encoder()],
+    ["configSuperMaxBorrowRate", getU64Encoder()],
+    ["padding6", fixEncoderSize(getBytesEncoder(), 128)],
+    ["padding7", fixEncoderSize(getBytesEncoder(), 12)],
   ]);
 }
 
@@ -143,13 +169,21 @@ export function getSolendMinimalReserveDecoder(): FixedSizeDecoder<SolendMinimal
     ["configLoanToValueRatio", getU8Decoder()],
     ["configLiquidationBonus", getU8Decoder()],
     ["configLiquidationThreshold", getU8Decoder()],
-    ["paddingToFees64", fixDecoderSize(getBytesDecoder(), 64)],
-    ["paddingToFees6", fixDecoderSize(getBytesDecoder(), 6)],
+    ["configMinBorrowRate", getU8Decoder()],
+    ["configOptimalBorrowRate", getU8Decoder()],
+    ["configMaxBorrowRate", getU8Decoder()],
+    ["padding1", fixDecoderSize(getBytesDecoder(), 17)],
+    ["configDepositLimit", getU64Decoder()],
+    ["padding2", fixDecoderSize(getBytesDecoder(), 32)],
+    ["padding3", fixDecoderSize(getBytesDecoder(), 9)],
+    ["configProtocolTakeRate", getU8Decoder()],
     ["liquidityAccumulatedProtocolFeesWads", fixDecoderSize(getBytesDecoder(), 16)],
-    ["paddingFinal128", fixDecoderSize(getBytesDecoder(), 128)],
-    ["paddingFinal64", fixDecoderSize(getBytesDecoder(), 64)],
-    ["paddingFinal32", fixDecoderSize(getBytesDecoder(), 32)],
-    ["paddingFinal6", fixDecoderSize(getBytesDecoder(), 6)],
+    ["padding4", fixDecoderSize(getBytesDecoder(), 64)],
+    ["padding5", fixDecoderSize(getBytesDecoder(), 17)],
+    ["configMaxUtilizationRate", getU8Decoder()],
+    ["configSuperMaxBorrowRate", getU64Decoder()],
+    ["padding6", fixDecoderSize(getBytesDecoder(), 128)],
+    ["padding7", fixDecoderSize(getBytesDecoder(), 12)],
   ]);
 }
 

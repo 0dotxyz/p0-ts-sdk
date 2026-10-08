@@ -7,8 +7,13 @@ import {
 export interface BalanceTypeDto {
   active: boolean;
   bankPk: string;
+  /** Optional for backwards compatibility with DTOs serialized before order tags existed. */
+  tag?: number;
   assetShares: string;
   liabilityShares: string;
+  /** Optional so DTOs cached before the variable borrow premium still parse (defaults to 0). */
+  premiumRate?: string;
+  premiumOutstanding?: string;
   lastUpdate: number;
 }
 
@@ -32,4 +37,6 @@ export interface MarginfiAccountTypeDto {
   balances: BalanceTypeDto[];
   accountFlags: AccountFlags[];
   healthCache: HealthCacheTypeDto;
+  /** Optional so DTOs cached before the field existed still parse (defaults to 0). */
+  activeOrders?: number;
 }

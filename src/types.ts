@@ -61,6 +61,15 @@ export interface WrappedI80F48 {
   value: ReadonlyUint8Array;
 }
 
+/**
+ * The on-chain take-profit / stop-loss trigger: thresholds are the pair's net equity in USD,
+ * `maxSlippage` a fraction of `u32::MAX` (see `percentToMaxSlippageU32`).
+ */
+export type OrderTrigger =
+  | { __kind: "StopLoss"; threshold: WrappedI80F48; maxSlippage: number }
+  | { __kind: "TakeProfit"; threshold: WrappedI80F48; maxSlippage: number }
+  | { __kind: "Both"; stopLoss: WrappedI80F48; takeProfit: WrappedI80F48; maxSlippage: number };
+
 export type Amount = BigNumber | number | string;
 
 export type AmountType = "uiToken" | "cToken";

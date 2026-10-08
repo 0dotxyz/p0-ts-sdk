@@ -76,8 +76,8 @@ async function main() {
     { ...clmm.tradePtInput, trader: authority, amountIn: 1n, swapDirection: SwapDirection.SyToPt, amountOutConstraint: 1n, priceSpotLimit: null },
     clmm.remainingAccounts
   );
-  const withdrawIxs = await wrapper.makeWithdrawIx(maturedBank.address, 1, false, { createAtas: false, wrapAndUnwrapSol: false });
-  const depositIxs = await wrapper.makeDepositIx(successorBank.address, 1, { wrapAndUnwrapSol: false });
+  const withdrawIxs = await wrapper.makeWithdrawIx(maturedBank.address, 1, false, { createAta: false, unwrapSol: false });
+  const depositIxs = await wrapper.makeDepositIx(successorBank.address, 1, { wrapSol: false });
 
   const keys = new Set<Address>();
   for (const ix of [...withdrawIxs, mergeIx, tradeIx, ...depositIxs]) {

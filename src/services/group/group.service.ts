@@ -8,9 +8,10 @@ import {
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
-import { BankConfigOpt } from "../bank/types";
+import { BankConfigFastOpt, BankConfigGovOpt } from "../bank/types";
 import {
-  serializeBankConfigOpt,
+  serializeBankConfigFast,
+  serializeBankConfigGov,
   serializeInterestRateConfig,
   serializeOperationalState,
   serializeRiskTier,
@@ -27,24 +28,54 @@ import {
   findPoolOnRampAddress,
 } from "~/vendor/single-spl-pool";
 
+/**
+ * Configures a bank's admin-level settings (limits, interest rates, pausing), signed by the group
+ * admin. Weights, risk tier, asset tag, oracle limits, freezing and returning a paused bank to
+ * operational go through {@link makePoolConfigureBankGovIx}.
+ */
 export async function makePoolConfigureBankIx({
   programAddress,
   groupAddress,
   admin,
   bankAddress,
-  bankConfigOpt,
+  bankConfig,
 }: {
   programAddress: Address;
   groupAddress: Address;
   admin: TransactionSigner;
   bankAddress: Address;
-  bankConfigOpt: BankConfigOpt;
+  bankConfig: BankConfigFastOpt;
 }): Promise<Instruction> {
   return instructions.makePoolConfigureBankIx(programAddress, {
     group: groupAddress,
     admin,
     bank: bankAddress,
-    bankConfigOpt: serializeBankConfigOpt(bankConfigOpt),
+    ...serializeBankConfigFast(bankConfig),
+  });
+}
+
+/**
+ * Configures a bank's governance settings (weights, risk tier, asset tag, oracle limits, tokenless
+ * repayments, freezing, returning to operational), signed by the group's governance admin.
+ */
+export async function makePoolConfigureBankGovIx({
+  programAddress,
+  groupAddress,
+  governanceAdmin,
+  bankAddress,
+  bankConfig,
+}: {
+  programAddress: Address;
+  groupAddress: Address;
+  governanceAdmin: TransactionSigner;
+  bankAddress: Address;
+  bankConfig: BankConfigGovOpt;
+}): Promise<Instruction> {
+  return instructions.makePoolConfigureBankGovIx(programAddress, {
+    group: groupAddress,
+    governanceAdmin,
+    bank: bankAddress,
+    ...serializeBankConfigGov(bankConfig),
   });
 }
 
@@ -94,7 +125,7 @@ export async function makeAddPermissionlessStakedBankIx({
 export async function makePoolAddBankIx({
   programAddress,
   groupAddress,
-  admin,
+  governanceAdmin,
   globalFeeWallet,
   feePayer,
   bank,
@@ -104,7 +135,7 @@ export async function makePoolAddBankIx({
 }: {
   programAddress: Address;
   groupAddress: Address;
-  admin: TransactionSigner;
+  governanceAdmin: TransactionSigner;
   /** The `FeeState`'s global fee wallet */
   globalFeeWallet: Address;
   feePayer: TransactionSigner;
@@ -118,7 +149,7 @@ export async function makePoolAddBankIx({
 
   return instructions.makePoolAddBankIx(programAddress, {
     marginfiGroup: groupAddress,
-    admin,
+    governanceAdmin,
     feePayer,
     globalFeeWallet,
     bankMint,

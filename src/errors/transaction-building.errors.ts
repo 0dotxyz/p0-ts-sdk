@@ -1,3 +1,5 @@
+import { MAX_COSTLY_POSITIONS } from "~/constants";
+
 /**
  * Error codes for transaction building failures
  */
@@ -9,12 +11,21 @@ export enum TransactionBuildingErrorCode {
   KAMINO_RESERVE_NOT_FOUND = "KAMINO_RESERVE_NOT_FOUND",
   DRIFT_STATE_NOT_FOUND = "DRIFT_STATE_NOT_FOUND",
   JUPLEND_STATE_NOT_FOUND = "JUPLEND_STATE_NOT_FOUND",
-  SWITCHBOARD_FEED_UPDATE_FAILED = "SWITCHBOARD_FEED_UPDATE_FAILED",
   SWAP_QUOTE_FAILED = "SWAP_QUOTE_FAILED",
   TRANSFER_POSITIONS_INVALID_SELECTION = "TRANSFER_POSITIONS_INVALID_SELECTION",
   TRANSFER_POSITIONS_UNSUPPORTED_BANK = "TRANSFER_POSITIONS_UNSUPPORTED_BANK",
   TRANSFER_POSITIONS_UNSPLITTABLE = "TRANSFER_POSITIONS_UNSPLITTABLE",
   BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
+  ORDER_INVALID_TRIGGER = "ORDER_INVALID_TRIGGER",
+  ORDER_INVALID_SLIPPAGE = "ORDER_INVALID_SLIPPAGE",
+  COSTLY_POSITION_LIMIT_EXCEEDED = "COSTLY_POSITION_LIMIT_EXCEEDED",
+  ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
+  ACCOUNT_NOT_EMPTY = "ACCOUNT_NOT_EMPTY",
+  BANK_NOT_FOUND = "BANK_NOT_FOUND",
+  BULK_INVALID_SELECTION = "BULK_INVALID_SELECTION",
+  FEE_STATE_NOT_FOUND = "FEE_STATE_NOT_FOUND",
+  ROLL_PT_INVALID = "ROLL_PT_INVALID",
+  INVALID_AMOUNT = "INVALID_AMOUNT",
 }
 
 /**
@@ -65,10 +76,6 @@ export interface TransactionBuildingErrorDetails {
     bankMint: string;
     bankSymbol?: string;
   };
-  [TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED]: {
-    oracleKeys: string[];
-    reason: string;
-  };
   [TransactionBuildingErrorCode.SWAP_QUOTE_FAILED]: {
     provider: string;
     inputMint: string;
@@ -98,6 +105,45 @@ export interface TransactionBuildingErrorDetails {
     }>;
     /** Whether the bridge token would have been held as collateral ("deposit") or debt ("borrow"). */
     bridgeTokenSide: "deposit" | "borrow";
+  };
+  [TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER]: {
+    reason: string;
+    takeProfitUsd?: string;
+    stopLossUsd?: string;
+  };
+  [TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE]: {
+    maxSlippagePercent: number;
+    maxAllowedPercent: number;
+  };
+  [TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED]: {
+    /** Integration/staked bank the action would open a position in */
+    bankAddress: string;
+    /** Max integration + staked positions per account */
+    limit: number;
+  };
+  [TransactionBuildingErrorCode.ACCOUNT_DISABLED]: {
+    accountAddress: string;
+  };
+  [TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY]: {
+    accountAddress: string;
+    activeBanks: string[];
+  };
+  [TransactionBuildingErrorCode.BANK_NOT_FOUND]: {
+    bankAddress: string;
+  };
+  [TransactionBuildingErrorCode.BULK_INVALID_SELECTION]: {
+    reason: string;
+    bankAddresses: string[];
+  };
+  [TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND]: {
+    feeStateAddress: string;
+  };
+  [TransactionBuildingErrorCode.ROLL_PT_INVALID]: {
+    reason: string;
+  };
+  [TransactionBuildingErrorCode.INVALID_AMOUNT]: {
+    amount: number;
+    reason: string;
   };
 }
 
@@ -233,20 +279,6 @@ export class TransactionBuildingError<
   }
 
   /**
-   * Failed to update Switchboard price feeds
-   */
-  static switchboardFeedUpdateFailed(
-    oracleKeys: string[],
-    reason: string
-  ): TransactionBuildingError<TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED> {
-    return new TransactionBuildingError(
-      TransactionBuildingErrorCode.SWITCHBOARD_FEED_UPDATE_FAILED,
-      `Switchboard feed update failed: ${reason}`,
-      { oracleKeys, reason }
-    );
-  }
-
-  /**
    * Failed to get a swap quote from any provider
    */
   static swapQuoteFailed(
@@ -328,6 +360,148 @@ export class TransactionBuildingError<
   }
 
   /**
+   * The order trigger can't be placed: no threshold set, a threshold not above 0, or take-profit
+   * at or below stop-loss (the program rejects all three with `InvalidOrderTakeProfitOrStopLoss`).
+   */
+  static orderInvalidTrigger(
+    reason: string,
+    takeProfitUsd?: string,
+    stopLossUsd?: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ORDER_INVALID_TRIGGER,
+      `Invalid order trigger: ${reason}`,
+      { reason, takeProfitUsd, stopLossUsd }
+    );
+  }
+
+  /**
+   * The order's max slippage is outside (0, cap]. The program accepts 0, but a keeper can't
+   * execute an order that allows no slippage, so the SDK rejects it.
+   */
+  static orderInvalidSlippage(
+    maxSlippagePercent: number,
+    maxAllowedPercent: number
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE,
+      `Max slippage percent must be in (0, ${maxAllowedPercent}], got ${maxSlippagePercent}`,
+      { maxSlippagePercent, maxAllowedPercent }
+    );
+  }
+
+  /**
+   * The action would open an integration (Kamino, Drift, Solend, JupLend) or staked position
+   * beyond the per-account limit on such positions.
+   */
+  static costlyPositionLimitExceeded(
+    bankAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED,
+      `An account can hold at most ${MAX_COSTLY_POSITIONS} integration and staked positions`,
+      { bankAddress, limit: MAX_COSTLY_POSITIONS }
+    );
+  }
+
+  /**
+   * The marginfi account is disabled (e.g. already transferred to a new account), so it can't act.
+   */
+  static accountDisabled(
+    accountAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ACCOUNT_DISABLED> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ACCOUNT_DISABLED,
+      `Account ${accountAddress} is disabled`,
+      { accountAddress }
+    );
+  }
+
+  /**
+   * The marginfi account still has active balances, so it can't be closed.
+   */
+  static accountNotEmpty(
+    accountAddress: string,
+    activeBanks: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ACCOUNT_NOT_EMPTY,
+      `Account ${accountAddress} has ${activeBanks.length} active balances`,
+      { accountAddress, activeBanks }
+    );
+  }
+
+  /**
+   * A bank the transaction needs (e.g. one of the account's active banks) isn't in `bankMap`.
+   */
+  static bankNotFound(
+    bankAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BANK_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BANK_NOT_FOUND,
+      `Bank ${bankAddress} not found in bankMap`,
+      { bankAddress }
+    );
+  }
+
+  /**
+   * The banks passed to a bulk withdraw or repay can't all be acted on (none given, a repeat, or one
+   * without the position).
+   */
+  static bulkInvalidSelection(
+    reason: string,
+    bankAddresses: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.BULK_INVALID_SELECTION> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.BULK_INVALID_SELECTION,
+      `Invalid bulk selection: ${reason}`,
+      { reason, bankAddresses }
+    );
+  }
+
+  /**
+   * The program's fee state account doesn't exist, so the global fee wallet that order placement
+   * and account transfers pay can't be read.
+   */
+  static feeStateNotFound(
+    feeStateAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND,
+      `Fee state ${feeStateAddress} not found`,
+      { feeStateAddress }
+    );
+  }
+
+  /**
+   * A PT roll can't be built from its inputs: no matured market or vault given, or a matured vault
+   * that would redeem no SY.
+   */
+  static rollPtInvalid(
+    reason: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ROLL_PT_INVALID> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ROLL_PT_INVALID,
+      `Invalid PT roll: ${reason}`,
+      { reason }
+    );
+  }
+
+  /**
+   * An amount passed to a builder can't be used: not positive, or not usable for the bank.
+   */
+  static invalidAmount(
+    amount: number,
+    reason = "must be greater than 0"
+  ): TransactionBuildingError<TransactionBuildingErrorCode.INVALID_AMOUNT> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.INVALID_AMOUNT,
+      `Invalid amount ${amount}: ${reason}`,
+      { amount, reason }
+    );
+  }
+
+  /**
    * Generic escape hatch for custom errors
    */
   static custom<T extends TransactionBuildingErrorCode>(
@@ -353,7 +527,7 @@ const DECOMPOSABLE_SWAP_ERROR_CODES = new Set<TransactionBuildingErrorCode>([
  * could still succeed when split into two legs through a bridge token (a double-hop).
  *
  * This is the predicate a caller's catch→retry uses to decide whether to attempt a bridged swap
- * (see {@link composeBridgedSwap}). Size overflows surface as `SWAP_SIZE_EXCEEDED_*` and no-route /
+ * (see `makeBridgedTx`). Size overflows surface as `SWAP_SIZE_EXCEEDED_*` and no-route /
  * unquotable failures as `SWAP_QUOTE_FAILED`; the swap engine also classifies an oversized route
  * (which would otherwise throw a raw serialization `RangeError`) as `SWAP_SIZE_EXCEEDED_LOOP`.
  */

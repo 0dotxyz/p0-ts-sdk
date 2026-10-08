@@ -128,10 +128,16 @@ export type FeeState = {
   /** Can pause (not unpause) the protocol, but cannot modify any fee configuration. */
   pauseDelegateAdmin: Address;
   /**
-   * Reserved for future use (e.g. the variable-borrow premium settings). Accounts created
-   * before the struct grew to this size are v1-sized (`8 + V1_LEN` bytes) and must be
-   * grown via `resize_global_fee_state` before this program version can load them; the new
-   * bytes are zero-filled.
+   * Destination wallet for swept variable-borrow premium fees. Premium collected by banks is
+   * swept (permissionlessly) to the canonical ATA of this wallet for the bank's mint.
+   * * `Pubkey::default()` = unset (sweeps are rejected until the fee admin configures it),
+   * which is what v1-sized accounts hold after `resize_global_fee_state` zero-fills them.
+   */
+  premiumWallet: Address;
+  /**
+   * Reserved for future use. Accounts created before the struct grew to this size are
+   * v1-sized (`8 + V1_LEN` bytes) and must be grown via `resize_global_fee_state` before
+   * this program version can load them; the new bytes are zero-filled.
    */
   reserved0: Array<bigint>;
 };
@@ -202,10 +208,16 @@ export type FeeStateArgs = {
   /** Can pause (not unpause) the protocol, but cannot modify any fee configuration. */
   pauseDelegateAdmin: Address;
   /**
-   * Reserved for future use (e.g. the variable-borrow premium settings). Accounts created
-   * before the struct grew to this size are v1-sized (`8 + V1_LEN` bytes) and must be
-   * grown via `resize_global_fee_state` before this program version can load them; the new
-   * bytes are zero-filled.
+   * Destination wallet for swept variable-borrow premium fees. Premium collected by banks is
+   * swept (permissionlessly) to the canonical ATA of this wallet for the bank's mint.
+   * * `Pubkey::default()` = unset (sweeps are rejected until the fee admin configures it),
+   * which is what v1-sized accounts hold after `resize_global_fee_state` zero-fills them.
+   */
+  premiumWallet: Address;
+  /**
+   * Reserved for future use. Accounts created before the struct grew to this size are
+   * v1-sized (`8 + V1_LEN` bytes) and must be grown via `resize_global_fee_state` before
+   * this program version can load them; the new bytes are zero-filled.
    */
   reserved0: Array<number | bigint>;
 };
@@ -232,7 +244,8 @@ export function getFeeStateEncoder(): FixedSizeEncoder<FeeStateArgs> {
       ["orderInitFlatSolFee", getU32Encoder()],
       ["orderExecutionMaxFee", getWrappedI80F48Encoder()],
       ["pauseDelegateAdmin", getAddressEncoder()],
-      ["reserved0", getArrayEncoder(getU64Encoder(), { size: 32 })],
+      ["premiumWallet", getAddressEncoder()],
+      ["reserved0", getArrayEncoder(getU64Encoder(), { size: 28 })],
     ]),
     (value) => ({ ...value, discriminator: FEE_STATE_DISCRIMINATOR })
   );
@@ -259,7 +272,8 @@ export function getFeeStateDecoder(): FixedSizeDecoder<FeeState> {
     ["orderInitFlatSolFee", getU32Decoder()],
     ["orderExecutionMaxFee", getWrappedI80F48Decoder()],
     ["pauseDelegateAdmin", getAddressDecoder()],
-    ["reserved0", getArrayDecoder(getU64Decoder(), { size: 32 })],
+    ["premiumWallet", getAddressDecoder()],
+    ["reserved0", getArrayDecoder(getU64Decoder(), { size: 28 })],
   ]);
 }
 

@@ -64,18 +64,24 @@ export function getLendingPoolConfigureBankEmodeDiscriminatorBytes(): ReadonlyUi
 export type LendingPoolConfigureBankEmodeInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountEmodeAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountGroup extends string ? ReadonlyAccount<TAccountGroup> : TAccountGroup,
-      TAccountEmodeAdmin extends string
-        ? ReadonlySignerAccount<TAccountEmodeAdmin> & AccountSignerMeta<TAccountEmodeAdmin>
-        : TAccountEmodeAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -122,32 +128,44 @@ export function getLendingPoolConfigureBankEmodeInstructionDataCodec(): FixedSiz
 
 export type LendingPoolConfigureBankEmodeInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountEmodeAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
-  emodeAdmin: TAccountEmodeAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
   emodeTag: LendingPoolConfigureBankEmodeInstructionDataArgs["emodeTag"];
   entries: LendingPoolConfigureBankEmodeInstructionDataArgs["entries"];
 };
 
 export function getLendingPoolConfigureBankEmodeInstruction<
   TAccountGroup extends InstructionAccountInput,
-  TAccountEmodeAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: LendingPoolConfigureBankEmodeInput<TAccountGroup, TAccountEmodeAdmin, TAccountBank>,
+  input: LendingPoolConfigureBankEmodeInput<
+    TAccountGroup,
+    TAccountGovernanceAdmin,
+    TAccountBank,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolConfigureBankEmodeInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
   ResolvedInstructionAccountMeta<
-    TAccountEmodeAdmin,
-    InstructionAccountInputAddress<TAccountEmodeAdmin>
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -158,8 +176,13 @@ export function getLendingPoolConfigureBankEmodeInstruction<
   // Original accounts.
   const originalAccounts = {
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
-    emodeAdmin: { value: input.emodeAdmin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -169,11 +192,18 @@ export function getLendingPoolConfigureBankEmodeInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
-      getAccountMeta("emodeAdmin", accounts.emodeAdmin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolConfigureBankEmodeInstructionDataEncoder().encode(
       args as LendingPoolConfigureBankEmodeInstructionDataArgs
@@ -183,10 +213,14 @@ export function getLendingPoolConfigureBankEmodeInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
     ResolvedInstructionAccountMeta<
-      TAccountEmodeAdmin,
-      InstructionAccountInputAddress<TAccountEmodeAdmin>
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
     >,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -197,8 +231,9 @@ export type ParsedLendingPoolConfigureBankEmodeInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     group: TAccountMetas[0];
-    emodeAdmin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolConfigureBankEmodeInstructionData;
 };
@@ -211,10 +246,10 @@ export function parseLendingPoolConfigureBankEmodeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolConfigureBankEmodeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -225,7 +260,12 @@ export function parseLendingPoolConfigureBankEmodeInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), emodeAdmin: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      governanceAdmin: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolConfigureBankEmodeInstructionDataDecoder().decode(instruction.data),
   };
 }

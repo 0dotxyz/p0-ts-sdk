@@ -139,6 +139,10 @@ export interface BankTypeDto {
   oracleKey: string;
   pythShardId?: number;
   emode: EmodeSettingsDto;
+  premiumTag?: number;
+  premiumActive?: boolean;
+  premiumActivatedAt?: number;
+  kaminoEmergency?: boolean;
   rateLimiter?: BankRateLimiterDto;
   feesDestinationAccount?: string;
   lendingPositionCount?: string;

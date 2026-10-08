@@ -50,6 +50,11 @@ export type LendingPoolBankHandleBankruptcyEventEvent = {
   badDebt: number;
   coveredAmount: number;
   socializedAmount: number;
+  /**
+   * Uncollectable premium receivable written off with the bad debt (never socialized,
+   * never covered by insurance, never credited to the bank).
+   */
+  premiumWrittenOff: number;
 };
 
 export type LendingPoolBankHandleBankruptcyEventEventArgs = {
@@ -59,6 +64,11 @@ export type LendingPoolBankHandleBankruptcyEventEventArgs = {
   badDebt: number;
   coveredAmount: number;
   socializedAmount: number;
+  /**
+   * Uncollectable premium receivable written off with the bad debt (never socialized,
+   * never covered by insurance, never credited to the bank).
+   */
+  premiumWrittenOff: number;
 };
 
 /** Gets the encoder for {@link LendingPoolBankHandleBankruptcyEventEventArgs} event data. */
@@ -71,6 +81,7 @@ export function getLendingPoolBankHandleBankruptcyEventEventEncoder(): Encoder<L
       ["badDebt", getF64Encoder()],
       ["coveredAmount", getF64Encoder()],
       ["socializedAmount", getF64Encoder()],
+      ["premiumWrittenOff", getF64Encoder()],
     ]),
     [getConstantEncoder(LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_EVENT_DISCRIMINATOR)]
   );
@@ -86,6 +97,7 @@ export function getLendingPoolBankHandleBankruptcyEventEventDecoder(): Decoder<L
       ["badDebt", getF64Decoder()],
       ["coveredAmount", getF64Decoder()],
       ["socializedAmount", getF64Decoder()],
+      ["premiumWrittenOff", getF64Decoder()],
     ]),
     [getConstantDecoder(LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_EVENT_DISCRIMINATOR)]
   );

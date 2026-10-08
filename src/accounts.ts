@@ -4,32 +4,42 @@ import {
   BANK_DISCRIMINATOR,
   FEE_STATE_DISCRIMINATOR,
   getBankDecoder,
+  getBankSize,
   getFeeStateDecoder,
   getMarginfiAccountDecoder,
   getMarginfiGroupDecoder,
   MARGINFI_ACCOUNT_DISCRIMINATOR,
   MARGINFI_GROUP_DISCRIMINATOR,
+  getOrderDecoder,
+  ORDER_DISCRIMINATOR,
   type Bank,
   type FeeState,
   type MarginfiAccount,
   type MarginfiGroup,
+  type Order,
 } from "./generated/marginfi";
 import { decodeAccountData } from "./vendor/account-data";
 
 export {
   BANK_DISCRIMINATOR,
   MARGINFI_ACCOUNT_DISCRIMINATOR,
+  ORDER_DISCRIMINATOR,
   BankOperationalState as OperationalStateRaw,
+  OrderTriggerType as OrderTriggerTypeRaw,
   OracleSetup as OracleSetupRaw,
   RiskTier as RiskTierRaw,
 } from "./generated/marginfi";
 
 /**
- * Decodes a marginfi `Bank` account.
+ * Decodes a marginfi `Bank` account. Banks not yet resized to the 0.1.12 layout
+ * (`lending_pool_resize_bank_account`) lack the trailing padding; it's read as zeros, as the
+ * program does after a resize.
  * @throws if the discriminator doesn't match
  */
 export function decodeBankRaw(data: ReadonlyUint8Array): Bank {
-  return decodeAccountData(data, BANK_DISCRIMINATOR, getBankDecoder(), "marginfi Bank");
+  const padded = new Uint8Array(Math.max(data.length, getBankSize()));
+  padded.set(data);
+  return decodeAccountData(padded, BANK_DISCRIMINATOR, getBankDecoder(), "marginfi Bank");
 }
 
 /**
@@ -69,4 +79,12 @@ export function decodeFeeStateRaw(data: ReadonlyUint8Array): FeeState {
     getFeeStateDecoder(),
     "marginfi FeeState"
   );
+}
+
+/**
+ * Decodes a marginfi `Order` (take-profit / stop-loss) account.
+ * @throws if the discriminator doesn't match
+ */
+export function decodeOrderRaw(data: ReadonlyUint8Array): Order {
+  return decodeAccountData(data, ORDER_DISCRIMINATOR, getOrderDecoder(), "marginfi Order");
 }

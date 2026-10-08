@@ -21,6 +21,8 @@ import {
   getArrayEncoder,
   getBytesDecoder,
   getBytesEncoder,
+  getI64Decoder,
+  getI64Encoder,
   getStructDecoder,
   getStructEncoder,
   getU16Decoder,
@@ -133,6 +135,16 @@ export type MarginfiAccount = {
    */
   liquidationRecord: Address;
   indexerFlags: IndexerFlags;
+  /** Monotonic counter. seeding each rebalance execution's `RebalanceRecord`. */
+  rebalanceExecutionSeq: bigint;
+  /**
+   * Unix timestamp when this account was tagged as unhealthy, growing the allowed liquidation
+   * premium over time. Cleared once an instruction proves the account healthy again (deposit
+   * and repay do not), restarted when a liquidation erases a material share of the health
+   * deficit or repays a material share of the debt.
+   * * 0 if not tagged
+   */
+  liquidationTaggedAt: bigint;
   padding0: Array<bigint>;
 };
 
@@ -203,6 +215,16 @@ export type MarginfiAccountArgs = {
    */
   liquidationRecord: Address;
   indexerFlags: IndexerFlagsArgs;
+  /** Monotonic counter. seeding each rebalance execution's `RebalanceRecord`. */
+  rebalanceExecutionSeq: number | bigint;
+  /**
+   * Unix timestamp when this account was tagged as unhealthy, growing the allowed liquidation
+   * premium over time. Cleared once an instruction proves the account healthy again (deposit
+   * and repay do not), restarted when a liquidation erases a material share of the health
+   * deficit or repays a material share of the debt.
+   * * 0 if not tagged
+   */
+  liquidationTaggedAt: number | bigint;
   padding0: Array<number | bigint>;
 };
 
@@ -227,7 +249,9 @@ export function getMarginfiAccountEncoder(): FixedSizeEncoder<MarginfiAccountArg
       ["pad0", fixEncoderSize(getBytesEncoder(), 2)],
       ["liquidationRecord", getAddressEncoder()],
       ["indexerFlags", getIndexerFlagsEncoder()],
-      ["padding0", getArrayEncoder(getU64Encoder(), { size: 4 })],
+      ["rebalanceExecutionSeq", getU64Encoder()],
+      ["liquidationTaggedAt", getI64Encoder()],
+      ["padding0", getArrayEncoder(getU64Encoder(), { size: 2 })],
     ]),
     (value) => ({ ...value, discriminator: MARGINFI_ACCOUNT_DISCRIMINATOR })
   );
@@ -253,7 +277,9 @@ export function getMarginfiAccountDecoder(): FixedSizeDecoder<MarginfiAccount> {
     ["pad0", fixDecoderSize(getBytesDecoder(), 2)],
     ["liquidationRecord", getAddressDecoder()],
     ["indexerFlags", getIndexerFlagsDecoder()],
-    ["padding0", getArrayDecoder(getU64Decoder(), { size: 4 })],
+    ["rebalanceExecutionSeq", getU64Decoder()],
+    ["liquidationTaggedAt", getI64Decoder()],
+    ["padding0", getArrayDecoder(getU64Decoder(), { size: 2 })],
   ]);
 }
 

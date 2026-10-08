@@ -194,6 +194,37 @@ describe("makeLoopTx", () => {
     expect(unwrapOption(deposit.data.depositUpToLimit)).toBeNull();
   });
 
+  it("wraps SOL for the principal only when the loop deposits it", async () => {
+    const solLoop = (loopMode: "DEPOSIT" | "BORROW") =>
+      makeLoopTx({
+        programAddress,
+        marginfiAccount,
+        authority,
+        rpc: createSolanaRpc(rpcEndpoint),
+        bankMap,
+        bankMetadataMap: {},
+        assetShareValueMultiplierByBank: new Map(),
+        depositOpts: {
+          depositBank: banks.sol,
+          tokenProgram,
+          inputDepositAmount: 2,
+          loopMode,
+          marketPrice: 150,
+        },
+        borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
+        swapOpts: {},
+        txFormat: { version: 0, luts: {} },
+      });
+    const wrapsSol = ({ transactions, actionTxIndex }: Awaited<ReturnType<typeof solLoop>>) =>
+      transactions
+        .slice(0, actionTxIndex)
+        .flatMap((tx) => tx.message.instructions)
+        .some((ix) => ix.programAddress === "11111111111111111111111111111111");
+
+    expect(wrapsSol(await solLoop("DEPOSIT"))).toBe(true);
+    expect(wrapsSol(await solLoop("BORROW"))).toBe(false);
+  });
+
   it("builds version 1 messages with the same flashloan layout and tells the swap engine the format", async () => {
     const minOutNative = 426_000_000n;
 

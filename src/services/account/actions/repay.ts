@@ -29,7 +29,7 @@ import {
   compileFlashloanPrecheck,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { appendPremiumRefresh, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -41,11 +41,10 @@ import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
   getTotalAccountKeys,
   getTxSize,
+  makePreludeTxs,
   makeTransactionMessage,
   makeWrapSolIxs,
-  selectLutsForBanks,
   SolanaTransaction,
-  splitInstructionsToFitTransactions,
   TransactionType,
   withLookupTables,
 } from "~/services/transaction";
@@ -54,7 +53,7 @@ import { nativeToUi, uiToNative } from "~/utils";
 /**
  * Repays `amount` (UI units of the bank's mint) of `bank`'s liability; `repayAll` closes the
  * balance. A wSOL repay first wraps native SOL, net of `opts.wSolBalanceUi`, unless
- * `opts.wrapAndUnwrapSol` is false.
+ * `opts.wrapSol` is false.
  */
 export async function makeRepayIx({
   programAddress,
@@ -68,7 +67,7 @@ export async function makeRepayIx({
 }: MakeRepayIxParams): Promise<Instruction[]> {
   const repayIxs: Instruction[] = [];
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.wrapSol ?? true)) {
     repayIxs.push(
       ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(opts.wSolBalanceUi ?? 0)))
     );
@@ -106,15 +105,20 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
   const { rpc, txFormat, latestBlockhash, ...repayIxParams } = params;
 
   const repayIxs = await makeRepayIx(repayIxParams);
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs: repayIxs,
+    mandatoryBanks: [],
+    excludedBanks: params.repayAll ? [params.bank.address] : [],
+  });
 
   return {
     message: makeTransactionMessage({
-      instructions: repayIxs,
+      instructions: txIxs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      // Repays don't add health remaining-accounts, so only the target bank matters.
-      txFormat: selectLutsForBanks(txFormat, [params.bank]),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.REPAY,
   };
@@ -147,7 +151,7 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const setupIxs = await makeSetupIx({
+  const setupIxs = await makeCreateMissingAtaIxs({
     rpc,
     authority,
     tokens: [
@@ -195,20 +199,11 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
 
   setupIxs.push(...jupiterSetupInstructions);
 
-  const additionalTxs: SolanaTransaction[] = [];
-
-  if (setupIxs.length > 0 || refreshIntegrationIxs.length > 0) {
-    const ixs = [...setupIxs, ...refreshIntegrationIxs];
-    const messages = splitInstructionsToFitTransactions([], ixs, {
-      latestBlockhash,
-      feePayer: authority,
-      txFormat,
-    });
-
-    additionalTxs.push(
-      ...messages.map((message) => ({ message, type: TransactionType.CREATE_ATA }))
-    );
-  }
+  const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
   return {
@@ -283,8 +278,8 @@ async function buildRepayWithCollatFlashloanTx({
     bankMetadataMap,
     withdrawAll,
     opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
+      createAta: false,
+      unwrapSol: false,
     },
   });
 
@@ -294,7 +289,7 @@ async function buildRepayWithCollatFlashloanTx({
     tokenProgram: repayOpts.tokenProgram,
     marginfiAccount,
     authority,
-    opts: { wrapAndUnwrapSol: false },
+    opts: { wrapSol: false },
   };
 
   if (swapNeeded) {

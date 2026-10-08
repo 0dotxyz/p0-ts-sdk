@@ -63,6 +63,8 @@ export type LendingPoolWithdrawFeesInstruction<
   TAccountDstTokenAccount extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -83,6 +85,9 @@ export type LendingPoolWithdrawFeesInstruction<
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -129,6 +134,7 @@ export type LendingPoolWithdrawFeesAsyncInput<
   TAccountFeeVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountDstTokenAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   bank: TAccountBank;
@@ -137,6 +143,7 @@ export type LendingPoolWithdrawFeesAsyncInput<
   feeVaultAuthority?: TAccountFeeVaultAuthority;
   dstTokenAccount: TAccountDstTokenAccount;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   amount: LendingPoolWithdrawFeesInstructionDataArgs["amount"];
 };
 
@@ -148,6 +155,7 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
   TAccountFeeVaultAuthority extends InstructionAccountInput,
   TAccountDstTokenAccount extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolWithdrawFeesAsyncInput<
@@ -157,7 +165,8 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
     TAccountFeeVault,
     TAccountFeeVaultAuthority,
     TAccountDstTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
@@ -181,6 +190,10 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -203,6 +216,11 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
     },
     dstTokenAccount: { value: input.dstTokenAccount ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -229,6 +247,10 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -239,6 +261,7 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
       getAccountMeta("feeVaultAuthority", accounts.feeVaultAuthority),
       getAccountMeta("dstTokenAccount", accounts.dstTokenAccount),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolWithdrawFeesInstructionDataEncoder().encode(
       args as LendingPoolWithdrawFeesInstructionDataArgs
@@ -264,6 +287,10 @@ export async function getLendingPoolWithdrawFeesInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -276,6 +303,7 @@ export type LendingPoolWithdrawFeesInput<
   TAccountFeeVaultAuthority extends InstructionAccountInput = InstructionAccountInput,
   TAccountDstTokenAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   bank: TAccountBank;
@@ -284,6 +312,7 @@ export type LendingPoolWithdrawFeesInput<
   feeVaultAuthority: TAccountFeeVaultAuthority;
   dstTokenAccount: TAccountDstTokenAccount;
   tokenProgram?: TAccountTokenProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   amount: LendingPoolWithdrawFeesInstructionDataArgs["amount"];
 };
 
@@ -295,6 +324,7 @@ export function getLendingPoolWithdrawFeesInstruction<
   TAccountFeeVaultAuthority extends InstructionAccountInput,
   TAccountDstTokenAccount extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: LendingPoolWithdrawFeesInput<
@@ -304,7 +334,8 @@ export function getLendingPoolWithdrawFeesInstruction<
     TAccountFeeVault,
     TAccountFeeVaultAuthority,
     TAccountDstTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolWithdrawFeesInstruction<
@@ -327,6 +358,10 @@ export function getLendingPoolWithdrawFeesInstruction<
   ResolvedInstructionAccountMeta<
     TAccountTokenProgram,
     InstructionAccountInputAddress<TAccountTokenProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -348,6 +383,11 @@ export function getLendingPoolWithdrawFeesInstruction<
     },
     dstTokenAccount: { value: input.dstTokenAccount ?? null, isSigner: false, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -362,6 +402,10 @@ export function getLendingPoolWithdrawFeesInstruction<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
@@ -372,6 +416,7 @@ export function getLendingPoolWithdrawFeesInstruction<
       getAccountMeta("feeVaultAuthority", accounts.feeVaultAuthority),
       getAccountMeta("dstTokenAccount", accounts.dstTokenAccount),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolWithdrawFeesInstructionDataEncoder().encode(
       args as LendingPoolWithdrawFeesInstructionDataArgs
@@ -397,6 +442,10 @@ export function getLendingPoolWithdrawFeesInstruction<
     ResolvedInstructionAccountMeta<
       TAccountTokenProgram,
       InstructionAccountInputAddress<TAccountTokenProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -414,6 +463,7 @@ export type ParsedLendingPoolWithdrawFeesInstruction<
     feeVaultAuthority: TAccountMetas[4];
     dstTokenAccount: TAccountMetas[5];
     tokenProgram: TAccountMetas[6];
+    instructionSysvar: TAccountMetas[7];
   };
   data: LendingPoolWithdrawFeesInstructionData;
 };
@@ -426,10 +476,10 @@ export function parseLendingPoolWithdrawFeesInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolWithdrawFeesInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 7) {
+  if (instruction.accounts.length < 8) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 7,
+      expectedAccountMetas: 8,
     });
   }
   let accountIndex = 0;
@@ -448,6 +498,7 @@ export function parseLendingPoolWithdrawFeesInstruction<
       feeVaultAuthority: getNextAccount(),
       dstTokenAccount: getNextAccount(),
       tokenProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getLendingPoolWithdrawFeesInstructionDataDecoder().decode(instruction.data),
   };

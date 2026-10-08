@@ -1,6 +1,18 @@
 import type { Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import { BankConfigOpt, BankRateLimiterDto, BankRateLimiterType } from "~/services/bank/types";
+
+/**
+ * One pair of the group's premium table: the extra borrow APR for debt in `liabilityTag` banks
+ * backed by `collateralTag` collateral.
+ */
+export type PremiumEntry = {
+  collateralTag: number;
+  liabilityTag: number;
+  /** APR fraction (0.05 = 5%) */
+  rate: BigNumber;
+};
 
 export type MarginfiGroupType = {
   admin: Address;
@@ -12,12 +24,15 @@ export type MarginfiGroupType = {
    * accounts — see {@link isGroupRateLimiterEnabled}.
    */
   rateLimiter?: BankRateLimiterType;
+  /** Live entries of the variable borrow premium table; empty when the group has no premium configured */
+  premiumEntries: PremiumEntry[];
 };
 
 export type MarginfiGroupTypeDto = {
   admin: string;
   address: string;
   rateLimiter?: BankRateLimiterDto;
+  premiumEntries?: { collateralTag: number; liabilityTag: number; rate: string }[];
 };
 
 /**

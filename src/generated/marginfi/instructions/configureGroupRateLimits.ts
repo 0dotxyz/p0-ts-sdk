@@ -32,6 +32,7 @@ import {
   type InstructionWithData,
   type Option,
   type OptionOrNullable,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -58,6 +59,8 @@ export type ConfigureGroupRateLimitsInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountMarginfiGroup extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -69,6 +72,9 @@ export type ConfigureGroupRateLimitsInstruction<
       TAccountAdmin extends string
         ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -116,9 +122,11 @@ export function getConfigureGroupRateLimitsInstructionDataCodec(): Codec<
 export type ConfigureGroupRateLimitsInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   admin: TAccountAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
   hourlyMaxOutflowUsd: ConfigureGroupRateLimitsInstructionDataArgs["hourlyMaxOutflowUsd"];
   dailyMaxOutflowUsd: ConfigureGroupRateLimitsInstructionDataArgs["dailyMaxOutflowUsd"];
 };
@@ -126,9 +134,14 @@ export type ConfigureGroupRateLimitsInput<
 export function getConfigureGroupRateLimitsInstruction<
   TAccountMarginfiGroup extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: ConfigureGroupRateLimitsInput<TAccountMarginfiGroup, TAccountAdmin>,
+  input: ConfigureGroupRateLimitsInput<
+    TAccountMarginfiGroup,
+    TAccountAdmin,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): ConfigureGroupRateLimitsInstruction<
   TProgramAddress,
@@ -136,7 +149,11 @@ export function getConfigureGroupRateLimitsInstruction<
     TAccountMarginfiGroup,
     InstructionAccountInputAddress<TAccountMarginfiGroup>
   >,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -148,6 +165,11 @@ export function getConfigureGroupRateLimitsInstruction<
   const originalAccounts = {
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: true },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -157,10 +179,17 @@ export function getConfigureGroupRateLimitsInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
       getAccountMeta("admin", accounts.admin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getConfigureGroupRateLimitsInstructionDataEncoder().encode(
       args as ConfigureGroupRateLimitsInstructionDataArgs
@@ -172,7 +201,11 @@ export function getConfigureGroupRateLimitsInstruction<
       TAccountMarginfiGroup,
       InstructionAccountInputAddress<TAccountMarginfiGroup>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -184,6 +217,7 @@ export type ParsedConfigureGroupRateLimitsInstruction<
   accounts: {
     marginfiGroup: TAccountMetas[0];
     admin: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: ConfigureGroupRateLimitsInstructionData;
 };
@@ -196,10 +230,10 @@ export function parseConfigureGroupRateLimitsInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedConfigureGroupRateLimitsInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -210,7 +244,11 @@ export function parseConfigureGroupRateLimitsInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { marginfiGroup: getNextAccount(), admin: getNextAccount() },
+    accounts: {
+      marginfiGroup: getNextAccount(),
+      admin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getConfigureGroupRateLimitsInstructionDataDecoder().decode(instruction.data),
   };
 }

@@ -94,6 +94,7 @@ export function kaminoReserveToDto(reserve: KaminoReserve): KaminoReserveJSON {
         },
         pythConfiguration: { price: config.tokenInfo.pythConfiguration.price },
       },
+      emergencyMode: config.emergencyMode,
     },
   };
 }
@@ -143,6 +144,7 @@ export function dtoToKaminoReserve(dto: KaminoReserveJSON): KaminoReserve {
         },
         pythConfiguration: { price: address(config.tokenInfo.pythConfiguration.price) },
       },
+      emergencyMode: config.emergencyMode ?? 0,
     },
   };
 }

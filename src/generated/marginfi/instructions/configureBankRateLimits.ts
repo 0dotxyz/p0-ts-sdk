@@ -60,6 +60,8 @@ export type ConfigureBankRateLimitsInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -70,6 +72,9 @@ export type ConfigureBankRateLimitsInstruction<
         ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -118,10 +123,12 @@ export type ConfigureBankRateLimitsInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   admin: TAccountAdmin;
   bank: TAccountBank;
+  instructionSysvar?: TAccountInstructionSysvar;
   hourlyMaxOutflow: ConfigureBankRateLimitsInstructionDataArgs["hourlyMaxOutflow"];
   dailyMaxOutflow: ConfigureBankRateLimitsInstructionDataArgs["dailyMaxOutflow"];
 };
@@ -130,15 +137,25 @@ export function getConfigureBankRateLimitsInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: ConfigureBankRateLimitsInput<TAccountGroup, TAccountAdmin, TAccountBank>,
+  input: ConfigureBankRateLimitsInput<
+    TAccountGroup,
+    TAccountAdmin,
+    TAccountBank,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): ConfigureBankRateLimitsInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
   ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -151,6 +168,11 @@ export function getConfigureBankRateLimitsInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -160,11 +182,18 @@ export function getConfigureBankRateLimitsInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("admin", accounts.admin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getConfigureBankRateLimitsInstructionDataEncoder().encode(
       args as ConfigureBankRateLimitsInstructionDataArgs
@@ -174,7 +203,11 @@ export function getConfigureBankRateLimitsInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
     ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -187,6 +220,7 @@ export type ParsedConfigureBankRateLimitsInstruction<
     group: TAccountMetas[0];
     admin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: ConfigureBankRateLimitsInstructionData;
 };
@@ -199,10 +233,10 @@ export function parseConfigureBankRateLimitsInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedConfigureBankRateLimitsInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -213,7 +247,12 @@ export function parseConfigureBankRateLimitsInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), admin: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      admin: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getConfigureBankRateLimitsInstructionDataDecoder().decode(instruction.data),
   };
 }

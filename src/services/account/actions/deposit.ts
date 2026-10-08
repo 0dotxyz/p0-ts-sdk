@@ -3,6 +3,9 @@ import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import { MakeDepositIxParams, MakeDepositTxParams } from "../types";
+import { exceedsCostlyPositionLimit } from "../utils";
+
+import { appendPremiumRefresh } from "./account-lifecycle";
 
 import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -11,7 +14,6 @@ import { AssetTag } from "~/services/bank";
 import {
   makeTransactionMessage,
   makeWrapSolIxs,
-  selectLutsForBanks,
   SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
@@ -23,9 +25,10 @@ import { deriveLendingMarketAuthority, deriveUserState, makeRefreshingIxs } from
 /**
  * Deposits `amount` (UI units of the bank's mint) into `bank`, routed to the bank's venue
  * (marginfi, Kamino, Drift or JupLend). A wSOL deposit first wraps native SOL, net of
- * `opts.wSolBalanceUi`, unless `opts.wrapAndUnwrapSol` is false.
- * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
- * integration accounts are missing
+ * `opts.wSolBalanceUi`, unless `opts.wrapSol` is false.
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if a Kamino, Drift or JupLend bank's venue state or integration
+ * accounts are missing
  */
 export async function makeDepositIx({
   programAddress,
@@ -39,7 +42,7 @@ export async function makeDepositIx({
 }: MakeDepositIxParams): Promise<Instruction[]> {
   const depositIxs: Instruction[] = [];
 
-  if (bank.mint === WSOL_MINT && (opts.wrapAndUnwrapSol ?? true)) {
+  if (bank.mint === WSOL_MINT && (opts.wrapSol ?? true)) {
     depositIxs.push(
       ...(await makeWrapSolIxs(authority, new BigNumber(amount).minus(opts.wSolBalanceUi ?? 0)))
     );
@@ -181,31 +184,45 @@ export async function makeDepositIx({
 
 /**
  * Builds a deposit transaction around {@link makeDepositIx}; a Kamino deposit first refreshes
- * its reserve and obligation. The authority pays and signs; `latestBlockhash` is fetched when
- * omitted.
+ * its reserve and obligation, and the premium refresh follows while premium-bearing debt remains
+ * (see `PremiumRefreshParams`). The authority pays and signs; `latestBlockhash` is fetched
+ * when omitted.
  * @throws see {@link makeDepositIx}
+ * @throws TransactionBuildingError (COSTLY_POSITION_LIMIT_EXCEEDED) if the deposit would open an
+ * integration or staked position beyond the account's limit
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
-  const { rpc, txFormat, latestBlockhash, ...depositIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, bankMap, ...depositIxParams } = params;
   const { bank, bankMetadataMap } = params;
+  if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, bankMap, bank)) {
+    throw TransactionBuildingError.costlyPositionLimitExceeded(bank.address);
+  }
 
   const depositIxs = await makeDepositIx(depositIxParams);
 
   const kaminoAccounts = bank.kaminoIntegrationAccounts;
-  const reserve = bankMetadataMap?.[bank.address]?.kaminoStates?.reserveState;
+  const reserve = bankMetadataMap[bank.address]?.kaminoStates?.reserveState;
   const refreshIxs =
     kaminoAccounts && reserve
       ? makeRefreshingIxs(kaminoAccounts.kaminoReserve, reserve, kaminoAccounts.kaminoObligation)
       : [];
 
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs: [...refreshIxs, ...depositIxs],
+    mandatoryBanks: [bank.address],
+    excludedBanks: [],
+  });
+
   return {
     message: makeTransactionMessage({
-      instructions: [...refreshIxs, ...depositIxs],
+      instructions: txIxs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      // Deposits don't add health remaining-accounts, so only the target bank matters.
-      txFormat: selectLutsForBanks(txFormat, [bank]),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.DEPOSIT,
   };

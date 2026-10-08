@@ -31,11 +31,13 @@ import {
 } from "@solana/kit";
 import {
   getAccountMetaFactory,
+  getAddressFromResolvedInstructionAccount,
   type InstructionAccountInput,
   type InstructionAccountInputAddress,
   type ResolvedInstructionAccount,
   type ResolvedInstructionAccountMeta,
 } from "@solana/kit/program-client-core";
+import { findRebalanceFeePoolPda } from "../pdas";
 import { MARGINFI_PROGRAM_ADDRESS } from "../programs";
 
 export const ADMIN_CLOSE_ACCOUNT_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -51,6 +53,7 @@ export type AdminCloseAccountInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountMarginfiAccount extends string | AccountMeta<string> = string,
   TAccountGlobalFeeWallet extends string | AccountMeta<string> = string,
+  TAccountRebalanceFeePool extends string | AccountMeta<string> = string,
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -63,6 +66,9 @@ export type AdminCloseAccountInstruction<
       TAccountGlobalFeeWallet extends string
         ? WritableAccount<TAccountGlobalFeeWallet>
         : TAccountGlobalFeeWallet,
+      TAccountRebalanceFeePool extends string
+        ? ReadonlyAccount<TAccountRebalanceFeePool>
+        : TAccountRebalanceFeePool,
       ...TRemainingAccounts,
     ]
   >;
@@ -92,34 +98,49 @@ export function getAdminCloseAccountInstructionDataCodec(): FixedSizeCodec<
   );
 }
 
-export type AdminCloseAccountInput<
+export type AdminCloseAccountAsyncInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
   TAccountGlobalFeeWallet extends InstructionAccountInput = InstructionAccountInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   marginfiAccount: TAccountMarginfiAccount;
   globalFeeWallet: TAccountGlobalFeeWallet;
+  /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+  rebalanceFeePool?: TAccountRebalanceFeePool;
 };
 
-export function getAdminCloseAccountInstruction<
+export async function getAdminCloseAccountInstructionAsync<
   TAccountGroup extends InstructionAccountInput,
   TAccountMarginfiAccount extends InstructionAccountInput,
   TAccountGlobalFeeWallet extends InstructionAccountInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: AdminCloseAccountInput<TAccountGroup, TAccountMarginfiAccount, TAccountGlobalFeeWallet>,
-  config?: { programAddress?: TProgramAddress }
-): AdminCloseAccountInstruction<
-  TProgramAddress,
-  ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
-  ResolvedInstructionAccountMeta<
+  input: AdminCloseAccountAsyncInput<
+    TAccountGroup,
     TAccountMarginfiAccount,
-    InstructionAccountInputAddress<TAccountMarginfiAccount>
-  >,
-  ResolvedInstructionAccountMeta<
     TAccountGlobalFeeWallet,
-    InstructionAccountInputAddress<TAccountGlobalFeeWallet>
+    TAccountRebalanceFeePool
+  >,
+  config?: { programAddress?: TProgramAddress }
+): Promise<
+  AdminCloseAccountInstruction<
+    TProgramAddress,
+    ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
+    ResolvedInstructionAccountMeta<
+      TAccountMarginfiAccount,
+      InstructionAccountInputAddress<TAccountMarginfiAccount>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountGlobalFeeWallet,
+      InstructionAccountInputAddress<TAccountGlobalFeeWallet>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
+    >
   >
 > {
   // Program address.
@@ -133,17 +154,32 @@ export function getAdminCloseAccountInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
     globalFeeWallet: { value: input.globalFeeWallet ?? null, isSigner: false, isWritable: true },
+    rebalanceFeePool: { value: input.rebalanceFeePool ?? null, isSigner: false, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.rebalanceFeePool.value) {
+    accounts.rebalanceFeePool.value = await findRebalanceFeePoolPda(
+      {
+        marginfiAccount: getAddressFromResolvedInstructionAccount(
+          "marginfiAccount",
+          accounts.marginfiAccount.value
+        ),
+      },
+      { programAddress }
+    );
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("marginfiAccount", accounts.marginfiAccount),
       getAccountMeta("globalFeeWallet", accounts.globalFeeWallet),
+      getAccountMeta("rebalanceFeePool", accounts.rebalanceFeePool),
     ],
     data: getAdminCloseAccountInstructionDataEncoder().encode({}),
     programAddress,
@@ -157,6 +193,98 @@ export function getAdminCloseAccountInstruction<
     ResolvedInstructionAccountMeta<
       TAccountGlobalFeeWallet,
       InstructionAccountInputAddress<TAccountGlobalFeeWallet>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
+    >
+  >);
+}
+
+export type AdminCloseAccountInput<
+  TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
+  TAccountMarginfiAccount extends InstructionAccountInput = InstructionAccountInput,
+  TAccountGlobalFeeWallet extends InstructionAccountInput = InstructionAccountInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput = InstructionAccountInput,
+> = {
+  group: TAccountGroup;
+  marginfiAccount: TAccountMarginfiAccount;
+  globalFeeWallet: TAccountGlobalFeeWallet;
+  /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+  rebalanceFeePool: TAccountRebalanceFeePool;
+};
+
+export function getAdminCloseAccountInstruction<
+  TAccountGroup extends InstructionAccountInput,
+  TAccountMarginfiAccount extends InstructionAccountInput,
+  TAccountGlobalFeeWallet extends InstructionAccountInput,
+  TAccountRebalanceFeePool extends InstructionAccountInput,
+  TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
+>(
+  input: AdminCloseAccountInput<
+    TAccountGroup,
+    TAccountMarginfiAccount,
+    TAccountGlobalFeeWallet,
+    TAccountRebalanceFeePool
+  >,
+  config?: { programAddress?: TProgramAddress }
+): AdminCloseAccountInstruction<
+  TProgramAddress,
+  ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
+  ResolvedInstructionAccountMeta<
+    TAccountMarginfiAccount,
+    InstructionAccountInputAddress<TAccountMarginfiAccount>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountGlobalFeeWallet,
+    InstructionAccountInputAddress<TAccountGlobalFeeWallet>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountRebalanceFeePool,
+    InstructionAccountInputAddress<TAccountRebalanceFeePool>
+  >
+> {
+  // Program address.
+  const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
+
+  // Account meta helper.
+  const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
+
+  // Original accounts.
+  const originalAccounts = {
+    group: { value: input.group ?? null, isSigner: false, isWritable: false },
+    marginfiAccount: { value: input.marginfiAccount ?? null, isSigner: false, isWritable: true },
+    globalFeeWallet: { value: input.globalFeeWallet ?? null, isSigner: false, isWritable: true },
+    rebalanceFeePool: { value: input.rebalanceFeePool ?? null, isSigner: false, isWritable: false },
+  };
+  const accounts = originalAccounts as Record<
+    keyof typeof originalAccounts,
+    ResolvedInstructionAccount
+  >;
+
+  return Object.freeze({
+    accounts: [
+      getAccountMeta("group", accounts.group),
+      getAccountMeta("marginfiAccount", accounts.marginfiAccount),
+      getAccountMeta("globalFeeWallet", accounts.globalFeeWallet),
+      getAccountMeta("rebalanceFeePool", accounts.rebalanceFeePool),
+    ],
+    data: getAdminCloseAccountInstructionDataEncoder().encode({}),
+    programAddress,
+  } as AdminCloseAccountInstruction<
+    TProgramAddress,
+    ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
+    ResolvedInstructionAccountMeta<
+      TAccountMarginfiAccount,
+      InstructionAccountInputAddress<TAccountMarginfiAccount>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountGlobalFeeWallet,
+      InstructionAccountInputAddress<TAccountGlobalFeeWallet>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountRebalanceFeePool,
+      InstructionAccountInputAddress<TAccountRebalanceFeePool>
     >
   >);
 }
@@ -170,6 +298,8 @@ export type ParsedAdminCloseAccountInstruction<
     group: TAccountMetas[0];
     marginfiAccount: TAccountMetas[1];
     globalFeeWallet: TAccountMetas[2];
+    /** `withdraw_rebalance_fee_pool`) before close so its lamports are not orphaned. */
+    rebalanceFeePool: TAccountMetas[3];
   };
   data: AdminCloseAccountInstructionData;
 };
@@ -182,10 +312,10 @@ export function parseAdminCloseAccountInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedAdminCloseAccountInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -200,6 +330,7 @@ export function parseAdminCloseAccountInstruction<
       group: getNextAccount(),
       marginfiAccount: getNextAccount(),
       globalFeeWallet: getNextAccount(),
+      rebalanceFeePool: getNextAccount(),
     },
     data: getAdminCloseAccountInstructionDataDecoder().decode(instruction.data),
   };

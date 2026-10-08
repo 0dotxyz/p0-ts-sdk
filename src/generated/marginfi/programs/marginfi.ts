@@ -43,6 +43,8 @@ import {
   getMarginfiAccountCodec,
   getMarginfiGroupCodec,
   getOrderCodec,
+  getRebalanceOrderCodec,
+  getRebalanceRecordCodec,
   getSameAssetEmodeRegistryCodec,
   getStakedSettingsCodec,
   type Bank,
@@ -61,13 +63,17 @@ import {
   type MarginfiGroupArgs,
   type Order,
   type OrderArgs,
+  type RebalanceOrder,
+  type RebalanceOrderArgs,
+  type RebalanceRecord,
+  type RebalanceRecordArgs,
   type SameAssetEmodeRegistry,
   type SameAssetEmodeRegistryArgs,
   type StakedSettings,
   type StakedSettingsArgs,
 } from "../accounts";
 import {
-  getAdminCloseAccountInstruction,
+  getAdminCloseAccountInstructionAsync,
   getConfigGroupFeeInstructionAsync,
   getConfigureBankRateLimitsInstruction,
   getConfigureDeleverageWithdrawalLimitInstruction,
@@ -78,6 +84,7 @@ import {
   getDriftHarvestRewardInstructionAsync,
   getDriftInitUserInstructionAsync,
   getDriftWithdrawInstructionAsync,
+  getEditFeeStatePremiumInstructionAsync,
   getEditGlobalFeeStateInstructionAsync,
   getEditStakedSettingsInstruction,
   getEnableStakedOracleOnrampInstructionAsync,
@@ -117,17 +124,22 @@ import {
   getLendingPoolCloneEmodeInstruction,
   getLendingPoolCloseBankInstruction,
   getLendingPoolCollectBankFeesInstructionAsync,
+  getLendingPoolCollectBankPremiumFeesInstructionAsync,
   getLendingPoolConfigureBankEmodeInstruction,
+  getLendingPoolConfigureBankGovInstruction,
   getLendingPoolConfigureBankInstruction,
   getLendingPoolConfigureBankInterestOnlyInstruction,
   getLendingPoolConfigureBankLimitsOnlyInstruction,
   getLendingPoolConfigureBankOracleInstruction,
   getLendingPoolConfigureBankOracleScopeInstruction,
+  getLendingPoolConfigureBankPremiumInstruction,
+  getLendingPoolConfigureGroupPremiumInstruction,
   getLendingPoolEmissionsDepositInstruction,
   getLendingPoolForceTokenlessRepayCompleteInstruction,
   getLendingPoolHandleBankruptcyInstructionAsync,
   getLendingPoolInitSameAssetEmodeRegistryInstructionAsync,
   getLendingPoolPulseBankPriceCacheInstruction,
+  getLendingPoolResizeBankAccountInstruction,
   getLendingPoolResizeGroupAccountInstruction,
   getLendingPoolSetBankSameAssetEmodeEligibilityInstructionAsync,
   getLendingPoolSetOraclePriceInstruction,
@@ -135,25 +147,39 @@ import {
   getLendingPoolWithdrawFeesInstructionAsync,
   getLendingPoolWithdrawFeesPermissionlessInstructionAsync,
   getLendingPoolWithdrawInsuranceInstructionAsync,
-  getMarginfiAccountCloseInstruction,
+  getMarginfiAccountCloseInstructionAsync,
   getMarginfiAccountCloseLiqRecordInstruction,
   getMarginfiAccountCloseOrderInstruction,
+  getMarginfiAccountCloseRebalanceOrderInstruction,
   getMarginfiAccountEndExecuteOrderInstructionAsync,
+  getMarginfiAccountEndRebalanceInstructionAsync,
   getMarginfiAccountInitializeInstruction,
   getMarginfiAccountInitializePdaInstruction,
   getMarginfiAccountInitLiqRecordInstructionAsync,
   getMarginfiAccountKeeperCloseOrderInstruction,
   getMarginfiAccountPlaceOrderInstructionAsync,
+  getMarginfiAccountPlaceRebalanceOrderInstructionAsync,
   getMarginfiAccountSetFreezeInstruction,
   getMarginfiAccountSetKeeperCloseFlagsInstruction,
+  getMarginfiAccountSettleRebalanceTipInstructionAsync,
   getMarginfiAccountStartExecuteOrderInstructionAsync,
+  getMarginfiAccountStartRebalanceInstructionAsync,
+  getMarginfiAccountTagLiqRecordInstruction,
+  getMarginfiAccountTopUpRebalanceFeePoolInstructionAsync,
   getMarginfiAccountUpdateEmissionsDestinationAccountInstruction,
+  getMarginfiAccountUpdateRebalanceOrderInstruction,
+  getMarginfiAccountWithdrawRebalanceFeePoolInstructionAsync,
+  getMarginfiGroupConfigureGovInstruction,
   getMarginfiGroupConfigureInstruction,
   getMarginfiGroupInitializeInstructionAsync,
+  getMarginfiGroupSetGovernanceAdminInstruction,
+  getMonitorArchiveInitializeInstruction,
+  getMonitorArchiveUpsertBatchInstruction,
   getPanicPauseInstructionAsync,
   getPanicUnpauseInstructionAsync,
   getPanicUnpausePermissionlessInstructionAsync,
   getPropagateFeeStateInstructionAsync,
+  getPropagateKaminoMarketEmergencyInstruction,
   getPropagateStakedSettingsInstruction,
   getPurgeDeleverageBalanceInstruction,
   getResizeGlobalFeeStateInstructionAsync,
@@ -182,6 +208,7 @@ import {
   parseDriftHarvestRewardInstruction,
   parseDriftInitUserInstruction,
   parseDriftWithdrawInstruction,
+  parseEditFeeStatePremiumInstruction,
   parseEditGlobalFeeStateInstruction,
   parseEditStakedSettingsInstruction,
   parseEnableStakedOracleOnrampInstruction,
@@ -221,17 +248,22 @@ import {
   parseLendingPoolCloneEmodeInstruction,
   parseLendingPoolCloseBankInstruction,
   parseLendingPoolCollectBankFeesInstruction,
+  parseLendingPoolCollectBankPremiumFeesInstruction,
   parseLendingPoolConfigureBankEmodeInstruction,
+  parseLendingPoolConfigureBankGovInstruction,
   parseLendingPoolConfigureBankInstruction,
   parseLendingPoolConfigureBankInterestOnlyInstruction,
   parseLendingPoolConfigureBankLimitsOnlyInstruction,
   parseLendingPoolConfigureBankOracleInstruction,
   parseLendingPoolConfigureBankOracleScopeInstruction,
+  parseLendingPoolConfigureBankPremiumInstruction,
+  parseLendingPoolConfigureGroupPremiumInstruction,
   parseLendingPoolEmissionsDepositInstruction,
   parseLendingPoolForceTokenlessRepayCompleteInstruction,
   parseLendingPoolHandleBankruptcyInstruction,
   parseLendingPoolInitSameAssetEmodeRegistryInstruction,
   parseLendingPoolPulseBankPriceCacheInstruction,
+  parseLendingPoolResizeBankAccountInstruction,
   parseLendingPoolResizeGroupAccountInstruction,
   parseLendingPoolSetBankSameAssetEmodeEligibilityInstruction,
   parseLendingPoolSetOraclePriceInstruction,
@@ -242,22 +274,36 @@ import {
   parseMarginfiAccountCloseInstruction,
   parseMarginfiAccountCloseLiqRecordInstruction,
   parseMarginfiAccountCloseOrderInstruction,
+  parseMarginfiAccountCloseRebalanceOrderInstruction,
   parseMarginfiAccountEndExecuteOrderInstruction,
+  parseMarginfiAccountEndRebalanceInstruction,
   parseMarginfiAccountInitializeInstruction,
   parseMarginfiAccountInitializePdaInstruction,
   parseMarginfiAccountInitLiqRecordInstruction,
   parseMarginfiAccountKeeperCloseOrderInstruction,
   parseMarginfiAccountPlaceOrderInstruction,
+  parseMarginfiAccountPlaceRebalanceOrderInstruction,
   parseMarginfiAccountSetFreezeInstruction,
   parseMarginfiAccountSetKeeperCloseFlagsInstruction,
+  parseMarginfiAccountSettleRebalanceTipInstruction,
   parseMarginfiAccountStartExecuteOrderInstruction,
+  parseMarginfiAccountStartRebalanceInstruction,
+  parseMarginfiAccountTagLiqRecordInstruction,
+  parseMarginfiAccountTopUpRebalanceFeePoolInstruction,
   parseMarginfiAccountUpdateEmissionsDestinationAccountInstruction,
+  parseMarginfiAccountUpdateRebalanceOrderInstruction,
+  parseMarginfiAccountWithdrawRebalanceFeePoolInstruction,
+  parseMarginfiGroupConfigureGovInstruction,
   parseMarginfiGroupConfigureInstruction,
   parseMarginfiGroupInitializeInstruction,
+  parseMarginfiGroupSetGovernanceAdminInstruction,
+  parseMonitorArchiveInitializeInstruction,
+  parseMonitorArchiveUpsertBatchInstruction,
   parsePanicPauseInstruction,
   parsePanicUnpauseInstruction,
   parsePanicUnpausePermissionlessInstruction,
   parsePropagateFeeStateInstruction,
+  parsePropagateKaminoMarketEmergencyInstruction,
   parsePropagateStakedSettingsInstruction,
   parsePurgeDeleverageBalanceInstruction,
   parseResizeGlobalFeeStateInstruction,
@@ -275,7 +321,7 @@ import {
   parseUpdateGroupRateLimiterInstruction,
   parseWriteBankMetadataInstruction,
   parseWriteBankMetadataPreInitInstruction,
-  type AdminCloseAccountInput,
+  type AdminCloseAccountAsyncInput,
   type ConfigGroupFeeAsyncInput,
   type ConfigureBankRateLimitsInput,
   type ConfigureDeleverageWithdrawalLimitInput,
@@ -286,6 +332,7 @@ import {
   type DriftHarvestRewardAsyncInput,
   type DriftInitUserAsyncInput,
   type DriftWithdrawAsyncInput,
+  type EditFeeStatePremiumAsyncInput,
   type EditGlobalFeeStateAsyncInput,
   type EditStakedSettingsInput,
   type EnableStakedOracleOnrampAsyncInput,
@@ -325,17 +372,22 @@ import {
   type LendingPoolCloneEmodeInput,
   type LendingPoolCloseBankInput,
   type LendingPoolCollectBankFeesAsyncInput,
+  type LendingPoolCollectBankPremiumFeesAsyncInput,
   type LendingPoolConfigureBankEmodeInput,
+  type LendingPoolConfigureBankGovInput,
   type LendingPoolConfigureBankInput,
   type LendingPoolConfigureBankInterestOnlyInput,
   type LendingPoolConfigureBankLimitsOnlyInput,
   type LendingPoolConfigureBankOracleInput,
   type LendingPoolConfigureBankOracleScopeInput,
+  type LendingPoolConfigureBankPremiumInput,
+  type LendingPoolConfigureGroupPremiumInput,
   type LendingPoolEmissionsDepositInput,
   type LendingPoolForceTokenlessRepayCompleteInput,
   type LendingPoolHandleBankruptcyAsyncInput,
   type LendingPoolInitSameAssetEmodeRegistryAsyncInput,
   type LendingPoolPulseBankPriceCacheInput,
+  type LendingPoolResizeBankAccountInput,
   type LendingPoolResizeGroupAccountInput,
   type LendingPoolSetBankSameAssetEmodeEligibilityAsyncInput,
   type LendingPoolSetOraclePriceInput,
@@ -343,21 +395,34 @@ import {
   type LendingPoolWithdrawFeesAsyncInput,
   type LendingPoolWithdrawFeesPermissionlessAsyncInput,
   type LendingPoolWithdrawInsuranceAsyncInput,
-  type MarginfiAccountCloseInput,
+  type MarginfiAccountCloseAsyncInput,
   type MarginfiAccountCloseLiqRecordInput,
   type MarginfiAccountCloseOrderInput,
+  type MarginfiAccountCloseRebalanceOrderInput,
   type MarginfiAccountEndExecuteOrderAsyncInput,
+  type MarginfiAccountEndRebalanceAsyncInput,
   type MarginfiAccountInitializeInput,
   type MarginfiAccountInitializePdaInput,
   type MarginfiAccountInitLiqRecordAsyncInput,
   type MarginfiAccountKeeperCloseOrderInput,
   type MarginfiAccountPlaceOrderAsyncInput,
+  type MarginfiAccountPlaceRebalanceOrderAsyncInput,
   type MarginfiAccountSetFreezeInput,
   type MarginfiAccountSetKeeperCloseFlagsInput,
+  type MarginfiAccountSettleRebalanceTipAsyncInput,
   type MarginfiAccountStartExecuteOrderAsyncInput,
+  type MarginfiAccountStartRebalanceAsyncInput,
+  type MarginfiAccountTagLiqRecordInput,
+  type MarginfiAccountTopUpRebalanceFeePoolAsyncInput,
   type MarginfiAccountUpdateEmissionsDestinationAccountInput,
+  type MarginfiAccountUpdateRebalanceOrderInput,
+  type MarginfiAccountWithdrawRebalanceFeePoolAsyncInput,
+  type MarginfiGroupConfigureGovInput,
   type MarginfiGroupConfigureInput,
   type MarginfiGroupInitializeAsyncInput,
+  type MarginfiGroupSetGovernanceAdminInput,
+  type MonitorArchiveInitializeInput,
+  type MonitorArchiveUpsertBatchInput,
   type PanicPauseAsyncInput,
   type PanicUnpauseAsyncInput,
   type PanicUnpausePermissionlessAsyncInput,
@@ -372,6 +437,7 @@ import {
   type ParsedDriftHarvestRewardInstruction,
   type ParsedDriftInitUserInstruction,
   type ParsedDriftWithdrawInstruction,
+  type ParsedEditFeeStatePremiumInstruction,
   type ParsedEditGlobalFeeStateInstruction,
   type ParsedEditStakedSettingsInstruction,
   type ParsedEnableStakedOracleOnrampInstruction,
@@ -411,17 +477,22 @@ import {
   type ParsedLendingPoolCloneEmodeInstruction,
   type ParsedLendingPoolCloseBankInstruction,
   type ParsedLendingPoolCollectBankFeesInstruction,
+  type ParsedLendingPoolCollectBankPremiumFeesInstruction,
   type ParsedLendingPoolConfigureBankEmodeInstruction,
+  type ParsedLendingPoolConfigureBankGovInstruction,
   type ParsedLendingPoolConfigureBankInstruction,
   type ParsedLendingPoolConfigureBankInterestOnlyInstruction,
   type ParsedLendingPoolConfigureBankLimitsOnlyInstruction,
   type ParsedLendingPoolConfigureBankOracleInstruction,
   type ParsedLendingPoolConfigureBankOracleScopeInstruction,
+  type ParsedLendingPoolConfigureBankPremiumInstruction,
+  type ParsedLendingPoolConfigureGroupPremiumInstruction,
   type ParsedLendingPoolEmissionsDepositInstruction,
   type ParsedLendingPoolForceTokenlessRepayCompleteInstruction,
   type ParsedLendingPoolHandleBankruptcyInstruction,
   type ParsedLendingPoolInitSameAssetEmodeRegistryInstruction,
   type ParsedLendingPoolPulseBankPriceCacheInstruction,
+  type ParsedLendingPoolResizeBankAccountInstruction,
   type ParsedLendingPoolResizeGroupAccountInstruction,
   type ParsedLendingPoolSetBankSameAssetEmodeEligibilityInstruction,
   type ParsedLendingPoolSetOraclePriceInstruction,
@@ -432,22 +503,36 @@ import {
   type ParsedMarginfiAccountCloseInstruction,
   type ParsedMarginfiAccountCloseLiqRecordInstruction,
   type ParsedMarginfiAccountCloseOrderInstruction,
+  type ParsedMarginfiAccountCloseRebalanceOrderInstruction,
   type ParsedMarginfiAccountEndExecuteOrderInstruction,
+  type ParsedMarginfiAccountEndRebalanceInstruction,
   type ParsedMarginfiAccountInitializeInstruction,
   type ParsedMarginfiAccountInitializePdaInstruction,
   type ParsedMarginfiAccountInitLiqRecordInstruction,
   type ParsedMarginfiAccountKeeperCloseOrderInstruction,
   type ParsedMarginfiAccountPlaceOrderInstruction,
+  type ParsedMarginfiAccountPlaceRebalanceOrderInstruction,
   type ParsedMarginfiAccountSetFreezeInstruction,
   type ParsedMarginfiAccountSetKeeperCloseFlagsInstruction,
+  type ParsedMarginfiAccountSettleRebalanceTipInstruction,
   type ParsedMarginfiAccountStartExecuteOrderInstruction,
+  type ParsedMarginfiAccountStartRebalanceInstruction,
+  type ParsedMarginfiAccountTagLiqRecordInstruction,
+  type ParsedMarginfiAccountTopUpRebalanceFeePoolInstruction,
   type ParsedMarginfiAccountUpdateEmissionsDestinationAccountInstruction,
+  type ParsedMarginfiAccountUpdateRebalanceOrderInstruction,
+  type ParsedMarginfiAccountWithdrawRebalanceFeePoolInstruction,
+  type ParsedMarginfiGroupConfigureGovInstruction,
   type ParsedMarginfiGroupConfigureInstruction,
   type ParsedMarginfiGroupInitializeInstruction,
+  type ParsedMarginfiGroupSetGovernanceAdminInstruction,
+  type ParsedMonitorArchiveInitializeInstruction,
+  type ParsedMonitorArchiveUpsertBatchInstruction,
   type ParsedPanicPauseInstruction,
   type ParsedPanicUnpauseInstruction,
   type ParsedPanicUnpausePermissionlessInstruction,
   type ParsedPropagateFeeStateInstruction,
+  type ParsedPropagateKaminoMarketEmergencyInstruction,
   type ParsedPropagateStakedSettingsInstruction,
   type ParsedPurgeDeleverageBalanceInstruction,
   type ParsedResizeGlobalFeeStateInstruction,
@@ -466,6 +551,7 @@ import {
   type ParsedWriteBankMetadataInstruction,
   type ParsedWriteBankMetadataPreInitInstruction,
   type PropagateFeeStateAsyncInput,
+  type PropagateKaminoMarketEmergencyInput,
   type PropagateStakedSettingsInput,
   type PurgeDeleverageBalanceInput,
   type ResizeGlobalFeeStateAsyncInput,
@@ -503,6 +589,9 @@ import {
   findLiquidityVaultAuthorityPda,
   findLiquidityVaultPda,
   findMetadataPda,
+  findRebalanceFeePoolPda,
+  findRebalanceOrderPda,
+  findRebalanceRecordPda,
   findSameAssetEmodeRegistryPda,
   findStakedSettingsPda,
 } from "../pdas";
@@ -519,6 +608,8 @@ export enum MarginfiAccountType {
   MarginfiAccount,
   MarginfiGroup,
   Order,
+  RebalanceOrder,
+  RebalanceRecord,
   SameAssetEmodeRegistry,
   StakedSettings,
 }
@@ -619,6 +710,28 @@ export function identifyMarginfiAccount(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([51, 5, 186, 251, 144, 119, 75, 197])
+      ),
+      0
+    )
+  ) {
+    return MarginfiAccountType.RebalanceOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([190, 69, 228, 114, 34, 217, 70, 102])
+      ),
+      0
+    )
+  ) {
+    return MarginfiAccountType.RebalanceRecord;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([222, 21, 195, 149, 193, 72, 219, 31])
       ),
       0
@@ -654,9 +767,11 @@ export enum MarginfiEvent {
   EditStakedSettingsEvent,
   HealthPulseEvent,
   KeeperCloseOrderEvent,
+  KeeperCloseRebalanceOrderEvent,
   LendingAccountBorrowEvent,
   LendingAccountDepositEvent,
   LendingAccountLiquidateEvent,
+  LendingAccountPremiumSettledEvent,
   LendingAccountRepayEvent,
   LendingAccountWithdrawEvent,
   LendingPoolBankAccrueInterestEvent,
@@ -666,19 +781,31 @@ export enum MarginfiEvent {
   LendingPoolBankConfigureOracleEvent,
   LendingPoolBankCreateEvent,
   LendingPoolBankHandleBankruptcyEvent,
+  LendingPoolBankPremiumConfigureEvent,
   LendingPoolBankSetOraclePriceEvent,
   LendingPoolBankSetSameAssetEmodeEligibilityEvent,
+  LendingPoolGroupPremiumConfigureEvent,
+  LendingPoolPremiumFeesCollectedEvent,
   LendingPoolSuperAdminDepositEvent,
   LendingPoolSuperAdminWithdrawEvent,
   LiquidationReceiverEvent,
+  LiquidationTagEvent,
   MarginfiAccountCloseOrderEvent,
+  MarginfiAccountCloseRebalanceOrderEvent,
   MarginfiAccountCreateEvent,
   MarginfiAccountFreezeEvent,
   MarginfiAccountPlaceOrderEvent,
+  MarginfiAccountPlaceRebalanceOrderEvent,
   MarginfiAccountTransferToNewAccount,
+  MarginfiAccountUpdateRebalanceOrderEvent,
   MarginfiGroupConfigureEvent,
   MarginfiGroupCreateEvent,
   RateLimitFlowEvent,
+  RebalanceExecutedEvent,
+  RebalanceFeePoolTopUpEvent,
+  RebalanceFeePoolWithdrawEvent,
+  RebalanceTipSettledEvent,
+  SetGovernanceAdminEvent,
   SetKeeperCloseFlagsEvent,
 }
 
@@ -800,6 +927,17 @@ export function identifyMarginfiEvent(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([162, 156, 215, 175, 216, 69, 165, 208])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.KeeperCloseRebalanceOrderEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([223, 96, 81, 10, 156, 99, 26, 59])
       ),
       0
@@ -828,6 +966,15 @@ export function identifyMarginfiEvent(
     )
   ) {
     return MarginfiEvent.LendingAccountLiquidateEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([4, 26, 72, 83, 55, 79, 238, 25])),
+      0
+    )
+  ) {
+    return MarginfiEvent.LendingAccountPremiumSettledEvent;
   }
   if (
     containsBytes(
@@ -932,6 +1079,17 @@ export function identifyMarginfiEvent(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([147, 142, 111, 159, 48, 210, 62, 226])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.LendingPoolBankPremiumConfigureEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([92, 180, 117, 175, 131, 24, 159, 141])
       ),
       0
@@ -949,6 +1107,26 @@ export function identifyMarginfiEvent(
     )
   ) {
     return MarginfiEvent.LendingPoolBankSetSameAssetEmodeEligibilityEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([44, 126, 109, 163, 173, 83, 73, 169])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.LendingPoolGroupPremiumConfigureEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([81, 224, 49, 3, 197, 4, 10, 84])),
+      0
+    )
+  ) {
+    return MarginfiEvent.LendingPoolPremiumFeesCollectedEvent;
   }
   if (
     containsBytes(
@@ -987,12 +1165,34 @@ export function identifyMarginfiEvent(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([81, 203, 83, 137, 115, 26, 217, 86])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.LiquidationTagEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([158, 34, 122, 98, 23, 146, 229, 212])
       ),
       0
     )
   ) {
     return MarginfiEvent.MarginfiAccountCloseOrderEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([187, 136, 207, 156, 141, 155, 230, 172])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.MarginfiAccountCloseRebalanceOrderEvent;
   }
   if (
     containsBytes(
@@ -1031,12 +1231,34 @@ export function identifyMarginfiEvent(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([136, 247, 221, 216, 15, 232, 108, 141])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.MarginfiAccountPlaceRebalanceOrderEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([59, 105, 171, 110, 223, 136, 80, 89])
       ),
       0
     )
   ) {
     return MarginfiEvent.MarginfiAccountTransferToNewAccount;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([128, 90, 140, 155, 175, 56, 233, 99])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.MarginfiAccountUpdateRebalanceOrderEvent;
   }
   if (
     containsBytes(
@@ -1075,6 +1297,61 @@ export function identifyMarginfiEvent(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([114, 34, 215, 49, 130, 101, 33, 2])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.RebalanceExecutedEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([180, 200, 130, 239, 91, 99, 253, 49])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.RebalanceFeePoolTopUpEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([198, 221, 159, 93, 100, 193, 147, 180])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.RebalanceFeePoolWithdrawEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([180, 146, 87, 198, 207, 186, 254, 203])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.RebalanceTipSettledEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([232, 208, 132, 193, 42, 110, 80, 234])
+      ),
+      0
+    )
+  ) {
+    return MarginfiEvent.SetGovernanceAdminEvent;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([193, 230, 93, 128, 117, 87, 96, 21])
       ),
       0
@@ -1097,6 +1374,7 @@ export enum MarginfiInstruction {
   DriftHarvestReward,
   DriftInitUser,
   DriftWithdraw,
+  EditFeeStatePremium,
   EditGlobalFeeState,
   EditStakedSettings,
   EnableStakedOracleOnramp,
@@ -1136,17 +1414,22 @@ export enum MarginfiInstruction {
   LendingPoolCloneEmode,
   LendingPoolCloseBank,
   LendingPoolCollectBankFees,
+  LendingPoolCollectBankPremiumFees,
   LendingPoolConfigureBank,
   LendingPoolConfigureBankEmode,
+  LendingPoolConfigureBankGov,
   LendingPoolConfigureBankInterestOnly,
   LendingPoolConfigureBankLimitsOnly,
   LendingPoolConfigureBankOracle,
   LendingPoolConfigureBankOracleScope,
+  LendingPoolConfigureBankPremium,
+  LendingPoolConfigureGroupPremium,
   LendingPoolEmissionsDeposit,
   LendingPoolForceTokenlessRepayComplete,
   LendingPoolHandleBankruptcy,
   LendingPoolInitSameAssetEmodeRegistry,
   LendingPoolPulseBankPriceCache,
+  LendingPoolResizeBankAccount,
   LendingPoolResizeGroupAccount,
   LendingPoolSetBankSameAssetEmodeEligibility,
   LendingPoolSetOraclePrice,
@@ -1157,22 +1440,36 @@ export enum MarginfiInstruction {
   MarginfiAccountClose,
   MarginfiAccountCloseLiqRecord,
   MarginfiAccountCloseOrder,
+  MarginfiAccountCloseRebalanceOrder,
   MarginfiAccountEndExecuteOrder,
+  MarginfiAccountEndRebalance,
   MarginfiAccountInitLiqRecord,
   MarginfiAccountInitialize,
   MarginfiAccountInitializePda,
   MarginfiAccountKeeperCloseOrder,
   MarginfiAccountPlaceOrder,
+  MarginfiAccountPlaceRebalanceOrder,
   MarginfiAccountSetFreeze,
   MarginfiAccountSetKeeperCloseFlags,
+  MarginfiAccountSettleRebalanceTip,
   MarginfiAccountStartExecuteOrder,
+  MarginfiAccountStartRebalance,
+  MarginfiAccountTagLiqRecord,
+  MarginfiAccountTopUpRebalanceFeePool,
   MarginfiAccountUpdateEmissionsDestinationAccount,
+  MarginfiAccountUpdateRebalanceOrder,
+  MarginfiAccountWithdrawRebalanceFeePool,
   MarginfiGroupConfigure,
+  MarginfiGroupConfigureGov,
   MarginfiGroupInitialize,
+  MarginfiGroupSetGovernanceAdmin,
+  MonitorArchiveInitialize,
+  MonitorArchiveUpsertBatch,
   PanicPause,
   PanicUnpause,
   PanicUnpausePermissionless,
   PropagateFeeState,
+  PropagateKaminoMarketEmergency,
   PropagateStakedSettings,
   PurgeDeleverageBalance,
   ResizeGlobalFeeState,
@@ -1316,6 +1613,17 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.DriftWithdraw;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([159, 148, 85, 109, 94, 212, 93, 233])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.EditFeeStatePremium;
   }
   if (
     containsBytes(
@@ -1750,6 +2058,17 @@ export function identifyMarginfiInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([193, 168, 164, 176, 80, 191, 33, 180])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.LendingPoolCollectBankPremiumFees;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([121, 173, 156, 40, 93, 148, 56, 237])
       ),
       0
@@ -1767,6 +2086,17 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.LendingPoolConfigureBankEmode;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([122, 87, 141, 86, 182, 34, 146, 25])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.LendingPoolConfigureBankGov;
   }
   if (
     containsBytes(
@@ -1811,6 +2141,28 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.LendingPoolConfigureBankOracleScope;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([216, 82, 134, 217, 11, 240, 78, 42])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.LendingPoolConfigureBankPremium;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([184, 196, 245, 41, 203, 77, 75, 170])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.LendingPoolConfigureGroupPremium;
   }
   if (
     containsBytes(
@@ -1866,6 +2218,17 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.LendingPoolPulseBankPriceCache;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([44, 109, 34, 113, 110, 33, 139, 160])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.LendingPoolResizeBankAccount;
   }
   if (
     containsBytes(
@@ -1981,12 +2344,34 @@ export function identifyMarginfiInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([218, 239, 199, 221, 92, 158, 134, 62])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountCloseRebalanceOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([115, 42, 20, 93, 121, 84, 178, 83])
       ),
       0
     )
   ) {
     return MarginfiInstruction.MarginfiAccountEndExecuteOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([47, 225, 163, 216, 213, 214, 225, 155])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountEndRebalance;
   }
   if (
     containsBytes(
@@ -2047,6 +2432,17 @@ export function identifyMarginfiInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([161, 48, 11, 214, 229, 132, 192, 149])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountPlaceRebalanceOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([199, 179, 231, 30, 138, 247, 110, 227])
       ),
       0
@@ -2069,12 +2465,56 @@ export function identifyMarginfiInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([198, 13, 185, 127, 7, 105, 88, 182])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountSettleRebalanceTip;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([1, 70, 140, 134, 183, 29, 208, 224])
       ),
       0
     )
   ) {
     return MarginfiInstruction.MarginfiAccountStartExecuteOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([251, 122, 91, 161, 219, 98, 5, 236])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountStartRebalance;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([12, 189, 215, 239, 231, 122, 220, 158])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountTagLiqRecord;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([83, 123, 125, 204, 200, 119, 247, 91])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountTopUpRebalanceFeePool;
   }
   if (
     containsBytes(
@@ -2091,12 +2531,43 @@ export function identifyMarginfiInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([175, 230, 251, 122, 168, 128, 207, 142])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountUpdateRebalanceOrder;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([121, 157, 246, 242, 240, 63, 254, 16])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiAccountWithdrawRebalanceFeePool;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([62, 199, 81, 78, 33, 13, 236, 61])
       ),
       0
     )
   ) {
     return MarginfiInstruction.MarginfiGroupConfigure;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([3, 33, 122, 31, 239, 33, 35, 5])),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiGroupConfigureGov;
   }
   if (
     containsBytes(
@@ -2108,6 +2579,39 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.MarginfiGroupInitialize;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([87, 57, 22, 85, 152, 57, 23, 75])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MarginfiGroupSetGovernanceAdmin;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([5, 144, 117, 234, 36, 188, 147, 216])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MonitorArchiveInitialize;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([203, 39, 50, 74, 141, 37, 14, 248])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.MonitorArchiveUpsertBatch;
   }
   if (
     containsBytes(
@@ -2152,6 +2656,17 @@ export function identifyMarginfiInstruction(
     )
   ) {
     return MarginfiInstruction.PropagateFeeState;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([252, 182, 246, 73, 108, 118, 102, 142])
+      ),
+      0
+    )
+  ) {
+    return MarginfiInstruction.PropagateKaminoMarketEmergency;
   }
   if (
     containsBytes(
@@ -2383,6 +2898,9 @@ export type ParsedMarginfiInstruction<
       instructionType: MarginfiInstruction.DriftWithdraw;
     } & ParsedDriftWithdrawInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.EditFeeStatePremium;
+    } & ParsedEditFeeStatePremiumInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.EditGlobalFeeState;
     } & ParsedEditGlobalFeeStateInstruction<TProgram>)
   | ({
@@ -2500,11 +3018,17 @@ export type ParsedMarginfiInstruction<
       instructionType: MarginfiInstruction.LendingPoolCollectBankFees;
     } & ParsedLendingPoolCollectBankFeesInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.LendingPoolCollectBankPremiumFees;
+    } & ParsedLendingPoolCollectBankPremiumFeesInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.LendingPoolConfigureBank;
     } & ParsedLendingPoolConfigureBankInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.LendingPoolConfigureBankEmode;
     } & ParsedLendingPoolConfigureBankEmodeInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.LendingPoolConfigureBankGov;
+    } & ParsedLendingPoolConfigureBankGovInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.LendingPoolConfigureBankInterestOnly;
     } & ParsedLendingPoolConfigureBankInterestOnlyInstruction<TProgram>)
@@ -2517,6 +3041,12 @@ export type ParsedMarginfiInstruction<
   | ({
       instructionType: MarginfiInstruction.LendingPoolConfigureBankOracleScope;
     } & ParsedLendingPoolConfigureBankOracleScopeInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.LendingPoolConfigureBankPremium;
+    } & ParsedLendingPoolConfigureBankPremiumInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.LendingPoolConfigureGroupPremium;
+    } & ParsedLendingPoolConfigureGroupPremiumInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.LendingPoolEmissionsDeposit;
     } & ParsedLendingPoolEmissionsDepositInstruction<TProgram>)
@@ -2532,6 +3062,9 @@ export type ParsedMarginfiInstruction<
   | ({
       instructionType: MarginfiInstruction.LendingPoolPulseBankPriceCache;
     } & ParsedLendingPoolPulseBankPriceCacheInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.LendingPoolResizeBankAccount;
+    } & ParsedLendingPoolResizeBankAccountInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.LendingPoolResizeGroupAccount;
     } & ParsedLendingPoolResizeGroupAccountInstruction<TProgram>)
@@ -2563,8 +3096,14 @@ export type ParsedMarginfiInstruction<
       instructionType: MarginfiInstruction.MarginfiAccountCloseOrder;
     } & ParsedMarginfiAccountCloseOrderInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.MarginfiAccountCloseRebalanceOrder;
+    } & ParsedMarginfiAccountCloseRebalanceOrderInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.MarginfiAccountEndExecuteOrder;
     } & ParsedMarginfiAccountEndExecuteOrderInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiAccountEndRebalance;
+    } & ParsedMarginfiAccountEndRebalanceInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.MarginfiAccountInitLiqRecord;
     } & ParsedMarginfiAccountInitLiqRecordInstruction<TProgram>)
@@ -2581,23 +3120,56 @@ export type ParsedMarginfiInstruction<
       instructionType: MarginfiInstruction.MarginfiAccountPlaceOrder;
     } & ParsedMarginfiAccountPlaceOrderInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.MarginfiAccountPlaceRebalanceOrder;
+    } & ParsedMarginfiAccountPlaceRebalanceOrderInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.MarginfiAccountSetFreeze;
     } & ParsedMarginfiAccountSetFreezeInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.MarginfiAccountSetKeeperCloseFlags;
     } & ParsedMarginfiAccountSetKeeperCloseFlagsInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.MarginfiAccountSettleRebalanceTip;
+    } & ParsedMarginfiAccountSettleRebalanceTipInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.MarginfiAccountStartExecuteOrder;
     } & ParsedMarginfiAccountStartExecuteOrderInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiAccountStartRebalance;
+    } & ParsedMarginfiAccountStartRebalanceInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiAccountTagLiqRecord;
+    } & ParsedMarginfiAccountTagLiqRecordInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiAccountTopUpRebalanceFeePool;
+    } & ParsedMarginfiAccountTopUpRebalanceFeePoolInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.MarginfiAccountUpdateEmissionsDestinationAccount;
     } & ParsedMarginfiAccountUpdateEmissionsDestinationAccountInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.MarginfiAccountUpdateRebalanceOrder;
+    } & ParsedMarginfiAccountUpdateRebalanceOrderInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiAccountWithdrawRebalanceFeePool;
+    } & ParsedMarginfiAccountWithdrawRebalanceFeePoolInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.MarginfiGroupConfigure;
     } & ParsedMarginfiGroupConfigureInstruction<TProgram>)
   | ({
+      instructionType: MarginfiInstruction.MarginfiGroupConfigureGov;
+    } & ParsedMarginfiGroupConfigureGovInstruction<TProgram>)
+  | ({
       instructionType: MarginfiInstruction.MarginfiGroupInitialize;
     } & ParsedMarginfiGroupInitializeInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MarginfiGroupSetGovernanceAdmin;
+    } & ParsedMarginfiGroupSetGovernanceAdminInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MonitorArchiveInitialize;
+    } & ParsedMonitorArchiveInitializeInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.MonitorArchiveUpsertBatch;
+    } & ParsedMonitorArchiveUpsertBatchInstruction<TProgram>)
   | ({ instructionType: MarginfiInstruction.PanicPause } & ParsedPanicPauseInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.PanicUnpause;
@@ -2608,6 +3180,9 @@ export type ParsedMarginfiInstruction<
   | ({
       instructionType: MarginfiInstruction.PropagateFeeState;
     } & ParsedPropagateFeeStateInstruction<TProgram>)
+  | ({
+      instructionType: MarginfiInstruction.PropagateKaminoMarketEmergency;
+    } & ParsedPropagateKaminoMarketEmergencyInstruction<TProgram>)
   | ({
       instructionType: MarginfiInstruction.PropagateStakedSettings;
     } & ParsedPropagateStakedSettingsInstruction<TProgram>)
@@ -2740,6 +3315,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
       return {
         instructionType: MarginfiInstruction.DriftWithdraw,
         ...parseDriftWithdrawInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.EditFeeStatePremium: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.EditFeeStatePremium,
+        ...parseEditFeeStatePremiumInstruction(instruction),
       };
     }
     case MarginfiInstruction.EditGlobalFeeState: {
@@ -3015,6 +3597,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseLendingPoolCollectBankFeesInstruction(instruction),
       };
     }
+    case MarginfiInstruction.LendingPoolCollectBankPremiumFees: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.LendingPoolCollectBankPremiumFees,
+        ...parseLendingPoolCollectBankPremiumFeesInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.LendingPoolConfigureBank: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -3027,6 +3616,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
       return {
         instructionType: MarginfiInstruction.LendingPoolConfigureBankEmode,
         ...parseLendingPoolConfigureBankEmodeInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.LendingPoolConfigureBankGov: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.LendingPoolConfigureBankGov,
+        ...parseLendingPoolConfigureBankGovInstruction(instruction),
       };
     }
     case MarginfiInstruction.LendingPoolConfigureBankInterestOnly: {
@@ -3055,6 +3651,20 @@ export function parseMarginfiInstruction<TProgram extends string>(
       return {
         instructionType: MarginfiInstruction.LendingPoolConfigureBankOracleScope,
         ...parseLendingPoolConfigureBankOracleScopeInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.LendingPoolConfigureBankPremium: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.LendingPoolConfigureBankPremium,
+        ...parseLendingPoolConfigureBankPremiumInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.LendingPoolConfigureGroupPremium: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.LendingPoolConfigureGroupPremium,
+        ...parseLendingPoolConfigureGroupPremiumInstruction(instruction),
       };
     }
     case MarginfiInstruction.LendingPoolEmissionsDeposit: {
@@ -3090,6 +3700,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
       return {
         instructionType: MarginfiInstruction.LendingPoolPulseBankPriceCache,
         ...parseLendingPoolPulseBankPriceCacheInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.LendingPoolResizeBankAccount: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.LendingPoolResizeBankAccount,
+        ...parseLendingPoolResizeBankAccountInstruction(instruction),
       };
     }
     case MarginfiInstruction.LendingPoolResizeGroupAccount: {
@@ -3162,11 +3779,25 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseMarginfiAccountCloseOrderInstruction(instruction),
       };
     }
+    case MarginfiInstruction.MarginfiAccountCloseRebalanceOrder: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountCloseRebalanceOrder,
+        ...parseMarginfiAccountCloseRebalanceOrderInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.MarginfiAccountEndExecuteOrder: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: MarginfiInstruction.MarginfiAccountEndExecuteOrder,
         ...parseMarginfiAccountEndExecuteOrderInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiAccountEndRebalance: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountEndRebalance,
+        ...parseMarginfiAccountEndRebalanceInstruction(instruction),
       };
     }
     case MarginfiInstruction.MarginfiAccountInitLiqRecord: {
@@ -3204,6 +3835,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseMarginfiAccountPlaceOrderInstruction(instruction),
       };
     }
+    case MarginfiInstruction.MarginfiAccountPlaceRebalanceOrder: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountPlaceRebalanceOrder,
+        ...parseMarginfiAccountPlaceRebalanceOrderInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.MarginfiAccountSetFreeze: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -3218,11 +3856,39 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseMarginfiAccountSetKeeperCloseFlagsInstruction(instruction),
       };
     }
+    case MarginfiInstruction.MarginfiAccountSettleRebalanceTip: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountSettleRebalanceTip,
+        ...parseMarginfiAccountSettleRebalanceTipInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.MarginfiAccountStartExecuteOrder: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: MarginfiInstruction.MarginfiAccountStartExecuteOrder,
         ...parseMarginfiAccountStartExecuteOrderInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiAccountStartRebalance: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountStartRebalance,
+        ...parseMarginfiAccountStartRebalanceInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiAccountTagLiqRecord: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountTagLiqRecord,
+        ...parseMarginfiAccountTagLiqRecordInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiAccountTopUpRebalanceFeePool: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountTopUpRebalanceFeePool,
+        ...parseMarginfiAccountTopUpRebalanceFeePoolInstruction(instruction),
       };
     }
     case MarginfiInstruction.MarginfiAccountUpdateEmissionsDestinationAccount: {
@@ -3232,6 +3898,20 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseMarginfiAccountUpdateEmissionsDestinationAccountInstruction(instruction),
       };
     }
+    case MarginfiInstruction.MarginfiAccountUpdateRebalanceOrder: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountUpdateRebalanceOrder,
+        ...parseMarginfiAccountUpdateRebalanceOrderInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiAccountWithdrawRebalanceFeePool: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiAccountWithdrawRebalanceFeePool,
+        ...parseMarginfiAccountWithdrawRebalanceFeePoolInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.MarginfiGroupConfigure: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -3239,11 +3919,39 @@ export function parseMarginfiInstruction<TProgram extends string>(
         ...parseMarginfiGroupConfigureInstruction(instruction),
       };
     }
+    case MarginfiInstruction.MarginfiGroupConfigureGov: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiGroupConfigureGov,
+        ...parseMarginfiGroupConfigureGovInstruction(instruction),
+      };
+    }
     case MarginfiInstruction.MarginfiGroupInitialize: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: MarginfiInstruction.MarginfiGroupInitialize,
         ...parseMarginfiGroupInitializeInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MarginfiGroupSetGovernanceAdmin: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MarginfiGroupSetGovernanceAdmin,
+        ...parseMarginfiGroupSetGovernanceAdminInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MonitorArchiveInitialize: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MonitorArchiveInitialize,
+        ...parseMonitorArchiveInitializeInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.MonitorArchiveUpsertBatch: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.MonitorArchiveUpsertBatch,
+        ...parseMonitorArchiveUpsertBatchInstruction(instruction),
       };
     }
     case MarginfiInstruction.PanicPause: {
@@ -3272,6 +3980,13 @@ export function parseMarginfiInstruction<TProgram extends string>(
       return {
         instructionType: MarginfiInstruction.PropagateFeeState,
         ...parsePropagateFeeStateInstruction(instruction),
+      };
+    }
+    case MarginfiInstruction.PropagateKaminoMarketEmergency: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: MarginfiInstruction.PropagateKaminoMarketEmergency,
+        ...parsePropagateKaminoMarketEmergencyInstruction(instruction),
       };
     }
     case MarginfiInstruction.PropagateStakedSettings: {
@@ -3424,6 +4139,10 @@ export type MarginfiPluginAccounts = {
   marginfiGroup: ReturnType<typeof getMarginfiGroupCodec> &
     SelfFetchFunctions<MarginfiGroupArgs, MarginfiGroup>;
   order: ReturnType<typeof getOrderCodec> & SelfFetchFunctions<OrderArgs, Order>;
+  rebalanceOrder: ReturnType<typeof getRebalanceOrderCodec> &
+    SelfFetchFunctions<RebalanceOrderArgs, RebalanceOrder>;
+  rebalanceRecord: ReturnType<typeof getRebalanceRecordCodec> &
+    SelfFetchFunctions<RebalanceRecordArgs, RebalanceRecord>;
   sameAssetEmodeRegistry: ReturnType<typeof getSameAssetEmodeRegistryCodec> &
     SelfFetchFunctions<SameAssetEmodeRegistryArgs, SameAssetEmodeRegistry>;
   stakedSettings: ReturnType<typeof getStakedSettingsCodec> &
@@ -3432,8 +4151,8 @@ export type MarginfiPluginAccounts = {
 
 export type MarginfiPluginInstructions = {
   adminCloseAccount: (
-    input: AdminCloseAccountInput
-  ) => ReturnType<typeof getAdminCloseAccountInstruction> & SelfPlanAndSendFunctions;
+    input: AdminCloseAccountAsyncInput
+  ) => ReturnType<typeof getAdminCloseAccountInstructionAsync> & SelfPlanAndSendFunctions;
   configGroupFee: (
     input: ConfigGroupFeeAsyncInput
   ) => ReturnType<typeof getConfigGroupFeeInstructionAsync> & SelfPlanAndSendFunctions;
@@ -3465,6 +4184,9 @@ export type MarginfiPluginInstructions = {
   driftWithdraw: (
     input: DriftWithdrawAsyncInput
   ) => ReturnType<typeof getDriftWithdrawInstructionAsync> & SelfPlanAndSendFunctions;
+  editFeeStatePremium: (
+    input: EditFeeStatePremiumAsyncInput
+  ) => ReturnType<typeof getEditFeeStatePremiumInstructionAsync> & SelfPlanAndSendFunctions;
   editGlobalFeeState: (
     input: EditGlobalFeeStateAsyncInput
   ) => ReturnType<typeof getEditGlobalFeeStateInstructionAsync> & SelfPlanAndSendFunctions;
@@ -3584,12 +4306,19 @@ export type MarginfiPluginInstructions = {
   lendingPoolCollectBankFees: (
     input: LendingPoolCollectBankFeesAsyncInput
   ) => ReturnType<typeof getLendingPoolCollectBankFeesInstructionAsync> & SelfPlanAndSendFunctions;
+  lendingPoolCollectBankPremiumFees: (
+    input: LendingPoolCollectBankPremiumFeesAsyncInput
+  ) => ReturnType<typeof getLendingPoolCollectBankPremiumFeesInstructionAsync> &
+    SelfPlanAndSendFunctions;
   lendingPoolConfigureBank: (
     input: LendingPoolConfigureBankInput
   ) => ReturnType<typeof getLendingPoolConfigureBankInstruction> & SelfPlanAndSendFunctions;
   lendingPoolConfigureBankEmode: (
     input: LendingPoolConfigureBankEmodeInput
   ) => ReturnType<typeof getLendingPoolConfigureBankEmodeInstruction> & SelfPlanAndSendFunctions;
+  lendingPoolConfigureBankGov: (
+    input: LendingPoolConfigureBankGovInput
+  ) => ReturnType<typeof getLendingPoolConfigureBankGovInstruction> & SelfPlanAndSendFunctions;
   lendingPoolConfigureBankInterestOnly: (
     input: LendingPoolConfigureBankInterestOnlyInput
   ) => ReturnType<typeof getLendingPoolConfigureBankInterestOnlyInstruction> &
@@ -3605,6 +4334,12 @@ export type MarginfiPluginInstructions = {
     input: LendingPoolConfigureBankOracleScopeInput
   ) => ReturnType<typeof getLendingPoolConfigureBankOracleScopeInstruction> &
     SelfPlanAndSendFunctions;
+  lendingPoolConfigureBankPremium: (
+    input: LendingPoolConfigureBankPremiumInput
+  ) => ReturnType<typeof getLendingPoolConfigureBankPremiumInstruction> & SelfPlanAndSendFunctions;
+  lendingPoolConfigureGroupPremium: (
+    input: LendingPoolConfigureGroupPremiumInput
+  ) => ReturnType<typeof getLendingPoolConfigureGroupPremiumInstruction> & SelfPlanAndSendFunctions;
   lendingPoolEmissionsDeposit: (
     input: LendingPoolEmissionsDepositInput
   ) => ReturnType<typeof getLendingPoolEmissionsDepositInstruction> & SelfPlanAndSendFunctions;
@@ -3622,6 +4357,9 @@ export type MarginfiPluginInstructions = {
   lendingPoolPulseBankPriceCache: (
     input: LendingPoolPulseBankPriceCacheInput
   ) => ReturnType<typeof getLendingPoolPulseBankPriceCacheInstruction> & SelfPlanAndSendFunctions;
+  lendingPoolResizeBankAccount: (
+    input: MakeOptional<LendingPoolResizeBankAccountInput, "payer">
+  ) => ReturnType<typeof getLendingPoolResizeBankAccountInstruction> & SelfPlanAndSendFunctions;
   lendingPoolResizeGroupAccount: (
     input: MakeOptional<LendingPoolResizeGroupAccountInput, "payer">
   ) => ReturnType<typeof getLendingPoolResizeGroupAccountInstruction> & SelfPlanAndSendFunctions;
@@ -3648,18 +4386,25 @@ export type MarginfiPluginInstructions = {
   ) => ReturnType<typeof getLendingPoolWithdrawInsuranceInstructionAsync> &
     SelfPlanAndSendFunctions;
   marginfiAccountClose: (
-    input: MakeOptional<MarginfiAccountCloseInput, "feePayer">
-  ) => ReturnType<typeof getMarginfiAccountCloseInstruction> & SelfPlanAndSendFunctions;
+    input: MakeOptional<MarginfiAccountCloseAsyncInput, "feePayer">
+  ) => ReturnType<typeof getMarginfiAccountCloseInstructionAsync> & SelfPlanAndSendFunctions;
   marginfiAccountCloseLiqRecord: (
     input: MarginfiAccountCloseLiqRecordInput
   ) => ReturnType<typeof getMarginfiAccountCloseLiqRecordInstruction> & SelfPlanAndSendFunctions;
   marginfiAccountCloseOrder: (
     input: MarginfiAccountCloseOrderInput
   ) => ReturnType<typeof getMarginfiAccountCloseOrderInstruction> & SelfPlanAndSendFunctions;
+  marginfiAccountCloseRebalanceOrder: (
+    input: MarginfiAccountCloseRebalanceOrderInput
+  ) => ReturnType<typeof getMarginfiAccountCloseRebalanceOrderInstruction> &
+    SelfPlanAndSendFunctions;
   marginfiAccountEndExecuteOrder: (
     input: MarginfiAccountEndExecuteOrderAsyncInput
   ) => ReturnType<typeof getMarginfiAccountEndExecuteOrderInstructionAsync> &
     SelfPlanAndSendFunctions;
+  marginfiAccountEndRebalance: (
+    input: MarginfiAccountEndRebalanceAsyncInput
+  ) => ReturnType<typeof getMarginfiAccountEndRebalanceInstructionAsync> & SelfPlanAndSendFunctions;
   marginfiAccountInitLiqRecord: (
     input: MakeOptional<MarginfiAccountInitLiqRecordAsyncInput, "feePayer">
   ) => ReturnType<typeof getMarginfiAccountInitLiqRecordInstructionAsync> &
@@ -3676,6 +4421,10 @@ export type MarginfiPluginInstructions = {
   marginfiAccountPlaceOrder: (
     input: MakeOptional<MarginfiAccountPlaceOrderAsyncInput, "feePayer">
   ) => ReturnType<typeof getMarginfiAccountPlaceOrderInstructionAsync> & SelfPlanAndSendFunctions;
+  marginfiAccountPlaceRebalanceOrder: (
+    input: MakeOptional<MarginfiAccountPlaceRebalanceOrderAsyncInput, "feePayer">
+  ) => ReturnType<typeof getMarginfiAccountPlaceRebalanceOrderInstructionAsync> &
+    SelfPlanAndSendFunctions;
   marginfiAccountSetFreeze: (
     input: MarginfiAccountSetFreezeInput
   ) => ReturnType<typeof getMarginfiAccountSetFreezeInstruction> & SelfPlanAndSendFunctions;
@@ -3683,20 +4432,55 @@ export type MarginfiPluginInstructions = {
     input: MarginfiAccountSetKeeperCloseFlagsInput
   ) => ReturnType<typeof getMarginfiAccountSetKeeperCloseFlagsInstruction> &
     SelfPlanAndSendFunctions;
+  marginfiAccountSettleRebalanceTip: (
+    input: MarginfiAccountSettleRebalanceTipAsyncInput
+  ) => ReturnType<typeof getMarginfiAccountSettleRebalanceTipInstructionAsync> &
+    SelfPlanAndSendFunctions;
   marginfiAccountStartExecuteOrder: (
     input: MakeOptional<MarginfiAccountStartExecuteOrderAsyncInput, "feePayer">
   ) => ReturnType<typeof getMarginfiAccountStartExecuteOrderInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  marginfiAccountStartRebalance: (
+    input: MakeOptional<MarginfiAccountStartRebalanceAsyncInput, "feePayer">
+  ) => ReturnType<typeof getMarginfiAccountStartRebalanceInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  marginfiAccountTagLiqRecord: (
+    input: MarginfiAccountTagLiqRecordInput
+  ) => ReturnType<typeof getMarginfiAccountTagLiqRecordInstruction> & SelfPlanAndSendFunctions;
+  marginfiAccountTopUpRebalanceFeePool: (
+    input: MakeOptional<MarginfiAccountTopUpRebalanceFeePoolAsyncInput, "payer">
+  ) => ReturnType<typeof getMarginfiAccountTopUpRebalanceFeePoolInstructionAsync> &
     SelfPlanAndSendFunctions;
   marginfiAccountUpdateEmissionsDestinationAccount: (
     input: MarginfiAccountUpdateEmissionsDestinationAccountInput
   ) => ReturnType<typeof getMarginfiAccountUpdateEmissionsDestinationAccountInstruction> &
     SelfPlanAndSendFunctions;
+  marginfiAccountUpdateRebalanceOrder: (
+    input: MarginfiAccountUpdateRebalanceOrderInput
+  ) => ReturnType<typeof getMarginfiAccountUpdateRebalanceOrderInstruction> &
+    SelfPlanAndSendFunctions;
+  marginfiAccountWithdrawRebalanceFeePool: (
+    input: MarginfiAccountWithdrawRebalanceFeePoolAsyncInput
+  ) => ReturnType<typeof getMarginfiAccountWithdrawRebalanceFeePoolInstructionAsync> &
+    SelfPlanAndSendFunctions;
   marginfiGroupConfigure: (
     input: MarginfiGroupConfigureInput
   ) => ReturnType<typeof getMarginfiGroupConfigureInstruction> & SelfPlanAndSendFunctions;
+  marginfiGroupConfigureGov: (
+    input: MarginfiGroupConfigureGovInput
+  ) => ReturnType<typeof getMarginfiGroupConfigureGovInstruction> & SelfPlanAndSendFunctions;
   marginfiGroupInitialize: (
     input: MarginfiGroupInitializeAsyncInput
   ) => ReturnType<typeof getMarginfiGroupInitializeInstructionAsync> & SelfPlanAndSendFunctions;
+  marginfiGroupSetGovernanceAdmin: (
+    input: MarginfiGroupSetGovernanceAdminInput
+  ) => ReturnType<typeof getMarginfiGroupSetGovernanceAdminInstruction> & SelfPlanAndSendFunctions;
+  monitorArchiveInitialize: (
+    input: MakeOptional<MonitorArchiveInitializeInput, "payer">
+  ) => ReturnType<typeof getMonitorArchiveInitializeInstruction> & SelfPlanAndSendFunctions;
+  monitorArchiveUpsertBatch: (
+    input: MonitorArchiveUpsertBatchInput
+  ) => ReturnType<typeof getMonitorArchiveUpsertBatchInstruction> & SelfPlanAndSendFunctions;
   panicPause: (
     input: PanicPauseAsyncInput
   ) => ReturnType<typeof getPanicPauseInstructionAsync> & SelfPlanAndSendFunctions;
@@ -3709,6 +4493,9 @@ export type MarginfiPluginInstructions = {
   propagateFeeState: (
     input: PropagateFeeStateAsyncInput
   ) => ReturnType<typeof getPropagateFeeStateInstructionAsync> & SelfPlanAndSendFunctions;
+  propagateKaminoMarketEmergency: (
+    input: PropagateKaminoMarketEmergencyInput
+  ) => ReturnType<typeof getPropagateKaminoMarketEmergencyInstruction> & SelfPlanAndSendFunctions;
   propagateStakedSettings: (
     input: PropagateStakedSettingsInput
   ) => ReturnType<typeof getPropagateStakedSettingsInstruction> & SelfPlanAndSendFunctions;
@@ -3763,6 +4550,7 @@ export type MarginfiPluginInstructions = {
 };
 
 export type MarginfiPluginPdas = {
+  rebalanceFeePool: typeof findRebalanceFeePoolPda;
   feeState: typeof findFeeStatePda;
   stakedSettings: typeof findStakedSettingsPda;
   liquidityVaultAuthority: typeof findLiquidityVaultAuthorityPda;
@@ -3782,7 +4570,9 @@ export type MarginfiPluginPdas = {
   lendingPoolAddBankSolendIntegrationAcc2: typeof findLendingPoolAddBankSolendIntegrationAcc2Pda;
   sameAssetEmodeRegistry: typeof findSameAssetEmodeRegistryPda;
   liquidationRecord: typeof findLiquidationRecordPda;
+  rebalanceOrder: typeof findRebalanceOrderPda;
   executeRecord: typeof findExecuteRecordPda;
+  rebalanceRecord: typeof findRebalanceRecordPda;
 };
 
 export type MarginfiPluginRequirements = ClientWithRpc<GetAccountInfoApi & GetMultipleAccountsApi> &
@@ -3805,12 +4595,14 @@ export function marginfiProgram() {
           marginfiAccount: addSelfFetchFunctions(client, getMarginfiAccountCodec()),
           marginfiGroup: addSelfFetchFunctions(client, getMarginfiGroupCodec()),
           order: addSelfFetchFunctions(client, getOrderCodec()),
+          rebalanceOrder: addSelfFetchFunctions(client, getRebalanceOrderCodec()),
+          rebalanceRecord: addSelfFetchFunctions(client, getRebalanceRecordCodec()),
           sameAssetEmodeRegistry: addSelfFetchFunctions(client, getSameAssetEmodeRegistryCodec()),
           stakedSettings: addSelfFetchFunctions(client, getStakedSettingsCodec()),
         },
         instructions: {
           adminCloseAccount: (input) =>
-            addSelfPlanAndSendFunctions(client, getAdminCloseAccountInstruction(input)),
+            addSelfPlanAndSendFunctions(client, getAdminCloseAccountInstructionAsync(input)),
           configGroupFee: (input) =>
             addSelfPlanAndSendFunctions(client, getConfigGroupFeeInstructionAsync(input)),
           configureBankRateLimits: (input) =>
@@ -3843,6 +4635,8 @@ export function marginfiProgram() {
             ),
           driftWithdraw: (input) =>
             addSelfPlanAndSendFunctions(client, getDriftWithdrawInstructionAsync(input)),
+          editFeeStatePremium: (input) =>
+            addSelfPlanAndSendFunctions(client, getEditFeeStatePremiumInstructionAsync(input)),
           editGlobalFeeState: (input) =>
             addSelfPlanAndSendFunctions(client, getEditGlobalFeeStateInstructionAsync(input)),
           editStakedSettings: (input) =>
@@ -4011,10 +4805,17 @@ export function marginfiProgram() {
               client,
               getLendingPoolCollectBankFeesInstructionAsync(input)
             ),
+          lendingPoolCollectBankPremiumFees: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getLendingPoolCollectBankPremiumFeesInstructionAsync(input)
+            ),
           lendingPoolConfigureBank: (input) =>
             addSelfPlanAndSendFunctions(client, getLendingPoolConfigureBankInstruction(input)),
           lendingPoolConfigureBankEmode: (input) =>
             addSelfPlanAndSendFunctions(client, getLendingPoolConfigureBankEmodeInstruction(input)),
+          lendingPoolConfigureBankGov: (input) =>
+            addSelfPlanAndSendFunctions(client, getLendingPoolConfigureBankGovInstruction(input)),
           lendingPoolConfigureBankInterestOnly: (input) =>
             addSelfPlanAndSendFunctions(
               client,
@@ -4034,6 +4835,16 @@ export function marginfiProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getLendingPoolConfigureBankOracleScopeInstruction(input)
+            ),
+          lendingPoolConfigureBankPremium: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getLendingPoolConfigureBankPremiumInstruction(input)
+            ),
+          lendingPoolConfigureGroupPremium: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getLendingPoolConfigureGroupPremiumInstruction(input)
             ),
           lendingPoolEmissionsDeposit: (input) =>
             addSelfPlanAndSendFunctions(client, getLendingPoolEmissionsDepositInstruction(input)),
@@ -4056,6 +4867,14 @@ export function marginfiProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getLendingPoolPulseBankPriceCacheInstruction(input)
+            ),
+          lendingPoolResizeBankAccount: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getLendingPoolResizeBankAccountInstruction({
+                ...input,
+                payer: input.payer ?? client.payer,
+              })
             ),
           lendingPoolResizeGroupAccount: (input) =>
             addSelfPlanAndSendFunctions(
@@ -4092,7 +4911,7 @@ export function marginfiProgram() {
           marginfiAccountClose: (input) =>
             addSelfPlanAndSendFunctions(
               client,
-              getMarginfiAccountCloseInstruction({
+              getMarginfiAccountCloseInstructionAsync({
                 ...input,
                 feePayer: input.feePayer ?? client.payer,
               })
@@ -4101,10 +4920,20 @@ export function marginfiProgram() {
             addSelfPlanAndSendFunctions(client, getMarginfiAccountCloseLiqRecordInstruction(input)),
           marginfiAccountCloseOrder: (input) =>
             addSelfPlanAndSendFunctions(client, getMarginfiAccountCloseOrderInstruction(input)),
+          marginfiAccountCloseRebalanceOrder: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountCloseRebalanceOrderInstruction(input)
+            ),
           marginfiAccountEndExecuteOrder: (input) =>
             addSelfPlanAndSendFunctions(
               client,
               getMarginfiAccountEndExecuteOrderInstructionAsync(input)
+            ),
+          marginfiAccountEndRebalance: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountEndRebalanceInstructionAsync(input)
             ),
           marginfiAccountInitLiqRecord: (input) =>
             addSelfPlanAndSendFunctions(
@@ -4143,12 +4972,25 @@ export function marginfiProgram() {
                 feePayer: input.feePayer ?? client.payer,
               })
             ),
+          marginfiAccountPlaceRebalanceOrder: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountPlaceRebalanceOrderInstructionAsync({
+                ...input,
+                feePayer: input.feePayer ?? client.payer,
+              })
+            ),
           marginfiAccountSetFreeze: (input) =>
             addSelfPlanAndSendFunctions(client, getMarginfiAccountSetFreezeInstruction(input)),
           marginfiAccountSetKeeperCloseFlags: (input) =>
             addSelfPlanAndSendFunctions(
               client,
               getMarginfiAccountSetKeeperCloseFlagsInstruction(input)
+            ),
+          marginfiAccountSettleRebalanceTip: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountSettleRebalanceTipInstructionAsync(input)
             ),
           marginfiAccountStartExecuteOrder: (input) =>
             addSelfPlanAndSendFunctions(
@@ -4158,15 +5000,60 @@ export function marginfiProgram() {
                 feePayer: input.feePayer ?? client.payer,
               })
             ),
+          marginfiAccountStartRebalance: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountStartRebalanceInstructionAsync({
+                ...input,
+                feePayer: input.feePayer ?? client.payer,
+              })
+            ),
+          marginfiAccountTagLiqRecord: (input) =>
+            addSelfPlanAndSendFunctions(client, getMarginfiAccountTagLiqRecordInstruction(input)),
+          marginfiAccountTopUpRebalanceFeePool: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountTopUpRebalanceFeePoolInstructionAsync({
+                ...input,
+                payer: input.payer ?? client.payer,
+              })
+            ),
           marginfiAccountUpdateEmissionsDestinationAccount: (input) =>
             addSelfPlanAndSendFunctions(
               client,
               getMarginfiAccountUpdateEmissionsDestinationAccountInstruction(input)
             ),
+          marginfiAccountUpdateRebalanceOrder: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountUpdateRebalanceOrderInstruction(input)
+            ),
+          marginfiAccountWithdrawRebalanceFeePool: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiAccountWithdrawRebalanceFeePoolInstructionAsync(input)
+            ),
           marginfiGroupConfigure: (input) =>
             addSelfPlanAndSendFunctions(client, getMarginfiGroupConfigureInstruction(input)),
+          marginfiGroupConfigureGov: (input) =>
+            addSelfPlanAndSendFunctions(client, getMarginfiGroupConfigureGovInstruction(input)),
           marginfiGroupInitialize: (input) =>
             addSelfPlanAndSendFunctions(client, getMarginfiGroupInitializeInstructionAsync(input)),
+          marginfiGroupSetGovernanceAdmin: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMarginfiGroupSetGovernanceAdminInstruction(input)
+            ),
+          monitorArchiveInitialize: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMonitorArchiveInitializeInstruction({
+                ...input,
+                payer: input.payer ?? client.payer,
+              })
+            ),
+          monitorArchiveUpsertBatch: (input) =>
+            addSelfPlanAndSendFunctions(client, getMonitorArchiveUpsertBatchInstruction(input)),
           panicPause: (input) =>
             addSelfPlanAndSendFunctions(client, getPanicPauseInstructionAsync(input)),
           panicUnpause: (input) =>
@@ -4178,6 +5065,11 @@ export function marginfiProgram() {
             ),
           propagateFeeState: (input) =>
             addSelfPlanAndSendFunctions(client, getPropagateFeeStateInstructionAsync(input)),
+          propagateKaminoMarketEmergency: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getPropagateKaminoMarketEmergencyInstruction(input)
+            ),
           propagateStakedSettings: (input) =>
             addSelfPlanAndSendFunctions(client, getPropagateStakedSettingsInstruction(input)),
           purgeDeleverageBalance: (input) =>
@@ -4241,6 +5133,7 @@ export function marginfiProgram() {
             addSelfPlanAndSendFunctions(client, getWriteBankMetadataPreInitInstructionAsync(input)),
         },
         pdas: {
+          rebalanceFeePool: findRebalanceFeePoolPda,
           feeState: findFeeStatePda,
           stakedSettings: findStakedSettingsPda,
           liquidityVaultAuthority: findLiquidityVaultAuthorityPda,
@@ -4260,7 +5153,9 @@ export function marginfiProgram() {
           lendingPoolAddBankSolendIntegrationAcc2: findLendingPoolAddBankSolendIntegrationAcc2Pda,
           sameAssetEmodeRegistry: findSameAssetEmodeRegistryPda,
           liquidationRecord: findLiquidationRecordPda,
+          rebalanceOrder: findRebalanceOrderPda,
           executeRecord: findExecuteRecordPda,
+          rebalanceRecord: findRebalanceRecordPda,
         },
         identifyAccount: identifyMarginfiAccount,
         identifyInstruction: identifyMarginfiInstruction,

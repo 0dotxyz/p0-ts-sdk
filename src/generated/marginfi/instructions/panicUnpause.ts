@@ -26,6 +26,7 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
   type WritableSignerAccount,
@@ -53,6 +54,8 @@ export type PanicUnpauseInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountGlobalFeeAdmin extends string | AccountMeta<string> = string,
   TAccountFeeState extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -62,6 +65,9 @@ export type PanicUnpauseInstruction<
         ? WritableSignerAccount<TAccountGlobalFeeAdmin> & AccountSignerMeta<TAccountGlobalFeeAdmin>
         : TAccountGlobalFeeAdmin,
       TAccountFeeState extends string ? WritableAccount<TAccountFeeState> : TAccountFeeState,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -94,18 +100,25 @@ export function getPanicUnpauseInstructionDataCodec(): FixedSizeCodec<
 export type PanicUnpauseAsyncInput<
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Global fee admin only. */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState?: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export async function getPanicUnpauseInstructionAsync<
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: PanicUnpauseAsyncInput<TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: PanicUnpauseAsyncInput<
+    TAccountGlobalFeeAdmin,
+    TAccountFeeState,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
   PanicUnpauseInstruction<
@@ -117,6 +130,10 @@ export async function getPanicUnpauseInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -130,6 +147,11 @@ export async function getPanicUnpauseInstructionAsync<
   const originalAccounts = {
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: true },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -140,11 +162,16 @@ export async function getPanicUnpauseInstructionAsync<
   if (!accounts.feeState.value) {
     accounts.feeState.value = await findFeeStatePda({ programAddress });
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getPanicUnpauseInstructionDataEncoder().encode({}),
     programAddress,
@@ -157,6 +184,10 @@ export async function getPanicUnpauseInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -164,18 +195,21 @@ export async function getPanicUnpauseInstructionAsync<
 export type PanicUnpauseInput<
   TAccountGlobalFeeAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   /** Global fee admin only. */
   globalFeeAdmin: TAccountGlobalFeeAdmin;
   feeState: TAccountFeeState;
+  instructionSysvar?: TAccountInstructionSysvar;
 };
 
 export function getPanicUnpauseInstruction<
   TAccountGlobalFeeAdmin extends InstructionSignerInput,
   TAccountFeeState extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: PanicUnpauseInput<TAccountGlobalFeeAdmin, TAccountFeeState>,
+  input: PanicUnpauseInput<TAccountGlobalFeeAdmin, TAccountFeeState, TAccountInstructionSysvar>,
   config?: { programAddress?: TProgramAddress }
 ): PanicUnpauseInstruction<
   TProgramAddress,
@@ -183,7 +217,14 @@ export function getPanicUnpauseInstruction<
     TAccountGlobalFeeAdmin,
     InstructionAccountInputAddress<TAccountGlobalFeeAdmin>
   >,
-  ResolvedInstructionAccountMeta<TAccountFeeState, InstructionAccountInputAddress<TAccountFeeState>>
+  ResolvedInstructionAccountMeta<
+    TAccountFeeState,
+    InstructionAccountInputAddress<TAccountFeeState>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -195,16 +236,28 @@ export function getPanicUnpauseInstruction<
   const originalAccounts = {
     globalFeeAdmin: { value: input.globalFeeAdmin ?? null, isSigner: true, isWritable: true },
     feeState: { value: input.feeState ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedInstructionAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("globalFeeAdmin", accounts.globalFeeAdmin),
       getAccountMeta("feeState", accounts.feeState),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getPanicUnpauseInstructionDataEncoder().encode({}),
     programAddress,
@@ -217,6 +270,10 @@ export function getPanicUnpauseInstruction<
     ResolvedInstructionAccountMeta<
       TAccountFeeState,
       InstructionAccountInputAddress<TAccountFeeState>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -230,6 +287,7 @@ export type ParsedPanicUnpauseInstruction<
     /** Global fee admin only. */
     globalFeeAdmin: TAccountMetas[0];
     feeState: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: PanicUnpauseInstructionData;
 };
@@ -242,10 +300,10 @@ export function parsePanicUnpauseInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedPanicUnpauseInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -256,7 +314,11 @@ export function parsePanicUnpauseInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { globalFeeAdmin: getNextAccount(), feeState: getNextAccount() },
+    accounts: {
+      globalFeeAdmin: getNextAccount(),
+      feeState: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getPanicUnpauseInstructionDataDecoder().decode(instruction.data),
   };
 }

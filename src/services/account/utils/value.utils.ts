@@ -2,12 +2,16 @@ import { BigNumber } from "bignumber.js";
 
 import { BalanceType, MarginRequirementType } from "../types";
 
+import { computeBalancePremium } from "./premium.utils";
+
 import {
   BankType,
   computeAssetUsdValue,
-  computeLiabilityUsdValue,
+  computeUsdValue,
   getAssetQuantity,
   getLiabilityQuantity,
+  getLiabilityWeight,
+  isWeightedPrice,
 } from "~/services/bank";
 import { OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
@@ -37,7 +41,8 @@ export interface ComputeBalanceUsdValueParams {
  * Computes the USD value of both assets and liabilities for a balance.
  *
  * This function returns the USD value of the position's assets (deposits) and
- * liabilities (borrows) separately, using neutral price bias (no conservative adjustments).
+ * liabilities (borrows, including accrued variable borrow premium) separately, using neutral
+ * price bias (no conservative adjustments).
  *
  * @param params - Configuration object for balance USD value computation
  * @returns Object containing assets and liabilities USD values
@@ -75,13 +80,13 @@ export function computeBalanceUsdValue(params: ComputeBalanceUsdValueParams): {
     activeEmodeWeights,
     assetShareValueMultiplier,
   });
-  const liabilitiesValue = computeLiabilityUsdValue({
+  const liabilitiesValue = computeBalanceLiabilityUsdValue(
+    balance,
     bank,
     oraclePrice,
-    liabilityShares: balance.liabilityShares,
     marginRequirement,
-    priceBias: PriceBias.None,
-  });
+    PriceBias.None
+  );
   return { assets: assetsValue, liabilities: liabilitiesValue };
 }
 
@@ -111,7 +116,7 @@ export interface GetBalanceUsdValueWithPriceBiasParams {
  *
  * This function applies conservative pricing for risk management:
  * - **Assets**: Uses Lowest price (conservative collateral valuation)
- * - **Liabilities**: Uses Highest price (conservative debt valuation)
+ * - **Liabilities**: Uses Highest price (conservative debt valuation), including accrued premium
  *
  * This is more conservative than `computeBalanceUsdValue` which uses neutral pricing.
  * Typically used for health checks and liquidation thresholds.
@@ -153,14 +158,53 @@ export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPr
     activeEmodeWeights,
     assetShareValueMultiplier,
   });
-  const liabilitiesValue = computeLiabilityUsdValue({
+  const liabilitiesValue = computeBalanceLiabilityUsdValue(
+    balance,
     bank,
     oraclePrice,
-    liabilityShares: balance.liabilityShares,
     marginRequirement,
-    priceBias: PriceBias.Highest,
-  });
+    PriceBias.Highest
+  );
   return { assets: assetsValue, liabilities: liabilitiesValue };
+}
+
+interface OrderPairLegValueInput {
+  balance: BalanceType;
+  bank: BankType;
+  oraclePrice: OraclePrice;
+  assetShareValueMultiplier?: BigNumber;
+}
+
+/**
+ * Values an order's collateral/debt pair the way the program's trigger does
+ * (`get_tagged_account_health_components`): Equity requirement, so the time-weighted (EMA) price
+ * at weight 1, with the collateral at the low end of the confidence band and the debt at the high
+ * end. Isolated-tier collateral counts as 0. Take-profit fires at `netUsd >= takeProfit`, stop-loss
+ * at `netUsd <= stopLoss`.
+ *
+ * @param params.collateral - The order's asset-side balance with its bank and oracle price
+ * @param params.debt - The order's liability-side balance with its bank and oracle price
+ * @returns USD values of both legs and the net value the trigger compares against
+ */
+export function computeOrderPairNetValue(params: {
+  collateral: OrderPairLegValueInput;
+  debt: OrderPairLegValueInput;
+}): { collateralUsd: BigNumber; debtUsd: BigNumber; netUsd: BigNumber } {
+  const { collateral, debt } = params;
+  const { assets: collateralUsd } = getBalanceUsdValueWithPriceBias({
+    balance: collateral.balance,
+    bank: collateral.bank,
+    oraclePrice: collateral.oraclePrice,
+    marginRequirement: MarginRequirementType.Equity,
+    assetShareValueMultiplier: collateral.assetShareValueMultiplier,
+  });
+  const { liabilities: debtUsd } = getBalanceUsdValueWithPriceBias({
+    balance: debt.balance,
+    bank: debt.bank,
+    oraclePrice: debt.oraclePrice,
+    marginRequirement: MarginRequirementType.Equity,
+  });
+  return { collateralUsd, debtUsd, netUsd: collateralUsd.minus(debtUsd) };
 }
 
 /**
@@ -170,6 +214,9 @@ export function getBalanceUsdValueWithPriceBias(params: GetBalanceUsdValueWithPr
  *
  * @param balance - The balance to compute quantities for
  * @param bank - The bank containing the balance
+ * Liabilities are the full debt: principal plus accrued variable borrow premium, which is what
+ * `repay_all` collects and what health checks charge.
+ *
  * @returns Object with assets and liabilities in native token amounts
  */
 export function computeQuantity(
@@ -180,7 +227,9 @@ export function computeQuantity(
   liabilities: BigNumber;
 } {
   const assetsQuantity = getAssetQuantity(bank, balance.assetShares);
-  const liabilitiesQuantity = getLiabilityQuantity(bank, balance.liabilityShares);
+  const liabilitiesQuantity = getLiabilityQuantity(bank, balance.liabilityShares).plus(
+    computeBalancePremium(balance, bank)
+  );
   return { assets: assetsQuantity, liabilities: liabilitiesQuantity };
 }
 
@@ -233,4 +282,21 @@ export function computeQuantityUi(
   const assetsQuantity = new BigNumber(nativeToUi(adjustedAssets, bank.mintDecimals));
   const liabilitiesQuantity = new BigNumber(nativeToUi(liabilities, bank.mintDecimals));
   return { assets: assetsQuantity, liabilities: liabilitiesQuantity };
+}
+
+function computeBalanceLiabilityUsdValue(
+  balance: BalanceType,
+  bank: BankType,
+  oraclePrice: OraclePrice,
+  marginRequirement: MarginRequirementType,
+  priceBias: PriceBias
+): BigNumber {
+  return computeUsdValue({
+    bank,
+    oraclePrice,
+    quantity: computeQuantity(balance, bank).liabilities,
+    priceBias,
+    isWeightedPrice: isWeightedPrice(marginRequirement),
+    weight: getLiabilityWeight(bank.config, marginRequirement),
+  });
 }

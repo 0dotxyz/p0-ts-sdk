@@ -10,10 +10,24 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getArrayDecoder,
+  getArrayEncoder,
+  getBooleanDecoder,
+  getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
+  getOptionDecoder,
+  getOptionEncoder,
   getStructDecoder,
   getStructEncoder,
+  getU16Decoder,
+  getU16Encoder,
+  getU32Decoder,
+  getU32Encoder,
+  getU64Decoder,
+  getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
   SolanaError,
   transformEncoder,
@@ -26,6 +40,8 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type Option,
+  type OptionOrNullable,
   type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
@@ -41,10 +57,14 @@ import {
 } from "@solana/kit/program-client-core";
 import { MARGINFI_PROGRAM_ADDRESS } from "../programs";
 import {
-  getBankConfigOptDecoder,
-  getBankConfigOptEncoder,
-  type BankConfigOpt,
-  type BankConfigOptArgs,
+  getBankOperationalStateDecoder,
+  getBankOperationalStateEncoder,
+  getInterestRateConfigOptDecoder,
+  getInterestRateConfigOptEncoder,
+  type BankOperationalState,
+  type BankOperationalStateArgs,
+  type InterestRateConfigOpt,
+  type InterestRateConfigOptArgs,
 } from "../types";
 
 export const LENDING_POOL_CONFIGURE_BANK_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -60,6 +80,8 @@ export type LendingPoolConfigureBankInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
   TAccountBank extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -70,22 +92,72 @@ export type LendingPoolConfigureBankInstruction<
         ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
       TAccountBank extends string ? WritableAccount<TAccountBank> : TAccountBank,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
 
 export type LendingPoolConfigureBankInstructionData = {
   discriminator: ReadonlyUint8Array;
-  bankConfigOpt: BankConfigOpt;
+  depositLimit: Option<bigint>;
+  borrowLimit: Option<bigint>;
+  operationalState: Option<BankOperationalState>;
+  interestRateConfig: Option<InterestRateConfigOpt>;
+  totalAssetValueInitLimit: Option<bigint>;
+  permissionlessBadDebtSettlement: Option<boolean>;
+  liquidationLiquidatorFee: Option<number>;
+  liquidationInsuranceFee: Option<number>;
+  circuitBreakerEnabled: Option<boolean>;
+  cbDeviationBpsTiers: Option<Array<number>>;
+  cbTierDurationsSeconds: Option<Array<number>>;
+  cbEscalationWindowMult: Option<number>;
+  cbEmaAlphaBps: Option<number>;
+  cbWindowSeconds: Option<number>;
+  cbWindowMaxUpBps: Option<number>;
+  cbWindowMaxDownBps: Option<number>;
 };
 
-export type LendingPoolConfigureBankInstructionDataArgs = { bankConfigOpt: BankConfigOptArgs };
+export type LendingPoolConfigureBankInstructionDataArgs = {
+  depositLimit: OptionOrNullable<number | bigint>;
+  borrowLimit: OptionOrNullable<number | bigint>;
+  operationalState: OptionOrNullable<BankOperationalStateArgs>;
+  interestRateConfig: OptionOrNullable<InterestRateConfigOptArgs>;
+  totalAssetValueInitLimit: OptionOrNullable<number | bigint>;
+  permissionlessBadDebtSettlement: OptionOrNullable<boolean>;
+  liquidationLiquidatorFee: OptionOrNullable<number>;
+  liquidationInsuranceFee: OptionOrNullable<number>;
+  circuitBreakerEnabled: OptionOrNullable<boolean>;
+  cbDeviationBpsTiers: OptionOrNullable<Array<number>>;
+  cbTierDurationsSeconds: OptionOrNullable<Array<number>>;
+  cbEscalationWindowMult: OptionOrNullable<number>;
+  cbEmaAlphaBps: OptionOrNullable<number>;
+  cbWindowSeconds: OptionOrNullable<number>;
+  cbWindowMaxUpBps: OptionOrNullable<number>;
+  cbWindowMaxDownBps: OptionOrNullable<number>;
+};
 
 export function getLendingPoolConfigureBankInstructionDataEncoder(): Encoder<LendingPoolConfigureBankInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["bankConfigOpt", getBankConfigOptEncoder()],
+      ["depositLimit", getOptionEncoder(getU64Encoder())],
+      ["borrowLimit", getOptionEncoder(getU64Encoder())],
+      ["operationalState", getOptionEncoder(getBankOperationalStateEncoder())],
+      ["interestRateConfig", getOptionEncoder(getInterestRateConfigOptEncoder())],
+      ["totalAssetValueInitLimit", getOptionEncoder(getU64Encoder())],
+      ["permissionlessBadDebtSettlement", getOptionEncoder(getBooleanEncoder())],
+      ["liquidationLiquidatorFee", getOptionEncoder(getU32Encoder())],
+      ["liquidationInsuranceFee", getOptionEncoder(getU32Encoder())],
+      ["circuitBreakerEnabled", getOptionEncoder(getBooleanEncoder())],
+      ["cbDeviationBpsTiers", getOptionEncoder(getArrayEncoder(getU16Encoder(), { size: 3 }))],
+      ["cbTierDurationsSeconds", getOptionEncoder(getArrayEncoder(getU16Encoder(), { size: 3 }))],
+      ["cbEscalationWindowMult", getOptionEncoder(getU8Encoder())],
+      ["cbEmaAlphaBps", getOptionEncoder(getU16Encoder())],
+      ["cbWindowSeconds", getOptionEncoder(getU32Encoder())],
+      ["cbWindowMaxUpBps", getOptionEncoder(getU16Encoder())],
+      ["cbWindowMaxDownBps", getOptionEncoder(getU16Encoder())],
     ]),
     (value) => ({ ...value, discriminator: LENDING_POOL_CONFIGURE_BANK_DISCRIMINATOR })
   );
@@ -94,7 +166,22 @@ export function getLendingPoolConfigureBankInstructionDataEncoder(): Encoder<Len
 export function getLendingPoolConfigureBankInstructionDataDecoder(): Decoder<LendingPoolConfigureBankInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["bankConfigOpt", getBankConfigOptDecoder()],
+    ["depositLimit", getOptionDecoder(getU64Decoder())],
+    ["borrowLimit", getOptionDecoder(getU64Decoder())],
+    ["operationalState", getOptionDecoder(getBankOperationalStateDecoder())],
+    ["interestRateConfig", getOptionDecoder(getInterestRateConfigOptDecoder())],
+    ["totalAssetValueInitLimit", getOptionDecoder(getU64Decoder())],
+    ["permissionlessBadDebtSettlement", getOptionDecoder(getBooleanDecoder())],
+    ["liquidationLiquidatorFee", getOptionDecoder(getU32Decoder())],
+    ["liquidationInsuranceFee", getOptionDecoder(getU32Decoder())],
+    ["circuitBreakerEnabled", getOptionDecoder(getBooleanDecoder())],
+    ["cbDeviationBpsTiers", getOptionDecoder(getArrayDecoder(getU16Decoder(), { size: 3 }))],
+    ["cbTierDurationsSeconds", getOptionDecoder(getArrayDecoder(getU16Decoder(), { size: 3 }))],
+    ["cbEscalationWindowMult", getOptionDecoder(getU8Decoder())],
+    ["cbEmaAlphaBps", getOptionDecoder(getU16Decoder())],
+    ["cbWindowSeconds", getOptionDecoder(getU32Decoder())],
+    ["cbWindowMaxUpBps", getOptionDecoder(getU16Decoder())],
+    ["cbWindowMaxDownBps", getOptionDecoder(getU16Decoder())],
   ]);
 }
 
@@ -112,26 +199,53 @@ export type LendingPoolConfigureBankInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountBank extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   group: TAccountGroup;
   admin: TAccountAdmin;
   bank: TAccountBank;
-  bankConfigOpt: LendingPoolConfigureBankInstructionDataArgs["bankConfigOpt"];
+  instructionSysvar?: TAccountInstructionSysvar;
+  depositLimit: LendingPoolConfigureBankInstructionDataArgs["depositLimit"];
+  borrowLimit: LendingPoolConfigureBankInstructionDataArgs["borrowLimit"];
+  operationalState: LendingPoolConfigureBankInstructionDataArgs["operationalState"];
+  interestRateConfig: LendingPoolConfigureBankInstructionDataArgs["interestRateConfig"];
+  totalAssetValueInitLimit: LendingPoolConfigureBankInstructionDataArgs["totalAssetValueInitLimit"];
+  permissionlessBadDebtSettlement: LendingPoolConfigureBankInstructionDataArgs["permissionlessBadDebtSettlement"];
+  liquidationLiquidatorFee: LendingPoolConfigureBankInstructionDataArgs["liquidationLiquidatorFee"];
+  liquidationInsuranceFee: LendingPoolConfigureBankInstructionDataArgs["liquidationInsuranceFee"];
+  circuitBreakerEnabled: LendingPoolConfigureBankInstructionDataArgs["circuitBreakerEnabled"];
+  cbDeviationBpsTiers: LendingPoolConfigureBankInstructionDataArgs["cbDeviationBpsTiers"];
+  cbTierDurationsSeconds: LendingPoolConfigureBankInstructionDataArgs["cbTierDurationsSeconds"];
+  cbEscalationWindowMult: LendingPoolConfigureBankInstructionDataArgs["cbEscalationWindowMult"];
+  cbEmaAlphaBps: LendingPoolConfigureBankInstructionDataArgs["cbEmaAlphaBps"];
+  cbWindowSeconds: LendingPoolConfigureBankInstructionDataArgs["cbWindowSeconds"];
+  cbWindowMaxUpBps: LendingPoolConfigureBankInstructionDataArgs["cbWindowMaxUpBps"];
+  cbWindowMaxDownBps: LendingPoolConfigureBankInstructionDataArgs["cbWindowMaxDownBps"];
 };
 
 export function getLendingPoolConfigureBankInstruction<
   TAccountGroup extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
   TAccountBank extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: LendingPoolConfigureBankInput<TAccountGroup, TAccountAdmin, TAccountBank>,
+  input: LendingPoolConfigureBankInput<
+    TAccountGroup,
+    TAccountAdmin,
+    TAccountBank,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): LendingPoolConfigureBankInstruction<
   TProgramAddress,
   ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
   ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+  ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -144,6 +258,11 @@ export function getLendingPoolConfigureBankInstruction<
     group: { value: input.group ?? null, isSigner: false, isWritable: false },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
     bank: { value: input.bank ?? null, isSigner: false, isWritable: true },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -153,11 +272,18 @@ export function getLendingPoolConfigureBankInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("group", accounts.group),
       getAccountMeta("admin", accounts.admin),
       getAccountMeta("bank", accounts.bank),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getLendingPoolConfigureBankInstructionDataEncoder().encode(
       args as LendingPoolConfigureBankInstructionDataArgs
@@ -167,7 +293,11 @@ export function getLendingPoolConfigureBankInstruction<
     TProgramAddress,
     ResolvedInstructionAccountMeta<TAccountGroup, InstructionAccountInputAddress<TAccountGroup>>,
     ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
-    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>
+    ResolvedInstructionAccountMeta<TAccountBank, InstructionAccountInputAddress<TAccountBank>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -180,6 +310,7 @@ export type ParsedLendingPoolConfigureBankInstruction<
     group: TAccountMetas[0];
     admin: TAccountMetas[1];
     bank: TAccountMetas[2];
+    instructionSysvar: TAccountMetas[3];
   };
   data: LendingPoolConfigureBankInstructionData;
 };
@@ -192,10 +323,10 @@ export function parseLendingPoolConfigureBankInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedLendingPoolConfigureBankInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 4) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 3,
+      expectedAccountMetas: 4,
     });
   }
   let accountIndex = 0;
@@ -206,7 +337,12 @@ export function parseLendingPoolConfigureBankInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { group: getNextAccount(), admin: getNextAccount(), bank: getNextAccount() },
+    accounts: {
+      group: getNextAccount(),
+      admin: getNextAccount(),
+      bank: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getLendingPoolConfigureBankInstructionDataDecoder().decode(instruction.data),
   };
 }

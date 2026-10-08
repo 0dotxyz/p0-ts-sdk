@@ -38,8 +38,6 @@ import {
   computeProjectedActiveBanksNoCpi,
   decodeMarginfiAccount,
   getBalance,
-  makeAccountTransferToNewAccountTx,
-  MakeAccountTransferToNewAccountTxParams,
   makeBeginFlashLoanIx,
   makeBorrowIx,
   MakeBorrowIxParams,
@@ -51,7 +49,11 @@ import {
   MakeBridgedSwapCollateralTxParams,
   makeBridgedSwapDebtTx,
   MakeBridgedSwapDebtTxParams,
-  makeCloseMarginfiAccountIx,
+  makeCloseAccountIx,
+  makeCloseOrderIx,
+  MakeCloseOrderIxParams,
+  makeCloseOrderTx,
+  MakeCloseOrderTxParams,
   makeDepositIx,
   MakeDepositIxParams,
   makeDepositTx,
@@ -61,6 +63,11 @@ import {
   MakeFlashLoanTxParams,
   makeLoopTx,
   MakeLoopTxParams,
+  makePlaceOrderIx,
+  MakePlaceOrderIxParams,
+  makePlaceOrderTx,
+  MakePlaceOrderTxParams,
+  MakeUpdateOrderTxParams,
   makePulseHealthIx,
   makeRepayIx,
   MakeRepayIxParams,
@@ -74,8 +81,11 @@ import {
   MakeSwapCollateralTxParams,
   makeSwapDebtTx,
   MakeSwapDebtTxParams,
+  makeTransferAccountTx,
+  MakeTransferAccountTxParams,
   makeTransferPositionsTx,
   MakeTransferPositionsTxParams,
+  makeUpdateOrderTx,
   makeWithdrawIx,
   MakeWithdrawIxParams,
   makeWithdrawTx,
@@ -100,7 +110,8 @@ class MarginfiAccount implements MarginfiAccountType {
     public readonly authority: Address,
     public readonly balances: Balance[],
     public readonly accountFlags: AccountFlags[],
-    public healthCache: HealthCache
+    public healthCache: HealthCache,
+    public readonly activeOrders: number = 0
   ) {}
 
   /**
@@ -129,7 +140,8 @@ class MarginfiAccount implements MarginfiAccountType {
       account.authority,
       account.balances.map((b) => Balance.fromBalanceType(b)),
       account.accountFlags,
-      account.healthCache
+      account.healthCache,
+      account.activeOrders
     );
   }
 
@@ -338,12 +350,13 @@ class MarginfiAccount implements MarginfiAccountType {
     endIndex: number,
     authority: TransactionSigner
   ) {
-    return makeBeginFlashLoanIx(programAddress, this.address, endIndex, authority);
+    return makeBeginFlashLoanIx({ programAddress, marginfiAccount: this, authority, endIndex });
   }
 
   /**
    * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
-   * @throws Error if `bankMap` misses one of `projectedActiveBanks`
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of
+   * `projectedActiveBanks`
    */
   async makeEndFlashLoanIx(
     programAddress: Address,
@@ -351,37 +364,56 @@ class MarginfiAccount implements MarginfiAccountType {
     projectedActiveBanks: Address[],
     authority: TransactionSigner
   ) {
-    return makeEndFlashLoanIx(
+    return makeEndFlashLoanIx({
       programAddress,
-      this.address,
-      this.group,
+      marginfiAccount: this,
+      authority,
       bankMap,
-      projectedActiveBanks,
-      authority
-    );
+      activeBanks: projectedActiveBanks,
+    });
   }
 
   async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "marginfiAccount">) {
     return makeFlashLoanTx({ ...params, marginfiAccount: this });
   }
 
-  async makeAccountTransferToNewAccountTx(
-    params: Omit<MakeAccountTransferToNewAccountTxParams, "marginfiAccount">
-  ) {
-    return makeAccountTransferToNewAccountTx({ ...params, marginfiAccount: this });
+  async makeTransferAccountTx(params: Omit<MakeTransferAccountTxParams, "marginfiAccount">) {
+    return makeTransferAccountTx({ ...params, marginfiAccount: this });
   }
 
   /** Closes this (empty) account; `authority` signs and receives the rent. */
   async makeCloseAccountIx(programAddress: Address, authority: TransactionSigner) {
-    return makeCloseMarginfiAccountIx({ programAddress, marginfiAccount: this, authority });
+    return makeCloseAccountIx({ programAddress, marginfiAccount: this, authority });
   }
 
   /**
    * Refreshes this account's on-chain health cache.
-   * @throws Error if `bankMap` misses one of the account's active banks
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+   * active banks
    */
   async makePulseHealthIx(programAddress: Address, bankMap: Map<string, BankType>) {
-    return makePulseHealthIx(programAddress, this, bankMap);
+    return makePulseHealthIx({ programAddress, marginfiAccount: this, bankMap });
+  }
+
+  async makePlaceOrderIx(params: Omit<MakePlaceOrderIxParams, "marginfiAccount">) {
+    return makePlaceOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  async makePlaceOrderTx(params: Omit<MakePlaceOrderTxParams, "marginfiAccount">) {
+    return makePlaceOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  async makeCloseOrderIx(params: Omit<MakeCloseOrderIxParams, "marginfiAccount">) {
+    return makeCloseOrderIx({ ...params, marginfiAccount: this });
+  }
+
+  async makeCloseOrderTx(params: Omit<MakeCloseOrderTxParams, "marginfiAccount">) {
+    return makeCloseOrderTx({ ...params, marginfiAccount: this });
+  }
+
+  /** Replaces this account's order on the pair with new thresholds (close + place). */
+  async makeUpdateOrderTx(params: Omit<MakeUpdateOrderTxParams, "marginfiAccount">) {
+    return makeUpdateOrderTx({ ...params, marginfiAccount: this });
   }
 
   /** Surrounds `ix` with wrapping `amount` SOL (UI units) into wSOL and unwrapping it after. */

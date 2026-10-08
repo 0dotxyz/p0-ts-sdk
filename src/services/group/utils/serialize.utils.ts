@@ -7,5 +7,9 @@ export function groupToDto(group: MarginfiGroupType): MarginfiGroupTypeDto {
     admin: group.admin,
     address: group.address,
     rateLimiter: group.rateLimiter ? toBankRateLimiterDto(group.rateLimiter) : undefined,
+    premiumEntries: group.premiumEntries.map((entry) => ({
+      ...entry,
+      rate: entry.rate.toString(),
+    })),
   };
 }

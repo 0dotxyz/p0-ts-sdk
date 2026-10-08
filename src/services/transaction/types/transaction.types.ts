@@ -31,7 +31,6 @@ export enum TransactionType {
   WITHDRAW_ALL = "WITHDRAW_ALL",
   TRANSFER_AUTH = "TRANSFER_AUTH",
 
-  // SWB
   CRANK = "CRANK",
 
   // NATIVE STAKE ACTIONS
@@ -59,6 +58,11 @@ export enum TransactionType {
 
   // LIQUIDATE
   LIQUIDATE_ACCOUNT = "LIQUIDATE_ACCOUNT",
+
+  // ORDERS (TP/SL)
+  PLACE_ORDER = "PLACE_ORDER",
+  CLOSE_ORDER = "CLOSE_ORDER",
+  UPDATE_ORDER = "UPDATE_ORDER",
 
   // BANK and GROUPS
   CREATE_PERM_BANK = "CREATE_PERM_BANK",
@@ -113,7 +117,6 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
         : "Open short position",
   },
 
-  // SWB
   [TransactionType.CRANK]: { label: () => "Updating latest prices" },
   [TransactionType.JUPITER_SWAP]: {
     label: ({ originAmount, originToken, destinationAmount, destinationToken } = {}) =>
@@ -182,6 +185,21 @@ export const TransactionConfigMap: Record<TransactionType, TransactionConfig> = 
 
   // LIQUIDATE
   [TransactionType.LIQUIDATE_ACCOUNT]: { label: () => "Liquidate account" },
+
+  // ORDERS (TP/SL)
+  [TransactionType.PLACE_ORDER]: {
+    label: ({ collateralToken, debtToken } = {}) =>
+      collateralToken && debtToken
+        ? `Place TP/SL order on ${collateralToken}/${debtToken}`
+        : "Place TP/SL order",
+  },
+  [TransactionType.CLOSE_ORDER]: { label: () => "Close TP/SL order" },
+  [TransactionType.UPDATE_ORDER]: {
+    label: ({ collateralToken, debtToken } = {}) =>
+      collateralToken && debtToken
+        ? `Update TP/SL order on ${collateralToken}/${debtToken}`
+        : "Update TP/SL order",
+  },
 
   // BANK and GROUPS
   [TransactionType.CREATE_PERM_BANK]: { label: () => "Create permissionless bank" },

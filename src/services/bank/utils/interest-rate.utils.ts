@@ -25,8 +25,11 @@ export function computeInterestRates(bank: BankType): {
 
 const U32_MAX = 0xffffffff;
 
-// Rates are encoded out of 1000%, so u32::MAX is an APR of 10.
-function rateFromU32(rate: number): BigNumber {
+/**
+ * Decodes an on-chain u32 rate (`u32::MAX` = 1000% APR), as used by interest curve points and
+ * premium rates, into an APR fraction (0.05 = 5%).
+ */
+export function rateFromU32(rate: number): BigNumber {
   const ratio = new BigNumber(rate).div(U32_MAX);
   return ratio.times(10);
 }

@@ -98,6 +98,10 @@ class Bank implements BankType {
     public readonly collectedProgramFeesOutstanding: BigNumber,
     public readonly oracleKey: Address,
     public readonly emode: EmodeSettings,
+    public readonly premiumTag: number,
+    public readonly premiumActive: boolean,
+    public readonly premiumActivatedAt: number,
+    public readonly kaminoEmergency: boolean,
     public readonly rateLimiter?: BankRateLimiterType,
     public readonly kaminoIntegrationAccounts?: {
       kaminoReserve: Address;
@@ -196,6 +200,10 @@ class Bank implements BankType {
       bankType.collectedProgramFeesOutstanding,
       bankType.oracleKey,
       bankType.emode,
+      bankType.premiumTag,
+      bankType.premiumActive,
+      bankType.premiumActivatedAt,
+      bankType.kaminoEmergency,
       bankType.rateLimiter,
       bankType.kaminoIntegrationAccounts,
       bankType.driftIntegrationAccounts,

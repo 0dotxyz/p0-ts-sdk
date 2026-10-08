@@ -22,8 +22,11 @@ class Balance implements BalanceType {
   constructor(
     public active: boolean,
     public bankPk: Address,
+    public tag: number,
     public assetShares: BigNumber,
     public liabilityShares: BigNumber,
+    public premiumRate: BigNumber,
+    public premiumOutstanding: BigNumber,
     public lastUpdate: number
   ) {}
 
@@ -31,8 +34,11 @@ class Balance implements BalanceType {
     return new Balance(
       balance.active,
       balance.bankPk,
+      balance.tag,
       balance.assetShares,
       balance.liabilityShares,
+      balance.premiumRate,
+      balance.premiumOutstanding,
       balance.lastUpdate
     );
   }

@@ -93,6 +93,7 @@ export type LendingAccountPulseHealthInput<
   TAccountGroup extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiAccount: TAccountMarginfiAccount;
+  /** Needed for same-asset emode checks and the premium snapshot recompute */
   group: TAccountGroup;
 };
 
@@ -151,6 +152,7 @@ export type ParsedLendingAccountPulseHealthInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     marginfiAccount: TAccountMetas[0];
+    /** Needed for same-asset emode checks and the premium snapshot recompute */
     group: TAccountMetas[1];
   };
   data: LendingAccountPulseHealthInstructionData;

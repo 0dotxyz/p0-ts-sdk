@@ -1,5 +1,6 @@
 import type { Address, Instruction } from "@solana/kit";
 
+import { TransactionBuildingError } from "~/errors";
 import { MarginfiAccountType } from "~/services/account";
 import { AssetTag, BankType, requireBank } from "~/services/bank";
 import type { BankIntegrationMetadataMap } from "~/types";
@@ -18,7 +19,9 @@ import { makeUpdateSpotMarketCumulativeInterestIx } from "~/vendor/drift";
  * @param banksToExclude - Addresses of banks to exclude from the update
  * @param bankMetadataMap - Map containing Bank-specific metadata (Drift spot market states)
  * @returns Drift spot market update instructions
- * @throws if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if an active bank is missing from `bankMap`
+ * @throws TransactionBuildingError (DRIFT_STATE_NOT_FOUND) when a Drift bank has no spot market
+ * state in `bankMetadataMap`
  */
 export async function makeUpdateDriftMarketIxs(
   marginfiAccount: MarginfiAccountType,
@@ -34,14 +37,22 @@ export async function makeUpdateDriftMarketIxs(
 
   const allActiveBanks = activeBanksPk
     .filter((pk) => !banksToExcludeSet.has(pk))
-    .map((pk) => requireBank(bankMap, pk));
+    .map((pk) => requireBank(bankMap, pk, () => TransactionBuildingError.bankNotFound(pk)));
 
   // filter drift banks
   const driftBanks = allActiveBanks.filter((bank) => bank.config.assetTag === AssetTag.DRIFT);
 
-  const spotMarkets = driftBanks
-    .map((driftBank) => bankMetadataMap?.[driftBank.address]?.driftStates?.spotMarketState)
-    .filter((market): market is NonNullable<typeof market> => !!market);
+  const spotMarkets = driftBanks.map((driftBank) => {
+    const driftStates = bankMetadataMap[driftBank.address]?.driftStates;
+    if (!driftStates) {
+      throw TransactionBuildingError.driftStateNotFound(
+        driftBank.address,
+        driftBank.mint,
+        driftBank.tokenSymbol
+      );
+    }
+    return driftStates.spotMarketState;
+  });
 
   return Promise.all(spotMarkets.map(makeUpdateSpotMarketCumulativeInterestIx));
 }

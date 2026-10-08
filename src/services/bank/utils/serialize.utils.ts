@@ -1,7 +1,8 @@
 import { BigNumber } from "bignumber.js";
 
 import {
-  BankConfigOpt,
+  BankConfigFastOpt,
+  BankConfigGovOpt,
   RiskTier,
   OperationalState,
   OracleSetup,
@@ -19,36 +20,24 @@ import {
   BankRateLimiterDto,
   RateLimitWindowDto,
 } from "../types";
-import type { BankConfigOptRaw } from "../types/raw-bank.types";
+import type { BankConfigFastRaw, BankConfigGovRaw } from "../types/raw-bank.types";
 
 import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import type { InterestRateConfigCompactArgs } from "~/generated/marginfi";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-export function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
-  const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
-  const toBigInt = (value: BigNumber | null) => value && BigInt(value.toFixed());
+const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
+const toBigInt = (value: BigNumber | null) => value && BigInt(value.toFixed());
 
+export function serializeBankConfigFast(config: BankConfigFastOpt): BankConfigFastRaw {
   return {
-    assetWeightInit: toWrappedI80F48(bankConfigOpt.assetWeightInit),
-    assetWeightMaint: toWrappedI80F48(bankConfigOpt.assetWeightMaint),
-    liabilityWeightInit: toWrappedI80F48(bankConfigOpt.liabilityWeightInit),
-    liabilityWeightMaint: toWrappedI80F48(bankConfigOpt.liabilityWeightMaint),
-    depositLimit: toBigInt(bankConfigOpt.depositLimit),
-    borrowLimit: toBigInt(bankConfigOpt.borrowLimit),
-    riskTier: bankConfigOpt.riskTier && serializeRiskTier(bankConfigOpt.riskTier),
-    totalAssetValueInitLimit: toBigInt(bankConfigOpt.totalAssetValueInitLimit),
-    assetTag: bankConfigOpt.assetTag,
+    depositLimit: toBigInt(config.depositLimit),
+    borrowLimit: toBigInt(config.borrowLimit),
+    operationalState: config.operationalState && serializeOperationalState(config.operationalState),
     interestRateConfig:
-      bankConfigOpt.interestRateConfig &&
-      serializeInterestRateConfig(bankConfigOpt.interestRateConfig),
-    operationalState:
-      bankConfigOpt.operationalState && serializeOperationalState(bankConfigOpt.operationalState),
-    oracleMaxAge: bankConfigOpt.oracleMaxAge,
-    permissionlessBadDebtSettlement: bankConfigOpt.permissionlessBadDebtSettlement,
-    freezeSettings: bankConfigOpt.freezeSettings,
-    tokenlessRepaymentsAllowed: bankConfigOpt.tokenlessRepaymentsAllowed,
-    oracleMaxConfidence: bankConfigOpt.oracleMaxConfidence,
+      config.interestRateConfig && serializeInterestRateConfig(config.interestRateConfig),
+    totalAssetValueInitLimit: toBigInt(config.totalAssetValueInitLimit),
+    permissionlessBadDebtSettlement: config.permissionlessBadDebtSettlement,
     liquidationLiquidatorFee: null,
     liquidationInsuranceFee: null,
     circuitBreakerEnabled: null,
@@ -59,6 +48,22 @@ export function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfig
     cbWindowSeconds: null,
     cbWindowMaxUpBps: null,
     cbWindowMaxDownBps: null,
+  };
+}
+
+export function serializeBankConfigGov(config: BankConfigGovOpt): BankConfigGovRaw {
+  return {
+    assetWeightInit: toWrappedI80F48(config.assetWeightInit),
+    assetWeightMaint: toWrappedI80F48(config.assetWeightMaint),
+    liabilityWeightInit: toWrappedI80F48(config.liabilityWeightInit),
+    liabilityWeightMaint: toWrappedI80F48(config.liabilityWeightMaint),
+    operationalState: config.operationalState && serializeOperationalState(config.operationalState),
+    riskTier: config.riskTier && serializeRiskTier(config.riskTier),
+    assetTag: config.assetTag,
+    oracleMaxConfidence: config.oracleMaxConfidence,
+    oracleMaxAge: config.oracleMaxAge,
+    tokenlessRepaymentsAllowed: config.tokenlessRepaymentsAllowed,
+    freezeSettings: config.freezeSettings,
   };
 }
 
@@ -145,6 +150,10 @@ export function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
       return OracleSetupRaw.FixedJuplend;
     case OracleSetup.Scope:
       return OracleSetupRaw.Scope;
+    case OracleSetup.ScopeKamino:
+      return OracleSetupRaw.ScopeKamino;
+    case OracleSetup.ScopeJuplend:
+      return OracleSetupRaw.ScopeJuplend;
     case OracleSetup.PythMSOL:
       return OracleSetupRaw.PythMSOL;
     case OracleSetup.KaminoMSOL:
@@ -199,6 +208,10 @@ export function toBankDto(bank: BankType): BankTypeDto {
     collectedProgramFeesOutstanding: bank.collectedProgramFeesOutstanding.toString(),
     oracleKey: bank.oracleKey,
     emode: toEmodeSettingsDto(bank.emode),
+    premiumTag: bank.premiumTag,
+    premiumActive: bank.premiumActive,
+    premiumActivatedAt: bank.premiumActivatedAt,
+    kaminoEmergency: bank.kaminoEmergency,
     rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
     feesDestinationAccount: bank.feesDestinationAccount,

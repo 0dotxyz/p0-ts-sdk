@@ -32,6 +32,7 @@ import {
   type InstructionWithData,
   type Option,
   type OptionOrNullable,
+  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type WritableAccount,
@@ -45,12 +46,6 @@ import {
   type ResolvedInstructionAccountMeta,
 } from "@solana/kit/program-client-core";
 import { MARGINFI_PROGRAM_ADDRESS } from "../programs";
-import {
-  getWrappedI80F48Decoder,
-  getWrappedI80F48Encoder,
-  type WrappedI80F48,
-  type WrappedI80F48Args,
-} from "../types";
 
 export const MARGINFI_GROUP_CONFIGURE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
   62, 199, 81, 78, 33, 13, 236, 61,
@@ -64,6 +59,8 @@ export type MarginfiGroupConfigureInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountMarginfiGroup extends string | AccountMeta<string> = string,
   TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -75,6 +72,9 @@ export type MarginfiGroupConfigureInstruction<
       TAccountAdmin extends string
         ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -82,32 +82,20 @@ export type MarginfiGroupConfigureInstruction<
 export type MarginfiGroupConfigureInstructionData = {
   discriminator: ReadonlyUint8Array;
   newAdmin: Option<Address>;
-  newEmodeAdmin: Option<Address>;
   newCurveAdmin: Option<Address>;
   newLimitAdmin: Option<Address>;
   newFlowAdmin: Option<Address>;
   newEmissionsAdmin: Option<Address>;
   newMetadataAdmin: Option<Address>;
-  newRiskAdmin: Option<Address>;
-  emodeMaxInitLeverage: Option<WrappedI80F48>;
-  emodeMaxMaintLeverage: Option<WrappedI80F48>;
-  sameAssetEmodeInitLeverage: Option<WrappedI80F48>;
-  sameAssetEmodeMaintLeverage: Option<WrappedI80F48>;
 };
 
 export type MarginfiGroupConfigureInstructionDataArgs = {
   newAdmin: OptionOrNullable<Address>;
-  newEmodeAdmin: OptionOrNullable<Address>;
   newCurveAdmin: OptionOrNullable<Address>;
   newLimitAdmin: OptionOrNullable<Address>;
   newFlowAdmin: OptionOrNullable<Address>;
   newEmissionsAdmin: OptionOrNullable<Address>;
   newMetadataAdmin: OptionOrNullable<Address>;
-  newRiskAdmin: OptionOrNullable<Address>;
-  emodeMaxInitLeverage: OptionOrNullable<WrappedI80F48Args>;
-  emodeMaxMaintLeverage: OptionOrNullable<WrappedI80F48Args>;
-  sameAssetEmodeInitLeverage: OptionOrNullable<WrappedI80F48Args>;
-  sameAssetEmodeMaintLeverage: OptionOrNullable<WrappedI80F48Args>;
 };
 
 export function getMarginfiGroupConfigureInstructionDataEncoder(): Encoder<MarginfiGroupConfigureInstructionDataArgs> {
@@ -115,17 +103,11 @@ export function getMarginfiGroupConfigureInstructionDataEncoder(): Encoder<Margi
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["newAdmin", getOptionEncoder(getAddressEncoder())],
-      ["newEmodeAdmin", getOptionEncoder(getAddressEncoder())],
       ["newCurveAdmin", getOptionEncoder(getAddressEncoder())],
       ["newLimitAdmin", getOptionEncoder(getAddressEncoder())],
       ["newFlowAdmin", getOptionEncoder(getAddressEncoder())],
       ["newEmissionsAdmin", getOptionEncoder(getAddressEncoder())],
       ["newMetadataAdmin", getOptionEncoder(getAddressEncoder())],
-      ["newRiskAdmin", getOptionEncoder(getAddressEncoder())],
-      ["emodeMaxInitLeverage", getOptionEncoder(getWrappedI80F48Encoder())],
-      ["emodeMaxMaintLeverage", getOptionEncoder(getWrappedI80F48Encoder())],
-      ["sameAssetEmodeInitLeverage", getOptionEncoder(getWrappedI80F48Encoder())],
-      ["sameAssetEmodeMaintLeverage", getOptionEncoder(getWrappedI80F48Encoder())],
     ]),
     (value) => ({ ...value, discriminator: MARGINFI_GROUP_CONFIGURE_DISCRIMINATOR })
   );
@@ -135,17 +117,11 @@ export function getMarginfiGroupConfigureInstructionDataDecoder(): Decoder<Margi
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["newAdmin", getOptionDecoder(getAddressDecoder())],
-    ["newEmodeAdmin", getOptionDecoder(getAddressDecoder())],
     ["newCurveAdmin", getOptionDecoder(getAddressDecoder())],
     ["newLimitAdmin", getOptionDecoder(getAddressDecoder())],
     ["newFlowAdmin", getOptionDecoder(getAddressDecoder())],
     ["newEmissionsAdmin", getOptionDecoder(getAddressDecoder())],
     ["newMetadataAdmin", getOptionDecoder(getAddressDecoder())],
-    ["newRiskAdmin", getOptionDecoder(getAddressDecoder())],
-    ["emodeMaxInitLeverage", getOptionDecoder(getWrappedI80F48Decoder())],
-    ["emodeMaxMaintLeverage", getOptionDecoder(getWrappedI80F48Decoder())],
-    ["sameAssetEmodeInitLeverage", getOptionDecoder(getWrappedI80F48Decoder())],
-    ["sameAssetEmodeMaintLeverage", getOptionDecoder(getWrappedI80F48Decoder())],
   ]);
 }
 
@@ -162,29 +138,30 @@ export function getMarginfiGroupConfigureInstructionDataCodec(): Codec<
 export type MarginfiGroupConfigureInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
   admin: TAccountAdmin;
+  instructionSysvar?: TAccountInstructionSysvar;
   newAdmin: MarginfiGroupConfigureInstructionDataArgs["newAdmin"];
-  newEmodeAdmin: MarginfiGroupConfigureInstructionDataArgs["newEmodeAdmin"];
   newCurveAdmin: MarginfiGroupConfigureInstructionDataArgs["newCurveAdmin"];
   newLimitAdmin: MarginfiGroupConfigureInstructionDataArgs["newLimitAdmin"];
   newFlowAdmin: MarginfiGroupConfigureInstructionDataArgs["newFlowAdmin"];
   newEmissionsAdmin: MarginfiGroupConfigureInstructionDataArgs["newEmissionsAdmin"];
   newMetadataAdmin: MarginfiGroupConfigureInstructionDataArgs["newMetadataAdmin"];
-  newRiskAdmin: MarginfiGroupConfigureInstructionDataArgs["newRiskAdmin"];
-  emodeMaxInitLeverage: MarginfiGroupConfigureInstructionDataArgs["emodeMaxInitLeverage"];
-  emodeMaxMaintLeverage: MarginfiGroupConfigureInstructionDataArgs["emodeMaxMaintLeverage"];
-  sameAssetEmodeInitLeverage: MarginfiGroupConfigureInstructionDataArgs["sameAssetEmodeInitLeverage"];
-  sameAssetEmodeMaintLeverage: MarginfiGroupConfigureInstructionDataArgs["sameAssetEmodeMaintLeverage"];
 };
 
 export function getMarginfiGroupConfigureInstruction<
   TAccountMarginfiGroup extends InstructionAccountInput,
   TAccountAdmin extends InstructionSignerInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
-  input: MarginfiGroupConfigureInput<TAccountMarginfiGroup, TAccountAdmin>,
+  input: MarginfiGroupConfigureInput<
+    TAccountMarginfiGroup,
+    TAccountAdmin,
+    TAccountInstructionSysvar
+  >,
   config?: { programAddress?: TProgramAddress }
 ): MarginfiGroupConfigureInstruction<
   TProgramAddress,
@@ -192,7 +169,11 @@ export function getMarginfiGroupConfigureInstruction<
     TAccountMarginfiGroup,
     InstructionAccountInputAddress<TAccountMarginfiGroup>
   >,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? MARGINFI_PROGRAM_ADDRESS;
@@ -204,6 +185,11 @@ export function getMarginfiGroupConfigureInstruction<
   const originalAccounts = {
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: true },
     admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -213,10 +199,17 @@ export function getMarginfiGroupConfigureInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
+
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
       getAccountMeta("admin", accounts.admin),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getMarginfiGroupConfigureInstructionDataEncoder().encode(
       args as MarginfiGroupConfigureInstructionDataArgs
@@ -228,7 +221,11 @@ export function getMarginfiGroupConfigureInstruction<
       TAccountMarginfiGroup,
       InstructionAccountInputAddress<TAccountMarginfiGroup>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>
+    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
+    >
   >);
 }
 
@@ -240,6 +237,7 @@ export type ParsedMarginfiGroupConfigureInstruction<
   accounts: {
     marginfiGroup: TAccountMetas[0];
     admin: TAccountMetas[1];
+    instructionSysvar: TAccountMetas[2];
   };
   data: MarginfiGroupConfigureInstructionData;
 };
@@ -252,10 +250,10 @@ export function parseMarginfiGroupConfigureInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedMarginfiGroupConfigureInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 2,
+      expectedAccountMetas: 3,
     });
   }
   let accountIndex = 0;
@@ -266,7 +264,11 @@ export function parseMarginfiGroupConfigureInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { marginfiGroup: getNextAccount(), admin: getNextAccount() },
+    accounts: {
+      marginfiGroup: getNextAccount(),
+      admin: getNextAccount(),
+      instructionSysvar: getNextAccount(),
+    },
     data: getMarginfiGroupConfigureInstructionDataDecoder().decode(instruction.data),
   };
 }

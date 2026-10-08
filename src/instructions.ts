@@ -17,15 +17,18 @@ import {
   getLendingAccountWithdrawInstructionAsync,
   getLendingPoolAddBankInstructionAsync,
   getLendingPoolAddBankPermissionlessInstructionAsync,
+  getLendingPoolConfigureBankGovInstruction,
   getLendingPoolConfigureBankInstruction,
   getLendingPoolConfigureBankOracleInstruction,
   getLendingPoolConfigureBankOracleScopeInstruction,
   getLendingPoolSetOraclePriceInstruction,
-  getMarginfiAccountCloseInstruction,
+  getMarginfiAccountCloseInstructionAsync,
+  getMarginfiAccountCloseOrderInstruction,
   getMarginfiAccountInitializeInstruction,
   getMarginfiAccountInitializePdaInstruction,
+  getMarginfiAccountPlaceOrderInstructionAsync,
   getMarginfiGroupInitializeInstructionAsync,
-  getTransferToNewAccountInstructionAsync,
+  getTransferToNewAccountPdaInstructionAsync,
   parseMarginfiInstruction,
   type BankConfigCompactArgs,
   type DriftDepositAsyncInput,
@@ -44,16 +47,19 @@ import {
   type LendingAccountWithdrawAsyncInput,
   type LendingPoolAddBankAsyncInput,
   type LendingPoolAddBankPermissionlessAsyncInput,
+  type LendingPoolConfigureBankGovInput,
   type LendingPoolConfigureBankInput,
   type LendingPoolConfigureBankOracleInput,
   type LendingPoolConfigureBankOracleScopeInput,
   type LendingPoolSetOraclePriceInput,
-  type MarginfiAccountCloseInput,
+  type MarginfiAccountCloseAsyncInput,
+  type MarginfiAccountCloseOrderInput,
   type MarginfiAccountInitializeInput,
   type MarginfiAccountInitializePdaInput,
+  type MarginfiAccountPlaceOrderAsyncInput,
   type MarginfiGroupInitializeAsyncInput,
   type ParsedMarginfiInstruction,
-  type TransferToNewAccountAsyncInput,
+  type TransferToNewAccountPdaAsyncInput,
 } from "./generated/marginfi";
 
 import { TOKEN_2022_PROGRAM_ID } from "~/constants";
@@ -249,12 +255,23 @@ async function makeLendingAccountLiquidateIx(
   );
 }
 
-/** Updates a bank's config; `null` fields in `bankConfigOpt` are left unchanged. */
+/** Updates a bank's admin-level config (limits, rates, pausing); `null` fields are left unchanged. */
 async function makePoolConfigureBankIx(
   programAddress: Address,
   input: LendingPoolConfigureBankInput
 ): Promise<Instruction> {
   return getLendingPoolConfigureBankInstruction(input, { programAddress });
+}
+
+/**
+ * Updates a bank's governance-level config (weights, risk tier, asset tag, oracle limits,
+ * freezing, returning to operational); `null` fields are left unchanged.
+ */
+async function makePoolConfigureBankGovIx(
+  programAddress: Address,
+  input: LendingPoolConfigureBankGovInput
+): Promise<Instruction> {
+  return getLendingPoolConfigureBankGovInstruction(input, { programAddress });
 }
 
 /** Starts a flashloan; `endIndex` is the transaction index of the matching end instruction. */
@@ -280,12 +297,15 @@ async function makeEndFlashLoanIx(
   );
 }
 
-/** Moves the account's positions to `newMarginfiAccount` owned by `newAuthority`. */
-async function makeAccountTransferToNewAccountIx(
+/**
+ * Moves the account's positions to `newMarginfiAccount`, the PDA of (`group`, `newAuthority`,
+ * `accountIndex`, `thirdPartyId`), and disables the old account; derives the fee state.
+ */
+async function makeAccountTransferToNewAccountPdaIx(
   programAddress: Address,
-  input: TransferToNewAccountAsyncInput
+  input: TransferToNewAccountPdaAsyncInput
 ): Promise<Instruction> {
-  return getTransferToNewAccountInstructionAsync(input, { programAddress });
+  return getTransferToNewAccountPdaInstructionAsync(input, { programAddress });
 }
 
 /** Initializes a marginfi group; `marginfiGroup` and `admin` must sign. */
@@ -311,14 +331,19 @@ async function makeLendingPoolConfigureBankOracleIx(
   );
 }
 
-/** Points a bank at entry `entryIndex` of the Scope OraclePrices account `oracle`. */
+/**
+ * Points a bank at entry `entryIndex` of the Scope OraclePrices account `oracle`.
+ * @param integrationAccount - For Kamino / JupLend banks, the reserve or lending account (the
+ * bank's `oracleKeys[1]`) the program validates after the feed.
+ */
 async function makeLendingPoolConfigureBankOracleScopeIx(
   programAddress: Address,
-  input: LendingPoolConfigureBankOracleScopeInput
+  input: LendingPoolConfigureBankOracleScopeInput,
+  integrationAccount?: Address
 ): Promise<Instruction> {
   return withRemainingAccounts(
     getLendingPoolConfigureBankOracleScopeInstruction(input, { programAddress }),
-    [input.oracle]
+    integrationAccount ? [input.oracle, integrationAccount] : [input.oracle]
   );
 }
 
@@ -376,12 +401,32 @@ async function makePoolAddBankIx(
   );
 }
 
-/** Closes an empty marginfi account and returns rent to `feePayer`. */
+/** Closes an empty marginfi account and returns rent to `feePayer`; derives the rebalance fee pool. */
 async function makeCloseAccountIx(
   programAddress: Address,
-  input: MarginfiAccountCloseInput
+  input: MarginfiAccountCloseAsyncInput
 ): Promise<Instruction> {
-  return getMarginfiAccountCloseInstruction(input, { programAddress });
+  return getMarginfiAccountCloseInstructionAsync(input, { programAddress });
+}
+
+/**
+ * Places a take-profit / stop-loss order on a collateral/debt bank pair; derives the fee state.
+ * The `order` account must be derived by the caller (see `deriveOrderPda`): the IDL has no pda
+ * block for it.
+ */
+async function makePlaceOrderIx(
+  programAddress: Address,
+  input: MarginfiAccountPlaceOrderAsyncInput
+): Promise<Instruction> {
+  return getMarginfiAccountPlaceOrderInstructionAsync(input, { programAddress });
+}
+
+/** Closes an order and returns its rent to `feeRecipient`. */
+async function makeCloseOrderIx(
+  programAddress: Address,
+  input: MarginfiAccountCloseOrderInput
+): Promise<Instruction> {
+  return getMarginfiAccountCloseOrderInstruction(input, { programAddress });
 }
 
 /**
@@ -430,9 +475,10 @@ const instructions = {
   makeLendingAccountLiquidateIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
+  makePoolConfigureBankGovIx,
   makeBeginFlashLoanIx,
   makeEndFlashLoanIx,
-  makeAccountTransferToNewAccountIx,
+  makeAccountTransferToNewAccountPdaIx,
   makeGroupInitIx,
   makeCloseAccountIx,
   makePoolAddPermissionlessStakedBankIx,
@@ -440,6 +486,8 @@ const instructions = {
   makeLendingPoolConfigureBankOracleScopeIx,
   makeLendingPoolSetOraclePriceIx,
   makePulseHealthIx,
+  makePlaceOrderIx,
+  makeCloseOrderIx,
 };
 
 export default instructions;

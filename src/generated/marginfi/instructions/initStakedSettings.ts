@@ -71,10 +71,12 @@ export function getInitStakedSettingsDiscriminatorBytes(): ReadonlyUint8Array {
 export type InitStakedSettingsInstruction<
   TProgram extends string = typeof MARGINFI_PROGRAM_ADDRESS,
   TAccountMarginfiGroup extends string | AccountMeta<string> = string,
-  TAccountAdmin extends string | AccountMeta<string> = string,
+  TAccountGovernanceAdmin extends string | AccountMeta<string> = string,
   TAccountFeePayer extends string | AccountMeta<string> = string,
   TAccountStakedSettings extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountInstructionSysvar extends string | AccountMeta<string> =
+    "Sysvar1nstructions1111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -83,9 +85,10 @@ export type InitStakedSettingsInstruction<
       TAccountMarginfiGroup extends string
         ? ReadonlyAccount<TAccountMarginfiGroup>
         : TAccountMarginfiGroup,
-      TAccountAdmin extends string
-        ? ReadonlySignerAccount<TAccountAdmin> & AccountSignerMeta<TAccountAdmin>
-        : TAccountAdmin,
+      TAccountGovernanceAdmin extends string
+        ? ReadonlySignerAccount<TAccountGovernanceAdmin> &
+            AccountSignerMeta<TAccountGovernanceAdmin>
+        : TAccountGovernanceAdmin,
       TAccountFeePayer extends string
         ? WritableSignerAccount<TAccountFeePayer> & AccountSignerMeta<TAccountFeePayer>
         : TAccountFeePayer,
@@ -95,6 +98,9 @@ export type InitStakedSettingsInstruction<
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
+      TAccountInstructionSysvar extends string
+        ? ReadonlyAccount<TAccountInstructionSysvar>
+        : TAccountInstructionSysvar,
       ...TRemainingAccounts,
     ]
   >;
@@ -171,17 +177,19 @@ export function getInitStakedSettingsInstructionDataCodec(): FixedSizeCodec<
 
 export type InitStakedSettingsAsyncInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   /** Pays the init fee */
   feePayer: TAccountFeePayer;
   stakedSettings?: TAccountStakedSettings;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: InitStakedSettingsInstructionDataArgs["oracle"];
   assetWeightInit: InitStakedSettingsInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: InitStakedSettingsInstructionDataArgs["assetWeightMaint"];
@@ -193,18 +201,20 @@ export type InitStakedSettingsAsyncInput<
 
 export async function getInitStakedSettingsInstructionAsync<
   TAccountMarginfiGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: InitStakedSettingsAsyncInput<
     TAccountMarginfiGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountStakedSettings,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): Promise<
@@ -214,7 +224,10 @@ export async function getInitStakedSettingsInstructionAsync<
       TAccountMarginfiGroup,
       InstructionAccountInputAddress<TAccountMarginfiGroup>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -226,6 +239,10 @@ export async function getInitStakedSettingsInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >
 > {
@@ -238,10 +255,15 @@ export async function getInitStakedSettingsInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: false },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     stakedSettings: { value: input.stakedSettings ?? null, isSigner: false, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -267,14 +289,19 @@ export async function getInitStakedSettingsInstructionAsync<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("stakedSettings", accounts.stakedSettings),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getInitStakedSettingsInstructionDataEncoder().encode(
       args as InitStakedSettingsInstructionDataArgs
@@ -286,7 +313,10 @@ export async function getInitStakedSettingsInstructionAsync<
       TAccountMarginfiGroup,
       InstructionAccountInputAddress<TAccountMarginfiGroup>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -298,23 +328,29 @@ export async function getInitStakedSettingsInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
 
 export type InitStakedSettingsInput<
   TAccountMarginfiGroup extends InstructionAccountInput = InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput = InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput = InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput = InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput = InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput = InstructionAccountInput,
 > = {
   marginfiGroup: TAccountMarginfiGroup;
-  admin: TAccountAdmin;
+  governanceAdmin: TAccountGovernanceAdmin;
   /** Pays the init fee */
   feePayer: TAccountFeePayer;
   stakedSettings: TAccountStakedSettings;
   systemProgram?: TAccountSystemProgram;
+  instructionSysvar?: TAccountInstructionSysvar;
   oracle: InitStakedSettingsInstructionDataArgs["oracle"];
   assetWeightInit: InitStakedSettingsInstructionDataArgs["assetWeightInit"];
   assetWeightMaint: InitStakedSettingsInstructionDataArgs["assetWeightMaint"];
@@ -326,18 +362,20 @@ export type InitStakedSettingsInput<
 
 export function getInitStakedSettingsInstruction<
   TAccountMarginfiGroup extends InstructionAccountInput,
-  TAccountAdmin extends InstructionSignerInput,
+  TAccountGovernanceAdmin extends InstructionSignerInput,
   TAccountFeePayer extends InstructionSignerInput,
   TAccountStakedSettings extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
+  TAccountInstructionSysvar extends InstructionAccountInput,
   TProgramAddress extends Address = typeof MARGINFI_PROGRAM_ADDRESS,
 >(
   input: InitStakedSettingsInput<
     TAccountMarginfiGroup,
-    TAccountAdmin,
+    TAccountGovernanceAdmin,
     TAccountFeePayer,
     TAccountStakedSettings,
-    TAccountSystemProgram
+    TAccountSystemProgram,
+    TAccountInstructionSysvar
   >,
   config?: { programAddress?: TProgramAddress }
 ): InitStakedSettingsInstruction<
@@ -346,7 +384,10 @@ export function getInitStakedSettingsInstruction<
     TAccountMarginfiGroup,
     InstructionAccountInputAddress<TAccountMarginfiGroup>
   >,
-  ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+  ResolvedInstructionAccountMeta<
+    TAccountGovernanceAdmin,
+    InstructionAccountInputAddress<TAccountGovernanceAdmin>
+  >,
   ResolvedInstructionAccountMeta<
     TAccountFeePayer,
     InstructionAccountInputAddress<TAccountFeePayer>
@@ -358,6 +399,10 @@ export function getInitStakedSettingsInstruction<
   ResolvedInstructionAccountMeta<
     TAccountSystemProgram,
     InstructionAccountInputAddress<TAccountSystemProgram>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountInstructionSysvar,
+    InstructionAccountInputAddress<TAccountInstructionSysvar>
   >
 > {
   // Program address.
@@ -369,10 +414,15 @@ export function getInitStakedSettingsInstruction<
   // Original accounts.
   const originalAccounts = {
     marginfiGroup: { value: input.marginfiGroup ?? null, isSigner: false, isWritable: false },
-    admin: { value: input.admin ?? null, isSigner: true, isWritable: false },
+    governanceAdmin: { value: input.governanceAdmin ?? null, isSigner: true, isWritable: false },
     feePayer: { value: input.feePayer ?? null, isSigner: true, isWritable: true },
     stakedSettings: { value: input.stakedSettings ?? null, isSigner: false, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false },
+    instructionSysvar: {
+      value: input.instructionSysvar ?? null,
+      isSigner: false,
+      isWritable: false,
+    },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -387,14 +437,19 @@ export function getInitStakedSettingsInstruction<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  if (!accounts.instructionSysvar.value) {
+    accounts.instructionSysvar.value =
+      "Sysvar1nstructions1111111111111111111111111" as Address<"Sysvar1nstructions1111111111111111111111111">;
+  }
 
   return Object.freeze({
     accounts: [
       getAccountMeta("marginfiGroup", accounts.marginfiGroup),
-      getAccountMeta("admin", accounts.admin),
+      getAccountMeta("governanceAdmin", accounts.governanceAdmin),
       getAccountMeta("feePayer", accounts.feePayer),
       getAccountMeta("stakedSettings", accounts.stakedSettings),
       getAccountMeta("systemProgram", accounts.systemProgram),
+      getAccountMeta("instructionSysvar", accounts.instructionSysvar),
     ],
     data: getInitStakedSettingsInstructionDataEncoder().encode(
       args as InitStakedSettingsInstructionDataArgs
@@ -406,7 +461,10 @@ export function getInitStakedSettingsInstruction<
       TAccountMarginfiGroup,
       InstructionAccountInputAddress<TAccountMarginfiGroup>
     >,
-    ResolvedInstructionAccountMeta<TAccountAdmin, InstructionAccountInputAddress<TAccountAdmin>>,
+    ResolvedInstructionAccountMeta<
+      TAccountGovernanceAdmin,
+      InstructionAccountInputAddress<TAccountGovernanceAdmin>
+    >,
     ResolvedInstructionAccountMeta<
       TAccountFeePayer,
       InstructionAccountInputAddress<TAccountFeePayer>
@@ -418,6 +476,10 @@ export function getInitStakedSettingsInstruction<
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
       InstructionAccountInputAddress<TAccountSystemProgram>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountInstructionSysvar,
+      InstructionAccountInputAddress<TAccountInstructionSysvar>
     >
   >);
 }
@@ -429,11 +491,12 @@ export type ParsedInitStakedSettingsInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     marginfiGroup: TAccountMetas[0];
-    admin: TAccountMetas[1];
+    governanceAdmin: TAccountMetas[1];
     /** Pays the init fee */
     feePayer: TAccountMetas[2];
     stakedSettings: TAccountMetas[3];
     systemProgram: TAccountMetas[4];
+    instructionSysvar: TAccountMetas[5];
   };
   data: InitStakedSettingsInstructionData;
 };
@@ -446,10 +509,10 @@ export function parseInitStakedSettingsInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>
 ): ParsedInitStakedSettingsInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 5) {
+  if (instruction.accounts.length < 6) {
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, {
       actualAccountMetas: instruction.accounts.length,
-      expectedAccountMetas: 5,
+      expectedAccountMetas: 6,
     });
   }
   let accountIndex = 0;
@@ -462,10 +525,11 @@ export function parseInitStakedSettingsInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       marginfiGroup: getNextAccount(),
-      admin: getNextAccount(),
+      governanceAdmin: getNextAccount(),
       feePayer: getNextAccount(),
       stakedSettings: getNextAccount(),
       systemProgram: getNextAccount(),
+      instructionSysvar: getNextAccount(),
     },
     data: getInitStakedSettingsInstructionDataDecoder().decode(instruction.data),
   };

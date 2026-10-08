@@ -131,8 +131,10 @@ describe("MarginfiAccountWrapper", () => {
     juplendDeposit: () => wrapper.makeDepositIx(banks.juplend.address, 9),
     juplendWithdraw: () => wrapper.makeWithdrawIx(banks.juplend.address, 2),
     closeAccount: async () => [await wrapper.makeCloseAccountIx()],
-    beginFlashloan: () => wrapper.makeBeginFlashLoanIx(5),
-    endFlashloan: () => wrapper.makeEndFlashLoanIx([banks.default.address, banks.sol.address]),
+    beginFlashloan: async () => [await wrapper.makeBeginFlashLoanIx(5)],
+    endFlashloan: async () => [
+      await wrapper.makeEndFlashLoanIx([banks.default.address, banks.sol.address]),
+    ],
   };
 
   it.each(Object.keys(cases) as (keyof typeof cases)[])("%s matches v2.8.3", async (name) => {
