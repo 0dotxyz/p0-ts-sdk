@@ -711,6 +711,8 @@ export interface OrderTriggerParams {
   maxSlippagePercent: number;
 }
 
+export interface MakePlaceOrderIxOpts {}
+
 export interface MakePlaceOrderIxParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
@@ -725,14 +727,19 @@ export interface MakePlaceOrderIxParams {
   feePayer?: TransactionSigner;
   /** Global fee wallet from the program's `FeeState`. */
   globalFeeWallet: Address;
+  opts?: MakePlaceOrderIxOpts;
 }
 
-export interface MakePlaceOrderTxParams extends Omit<MakePlaceOrderIxParams, "globalFeeWallet"> {
+export interface MakePlaceOrderTxParams
+  extends Omit<MakePlaceOrderIxParams, "globalFeeWallet">, ActionTxParams {
   rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
-  txFormat: TransactionFormat;
   /** Global fee wallet from the program's `FeeState`; read from chain when omitted. */
   globalFeeWallet?: Address;
 }
+
+export interface MakeUpdateOrderTxParams extends MakePlaceOrderTxParams {}
+
+export interface MakeCloseOrderIxOpts {}
 
 export interface MakeCloseOrderIxParams {
   programAddress: Address;
@@ -743,9 +750,7 @@ export interface MakeCloseOrderIxParams {
   order: Address;
   /** Receives the order's rent. Defaults to `authority`. */
   feeRecipient?: Address;
+  opts?: MakeCloseOrderIxOpts;
 }
 
-export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams {
-  rpc: Rpc<GetLatestBlockhashApi>;
-  txFormat: TransactionFormat;
-}
+export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams, ActionTxParams {}

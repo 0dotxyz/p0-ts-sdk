@@ -133,7 +133,8 @@ export async function makeTransferAccountIx({
  * `newAuthority` is picked via `rpc`. `feePayer` pays; `latestBlockhash` is fetched when omitted.
  * @throws TransactionBuildingError (ACCOUNT_DISABLED) if the account is disabled, e.g. already
  * transferred
- * @throws if the program's fee state account doesn't exist
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if the program's fee state account
+ * doesn't exist
  * @throws Error if `accountIndex` is omitted and no free index is found
  */
 export async function makeTransferAccountTx(

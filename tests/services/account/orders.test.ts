@@ -1,4 +1,4 @@
-import { address, type Address } from "@solana/kit";
+import { address, blockhash, createNoopSigner, type Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +10,9 @@ import {
   computeOrderPairNetValue,
   dtoToMarginfiAccount,
   getActiveAccountFlags,
+  makeCloseOrderIx,
+  makePlaceOrderIx,
+  makeUpdateOrderTx,
   marginfiAccountToDto,
   MarginfiAccountType,
   resolveOrderLegs,
@@ -287,5 +290,44 @@ describe("account order fields", () => {
     expect(dto.activeOrders).toBe(2);
     expect(dtoToMarginfiAccount(dto).activeOrders).toBe(2);
     expect(dtoToMarginfiAccount({ ...dto, activeOrders: undefined }).activeOrders).toBe(0);
+  });
+});
+
+describe("makeUpdateOrderTx", () => {
+  it("closes the pair's order, refunding the fee payer, then places the new one", async () => {
+    const marginfiAccount = {
+      address: ACCOUNT,
+      group: address("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"),
+    } as MarginfiAccountType;
+    const authority = createNoopSigner(address("EwLiQ3MzGEUeRqtyYsqUtaZFgCkiDA9gLBxFjbGDCbhT"));
+    const feePayer = createNoopSigner(address("Fa7LNzj3SCV364hya9dx9evL29pC1awx24iHeCEwX6vU"));
+    const globalFeeWallet = address("11111111111111111111111111111113");
+    const shared = {
+      programAddress: PROGRAM_ID,
+      marginfiAccount,
+      authority,
+      collateralBank: BANK_A,
+      debtBank: BANK_B,
+      trigger: { stopLossUsd: new BigNumber(100), maxSlippagePercent: 1 },
+    };
+
+    // A given fee wallet and blockhash leave nothing to fetch
+    const tx = await makeUpdateOrderTx({
+      ...shared,
+      feePayer,
+      globalFeeWallet,
+      rpc: {} as never,
+      txFormat: { version: 0, luts: {} },
+      latestBlockhash: {
+        blockhash: blockhash("EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N"),
+        lastValidBlockHeight: 1n,
+      },
+    });
+
+    const [order] = await deriveOrderPda(PROGRAM_ID, ACCOUNT, [BANK_A, BANK_B]);
+    expect(tx.message.instructions).toEqual([
+      await makeCloseOrderIx({ ...shared, order, feeRecipient: feePayer.address }),
+      await makePlaceOrderIx({ ...shared, feePayer, globalFeeWallet }),
+    ]);
   });
 });

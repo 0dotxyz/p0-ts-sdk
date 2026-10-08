@@ -67,6 +67,7 @@ import {
   MakePlaceOrderIxParams,
   makePlaceOrderTx,
   MakePlaceOrderTxParams,
+  MakeUpdateOrderTxParams,
   makePulseHealthIx,
   makeRepayIx,
   MakeRepayIxParams,
@@ -411,7 +412,7 @@ class MarginfiAccount implements MarginfiAccountType {
   }
 
   /** Replaces this account's order on the pair with new thresholds (close + place). */
-  async makeUpdateOrderTx(params: Omit<MakePlaceOrderTxParams, "marginfiAccount">) {
+  async makeUpdateOrderTx(params: Omit<MakeUpdateOrderTxParams, "marginfiAccount">) {
     return makeUpdateOrderTx({ ...params, marginfiAccount: this });
   }
 

@@ -411,7 +411,8 @@ export class MarginfiAccountWrapper {
   /**
    * Place-order instruction for a take-profit / stop-loss on the `collateralBank` (asset side) /
    * `debtBank` (liability side) pair, for composing into a larger transaction.
-   * @throws if the program's fee state account doesn't exist
+   * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if the program's fee state account
+   * doesn't exist
    */
   async makePlaceOrderIx(collateralBank: Address, debtBank: Address, trigger: OrderTriggerParams) {
     const { programAddress, authority, rpc } = this.context;

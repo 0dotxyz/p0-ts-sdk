@@ -23,6 +23,7 @@ export enum TransactionBuildingErrorCode {
   ACCOUNT_NOT_EMPTY = "ACCOUNT_NOT_EMPTY",
   BANK_NOT_FOUND = "BANK_NOT_FOUND",
   BULK_INVALID_SELECTION = "BULK_INVALID_SELECTION",
+  FEE_STATE_NOT_FOUND = "FEE_STATE_NOT_FOUND",
 }
 
 /**
@@ -131,6 +132,9 @@ export interface TransactionBuildingErrorDetails {
   [TransactionBuildingErrorCode.BULK_INVALID_SELECTION]: {
     reason: string;
     bankAddresses: string[];
+  };
+  [TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND]: {
+    feeStateAddress: string;
   };
 }
 
@@ -443,6 +447,20 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.BULK_INVALID_SELECTION,
       `Invalid bulk selection: ${reason}`,
       { reason, bankAddresses }
+    );
+  }
+
+  /**
+   * The program's fee state account doesn't exist, so the global fee wallet that order placement
+   * and account transfers pay can't be read.
+   */
+  static feeStateNotFound(
+    feeStateAddress: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND,
+      `Fee state ${feeStateAddress} not found`,
+      { feeStateAddress }
     );
   }
 

@@ -26,6 +26,7 @@ import {
   ORDER_DISCRIMINATOR,
 } from "~/accounts";
 import { MAX_BALANCES } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import { deriveFeeState, deriveMarginfiAccount, wrappedI80F48toBigNumber } from "~/utils";
 
 const DISCRIMINATOR_FILTER: GetProgramAccountsMemcmpFilter = {
@@ -294,7 +295,8 @@ export async function fetchOrdersForAccount(
  *
  * @param rpc - Solana RPC client
  * @param programAddress - The marginfi program address
- * @throws if the program's fee state account doesn't exist
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if the program's fee state account
+ * doesn't exist
  */
 export async function fetchGlobalFeeWallet(
   rpc: Rpc<GetAccountInfoApi>,
@@ -302,7 +304,9 @@ export async function fetchGlobalFeeWallet(
 ): Promise<Address> {
   const [feeStateAddress] = await deriveFeeState(programAddress);
   const feeStateAccount = await fetchEncodedAccount(rpc, feeStateAddress);
-  assertAccountExists(feeStateAccount);
+  if (!feeStateAccount.exists) {
+    throw TransactionBuildingError.feeStateNotFound(feeStateAddress);
+  }
   return decodeFeeStateRaw(feeStateAccount.data).globalFeeWallet;
 }
 

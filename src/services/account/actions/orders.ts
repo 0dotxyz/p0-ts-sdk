@@ -1,27 +1,19 @@
-import {
-  type GetLatestBlockhashApi,
-  type Instruction,
-  type Rpc,
-  type TransactionSigner,
-} from "@solana/kit";
+import { type Instruction, type TransactionSigner } from "@solana/kit";
 
 import {
+  ActionTxParams,
   MakeCloseOrderIxParams,
   MakeCloseOrderTxParams,
   MakePlaceOrderIxParams,
   MakePlaceOrderTxParams,
+  MakeUpdateOrderTxParams,
   OrderTriggerParams,
 } from "../types";
 import { fetchGlobalFeeWallet } from "../utils";
 
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
-import {
-  makeTransactionMessage,
-  SolanaTransaction,
-  TransactionFormat,
-  TransactionType,
-} from "~/services/transaction";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
 import { OrderTrigger } from "~/types";
 import { bigNumberToWrappedI80F48, deriveOrderPda, percentToMaxSlippageU32 } from "~/utils";
 
@@ -82,6 +74,7 @@ export function buildOrderTrigger(params: OrderTriggerParams): OrderTrigger {
  * The account must already hold (or, when bundled after a borrow/loop, will hold) an asset
  * balance in `collateralBank` and a liability balance in `debtBank`. The flat anti-spam fee from
  * the program's fee state is charged to `feePayer`.
+ * @throws see {@link buildOrderTrigger}
  */
 export async function makePlaceOrderIx({
   programAddress,
@@ -130,27 +123,30 @@ export async function makeCloseOrderIx({
 }
 
 async function compileOrderTx(
-  rpc: Rpc<GetLatestBlockhashApi>,
-  txFormat: TransactionFormat,
+  { rpc, txFormat, latestBlockhash }: ActionTxParams,
   feePayer: TransactionSigner,
   ixs: Instruction[],
   type: TransactionType
 ): Promise<SolanaTransaction> {
-  const { value: latestBlockhash } = await rpc
-    .getLatestBlockhash({ commitment: "confirmed" })
-    .send();
-
   return {
-    message: makeTransactionMessage({ instructions: ixs, feePayer, latestBlockhash, txFormat }),
+    message: makeTransactionMessage({
+      instructions: ixs,
+      feePayer,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      txFormat,
+    }),
     type,
   };
 }
 
 /**
- * Builds a transaction that places a new order on a collateral/debt pair.
- *
- * @see {@link makePlaceOrderIx}
- * @throws if `globalFeeWallet` is omitted and the program's fee state account doesn't exist
+ * Builds a place-order transaction around {@link makePlaceOrderIx}, reading the global fee wallet
+ * from the program's fee state when `globalFeeWallet` is omitted. `feePayer` (default the
+ * authority) pays; `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makePlaceOrderIx}
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `globalFeeWallet` is omitted and the
+ * program's fee state account doesn't exist
  */
 export async function makePlaceOrderTx(params: MakePlaceOrderTxParams): Promise<SolanaTransaction> {
   const placeIx = await makePlaceOrderIx({
@@ -159,8 +155,7 @@ export async function makePlaceOrderTx(params: MakePlaceOrderTxParams): Promise<
       params.globalFeeWallet ?? (await fetchGlobalFeeWallet(params.rpc, params.programAddress)),
   });
   return compileOrderTx(
-    params.rpc,
-    params.txFormat,
+    params,
     params.feePayer ?? params.authority,
     [placeIx],
     TransactionType.PLACE_ORDER
@@ -168,32 +163,26 @@ export async function makePlaceOrderTx(params: MakePlaceOrderTxParams): Promise<
 }
 
 /**
- * Builds a transaction that closes an existing order.
- *
- * @see {@link makeCloseOrderIx}
+ * Builds a close-order transaction around {@link makeCloseOrderIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
  */
 export async function makeCloseOrderTx(params: MakeCloseOrderTxParams): Promise<SolanaTransaction> {
   const closeIx = await makeCloseOrderIx(params);
-  return compileOrderTx(
-    params.rpc,
-    params.txFormat,
-    params.authority,
-    [closeIx],
-    TransactionType.CLOSE_ORDER
-  );
+  return compileOrderTx(params, params.authority, [closeIx], TransactionType.CLOSE_ORDER);
 }
 
 /**
- * Builds a transaction that replaces the pair's existing order with new thresholds.
- *
- * There is no update instruction on-chain: the existing order (same PDA) is closed and re-placed
- * in one transaction. Balance tags are preserved across the close, so other orders sharing a
- * balance are unaffected. The flat anti-spam fee is charged again.
- *
- * @throws if `globalFeeWallet` is omitted and the program's fee state account doesn't exist
+ * Builds a transaction that replaces the pair's existing order with new thresholds. There is no
+ * update instruction on-chain: the order (same PDA) is closed and re-placed in one transaction,
+ * with its rent returned to `feePayer`. Balance tags are preserved across the close, so other
+ * orders sharing a balance are unaffected. The flat anti-spam fee is charged again.
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makePlaceOrderIx}
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `globalFeeWallet` is omitted and the
+ * program's fee state account doesn't exist
  */
 export async function makeUpdateOrderTx(
-  params: MakePlaceOrderTxParams
+  params: MakeUpdateOrderTxParams
 ): Promise<SolanaTransaction> {
   const feePayer = params.feePayer ?? params.authority;
   const [order] = await deriveOrderPda(params.programAddress, params.marginfiAccount.address, [
@@ -207,11 +196,5 @@ export async function makeUpdateOrderTx(
     globalFeeWallet:
       params.globalFeeWallet ?? (await fetchGlobalFeeWallet(params.rpc, params.programAddress)),
   });
-  return compileOrderTx(
-    params.rpc,
-    params.txFormat,
-    feePayer,
-    [closeIx, placeIx],
-    TransactionType.UPDATE_ORDER
-  );
+  return compileOrderTx(params, feePayer, [closeIx, placeIx], TransactionType.UPDATE_ORDER);
 }
