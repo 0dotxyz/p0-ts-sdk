@@ -388,7 +388,10 @@ export interface MakeTransferPositionsTxParams {
   borrowPaddingBps?: number;
   /** Max positions per transfer; a larger selection is rejected. Default 5. */
   maxPositions?: number;
-  /** Whether the group USD rate limiter is enabled (adds an oracle to each withdraw). Default false. */
+  /**
+   * Whether the group rate limiter is on (default true). Each withdraw-all then appends the closed
+   * bank's accounts, where the limiter reads its price; pass false when it's off to save bytes.
+   */
   groupRateLimiterEnabled?: boolean;
 }
 
