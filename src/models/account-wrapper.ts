@@ -289,7 +289,8 @@ export class MarginfiAccountWrapper {
 
   /**
    * Ends a flash loan, health-checking the account with `projectedActiveBanks` active.
-   * @throws Error if the client misses one of `projectedActiveBanks`
+   * @throws TransactionBuildingError (BANK_NOT_FOUND) if the client misses one of
+   * `projectedActiveBanks`
    */
   async makeEndFlashLoanIx(projectedActiveBanks: Address[]) {
     return this.account.makeEndFlashLoanIx(

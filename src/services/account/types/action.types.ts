@@ -334,6 +334,25 @@ export interface FlashloanActionResult extends TransactionBuilderResult {
   txOverflown: boolean;
 }
 
+export interface MakeBeginFlashLoanIxParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs. */
+  authority: TransactionSigner;
+  /** Transaction index of the matching end-flashloan instruction. */
+  endIndex: number;
+}
+
+export interface MakeEndFlashLoanIxParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs. */
+  authority: TransactionSigner;
+  bankMap: Map<string, BankType>;
+  /** The account's active banks once the flashloan's instructions have run. */
+  activeBanks: Address[];
+}
+
 export interface MakeFlashLoanTxParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;

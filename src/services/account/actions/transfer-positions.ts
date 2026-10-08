@@ -459,19 +459,23 @@ async function buildTransferFlashloanTx(args: {
   } = args;
 
   const endIndex = preIxs.length + innerIxs.length + 1;
-  const begin = await makeBeginFlashLoanIx(programAddress, accountA.address, endIndex, authority);
-  const end = await makeEndFlashLoanIx(
+  const begin = await makeBeginFlashLoanIx({
     programAddress,
-    accountA.address,
-    accountA.group,
+    marginfiAccount: accountA,
+    authority,
+    endIndex,
+  });
+  const end = await makeEndFlashLoanIx({
+    programAddress,
+    marginfiAccount: accountA,
+    authority,
     bankMap,
-    projectedActiveBanksA,
-    authority
-  );
+    activeBanks: projectedActiveBanksA,
+  });
 
   return {
     message: makeTransactionMessage({
-      instructions: [...preIxs, ...begin, ...innerIxs, ...end],
+      instructions: [...preIxs, begin, ...innerIxs, end],
       feePayer: authority,
       latestBlockhash,
       txFormat,

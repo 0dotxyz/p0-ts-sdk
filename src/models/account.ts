@@ -349,7 +349,7 @@ class MarginfiAccount implements MarginfiAccountType {
     endIndex: number,
     authority: TransactionSigner
   ) {
-    return makeBeginFlashLoanIx(programAddress, this.address, endIndex, authority);
+    return makeBeginFlashLoanIx({ programAddress, marginfiAccount: this, authority, endIndex });
   }
 
   /**
@@ -363,14 +363,13 @@ class MarginfiAccount implements MarginfiAccountType {
     projectedActiveBanks: Address[],
     authority: TransactionSigner
   ) {
-    return makeEndFlashLoanIx(
+    return makeEndFlashLoanIx({
       programAddress,
-      this.address,
-      this.group,
+      marginfiAccount: this,
+      authority,
       bankMap,
-      projectedActiveBanks,
-      authority
-    );
+      activeBanks: projectedActiveBanks,
+    });
   }
 
   async makeFlashLoanTx(params: Omit<MakeFlashLoanTxParams, "marginfiAccount">) {

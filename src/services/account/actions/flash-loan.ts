@@ -1,42 +1,57 @@
-import type { Address, Instruction, TransactionSigner } from "@solana/kit";
+import type { Instruction } from "@solana/kit";
 
-import { MakeFlashLoanTxParams } from "../types";
+import {
+  MakeBeginFlashLoanIxParams,
+  MakeEndFlashLoanIxParams,
+  MakeFlashLoanTxParams,
+} from "../types";
 import { computeHealthAccounts, computeProjectedActiveBanksNoCpi } from "../utils";
 
 import instructions from "~/instructions";
-import { BankType } from "~/services/bank";
 import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
 
-export async function makeBeginFlashLoanIx(
-  programAddress: Address,
-  marginfiAccount: Address,
-  endIndex: number,
-  authority: TransactionSigner
-): Promise<Instruction[]> {
-  const ix = await instructions.makeBeginFlashLoanIx(programAddress, {
-    marginfiAccount,
+/**
+ * Starts a flashloan on `marginfiAccount`: its health checks are deferred to the end-flashloan
+ * instruction at transaction index `endIndex`.
+ */
+export async function makeBeginFlashLoanIx({
+  programAddress,
+  marginfiAccount,
+  authority,
+  endIndex,
+}: MakeBeginFlashLoanIxParams): Promise<Instruction> {
+  return instructions.makeBeginFlashLoanIx(programAddress, {
+    marginfiAccount: marginfiAccount.address,
     authority,
     endIndex,
   });
-  return [ix];
 }
 
-export async function makeEndFlashLoanIx(
-  programAddress: Address,
-  marginfiAccount: Address,
-  group: Address,
-  bankMap: Map<string, BankType>,
-  activeBanks: Address[],
-  authority: TransactionSigner
-): Promise<Instruction[]> {
-  const ix = await instructions.makeEndFlashLoanIx(
+/**
+ * Ends a flashloan, health-checking `marginfiAccount` with `activeBanks` active.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of `activeBanks`
+ */
+export async function makeEndFlashLoanIx({
+  programAddress,
+  marginfiAccount,
+  authority,
+  bankMap,
+  activeBanks,
+}: MakeEndFlashLoanIxParams): Promise<Instruction> {
+  return instructions.makeEndFlashLoanIx(
     programAddress,
-    { marginfiAccount, group, authority },
+    { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group, authority },
     computeHealthAccounts(bankMap, activeBanks)
   );
-  return [ix];
 }
 
+/**
+ * Wraps `ixs` in a flashloan on `marginfiAccount`, health-checked against the banks active after
+ * `ixs`. The end index assumes the begin instruction stays first in the transaction, so put the
+ * compute-budget instructions in `ixs`: a wallet that finds none prepends its own, which shifts
+ * the index and fails the flashloan.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses a bank active after `ixs`
+ */
 export async function makeFlashLoanTx({
   programAddress,
   marginfiAccount,
@@ -46,32 +61,27 @@ export async function makeFlashLoanTx({
   latestBlockhash,
   txFormat,
 }: MakeFlashLoanTxParams): Promise<SolanaTransaction> {
-  const endIndex = ixs.length + 1;
-
-  const projectedActiveBanks = computeProjectedActiveBanksNoCpi({
-    account: marginfiAccount,
-    instructions: ixs,
+  const beginIx = await makeBeginFlashLoanIx({
     programAddress,
+    marginfiAccount,
+    authority,
+    endIndex: ixs.length + 1,
   });
-
-  const beginFlashLoanIxs = await makeBeginFlashLoanIx(
+  const endIx = await makeEndFlashLoanIx({
     programAddress,
-    marginfiAccount.address,
-    endIndex,
-    authority
-  );
-  const endFlashLoanIxs = await makeEndFlashLoanIx(
-    programAddress,
-    marginfiAccount.address,
-    marginfiAccount.group,
+    marginfiAccount,
+    authority,
     bankMap,
-    projectedActiveBanks,
-    authority
-  );
+    activeBanks: computeProjectedActiveBanksNoCpi({
+      account: marginfiAccount,
+      instructions: ixs,
+      programAddress,
+    }),
+  });
 
   return {
     message: makeTransactionMessage({
-      instructions: [...beginFlashLoanIxs, ...ixs, ...endFlashLoanIxs],
+      instructions: [beginIx, ...ixs, endIx],
       feePayer: authority,
       latestBlockhash,
       txFormat,

@@ -128,16 +128,15 @@ describe("lending action instructions", () => {
       }),
     closeAccount: () => makeCloseAccountIx({ programAddress, marginfiAccount, authority }),
     beginFlashloan: () =>
-      makeBeginFlashLoanIx(programAddress, marginfiAccount.address, 5, authority),
+      makeBeginFlashLoanIx({ programAddress, marginfiAccount, authority, endIndex: 5 }),
     endFlashloan: () =>
-      makeEndFlashLoanIx(
+      makeEndFlashLoanIx({
         programAddress,
-        marginfiAccount.address,
-        group,
-        banksMap,
-        [banks.default.address, banks.sol.address],
-        authority
-      ),
+        marginfiAccount,
+        authority,
+        bankMap: banksMap,
+        activeBanks: [banks.default.address, banks.sol.address],
+      }),
   };
 
   it.each(Object.keys(cases) as (keyof typeof cases)[])("%s matches v2.8.3", async (name) => {
