@@ -101,6 +101,7 @@ vi.mock("~/services/account/actions/flash-loan", async () => {
   };
 });
 
+import { TransactionBuildingErrorCode } from "~/errors";
 import { makeRollPtTx } from "~/services/account/actions/roll-pt";
 import type { MakeRollPtTxParams, RollPtOpts } from "~/services/account/types";
 import { TransactionType } from "~/services/transaction";
@@ -422,6 +423,6 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
   it("rejects when no matured market/vault is given", async () => {
     await expect(
       makeRollPtTx(makeParams({ rollOpts: { maturedMarket: undefined, maturedVault: undefined } }))
-    ).rejects.toThrow(/maturedMarket/);
+    ).rejects.toMatchObject({ code: TransactionBuildingErrorCode.ROLL_PT_INVALID });
   });
 });

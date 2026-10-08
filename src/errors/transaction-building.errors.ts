@@ -24,6 +24,7 @@ export enum TransactionBuildingErrorCode {
   BANK_NOT_FOUND = "BANK_NOT_FOUND",
   BULK_INVALID_SELECTION = "BULK_INVALID_SELECTION",
   FEE_STATE_NOT_FOUND = "FEE_STATE_NOT_FOUND",
+  ROLL_PT_INVALID = "ROLL_PT_INVALID",
 }
 
 /**
@@ -135,6 +136,9 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND]: {
     feeStateAddress: string;
+  };
+  [TransactionBuildingErrorCode.ROLL_PT_INVALID]: {
+    reason: string;
   };
 }
 
@@ -461,6 +465,20 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.FEE_STATE_NOT_FOUND,
       `Fee state ${feeStateAddress} not found`,
       { feeStateAddress }
+    );
+  }
+
+  /**
+   * A PT roll can't be built from its inputs: no matured market or vault given, a withdraw amount
+   * that isn't positive, or a matured vault that would redeem no SY.
+   */
+  static rollPtInvalid(
+    reason: string
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ROLL_PT_INVALID> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ROLL_PT_INVALID,
+      `Invalid PT roll: ${reason}`,
+      { reason }
     );
   }
 

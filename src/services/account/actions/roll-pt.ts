@@ -32,7 +32,6 @@ import {
   computeFlashLoanNonSwapBudget,
   compileFlashloanPrecheck,
   patchDepositAmount,
-  isDepositIx,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -48,6 +47,7 @@ import {
   getTotalAccountKeys,
   makePreludeTxs,
   makeTransactionMessage,
+  SolanaTransaction,
   TransactionFormat,
   withLookupTables,
 } from "~/services/transaction";
@@ -71,19 +71,16 @@ const DEFAULT_ROLL_SLIPPAGE_BPS = 50;
 const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
 
 /**
- * Roll a matured Exponent PT collateral position into its next-maturity PT, so the **full
- * deposit ends up as new PT** (no leftover), in one flash-loan-wrapped bundle:
- *
- *   withdraw PT_old → Exponent `merge` (PT_old → SY) → CLMM `trade_pt` (SY → PT_new)
- *     → deposit PT_new
- *
- * The matured PT is redeemed 1:1 to its SY, then the successor PT is bought **directly on its
- * CLMM (`MarketThree`) PT/SY pool** — no base-token round-trip and no external aggregator. The
- * newer maturities (e.g. October bulkSOL) only list a CLMM pool (no `MarketTwo`, no order
- * book), and the CLMM uses a single `ticks` account, so the swap is a fixed, compact account
- * set regardless of trade size. The caller passes the matured Exponent market/vault + the
- * successor CLMM pool (`rollOpts`); everything Exponent is resolved internally. The buy is
- * bounded by the pool's depth.
+ * Rolls a matured Exponent PT position into its successor maturity in one flashloan: withdraws the
+ * matured PT, redeems it 1:1 to SY (`merge`), buys the successor PT with that SY on its CLMM pool
+ * (`rollOpts.successorMarket`) and deposits it, so the whole position ends up as the new PT. The
+ * deposit is the trade's guaranteed minimum; anything above it stays in the wallet.
+ * @throws TransactionBuildingError (ROLL_PT_INVALID) if `rollOpts` names neither the matured
+ * market nor vault, `withdrawAmount` isn't positive, or the matured vault would redeem no SY
+ * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if the CLMM pool can't quote the buy, e.g.
+ * too little liquidity for the size
+ * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
+ * one transaction
  */
 export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<SwapFlowTxResult> {
   const {
@@ -98,14 +95,13 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<SwapFlow
     txFormat,
   } = params;
 
-  // Resolve the matured vault's `merge` (redeem PT → SY) accounts and the successor CLMM pool's
-  // `trade_pt` (buy SY → PT) accounts up front. The merge's SY is exactly the CLMM pool's quote
-  // token (the same SY mint is shared across maturities), so the redeemed SY feeds the buy directly.
+  // The merge's SY is the CLMM pool's quote token (one SY mint across maturities), so the
+  // redeemed SY feeds the buy directly
   const { maturedVault, maturedMarket } = rollOpts;
   let mergeTarget: { vault: Address } | { market: Address };
   if (maturedVault) mergeTarget = { vault: maturedVault };
   else if (maturedMarket) mergeTarget = { market: maturedMarket };
-  else throw new Error("roll-pt: rollOpts.maturedMarket or maturedVault is required");
+  else throw TransactionBuildingError.rollPtInvalid("rollOpts needs maturedMarket or maturedVault");
   const merge = await resolveExponentMergeContext({
     rpc,
     owner: marginfiAccount.authority,
@@ -185,7 +181,7 @@ async function buildRollPtFlashloanTx({
   merge: ExponentMergeContext;
   clmm: ExponentClmmTradePtContext;
   latestBlockhash: BlockhashLifetimeConstraint;
-}) {
+}): Promise<{ flashloanTx: SolanaTransaction; swapQuote: SwapQuoteResult }> {
   const {
     programAddress,
     marginfiAccount,
@@ -207,7 +203,7 @@ async function buildRollPtFlashloanTx({
   const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(rpc);
 
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
-    throw new Error("withdrawAmount must be greater than 0");
+    throw TransactionBuildingError.rollPtInvalid("withdrawAmount must be greater than 0");
   }
   const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
   const isFullWithdraw = isWholePosition(
@@ -222,7 +218,6 @@ async function buildRollPtFlashloanTx({
     getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
-  // 1. Withdraw the matured PT (standard SPL collateral bank).
   const withdrawIxs = await makeWithdrawIx({
     programAddress,
     bank: withdrawBank,
@@ -235,14 +230,12 @@ async function buildRollPtFlashloanTx({
     opts: { createAta: false, unwrapSol: false },
   });
 
-  // 2. `merge`: PT_old → SY, post-maturity (1:1, no AMM). The redeemed SY is exactly the CLMM
-  //    pool's quote token, so it feeds the buy directly.
   const mergeIx = await makeExponentMergeIx(
     { ...merge.mergeInput, owner: authority, amount: withdrawNative },
     merge.remainingAccounts
   );
 
-  // 3. Deposit the new PT — seeded with a placeholder, byte-patched to the swap's min output.
+  // Seeded with 0 and patched to the trade's guaranteed output below
   const depositIxs = await makeDepositIx({
     programAddress,
     bank: depositBank,
@@ -271,15 +264,13 @@ async function buildRollPtFlashloanTx({
         }
       : withLookupTables(accountFormat, exponentLuts);
 
-  // 4. Size the redeem deterministically: merge pays floor(pt × sy_for_pt / pt_supply) —
-  //    Exponent's `Vault::pt_redemption_rate` — computed from the vault state fetched at
-  //    resolve time, so it matches the program's own floor math exactly. (Reading
-  //    `MergeEvent.amount_sy_out` from a flash-loan quote sim is not viable in practice:
-  //    the withdraw's event logs blow the node's log budget, truncating the return line,
-  //    and bundle-sim transports return no structured `returnData`.)
+  // Merge pays floor(pt × sy_for_pt / pt_supply) (Exponent's `Vault::pt_redemption_rate`), computed
+  // from the fetched vault state to match the program exactly. Reading `MergeEvent.amount_sy_out`
+  // from a simulation doesn't work: the withdraw's logs truncate the return line, and bundle-sim
+  // transports return no `returnData`.
   const syExact = merge.computeRedeemedAmountNative(withdrawNative);
   if (syExact <= 0n) {
-    throw new Error("roll-pt: merge would redeem 0 SY (empty/invalid matured vault state)");
+    throw TransactionBuildingError.rollPtInvalid("the matured vault would redeem 0 SY");
   }
 
   const exactPtOut = await quoteClmmTradeOut({
@@ -296,10 +287,14 @@ async function buildRollPtFlashloanTx({
   // never exceed the PT actually received (any slippage dust stays in the wallet).
   const minPtOut = (exactPtOut * BigInt(10_000 - slippageBps)) / 10_000n;
   if (minPtOut <= 0n) {
-    throw new Error("roll-pt: quoted PT out is 0 (insufficient CLMM liquidity for this size)");
+    throw TransactionBuildingError.swapQuoteFailed(
+      "exponent",
+      clmm.sy.mint,
+      clmm.pt.mint,
+      "quoted PT out is 0: too little CLMM liquidity for this size"
+    );
   }
 
-  // 5. Buy the new PT with the redeemed SY (exact-in on the merge's SY, min-out guard on PT).
   const tradeIx = await makeExponentClmmTradePtIx(
     {
       ...clmm.tradePtInput,
@@ -312,14 +307,10 @@ async function buildRollPtFlashloanTx({
     clmm.remainingAccounts
   );
 
-  // Patch the seeded deposit to the guaranteed (minimum) PT output.
-  const depositIxIndex = depositIxs.findIndex(isDepositIx);
-  if (depositIxIndex < 0) {
-    throw new Error("roll-pt: could not locate deposit instruction for amount patching");
-  }
-  depositIxs[depositIxIndex] = patchDepositAmount(depositIxs[depositIxIndex], minPtOut);
+  // Without wSOL wrapping the deposit is a single instruction
+  const depositIx = patchDepositAmount(depositIxs[0], minPtOut);
 
-  const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, mergeIx, tradeIx, ...depositIxs];
+  const allNonFlIxs = [...cuRequestIxs, ...withdrawIxs, mergeIx, tradeIx, depositIx];
 
   // Size the precheck against the full footprint (the CLMM swap is part of the flashloan, not an
   // engine route, so there are no separate swap ix/LUT counts to reserve).
@@ -366,10 +357,9 @@ async function buildRollPtFlashloanTx({
     slippageBps,
   };
 
-  return { flashloanTx, swapQuote, withdrawIxs, depositIxs };
+  return { flashloanTx, swapQuote };
 }
 
-/** The default {@link RollQuoteSimulator}: a plain `rpc.simulateTransaction`. */
 function defaultRollQuoteSimulator(rpc: MakeRollPtTxParams["rpc"]): RollQuoteSimulator {
   return async (tx) => {
     const { value } = await rpc
@@ -383,10 +373,7 @@ function defaultRollQuoteSimulator(rpc: MakeRollPtTxParams["rpc"]): RollQuoteSim
   };
 }
 
-/**
- * Net native-amount change of (`mint`, `owner`) across a quote sim's token balances, or
- * `null` when the transport supplied none (plain `simulateTransaction` doesn't).
- */
+// null when the transport reports no token balances (plain `simulateTransaction` doesn't)
 function tokenBalanceDelta(sim: RollQuoteSimResult, mint: string, owner: string): bigint | null {
   if (!sim.preTokenBalances && !sim.postTokenBalances) return null;
   const sum = (list: RollQuoteSimResult["postTokenBalances"]) =>
@@ -396,13 +383,8 @@ function tokenBalanceDelta(sim: RollQuoteSimResult, mint: string, owner: string)
   return sum(sim.postTokenBalances) - sum(sim.preTokenBalances);
 }
 
-/**
- * Read `amount_out` from a `trade_pt` return blob. The committed IDL declares the full
- * `TradePtEvent` (amount_out at byte 138), but the DEPLOYED program returns a compact
- * 16-byte pair — decoded self-validatingly: the field equal to the known `amountIn`
- * identifies the layout, the other field is `amount_out`. Returns `null` when the blob
- * matches neither shape.
- */
+// The IDL declares the full `TradePtEvent` (amount_out at byte 138), but the deployed program
+// returns a compact 16-byte pair: the field equal to `amountIn` identifies the layout
 function readTradePtOut(data: ReadonlyUint8Array, amountIn: bigint): bigint | null {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   if (data.length === 16) {
@@ -418,18 +400,9 @@ function readTradePtOut(data: ReadonlyUint8Array, amountIn: bigint): bigint | nu
   return null;
 }
 
-/**
- * Quote the exact PT out for `amountInSyNative` SY on the successor CLMM, by simulating a
- * **standalone** `trade_pt` and reading the trader's PT balance delta (or the program
- * return blob when the transport reports no token balances).
- *
- * A CLMM swap is trader-independent — the output for a given input + pool state is the same
- * whoever trades — so we run the quote against an existing large SY holder (the swap isn't
- * executed; the holder's balance just lets the simulation transfer `amountInSyNative` SY). This
- * keeps the quote a short, self-contained, **succeeding** simulation: its `returnData` is
- * reliable (unlike the redeem+trade flash-loan sim, whose logs can truncate). The roll authority
- * is the fee payer (`sigVerify` is off, so neither it nor the holder needs to actually sign).
- */
+// Quotes by simulating a standalone `trade_pt` from a large SY holder: a CLMM swap's output
+// doesn't depend on who trades, and a short standalone simulation's `returnData` is reliable where
+// the flashloan's logs truncate. `sigVerify` is off, so neither the payer nor the holder signs.
 async function quoteClmmTradeOut({
   rpc,
   simulateTx,
@@ -452,9 +425,11 @@ async function quoteClmmTradeOut({
     (a) => !excluded.has(a.address) && BigInt(a.amount) >= amountInSyNative
   );
   if (!funded) {
-    throw new Error(
-      "roll-pt: no SY holder large enough to quote the buy — the roll size exceeds available " +
-        "CLMM liquidity for this pair"
+    throw TransactionBuildingError.swapQuoteFailed(
+      "exponent",
+      clmm.sy.mint,
+      clmm.pt.mint,
+      "no SY holder large enough to quote the buy: the roll exceeds the pool's liquidity"
     );
   }
   const { data: holder } = await fetchToken(rpc, funded.address);
@@ -495,30 +470,20 @@ async function quoteClmmTradeOut({
   });
   const sim = await simulateTx(compileTransaction(message));
 
-  if (process.env.ROLL_DEBUG) {
-    // eslint-disable-next-line no-console
-    console.error(
-      "[roll trade quote] err:",
-      JSON.stringify(sim.err),
-      "returnData?",
-      !!sim.returnData
-    );
-  }
-
-  // The PT actually credited to the trader IS the quote — transport-independent ground
-  // truth, reported by bundle-sim transports. The trade is the trader's only PT movement.
+  // Bundle-sim transports report token balances; the trade is the trader's only PT movement
   const delta = tokenBalanceDelta(sim, clmm.pt.mint, trader);
   if (delta !== null && delta > 0n) return delta;
 
-  // Plain `simulateTransaction` transports report no token balances — read the program
-  // return blob instead.
   const rd = sim.returnData;
   if (rd?.data && rd.programId === EXPONENT_CLMM_PROGRAM_ADDRESS) {
     const out = readTradePtOut(getBase64Encoder().encode(rd.data[0]), amountInSyNative);
     if (out !== null && out > 0n) return out;
   }
 
-  throw new Error(
-    `roll-pt: CLMM trade quote produced no readable output (err=${JSON.stringify(sim.err)})`
+  throw TransactionBuildingError.swapQuoteFailed(
+    "exponent",
+    clmm.sy.mint,
+    clmm.pt.mint,
+    `the quote simulation returned no readable output (err=${JSON.stringify(sim.err)})`
   );
 }
