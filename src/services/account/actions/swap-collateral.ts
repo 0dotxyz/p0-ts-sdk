@@ -17,7 +17,7 @@ import {
   swapEngineProvidersFromOpts,
   swapEngineQuoteFieldsFromOpts,
 } from "../services/swap-engine";
-import { MakeSwapCollateralTxParams, SwapQuoteResult } from "../types";
+import { MakeSwapCollateralTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
   exceedsCostlyPositionLimit,
   isWholePosition,
@@ -41,7 +41,6 @@ import {
   getTotalAccountKeys,
   getTxSize,
   makePreludeTxs,
-  SolanaTransaction,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -65,14 +64,9 @@ import { nativeToUi, uiToNative } from "~/utils";
  *   // ...
  * });
  */
-export async function makeSwapCollateralTx(params: MakeSwapCollateralTxParams): Promise<{
-  transactions: SolanaTransaction[];
-  actionTxIndex: number;
-  quoteResponse: SwapQuoteResult | undefined;
-  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
-   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
-  mustBeAtomicBundle: boolean;
-}> {
+export async function makeSwapCollateralTx(
+  params: MakeSwapCollateralTxParams
+): Promise<SwapFlowTxResult> {
   const {
     marginfiAccount,
     authority,

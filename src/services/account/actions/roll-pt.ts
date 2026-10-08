@@ -24,6 +24,7 @@ import {
   MakeRollPtTxParams,
   RollQuoteSimResult,
   RollQuoteSimulator,
+  SwapFlowTxResult,
   SwapQuoteResult,
 } from "../types";
 import {
@@ -47,7 +48,6 @@ import {
   getTotalAccountKeys,
   makePreludeTxs,
   makeTransactionMessage,
-  SolanaTransaction,
   TransactionFormat,
   withLookupTables,
 } from "~/services/transaction";
@@ -85,13 +85,7 @@ const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
  * successor CLMM pool (`rollOpts`); everything Exponent is resolved internally. The buy is
  * bounded by the pool's depth.
  */
-export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
-  transactions: SolanaTransaction[];
-  actionTxIndex: number;
-  quoteResponse: SwapQuoteResult | undefined;
-  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot) */
-  mustBeAtomicBundle: boolean;
-}> {
+export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<SwapFlowTxResult> {
   const {
     marginfiAccount,
     authority,

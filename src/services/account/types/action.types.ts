@@ -453,6 +453,17 @@ export interface BulkLendTxsResult {
 /** RPC methods the swap flows use: blockhash, ATA and mint lookups, swap lookup tables. */
 export type SwapFlowRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
 
+/** Result of a flashloan swap flow: its prelude transactions, then the flashloan transaction. */
+export interface SwapFlowTxResult {
+  transactions: SolanaTransaction[];
+  /** Index of the flashloan transaction in `transactions`. */
+  actionTxIndex: number;
+  quoteResponse: SwapQuoteResult | undefined;
+  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
+   *  false → sequential sends are safe. */
+  mustBeAtomicBundle: boolean;
+}
+
 /** Params the flashloan swap flows share: loop, collateral and debt swaps, repay with collateral. */
 export interface SwapFlowTxParams {
   programAddress: Address;

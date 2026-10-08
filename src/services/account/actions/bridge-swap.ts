@@ -6,7 +6,7 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SwapFlowTxParams, SwapQuoteResult } from "../types";
+import { SwapFlowTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import { computeProjectedActiveBalancesNoCpi } from "../utils";
 
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
@@ -57,19 +57,14 @@ export interface BridgeOpts {
   abortSignal?: AbortSignal;
 }
 
-/** Result of a `makeBridged*Tx` builder: the transaction built without a bridge, or the bridged bundle. */
-export interface BridgedTxResult {
-  transactions: SolanaTransaction[];
-  /** Index of the tx that completes the action (the swap tx, or the bundle's last leg). */
-  actionTxIndex: number;
-  /** For a bridged bundle: the swap into the bridge followed by the swap out of it. */
-  quoteResponse: SwapQuoteResult | undefined;
+/**
+ * Result of a `makeBridged*Tx` builder: the swap built without a bridge, or the bridged bundle,
+ * whose `quoteResponse` is the swap into the bridge followed by the swap out of it and whose
+ * `actionTxIndex` points at the close leg's flashloan.
+ */
+export interface BridgedTxResult extends SwapFlowTxResult {
   /** The bridge token's mint — set only when the bridged double-hop path was used. */
   bridgeMint?: Address;
-  /** true → send as ONE atomic Jito bundle (bridged legs are one operation / integration
-   *  refreshes go stale within a slot); false → sequential sends are safe (cranked oracles
-   *  allow ≥ ~1 min staleness). */
-  mustBeAtomicBundle: boolean;
 }
 
 /** A built leg of a bridged swap. */

@@ -12,7 +12,7 @@ import {
   swapEngineProvidersFromOpts,
   swapEngineQuoteFieldsFromOpts,
 } from "../services/swap-engine";
-import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
+import { MakeSwapDebtTxParams, SwapFlowTxResult } from "../types";
 import {
   isWholePosition,
   computeFlashloanSwapConstraints,
@@ -33,7 +33,6 @@ import {
   getTotalAccountKeys,
   getTxSize,
   makePreludeTxs,
-  SolanaTransaction,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
@@ -57,14 +56,7 @@ import { nativeToUi, uiToNative } from "~/utils";
  *   // ...
  * });
  */
-export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
-  transactions: SolanaTransaction[];
-  actionTxIndex: number;
-  quoteResponse: SwapQuoteResult | undefined;
-  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
-   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
-  mustBeAtomicBundle: boolean;
-}> {
+export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<SwapFlowTxResult> {
   const {
     marginfiAccount,
     authority,
