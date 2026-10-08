@@ -32,7 +32,7 @@ import { makeWithdrawIx } from "../actions/withdraw";
 import { MarginfiAccountType } from "../types";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE, SIZING_BLOCKHASH } from "~/constants";
-import { BankType } from "~/services/bank";
+import { AssetTag, BankType } from "~/services/bank";
 import {
   getTotalAccountKeys,
   makeTransactionMessage,
@@ -236,6 +236,8 @@ async function buildBudgetIx(
     case "withdraw":
       return makeWithdrawIx({
         ...common,
+        // The footprint doesn't depend on the amount; a cToken amount needs no Kamino multiplier
+        amount: bank.config.assetTag === AssetTag.KAMINO ? { value: 1, type: "cToken" } : 1,
         bankMap,
         bankMetadataMap,
         withdrawAll: false,

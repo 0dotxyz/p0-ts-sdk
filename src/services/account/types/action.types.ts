@@ -204,7 +204,10 @@ export interface MakeWithdrawIxParams {
   authority: TransactionSigner;
   /** Venue state; required for Kamino, Drift and JupLend banks. */
   bankMetadataMap?: BankIntegrationMetadataMap;
-  /** Kamino: underlying tokens per cToken, to convert a UI `amount` (default 1). */
+  /**
+   * Kamino: underlying tokens per cToken, required to convert a UI `amount` on a Kamino bank (not
+   * with `withdrawAll` or a `cToken` amount).
+   */
   assetShareValueMultiplierByBank?: Map<string, BigNumber>;
   withdrawAll?: boolean;
   opts?: MakeWithdrawIxOpts;

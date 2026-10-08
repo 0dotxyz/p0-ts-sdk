@@ -143,6 +143,7 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.INVALID_AMOUNT]: {
     amount: number;
+    reason: string;
   };
 }
 
@@ -487,15 +488,16 @@ export class TransactionBuildingError<
   }
 
   /**
-   * An amount passed to a builder isn't positive.
+   * An amount passed to a builder can't be used: not positive, or not usable for the bank.
    */
   static invalidAmount(
-    amount: number
+    amount: number,
+    reason = "must be greater than 0"
   ): TransactionBuildingError<TransactionBuildingErrorCode.INVALID_AMOUNT> {
     return new TransactionBuildingError(
       TransactionBuildingErrorCode.INVALID_AMOUNT,
-      `Amount must be greater than 0, got ${amount}`,
-      { amount }
+      `Invalid amount ${amount}: ${reason}`,
+      { amount, reason }
     );
   }
 
