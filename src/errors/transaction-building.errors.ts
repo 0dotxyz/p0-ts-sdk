@@ -25,6 +25,7 @@ export enum TransactionBuildingErrorCode {
   BULK_INVALID_SELECTION = "BULK_INVALID_SELECTION",
   FEE_STATE_NOT_FOUND = "FEE_STATE_NOT_FOUND",
   ROLL_PT_INVALID = "ROLL_PT_INVALID",
+  INVALID_AMOUNT = "INVALID_AMOUNT",
 }
 
 /**
@@ -139,6 +140,9 @@ export interface TransactionBuildingErrorDetails {
   };
   [TransactionBuildingErrorCode.ROLL_PT_INVALID]: {
     reason: string;
+  };
+  [TransactionBuildingErrorCode.INVALID_AMOUNT]: {
+    amount: number;
   };
 }
 
@@ -469,8 +473,8 @@ export class TransactionBuildingError<
   }
 
   /**
-   * A PT roll can't be built from its inputs: no matured market or vault given, a withdraw amount
-   * that isn't positive, or a matured vault that would redeem no SY.
+   * A PT roll can't be built from its inputs: no matured market or vault given, or a matured vault
+   * that would redeem no SY.
    */
   static rollPtInvalid(
     reason: string
@@ -479,6 +483,19 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.ROLL_PT_INVALID,
       `Invalid PT roll: ${reason}`,
       { reason }
+    );
+  }
+
+  /**
+   * An amount passed to a builder isn't positive.
+   */
+  static invalidAmount(
+    amount: number
+  ): TransactionBuildingError<TransactionBuildingErrorCode.INVALID_AMOUNT> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.INVALID_AMOUNT,
+      `Amount must be greater than 0, got ${amount}`,
+      { amount }
     );
   }
 

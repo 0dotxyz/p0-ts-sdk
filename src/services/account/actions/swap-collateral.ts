@@ -5,11 +5,10 @@ import {
   type Instruction,
 } from "@solana/kit";
 import {
-  COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
   getSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
-import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda } from "@solana-program/token";
+import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import {
@@ -24,7 +23,7 @@ import {
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
   patchDepositAmount,
-  isDepositIx,
+  filterRouteSetupIxs,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -41,15 +40,22 @@ import {
   getTotalAccountKeys,
   getTxSize,
   makePreludeTxs,
+  SolanaTransaction,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
 /**
- * Creates transactions to swap one collateral position to another using a flash loan.
- *
- * This allows users to change their collateral type (e.g., JitoSOL -> mSOL) without
- * withdrawing and affecting their health during the swap.
+ * Swaps one collateral position into another in one flashloan: withdraws `withdrawOpts`, swaps it
+ * into the deposit token (unless the two banks share a mint) and deposits the swap's guaranteed
+ * output, without the account's health dipping in between. Prelude transactions create missing
+ * ATAs and refresh integration banks.
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if `withdrawAmount` isn't positive
+ * @throws TransactionBuildingError (COSTLY_POSITION_LIMIT_EXCEEDED) if the deposit would open an
+ * integration or staked position beyond the account's limit
+ * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if no provider can quote the swap
+ * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
+ * one transaction
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapCollateralTx({
@@ -105,26 +111,12 @@ export async function makeSwapCollateralTx(
     latestBlockhash,
   });
 
-  // Filter Jupiter setup instructions to avoid duplicates with our setup
-  const jupiterSetupInstructions = setupInstructions.filter((ix) => {
-    // Filter out compute budget instructions
-    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
-      return false;
-    }
-
-    if (ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
-      // Key 3 is always mint in create ATA instruction
-      const mintKey = ix.accounts?.[3]?.address;
-
-      if (mintKey === withdrawOpts.withdrawBank.mint || mintKey === depositOpts.depositBank.mint) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  setupIxs.push(...jupiterSetupInstructions);
+  setupIxs.push(
+    ...filterRouteSetupIxs(setupInstructions, [
+      withdrawOpts.withdrawBank.mint,
+      depositOpts.depositBank.mint,
+    ])
+  );
 
   const additionalTxs = makePreludeTxs(setupIxs, refreshIntegrationIxs, {
     latestBlockhash,
@@ -156,7 +148,11 @@ async function buildSwapCollateralFlashloanTx({
   rpc,
   latestBlockhash,
   swapEngineRunner,
-}: MakeSwapCollateralTxParams & { latestBlockhash: BlockhashLifetimeConstraint }) {
+}: MakeSwapCollateralTxParams & { latestBlockhash: BlockhashLifetimeConstraint }): Promise<{
+  flashloanTx: SolanaTransaction;
+  setupInstructions: Instruction[];
+  swapQuote: SwapQuoteResult | undefined;
+}> {
   const {
     withdrawBank,
     tokenProgram: withdrawTokenProgram,
@@ -165,13 +161,10 @@ async function buildSwapCollateralFlashloanTx({
   } = withdrawOpts;
   const { depositBank, tokenProgram: depositTokenProgram } = depositOpts;
 
-  // Validate and clamp withdrawAmount
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
-    throw new Error("withdrawAmount must be greater than 0");
+    throw TransactionBuildingError.invalidAmount(withdrawAmount);
   }
 
-  // Use withdrawAmount if provided, otherwise use totalPositionAmount (full swap)
-  // Clamp to totalPositionAmount to prevent withdrawing more than exists
   const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
   const isFullWithdraw = isWholePosition(
     { amount: totalPositionAmount, isLending: true },
@@ -283,15 +276,8 @@ async function buildSwapCollateralFlashloanTx({
       providers: swapEngineProvidersFromOpts(swapOpts),
     });
 
-    // Patch the seeded deposit to the real (minimum guaranteed) swap output.
-    const depositIxIndex = depositIxs.findIndex(isDepositIx);
-    if (depositIxIndex < 0) {
-      throw new Error("swap-collateral: could not locate deposit instruction for amount patching");
-    }
-    depositIxs[depositIxIndex] = patchDepositAmount(
-      depositIxs[depositIxIndex],
-      engineResult.outputAmountNative
-    );
+    // Without wSOL wrapping the deposit is a single instruction
+    depositIxs[0] = patchDepositAmount(depositIxs[0], engineResult.outputAmountNative);
 
     swapInstructions = engineResult.swapInstructions;
     setupInstructions = engineResult.setupInstructions;
@@ -314,9 +300,6 @@ async function buildSwapCollateralFlashloanTx({
     });
   }
 
-  // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
   const flashloanTx = await makeFlashLoanTx({
     programAddress,
     marginfiAccount,
@@ -341,13 +324,7 @@ async function buildSwapCollateralFlashloanTx({
     );
   }
 
-  return {
-    flashloanTx,
-    setupInstructions,
-    swapQuote,
-    withdrawIxs,
-    depositIxs,
-  };
+  return { flashloanTx, setupInstructions, swapQuote };
 }
 
 // ----------------------------------------------------------------------------

@@ -76,7 +76,8 @@ const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
  * (`rollOpts.successorMarket`) and deposits it, so the whole position ends up as the new PT. The
  * deposit is the trade's guaranteed minimum; anything above it stays in the wallet.
  * @throws TransactionBuildingError (ROLL_PT_INVALID) if `rollOpts` names neither the matured
- * market nor vault, `withdrawAmount` isn't positive, or the matured vault would redeem no SY
+ * market nor vault, or the matured vault would redeem no SY
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if `withdrawAmount` isn't positive
  * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if the CLMM pool can't quote the buy, e.g.
  * too little liquidity for the size
  * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
@@ -203,7 +204,7 @@ async function buildRollPtFlashloanTx({
   const simulateTx = params.simulateTx ?? defaultRollQuoteSimulator(rpc);
 
   if (withdrawAmount !== undefined && withdrawAmount <= 0) {
-    throw TransactionBuildingError.rollPtInvalid("withdrawAmount must be greater than 0");
+    throw TransactionBuildingError.invalidAmount(withdrawAmount);
   }
   const actualWithdrawAmount = Math.min(withdrawAmount ?? totalPositionAmount, totalPositionAmount);
   const isFullWithdraw = isWholePosition(

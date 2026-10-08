@@ -1,4 +1,6 @@
-import type { AddressesByLookupTableAddress, Instruction } from "@solana/kit";
+import type { Address, AddressesByLookupTableAddress, Instruction } from "@solana/kit";
+import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "@solana-program/compute-budget";
+import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
 import { SwapOpts, SwapQuoteResult } from "../types";
 
@@ -61,4 +63,18 @@ export function resolvePinnedSwapRoute(
     quoteResponse,
     outputAmountNative: minOut,
   };
+}
+
+/**
+ * A swap route's setup instructions without its compute-budget instructions and its ATA creates
+ * for `mints`, which the flow's own prelude already handles.
+ */
+export function filterRouteSetupIxs(setupIxs: Instruction[], mints: Address[]): Instruction[] {
+  return setupIxs.filter((ix) => {
+    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) return false;
+    if (ix.programAddress !== ASSOCIATED_TOKEN_PROGRAM_ADDRESS) return true;
+    // Account 3 of an ATA create is the mint
+    const mint = ix.accounts?.[3]?.address;
+    return !(mint && mints.includes(mint));
+  });
 }

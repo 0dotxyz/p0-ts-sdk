@@ -5,11 +5,10 @@ import {
   type Instruction,
 } from "@solana/kit";
 import {
-  COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
   getSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
-import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda } from "@solana-program/token";
+import { findAssociatedTokenPda } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
 import {
@@ -29,6 +28,7 @@ import {
   exceedsCostlyPositionLimit,
   patchDepositAmount,
   resolvePinnedSwapRoute,
+  filterRouteSetupIxs,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -109,22 +109,12 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<SwapFlowTxRe
     latestBlockhash,
   });
 
-  // The route's own setup minus its compute budget and the ATAs created above
-  const routeSetupIxs = setupInstructions.filter((ix) => {
-    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
-      return false;
-    }
-    if (ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
-      // Account 3 of an ATA create is the mint
-      const mintKey = ix.accounts?.[3]?.address;
-      if (mintKey === depositOpts.depositBank.mint || mintKey === borrowOpts.borrowBank.mint) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  setupIxs.push(...routeSetupIxs);
+  setupIxs.push(
+    ...filterRouteSetupIxs(setupInstructions, [
+      depositOpts.depositBank.mint,
+      borrowOpts.borrowBank.mint,
+    ])
+  );
 
   // Only a "DEPOSIT" loop deposits the principal, so only it wraps SOL for one
   if (

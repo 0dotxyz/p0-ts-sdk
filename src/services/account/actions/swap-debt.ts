@@ -1,10 +1,13 @@
-import { getTransactionMessageSizeLimit, type BlockhashLifetimeConstraint } from "@solana/kit";
 import {
-  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  getTransactionMessageSizeLimit,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
+} from "@solana/kit";
+import {
   getSetComputeUnitLimitInstruction,
   getSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
-import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda } from "@solana-program/token";
+import { findAssociatedTokenPda } from "@solana-program/token";
 
 import {
   computeBorrowEstimateForRepay,
@@ -12,11 +15,12 @@ import {
   swapEngineProvidersFromOpts,
   swapEngineQuoteFieldsFromOpts,
 } from "../services/swap-engine";
-import { MakeSwapDebtTxParams, SwapFlowTxResult } from "../types";
+import { MakeSwapDebtTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
   isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
+  filterRouteSetupIxs,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -33,15 +37,20 @@ import {
   getTotalAccountKeys,
   getTxSize,
   makePreludeTxs,
+  SolanaTransaction,
   withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
 
 /**
- * Creates transactions to swap one debt position to another using a flash loan.
- *
- * This allows users to change their debt type (e.g., USDC debt -> SOL debt) without
- * repaying and affecting their health during the swap.
+ * Swaps one debt position into another in one flashloan: borrows the new debt, swaps it into the
+ * old debt's token and repays `repayOpts`, without the account's health dipping in between. The
+ * borrow is sized from the caller's market prices plus a slippage buffer. Prelude transactions
+ * create missing ATAs and refresh integration banks.
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if `repayAmount` isn't positive
+ * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if no provider can quote the swap
+ * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
+ * one transaction
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapDebtTx({
@@ -97,26 +106,12 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<Swap
     latestBlockhash,
   });
 
-  // Filter Jupiter setup instructions to avoid duplicates with our setup
-  const jupiterSetupInstructions = setupInstructions.filter((ix) => {
-    // Filter out compute budget instructions
-    if (ix.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS) {
-      return false;
-    }
-
-    if (ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
-      // Key 3 is always mint in create ATA instruction
-      const mintKey = ix.accounts?.[3]?.address;
-
-      if (mintKey === repayOpts.repayBank.mint || mintKey === borrowOpts.borrowBank.mint) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  setupIxs.push(...jupiterSetupInstructions);
+  setupIxs.push(
+    ...filterRouteSetupIxs(setupInstructions, [
+      repayOpts.repayBank.mint,
+      borrowOpts.borrowBank.mint,
+    ])
+  );
 
   const additionalTxs = makePreludeTxs([...additionalIxs, ...setupIxs], refreshIntegrationIxs, {
     latestBlockhash,
@@ -147,7 +142,11 @@ async function buildSwapDebtFlashloanTx({
   rpc,
   latestBlockhash,
   swapEngineRunner,
-}: MakeSwapDebtTxParams & { latestBlockhash: BlockhashLifetimeConstraint }) {
+}: MakeSwapDebtTxParams & { latestBlockhash: BlockhashLifetimeConstraint }): Promise<{
+  flashloanTx: SolanaTransaction;
+  setupInstructions: Instruction[];
+  swapQuote: SwapQuoteResult;
+}> {
   const {
     repayBank,
     tokenProgram: repayTokenProgram,
@@ -156,13 +155,10 @@ async function buildSwapDebtFlashloanTx({
   } = repayOpts;
   const { borrowBank, tokenProgram: borrowTokenProgram } = borrowOpts;
 
-  // Validate and clamp repayAmount
   if (repayAmount !== undefined && repayAmount <= 0) {
-    throw new Error("repayAmount must be greater than 0");
+    throw TransactionBuildingError.invalidAmount(repayAmount);
   }
 
-  // Use repayAmount if provided, otherwise use totalPositionAmount (full swap)
-  // Clamp to totalPositionAmount to prevent repaying more than owed
   const actualRepayAmount = Math.min(repayAmount ?? totalPositionAmount, totalPositionAmount);
 
   const cuRequestIxs = [
@@ -176,9 +172,8 @@ async function buildSwapDebtFlashloanTx({
     tokenProgram: repayTokenProgram,
   });
 
-  // Step 1: size the borrow from a market-price calculation — never a provider
-  // ExactOut quote (Jupiter Router /build is ExactIn-only, and provider ExactOut
-  // routes are unreliable). See computeBorrowEstimateForRepay for the buffering.
+  // Sized from market prices, not a provider ExactOut quote: Jupiter's `/build` is ExactIn-only and
+  // ExactOut routes are unreliable
   const estimatedBorrowAmount = computeBorrowEstimateForRepay({
     repayTargetUi: actualRepayAmount,
     repayMarketPrice: repayOpts.marketPrice,
@@ -215,13 +210,11 @@ async function buildSwapDebtFlashloanTx({
     opts: { wrapSol: false },
   };
 
-  // Footprint for engine route sizing: borrow + repay ixs at estimate amounts (their
-  // byte/account footprint is amount-independent). The real ixs are built from the
-  // winning quote below.
+  // The route is sized against borrow and repay ixs at estimated amounts (their footprint doesn't
+  // depend on the amount); the real ones are built from the winning quote
   const footprintBorrowIxs = await makeBorrowIx({ ...borrowParams, amount: estimatedBorrowAmount });
   const footprintRepayIxs = await makeRepayIx({ ...repayParams, amount: actualRepayAmount });
 
-  // Step 2: run the multi-provider engine (ExactIn on the estimated borrow amount).
   const runEngine = swapEngineRunner ?? runSwapEngine;
   const engineResult = await runEngine({
     inputMint: borrowBank.mint,
@@ -247,17 +240,12 @@ async function buildSwapDebtFlashloanTx({
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);
   const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
 
-  // If output exceeds total debt, cap at total debt (for repayAll)
-  // Otherwise use minimum output with slippage protection
+  // An expected output above the debt repays all of it; otherwise repay the guaranteed minimum
   const amountToRepay = outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
 
-  // For ExactIn, inAmount is what we borrow
+  // ExactIn: the quote's input is the borrow
   const borrowAmount = nativeToUi(quoteResponse.inAmount, borrowBank.mintDecimals);
-
-  // Build borrow instruction (new debt)
   const borrowIxs = await makeBorrowIx({ ...borrowParams, amount: borrowAmount });
-
-  // Build repay instruction (old debt)
   const repayIxs = await makeRepayIx({
     ...repayParams,
     amount: amountToRepay,
@@ -289,9 +277,6 @@ async function buildSwapDebtFlashloanTx({
     swapLutCount: Object.keys(engineResult.swapLuts).length,
   });
 
-  // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
   const flashloanTx = await makeFlashLoanTx({
     programAddress,
     marginfiAccount,
@@ -320,8 +305,6 @@ async function buildSwapDebtFlashloanTx({
     flashloanTx,
     setupInstructions: engineResult.setupInstructions,
     swapQuote: quoteResponse,
-    borrowIxs,
-    repayIxs,
   };
 }
 
