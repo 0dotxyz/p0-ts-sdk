@@ -26,8 +26,9 @@ import { deriveLendingMarketAuthority, deriveUserState, makeRefreshingIxs } from
  * Deposits `amount` (UI units of the bank's mint) into `bank`, routed to the bank's venue
  * (marginfi, Kamino, Drift or JupLend). A wSOL deposit first wraps native SOL, net of
  * `opts.wSolBalanceUi`, unless `opts.wrapSol` is false.
- * @throws TransactionBuildingError if a Kamino, Drift or JupLend bank's venue state or
- * integration accounts are missing
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if a Kamino, Drift or JupLend bank's venue state or integration
+ * accounts are missing
  */
 export async function makeDepositIx({
   programAddress,
@@ -183,9 +184,14 @@ export async function makeDepositIx({
 
 /**
  * Builds a deposit transaction around {@link makeDepositIx}; a Kamino deposit first refreshes
- * its reserve and obligation. The authority pays and signs; `latestBlockhash` is fetched when
- * omitted.
+ * its reserve and obligation, and the premium refresh follows while premium-bearing debt remains
+ * (see `PremiumRefreshParams`). The authority pays and signs; `latestBlockhash` is fetched
+ * when omitted.
  * @throws see {@link makeDepositIx}
+ * @throws TransactionBuildingError (COSTLY_POSITION_LIMIT_EXCEEDED) if the deposit would open an
+ * integration or staked position beyond the account's limit
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, bankMap, ...depositIxParams } = params;
@@ -197,7 +203,7 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
   const depositIxs = await makeDepositIx(depositIxParams);
 
   const kaminoAccounts = bank.kaminoIntegrationAccounts;
-  const reserve = bankMetadataMap?.[bank.address]?.kaminoStates?.reserveState;
+  const reserve = bankMetadataMap[bank.address]?.kaminoStates?.reserveState;
   const refreshIxs =
     kaminoAccounts && reserve
       ? makeRefreshingIxs(kaminoAccounts.kaminoReserve, reserve, kaminoAccounts.kaminoObligation)
