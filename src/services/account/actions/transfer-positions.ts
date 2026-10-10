@@ -21,6 +21,7 @@ import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecy
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
 
@@ -591,7 +592,7 @@ function destPreexistingBanksOf(
  * Atomically move a selected set of positions from account A to account B in a single flashloan.
  * Per position: collateral → `withdraw(A)` + `deposit(B)`; debt → `borrow(B)` + `repay(A)`. Returns
  * unsigned transactions ordered for sequential execution (setup/refresh + crank first, then the
- * flashloan); the caller signs and sends them.
+ * flashloan, then the order closes); the caller signs and sends them.
  *
  * The whole transfer must fit one v0 transaction — the selection is capped at `maxPositions`
  * (default 5), and the built flashloan is size-checked, throwing `TRANSFER_POSITIONS_UNSPLITTABLE`
@@ -723,12 +724,22 @@ export async function makeTransferPositionsTx(
     payerKey: accountA.authority,
     luts: luts,
   });
+  const sourceOrderTx = await makeOrderChangesTx({ ...params, luts, blockhash });
+  const destinationOrderTx = await makeOrderChangesTx({
+    ...params,
+    marginfiAccount: accountB,
+    ordersToClose: params.destinationOrdersToClose,
+    luts,
+    blockhash,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
+  if (sourceOrderTx) transactions.push(sourceOrderTx);
+  if (destinationOrderTx) transactions.push(destinationOrderTx);
   return {
     transactions,
     actionTxIndex: additionalTxs.length,
     destinationAccount: accountB,
-    mustBeAtomicBundle: refreshIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }

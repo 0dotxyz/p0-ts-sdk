@@ -9,6 +9,7 @@ import {
 } from "../utils";
 
 import { makePremiumRefreshIxs, makeSetupIx } from "./account-lifecycle";
+import { makeOrderChangesIxs } from "./orders";
 import { makeRepayIx } from "./repay";
 import {
   makeWithdrawIx,
@@ -188,9 +189,11 @@ export async function makeBulkWithdrawTx(
     withdrawIxs.push(makeUnwrapSolIx(authority));
   }
 
+  const closeIxs = await makeOrderChangesIxs(params);
+  const actionIxs = [...closeIxs, ...withdrawIxs];
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
-  const withdrawTxs: ExtendedV0Transaction[] = splitInstructionsToFitTransactions([], withdrawIxs, {
+  const withdrawTxs: ExtendedV0Transaction[] = splitInstructionsToFitTransactions([], actionIxs, {
     blockhash,
     payerKey: authority,
     luts: selectedLuts,
@@ -229,7 +232,8 @@ export async function makeBulkWithdrawTx(
   return {
     transactions: [...additionalTxs, ...withdrawTxs],
     actionTxIndex: additionalTxs.length,
-    mustBeAtomicBundle: refreshIxs.length > 0,
+    // Order closes must land with every withdraw
+    mustBeAtomicBundle: refreshIxs.length > 0 || (closeIxs.length > 0 && withdrawTxs.length > 1),
   };
 }
 
@@ -237,7 +241,7 @@ export async function makeBulkWithdrawTx(
  * Repay the FULL debt of every given bank from the wallet, packing as many
  * repays per transaction as fit, followed by the premium refresh while
  * premium-bearing debt remains. Most batches are a single transaction; one
- * that splits with a premium refresh in it must land as one bundle.
+ * that splits with a premium refresh or order closes in it must land as one bundle.
  */
 export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<BulkLendTxsResult> {
   const {
@@ -292,9 +296,11 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
         )
       : [];
 
+  const closeIxs = await makeOrderChangesIxs(params);
+  const actionIxs = [...closeIxs, ...repayIxs, ...premiumIxs];
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
-  const transactions = splitInstructionsToFitTransactions([], [...repayIxs, ...premiumIxs], {
+  const transactions = splitInstructionsToFitTransactions([], actionIxs, {
     blockhash,
     payerKey: authority,
     luts,
@@ -310,7 +316,8 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
   return {
     transactions,
     actionTxIndex: 0,
-    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay
-    mustBeAtomicBundle: premiumIxs.length > 0 && transactions.length > 1,
+    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay;
+    // order closes must land with every repay
+    mustBeAtomicBundle: (premiumIxs.length > 0 || closeIxs.length > 0) && transactions.length > 1,
   };
 }

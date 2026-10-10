@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.10.1-alpha.0
+
+### Patch Changes
+
+- chore: prepend order txs
+
 ## 2.10.0
 
 ### Minor Changes

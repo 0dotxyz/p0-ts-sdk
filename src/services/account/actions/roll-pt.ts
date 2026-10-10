@@ -27,6 +27,7 @@ import {
 import { makeSetupIx } from "./account-lifecycle";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -160,14 +161,20 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<{
     payerKey: marginfiAccount.authority,
     luts: addressLookupTableAccounts ?? [],
   });
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    luts: addressLookupTableAccounts ?? [],
+    blockhash,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
+  if (orderTx) transactions.push(orderTx);
 
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 

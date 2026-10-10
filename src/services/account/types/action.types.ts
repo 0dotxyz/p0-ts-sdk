@@ -174,24 +174,40 @@ export interface PremiumRefreshParams {
   bankMetadataMap: BankIntegrationMetadataMap;
 }
 
-export interface MakeDepositTxParams extends MakeDepositIxParams, PremiumRefreshParams {
+/**
+ * Orders a transaction builder closes with its action, e.g. every order on a bank the action
+ * touches: an order covers its two balances in full, so it mustn't fire on the changed position.
+ * Single-transaction builders put the closes in front of the action and flashloan builders in one
+ * transaction after it, throwing `ORDER_CLOSES_DONT_FIT` when they don't fit; bulk builders pack
+ * them in with the action. A result of more than one transaction sets `mustBeAtomicBundle`.
+ */
+export interface OrderChangesParams {
+  /** Order PDAs to close (see `deriveOrderPda`) */
+  ordersToClose?: PublicKey[];
+}
+
+export interface MakeDepositTxParams
+  extends MakeDepositIxParams, PremiumRefreshParams, OrderChangesParams {
   luts: AddressLookupTableAccount[];
   blockhash?: string;
 }
 
-export interface MakeJuplendDepositTxParams extends MakeJuplendDepositIxParams, PremiumRefreshParams {
+export interface MakeJuplendDepositTxParams
+  extends MakeJuplendDepositIxParams, PremiumRefreshParams, OrderChangesParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
 }
 
-export interface MakeDriftDepositTxParams extends MakeDriftDepositIxParams, PremiumRefreshParams {
+export interface MakeDriftDepositTxParams
+  extends MakeDriftDepositIxParams, PremiumRefreshParams, OrderChangesParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
 }
 
-export interface MakeKaminoDepositTxParams extends MakeKaminoDepositIxParams, PremiumRefreshParams {
+export interface MakeKaminoDepositTxParams
+  extends MakeKaminoDepositIxParams, PremiumRefreshParams, OrderChangesParams {
   luts: AddressLookupTableAccount[];
   connection: Connection;
   blockhash?: string;
@@ -221,7 +237,8 @@ export interface MakeRepayIxParams {
   opts?: MakeRepayIxOpts;
 }
 
-export interface MakeRepayTxParams extends MakeRepayIxParams, PremiumRefreshParams {
+export interface MakeRepayTxParams
+  extends MakeRepayIxParams, PremiumRefreshParams, OrderChangesParams {
   luts: AddressLookupTableAccount[];
 }
 
@@ -295,17 +312,15 @@ export interface MakeWithdrawIxParams {
   opts?: MakeWithdrawIxOpts;
 }
 
-export interface MakeWithdrawTxParams extends MakeWithdrawIxParams {
+export interface MakeWithdrawTxParams extends MakeWithdrawIxParams, OrderChangesParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
 }
 
-export interface MakeKaminoWithdrawTxParams extends Omit<
-  MakeKaminoWithdrawIxParams,
-  "cTokenAmount"
-> {
+export interface MakeKaminoWithdrawTxParams
+  extends Omit<MakeKaminoWithdrawIxParams, "cTokenAmount">, OrderChangesParams {
   amount: Amount | TypedAmount;
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
@@ -341,7 +356,7 @@ export interface MakeBorrowIxParams {
   opts?: MakeBorrowIxOpts;
 }
 
-export interface MakeBorrowTxParams extends MakeBorrowIxParams {
+export interface MakeBorrowTxParams extends MakeBorrowIxParams, OrderChangesParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
@@ -349,14 +364,15 @@ export interface MakeBorrowTxParams extends MakeBorrowIxParams {
   luts: AddressLookupTableAccount[];
 }
 
-export interface MakeJuplendWithdrawTxParams extends MakeJuplendWithdrawIxParams {
+export interface MakeJuplendWithdrawTxParams
+  extends MakeJuplendWithdrawIxParams, OrderChangesParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   luts: AddressLookupTableAccount[];
 }
 
-export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams {
+export interface MakeDriftWithdrawTxParams extends MakeDriftWithdrawIxParams, OrderChangesParams {
   connection: Connection;
   oraclePrices: Map<string, OraclePrice>;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
@@ -411,7 +427,7 @@ export interface MakeFlashLoanTxParams {
 
 export type TransferPositionSide = "collateral" | "debt";
 
-export interface MakeTransferPositionsTxParams {
+export interface MakeTransferPositionsTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   connection: Connection;
   /** Source account A (positions move out of this account). */
@@ -422,6 +438,8 @@ export interface MakeTransferPositionsTxParams {
   destinationAccount?: MarginfiAccountType;
   /** Only used when `destinationAccount` is omitted. */
   createDestinationOpts?: { accountIndex?: number; thirdPartyId?: number };
+  /** Orders to close on the destination account (`ordersToClose` closes the source's). */
+  destinationOrdersToClose?: PublicKey[];
   bankMap: Map<string, BankType>;
   oraclePrices: Map<string, OraclePrice>;
   bankMetadataMap: BankIntegrationMetadataMap;
@@ -439,7 +457,7 @@ export interface MakeTransferPositionsTxParams {
 }
 
 export interface TransferPositionsResult {
-  /** Ordered for execution: [setup/crank txs…, flashloan tx]. */
+  /** Ordered for execution: [setup/crank txs…, flashloan tx, order txs…]. */
   transactions: ExtendedV0Transaction[];
   /** Index of the flashloan tx in `transactions`. */
   actionTxIndex: number;
@@ -449,7 +467,7 @@ export interface TransferPositionsResult {
   mustBeAtomicBundle: boolean;
 }
 
-export interface MakeBulkWithdrawTxParams {
+export interface MakeBulkWithdrawTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   connection: Connection;
   marginfiAccount: MarginfiAccountType;
@@ -465,7 +483,7 @@ export interface MakeBulkWithdrawTxParams {
   overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
 }
 
-export interface MakeBulkRepayTxParams {
+export interface MakeBulkRepayTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   connection: Connection;
   marginfiAccount: MarginfiAccountType;
@@ -491,7 +509,7 @@ export interface BulkLendTxsResult {
   mustBeAtomicBundle: boolean;
 }
 
-export interface MakeLoopTxParams {
+export interface MakeLoopTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
   connection: Connection;
@@ -533,6 +551,12 @@ export interface MakeLoopTxParams {
    * `swapOpts.swapIxs` instead.
    */
   swapEngineRunner?: SwapEngineRunner;
+  /**
+   * Places a take-profit / stop-loss order with this trigger on the loop's pair (deposit bank as
+   * collateral, borrow bank as debt) after the loop. Put the pair's existing order in
+   * `ordersToClose` to replace it.
+   */
+  placeOrder?: OrderTriggerParams;
 }
 
 /**
@@ -563,7 +587,7 @@ export interface LoopFlashloanDescriptor {
   luts: AddressLookupTableAccount[];
 }
 
-export interface MakeRepayWithCollatTxParams {
+export interface MakeRepayWithCollatTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
   connection: Connection;
@@ -598,7 +622,7 @@ export interface MakeRepayWithCollatTxParams {
   swapEngineRunner?: SwapEngineRunner;
 }
 
-export interface MakeSwapCollateralTxParams {
+export interface MakeSwapCollateralTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
   connection: Connection;
@@ -642,7 +666,7 @@ export interface MakeSwapCollateralTxParams {
  * vault's `pt_redemption_rate`; the SY → PT price is quoted by simulating a standalone
  * `trade_pt`, so the deposit is sized to the guaranteed minimum out.
  */
-export interface MakeRollPtTxParams {
+export interface MakeRollPtTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
   connection: Connection;
@@ -728,7 +752,7 @@ export interface RollPtOpts {
   lookupTable?: PublicKey;
 }
 
-export interface MakeSwapDebtTxParams {
+export interface MakeSwapDebtTxParams extends OrderChangesParams {
   program: MarginfiProgram;
   marginfiAccount: MarginfiAccountType;
   connection: Connection;
@@ -822,6 +846,19 @@ export interface MakeCloseOrderIxParams {
 }
 
 export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams {
+  connection: Connection;
+  luts: AddressLookupTableAccount[];
+  blockhash?: string;
+}
+
+export interface MakeOrderChangesIxParams extends OrderChangesParams {
+  program: MarginfiProgram;
+  marginfiAccount: MarginfiAccountType;
+  /** Placed after the closes; close the pair's existing order in the same call to replace it. */
+  placeOrder?: Omit<MakePlaceOrderIxParams, "program" | "marginfiAccount">;
+}
+
+export interface MakeOrderChangesTxParams extends MakeOrderChangesIxParams {
   connection: Connection;
   luts: AddressLookupTableAccount[];
   blockhash?: string;
