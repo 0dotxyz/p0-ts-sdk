@@ -1,7 +1,7 @@
 import type { Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 
-import { MarginfiAccountType, MarginRequirementType } from "../types";
+import { BalanceType, MarginfiAccountType, MarginRequirementType } from "../types";
 
 import { getActiveBalances, getBalance } from "./balance.utils";
 import {
@@ -77,6 +77,7 @@ export interface ComputeMaxBorrowForBankParams {
  * - **Isolated tier constraints**: Isolated assets cannot be borrowed with active debt
  * - **Existing deposit**: A bank the account deposits in can't be borrowed from (the program's
  *   `BorrowOnly` rejects drawing the deposit down)
+ * - **Asset tags**: Staked and default-like positions can't share an account
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing (lowest for assets, highest for liabilities)
  * - **Bank limits**: Remaining borrow cap (`borrowLimit - totalBorrows`, interest-buffered),
@@ -184,6 +185,8 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     return new BigNumber(0);
   }
 
+  if (mixesAssetTags(bank, activeBalances, banksMap)) return new BigNumber(0);
+
   // ------------- //
   // FC-based calc //
   // ------------- //
@@ -290,6 +293,24 @@ export function computeBankOutflowRateLimit(
     if (!tightest || remaining.lt(tightest.remaining)) tightest = { window, remaining };
   }
   return tightest;
+}
+
+// The program's `validate_asset_tags`: staked positions can't share an account with default-like
+// ones (DEFAULT and the integrations); SOL mixes with either
+function mixesAssetTags(
+  bank: BankType,
+  balances: BalanceType[],
+  banksMap: Map<string, BankType>
+): boolean {
+  const isStaked = (b: BankType) => b.config.assetTag === AssetTag.STAKED;
+  return (
+    bank.config.assetTag !== AssetTag.SOL &&
+    balances.some((balance) => {
+      if (!balance.active) return false;
+      const held = requireBank(banksMap, balance.bankPk);
+      return held.config.assetTag !== AssetTag.SOL && isStaked(held) !== isStaked(bank);
+    })
+  );
 }
 
 function computeOutflowRateLimitRemaining(
@@ -549,7 +570,9 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
  * Configuration for computing maximum deposit amount for a bank
  */
 export interface ComputeMaxDepositForBankParams {
-  /** Map of banks by their address */
+  /** The account deposited into; omit for an account that doesn't exist yet */
+  account?: MarginfiAccountType;
+  /** Map of banks by their address, including every bank `account` has a position in */
   banksMap: Map<string, BankType>;
   /** The bank address to compute max deposit for */
   bankAddress: Address;
@@ -568,7 +591,8 @@ export interface ComputeMaxDepositForBankParams {
  *
  * Deposits are not constrained by account health, only by the bank's deposit cap
  * (`depositLimit - totalDeposits`, buffered for interest accrued since the last update)
- * and, optionally, the caller's wallet balance.
+ * and, optionally, the caller's wallet balance. It's 0 when `account` holds a position whose
+ * asset tag can't mix with the bank's (staked vs default-like).
  *
  * @param params - Configuration object for max deposit computation
  * @returns Maximum amount that can be deposited (in UI units)
@@ -584,9 +608,11 @@ export interface ComputeMaxDepositForBankParams {
  * ```
  */
 export function computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
-  const { banksMap, bankAddress, assetShareValueMultiplierByBank, walletBalance } = params;
+  const { account, banksMap, bankAddress, assetShareValueMultiplierByBank, walletBalance } = params;
   const bank = banksMap.get(bankAddress);
   if (!bank) throw Error(`Bank ${bankAddress} not found`);
+
+  if (account && mixesAssetTags(bank, account.balances, banksMap)) return new BigNumber(0);
 
   const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
   const depositCapRemaining = new BigNumber(computeBankDepositCapRemaining(bank)).times(

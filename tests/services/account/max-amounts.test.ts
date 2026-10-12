@@ -652,6 +652,61 @@ describe("computeMaxDepositForBank", () => {
   });
 });
 
+describe("asset-tag mixing", () => {
+  const staked = bank({
+    totalDeposits: 0,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+    assetTag: AssetTag.STAKED,
+  });
+  const sol = bank({
+    totalDeposits: 10_000,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+    assetTag: AssetTag.SOL,
+  });
+  const usdc = bank({
+    totalDeposits: 10_000,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+  });
+  const banksMap = new Map([staked, sol, usdc].map((b) => [b.address, b]));
+  const stakedOnly = account({
+    freeCollateralUsd: 1000,
+    balances: [{ bankPk: staked.address, assetShares: ui(10) }],
+  });
+
+  it("returns 0 for a default-like borrow from a staked-collateral account, not for SOL", () => {
+    const maxBorrow = (b: BankType) =>
+      computeMaxBorrowForBank({
+        account: stakedOnly,
+        banksMap,
+        oraclePricesByBank: new Map([[b.address, oraclePrice(1)]]),
+        bankAddress: b.address,
+        emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+      }).toNumber();
+    expect(maxBorrow(usdc)).toBe(0);
+    expect(maxBorrow(sol)).toBeCloseTo(800, 6);
+  });
+
+  it("returns 0 for a staked deposit into an account holding default-like collateral", () => {
+    const usdcOnly = account({
+      freeCollateralUsd: 1000,
+      balances: [{ bankPk: usdc.address, assetShares: ui(10) }],
+    });
+    expect(
+      computeMaxDepositForBank({
+        account: usdcOnly,
+        banksMap,
+        bankAddress: staked.address,
+      }).toNumber()
+    ).toBe(0);
+  });
+});
+
 // ----------------------------------------------------------------------------
 // Program-parity details (audited against marginfi-v2 state/bank.rs)
 // ----------------------------------------------------------------------------

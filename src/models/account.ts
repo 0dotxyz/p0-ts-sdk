@@ -258,8 +258,8 @@ class MarginfiAccount implements MarginfiAccountType {
   }
 
   /** Maximum deposit (UI units): the bank's remaining deposit cap, capped by the wallet balance. */
-  computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
-    return computeMaxDepositForBank(params);
+  computeMaxDepositForBank(params: Omit<ComputeMaxDepositForBankParams, "account">): BigNumber {
+    return computeMaxDepositForBank({ ...params, account: this });
   }
 
   /** Emode pairs active for this account's collateral and liabilities. */
