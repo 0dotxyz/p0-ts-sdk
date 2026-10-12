@@ -17,6 +17,8 @@ export const KAMINO_MARKET_EMERGENCY_FLAG: number = 1 << 14;
 export const MAX_COSTLY_POSITIONS = 4;
 /** Fixed balance slots per marginfi account (`LendingAccount.balances: [Balance; 16]`) */
 export const MAX_BALANCES = 16;
+/** Shares below which the program treats a balance side as empty (`Balance::is_empty`) */
+export const EMPTY_BALANCE_THRESHOLD = 1;
 
 // Program keys
 export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");

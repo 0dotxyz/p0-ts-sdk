@@ -3,7 +3,7 @@ import { BigNumber } from "bignumber.js";
 
 import { BalanceType, MarginfiAccountType, OrderType } from "../types";
 
-import { MAX_COSTLY_POSITIONS } from "~/constants";
+import { EMPTY_BALANCE_THRESHOLD, MAX_COSTLY_POSITIONS } from "~/constants";
 import { AssetTag, BankType } from "~/services/bank";
 
 /**
@@ -86,24 +86,25 @@ export function getBalance(bankAddress: Address, balances: BalanceType[]): Balan
   );
 }
 
-function floor(value: number, decimals: number): number {
-  return Math.floor(value * 10 ** decimals) / 10 ** decimals;
-}
-
-function ceil(value: number, decimals: number): number {
-  return Math.ceil(value * 10 ** decimals) / 10 ** decimals;
-}
-
+/**
+ * The position's `amount` (UI units) rounded to whole native units: down for a deposit (no more
+ * can be withdrawn), up for a debt (no less repays it).
+ */
 export function computeClosePositionTokenAmount(
   position: { amount: number; isLending: boolean },
   mintDecimals: number
 ): number {
-  const closePositionTokenAmount = position.isLending
-    ? floor(position.amount, mintDecimals)
-    : ceil(position.amount, mintDecimals);
-  return closePositionTokenAmount;
+  // Rounded in decimal: in floating point 2.007 * 10 ** 6 is 2007000.0000000002, which
+  // `Math.ceil` would round up a whole native unit
+  return new BigNumber(position.amount)
+    .decimalPlaces(mintDecimals, position.isLending ? BigNumber.ROUND_FLOOR : BigNumber.ROUND_CEIL)
+    .toNumber();
 }
 
+/**
+ * Whether `amount` (UI units) covers the whole position: at least
+ * {@link computeClosePositionTokenAmount}.
+ */
 export function isWholePosition(
   position: { amount: number; isLending: boolean },
   amount: number,
@@ -112,10 +113,6 @@ export function isWholePosition(
   const closePositionTokenAmount = computeClosePositionTokenAmount(position, mintDecimals);
   return amount >= closePositionTokenAmount;
 }
-
-// The program's `EMPTY_BALANCE_THRESHOLD`: `Balance::get_side` ignores shares below 1, and a deposit
-// that pays off a debt can leave such dust liability shares on what is now a collateral balance.
-const EMPTY_BALANCE_THRESHOLD = 1;
 
 /**
  * Maps an order's balance tags to the collateral (asset) and debt (liability) banks of the
@@ -134,6 +131,8 @@ export function resolveOrderLegs(
     (balance) => balance.active && balance.tag !== 0 && order.tags.includes(balance.tag)
   );
 
+  // A deposit that pays off a debt can leave dust liability shares on what is now a collateral
+  // balance; `Balance::get_side` ignores them
   return {
     collateralBank:
       taggedBalances.find(

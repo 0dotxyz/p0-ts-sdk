@@ -22,10 +22,7 @@ export function getEmodePairs(banks: BankType[]): EmodePair[] {
   banks.forEach((bank) => {
     const emodeTag = bank.emode.emodeTag;
 
-    if (emodeTag === EmodeTag.UNSET) {
-      return;
-    }
-
+    // A liability bank's entries apply whatever its own tag
     bank.emode.emodeEntries.forEach((emodeEntry) => {
       emodePairs.push({
         collateralBanks: banks
@@ -104,73 +101,34 @@ export function createActiveEmodePairFromPairs(pairs: EmodePair[]): ActiveEmodeP
   };
 }
 
-/**
- * A configured emode pair with its tags pre-stringified, plus a reference back to the
- * original `EmodePair`. The hot paths below compare/group on these keys (O(1) Set/Map
- * lookups), then return `orig` so callers still receive the original `EmodePair` objects.
- */
+// Emode pairs whose collateral tag is set, indexed once per `computeEmodeImpacts` run
 type IndexedEmodePair = {
   orig: EmodePair;
   liabStr: string;
-  liabTagStr: string;
   collTagStr: string;
   collStrs: string[];
 };
 
-/**
- * Indexes the *configured* emode pairs (both tags set) once. `emodePairs` is
- * constant across a whole `computeEmodeImpacts` run, so this is hoisted out of
- * the per-bank/per-action simulation loop instead of being rebuilt ~800x.
- */
-function indexConfiguredPairs(emodePairs: EmodePair[]): {
-  configured: IndexedEmodePair[];
-  liabTagByBank: Map<string, string>;
-} {
-  const configured: IndexedEmodePair[] = [];
-  const liabTagByBank = new Map<string, string>();
-  for (const p of emodePairs) {
-    if (p.collateralBankTag === EmodeTag.UNSET || p.liabilityBankTag === EmodeTag.UNSET) {
-      continue;
-    }
-    const liabStr = p.liabilityBank;
-    const liabTagStr = p.liabilityBankTag.toString();
-    configured.push({
+function indexConfiguredPairs(emodePairs: EmodePair[]): IndexedEmodePair[] {
+  return emodePairs
+    .filter((p) => p.collateralBankTag !== EmodeTag.UNSET)
+    .map((p) => ({
       orig: p,
-      liabStr,
-      liabTagStr,
+      liabStr: p.liabilityBank,
       collTagStr: p.collateralBankTag.toString(),
       collStrs: p.collateralBanks,
-    });
-    liabTagByBank.set(liabStr, liabTagStr);
-  }
-  return { configured, liabTagByBank };
+    }));
 }
 
-/**
- * String-keyed core of {@link computeActiveEmodePairs}. Operates purely on the
- * pre-built index + address Sets. Returns the original
- * `EmodePair` objects (same order and references as the legacy implementation).
- */
 function activePairsFromIndex(
   configured: IndexedEmodePair[],
-  liabTagByBank: Map<string, string>,
   liabSet: Set<string>,
   collSet: Set<string>
 ): EmodePair[] {
-  // Required liability-tags from all active liabilities. A liability with no
-  // configured entry kills EMODE immediately.
-  const requiredTags = new Set<string>();
-  for (const liab of liabSet) {
-    const tag = liabTagByBank.get(liab);
-    if (!tag) return [];
-    requiredTags.add(tag);
-  }
-
   // Keep configured pairs touching both an active liability AND collateral.
   const possible = configured.filter(
     (p) => liabSet.has(p.liabStr) && p.collStrs.some((c) => collSet.has(c))
   );
-  if (possible.length === 0) return [];
 
   // Group by collateral-tag.
   const byCollTag: Record<string, IndexedEmodePair[]> = {};
@@ -178,22 +136,12 @@ function activePairsFromIndex(
     (byCollTag[p.collTagStr] ||= []).push(p);
   }
 
-  // Keep groups whose liability-tags cover every required tag.
-  const validGroups: IndexedEmodePair[][] = [];
-  for (const group of Object.values(byCollTag)) {
-    const supports = new Set(group.map((p) => p.liabTagStr));
-    let coversAll = true;
-    for (const rt of requiredTags) {
-      if (!supports.has(rt)) {
-        coversAll = false;
-        break;
-      }
-    }
-    if (coversAll) validGroups.push(group);
-  }
-  if (validGroups.length === 0) return [];
-
-  return validGroups.flat().map((p) => p.orig);
+  // The program (`reconcile_emode_configs`) applies a collateral tag only if every liability
+  // bank's own config has an entry for it
+  return Object.values(byCollTag)
+    .filter((group) => [...liabSet].every((liab) => group.some((p) => p.liabStr === liab)))
+    .flat()
+    .map((p) => p.orig);
 }
 
 export function computeEmodeImpacts(
@@ -206,15 +154,7 @@ export function computeEmodeImpacts(
   const activeLiabilitiesSet = new Set(activeLiabilities);
   const activeCollateralSet = new Set(activeCollateral);
 
-  // Index of configured pairs — hoisted out of the simulation loop.
-  const { configured, liabTagByBank } = indexConfiguredPairs(emodePairs);
-
-  // Liability-tag map over ALL pairs (incl. unconfigured). Intentionally broader
-  // than the configured map above: used by the borrow override and `existingTags`.
-  const liabTagMapAll = new Map<string, string>();
-  for (const p of emodePairs) {
-    liabTagMapAll.set(p.liabilityBank, p.liabilityBankTag.toString());
-  }
+  const configured = indexConfiguredPairs(emodePairs);
 
   // Every collateral bank referenced by any pair (supply-eligibility check).
   const allCollateralBankStrs = new Set<string>();
@@ -223,41 +163,32 @@ export function computeEmodeImpacts(
   }
 
   // Baseline state
-  const basePairs = activePairsFromIndex(
-    configured,
-    liabTagByBank,
-    activeLiabilitiesSet,
-    activeCollateralSet
-  );
+  const basePairs = activePairsFromIndex(configured, activeLiabilitiesSet, activeCollateralSet);
   const baseOn = basePairs.length > 0;
 
-  const existingTags = new Set<string>(
-    Array.from(activeLiabilitiesSet)
-      .map((l) => liabTagMapAll.get(l))
-      .filter((t): t is string => !!t)
-  );
-
-  // Helper for min initial weight (used in diffState only)
-  function minWeight(ps: EmodePair[]): BigNumber {
-    // TODO: handle empty array
-    let m = ps[0].assetWeightInit;
-    for (const x of ps) if (x.assetWeightInit.lt(m)) m = x.assetWeightInit;
-    return m;
-  }
-
-  // Determine status transitions
-  function diffState(before: EmodePair[], after: EmodePair[]): EmodeImpactStatus {
+  // Compared per held collateral bank: a borrow can lower one bank's weight while the lowest
+  // weight stays put
+  function diffState(
+    before: EmodePair[],
+    after: EmodePair[],
+    collateral: Set<string>
+  ): EmodeImpactStatus {
     const was = before.length > 0,
       isOn = after.length > 0;
     if (!was && !isOn) return EmodeImpactStatus.InactiveEmode;
     if (!was && isOn) return EmodeImpactStatus.ActivateEmode;
     if (was && !isOn) return EmodeImpactStatus.RemoveEmode;
 
-    const bMin = minWeight(before),
-      aMin = minWeight(after);
-    if (aMin.gt(bMin)) return EmodeImpactStatus.IncreaseEmode;
-    if (aMin.lt(bMin)) return EmodeImpactStatus.ReduceEmode;
-    return EmodeImpactStatus.ExtendEmode;
+    const beforeWeights = computeLowestEmodeWeights(before);
+    const afterWeights = computeLowestEmodeWeights(after);
+    let increased = false;
+    for (const bank of collateral) {
+      const b = beforeWeights.get(bank)?.assetWeightInit ?? new BigNumber(0);
+      const a = afterWeights.get(bank)?.assetWeightInit ?? new BigNumber(0);
+      if (a.lt(b)) return EmodeImpactStatus.ReduceEmode;
+      if (a.gt(b)) increased = true;
+    }
+    return increased ? EmodeImpactStatus.IncreaseEmode : EmodeImpactStatus.ExtendEmode;
   }
 
   // Simulation of each action
@@ -282,27 +213,8 @@ export function computeEmodeImpacts(
         break;
     }
 
-    const after = activePairsFromIndex(configured, liabTagByBank, L, C);
-    let status = diffState(basePairs, after);
-
-    // Borrow override
-    if (action === "borrow") {
-      const tag = liabTagMapAll.get(bankStr);
-
-      // Borrowing an unconfigured bank => EMODE off / inactive
-      if (!tag) {
-        status = baseOn ? EmodeImpactStatus.RemoveEmode : EmodeImpactStatus.InactiveEmode;
-
-        // EMODE was ON; keep the diffState result unless EMODE really turns OFF
-      } else if (baseOn) {
-        if (after.length === 0) {
-          status = EmodeImpactStatus.RemoveEmode;
-        } else if (existingTags.has(tag)) {
-          status = EmodeImpactStatus.ExtendEmode; // same tag ⇒ extend
-          // else keep diffState (Increase/Reduce) which is already correct
-        }
-      }
-    }
+    const after = activePairsFromIndex(configured, L, C);
+    let status = diffState(basePairs, after, C);
 
     // Supply override
     if (action === "supply") {
@@ -313,21 +225,6 @@ export function computeEmodeImpacts(
           : baseOn && isOn
             ? EmodeImpactStatus.ExtendEmode
             : EmodeImpactStatus.InactiveEmode;
-    }
-
-    // Withdraw override
-    if (action === "withdraw") {
-      if (!baseOn) {
-        status = EmodeImpactStatus.InactiveEmode;
-      } else if (after.length === 0) {
-        status = EmodeImpactStatus.RemoveEmode;
-      } else {
-        const b = minWeight(basePairs),
-          a = minWeight(after);
-        if (a.gt(b)) status = EmodeImpactStatus.IncreaseEmode;
-        else if (a.lt(b)) status = EmodeImpactStatus.ReduceEmode;
-        else status = EmodeImpactStatus.ExtendEmode;
-      }
     }
 
     // Create active emode pair from resulting pairs
@@ -377,8 +274,9 @@ export function computeActiveEmodePairs(
   activeLiabilities: Address[],
   activeCollateral: Address[]
 ): EmodePair[] {
-  const { configured, liabTagByBank } = indexConfiguredPairs(emodePairs);
-  const liabSet = new Set(activeLiabilities);
-  const collSet = new Set(activeCollateral);
-  return activePairsFromIndex(configured, liabTagByBank, liabSet, collSet);
+  return activePairsFromIndex(
+    indexConfiguredPairs(emodePairs),
+    new Set(activeLiabilities),
+    new Set(activeCollateral)
+  );
 }

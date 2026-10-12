@@ -13,6 +13,7 @@ import { BigNumber } from "bignumber.js";
 import { Balance } from "./balance";
 import { HealthCache } from "./health-cache";
 
+import { EMPTY_BALANCE_THRESHOLD } from "~/constants";
 import {
   AccountFlags,
   computeAccountValue,
@@ -278,7 +279,10 @@ class MarginfiAccount implements MarginfiAccountType {
 
   private emodePositions() {
     return {
-      liabilities: this.activeBalances.filter((b) => b.liabilityShares.gt(0)).map((b) => b.bankPk),
+      // The program reconciles emode over borrowed banks, ignoring dust debt (`Balance::is_empty`)
+      liabilities: this.activeBalances
+        .filter((b) => b.liabilityShares.gte(EMPTY_BALANCE_THRESHOLD))
+        .map((b) => b.bankPk),
       collateral: this.activeBalances.filter((b) => b.assetShares.gt(0)).map((b) => b.bankPk),
     };
   }

@@ -17,7 +17,6 @@ import {
 } from "../services/swap-engine";
 import { MakeSwapDebtTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
-  isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
   filterRouteSetupIxs,
@@ -241,23 +240,13 @@ async function buildSwapDebtFlashloanTx({
   const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
 
   // An expected output above the debt repays all of it; otherwise repay the guaranteed minimum
-  const amountToRepay = outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
+  const repayAll = outAmount > totalPositionAmount;
+  const amountToRepay = repayAll ? totalPositionAmount : outAmountThreshold;
 
   // ExactIn: the quote's input is the borrow
   const borrowAmount = nativeToUi(quoteResponse.inAmount, borrowBank.mintDecimals);
   const borrowIxs = await makeBorrowIx({ ...borrowParams, amount: borrowAmount });
-  const repayIxs = await makeRepayIx({
-    ...repayParams,
-    amount: amountToRepay,
-    repayAll: isWholePosition(
-      {
-        amount: totalPositionAmount,
-        isLending: false,
-      },
-      amountToRepay,
-      repayBank.mintDecimals
-    ),
-  });
+  const repayIxs = await makeRepayIx({ ...repayParams, amount: amountToRepay, repayAll });
 
   const flashloanFormat = withLookupTables(txFormat, engineResult.swapLuts);
 
