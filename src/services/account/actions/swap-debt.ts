@@ -18,8 +18,10 @@ import {
 import { MakeSwapDebtTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
   computeFlashloanSwapConstraints,
+  computeQuantityUi,
   compileFlashloanPrecheck,
   filterRouteSetupIxs,
+  getBalance,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -339,10 +341,22 @@ export async function makeBridgedSwapDebtTx(
       // Repay exactly the bridge the open leg borrowed (its swap input), so repay-all clears it
       const bridgeDebt = nativeToUi(openLegQuote.inAmount, bridgeBank.mintDecimals);
       if (bridgeDebt <= 0) return null;
+      // Debt the account already owed in the bridge counts toward the total, so a repay-all can't
+      // swap it too
+      const owedBridge = getBalance(
+        bridgeBank.address,
+        params.marginfiAccount.balances
+      ).liabilityShares.gt(0);
+      const totalPositionAmount = owedBridge
+        ? computeQuantityUi(
+            getBalance(bridgeBank.address, context.marginfiAccount.balances),
+            bridgeBank
+          ).liabilities.toNumber()
+        : bridgeDebt;
       return makeSwapDebtTx({
         ...context,
         repayOpts: {
-          totalPositionAmount: bridgeDebt,
+          totalPositionAmount,
           repayAmount: bridgeDebt,
           repayBank: bridgeBank,
           tokenProgram: bridgeTokenProgram,
