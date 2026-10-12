@@ -5,12 +5,12 @@ import { MarginRequirementType } from "~/services/account";
 import { BankType, getAssetWeight, OperationalState, RiskTier } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 
-const bank = (kaminoEmergency: boolean) =>
+const bank = (kaminoEmergency: boolean, operationalState = OperationalState.Operational) =>
   ({
     kaminoEmergency,
     config: {
       riskTier: RiskTier.Collateral,
-      operationalState: OperationalState.Operational,
+      operationalState,
       assetWeightInit: new BigNumber(0.8),
       assetWeightMaint: new BigNumber(0.9),
       totalAssetValueInitLimit: new BigNumber(0),
@@ -22,6 +22,17 @@ const oraclePrice = {} as OraclePrice;
 describe("getAssetWeight", () => {
   it("gives a Kamino bank in emergency mode zero initial weight and keeps its maintenance weight", () => {
     const params = { bank: bank(true), oraclePrice };
+
+    expect(getAssetWeight({ ...params, marginRequirement: MarginRequirementType.Initial })).toEqual(
+      new BigNumber(0)
+    );
+    expect(
+      getAssetWeight({ ...params, marginRequirement: MarginRequirementType.Maintenance })
+    ).toEqual(new BigNumber(0.9));
+  });
+
+  it("gives a paused bank zero initial weight and keeps its maintenance weight", () => {
+    const params = { bank: bank(false, OperationalState.Paused), oraclePrice };
 
     expect(getAssetWeight({ ...params, marginRequirement: MarginRequirementType.Initial })).toEqual(
       new BigNumber(0)

@@ -515,8 +515,8 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
   // isolated bank or collateral with init weight 0 //
   // ---------------------------------------------- //
 
-  // Withdraws only check initial health, which this collateral (retired, reduce-only, Kamino
-  // emergency) adds nothing to
+  // Withdraws only check initial health, which this collateral (retired, paused, reduce-only,
+  // Kamino emergency) adds nothing to
   if (bank.config.riskTier === RiskTier.Isolated || initAssetWeight.isZero()) {
     if (freeCollateral.isZero() && !liabilitiesInit.isZero()) {
       // if account is already below init requirements and has active debt, prevent any withdrawal even if those don't count as collateral
