@@ -9,7 +9,7 @@ import {
   computeFreeCollateralFromBalances,
   computeHealthComponentsFromCache,
 } from "./health.utils";
-import { computeQuantityUi } from "./value.utils";
+import { computeQuantity, computeQuantityUi } from "./value.utils";
 
 import {
   ActiveEmodePair,
@@ -32,6 +32,10 @@ import {
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
+
+// The program's `ZERO_AMOUNT_THRESHOLD` (native units): `BorrowOnly` tolerates drawing down
+// asset dust up to it
+const ZERO_AMOUNT_THRESHOLD = 0.0001;
 
 /**
  * Configuration for computing maximum borrow amount for a bank
@@ -71,6 +75,8 @@ export interface ComputeMaxBorrowForBankParams {
  * This function computes the borrowing capacity based on:
  * - **Free collateral**: Available collateral not backing existing liabilities
  * - **Isolated tier constraints**: Isolated assets cannot be borrowed with active debt
+ * - **Existing deposit**: A bank the account deposits in can't be borrowed from (the program's
+ *   `BorrowOnly` rejects drawing the deposit down)
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing (lowest for assets, highest for liabilities)
  * - **Bank limits**: Remaining borrow cap (`borrowLimit - totalBorrows`, interest-buffered),
@@ -83,19 +89,13 @@ export interface ComputeMaxBorrowForBankParams {
  *
  * **Calculation Formula:**
  * ```
- * If assetWeight > 0:
- *   maxBorrow = (min(fc, ucb) / (price_lowest * asset_weight)) +
- *               ((fc - min(fc, ucb)) / (price_highest * liab_weight))
- * Else:
- *   maxBorrow = existingAssets + ((fc - ucb) / (price_highest * liab_weight))
- *
+ * maxBorrow = fc / (price_highest * liab_weight)
  * maxBorrow = min(maxBorrow, remainingBorrowCap, availableLiquidity, rateLimitRemaining)
  * ```
  * All liability-denominated terms are divided by `(1 + protocolOriginationFee)` because the
  * program books the origination fee as additional borrowed liability.
  * Where:
  * - `fc` = free collateral (with volatility factor)
- * - `ucb` = untied collateral for bank (existing deposits)
  *
  * @param params - Configuration object for max borrow computation
  * @returns Maximum amount that can be borrowed (in UI units)
@@ -144,13 +144,19 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     }, new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>()) ??
     new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>();
 
-  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress);
   const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
 
   const oraclePrice = oraclePricesByBank.get(bankAddress);
   if (!oraclePrice) throw Error(`Oracle price for ${bankAddress} not found`);
 
   const activeBalances = getActiveBalances(account.balances);
+
+  // The program's `BorrowOnly` rejects a borrow that draws down a deposit in the same bank (6021)
+  if (
+    computeQuantity(getBalance(bankAddress, activeBalances), bank).assets.gt(ZERO_AMOUNT_THRESHOLD)
+  ) {
+    return new BigNumber(0);
+  }
 
   // -------------------------- //
   // isolated asset constraints //
@@ -184,8 +190,6 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
 
   const _volatilityFactor = volatilityFactor ?? 1;
 
-  const balance = getBalance(bankAddress, activeBalances);
-
   const useCache =
     emodeImpactStatus === EmodeImpactStatus.InactiveEmode ||
     emodeImpactStatus === EmodeImpactStatus.ExtendEmode;
@@ -200,28 +204,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
         assetShareValueMultiplierByBank,
       }).times(_volatilityFactor);
 
-  const untiedCollateralForBank = BigNumber.min(
-    computeAssetUsdValue({
-      bank,
-      oraclePrice,
-      assetShares: balance.assetShares,
-      marginRequirement: MarginRequirementType.Initial,
-      priceBias: PriceBias.Lowest,
-      activeEmodeWeights: activeEmodeWeightsForBank,
-      assetShareValueMultiplier,
-    }),
-    freeCollateral
-  );
-
-  const priceLowestBias = getPrice(oraclePrice, PriceBias.Lowest, true);
   const priceHighestBias = getPrice(oraclePrice, PriceBias.Highest, true);
-  const assetWeight = getAssetWeight({
-    bank,
-    marginRequirement: MarginRequirementType.Initial,
-    oraclePrice,
-    activeEmodeWeights: activeEmodeWeightsForBank,
-    assetShareValueMultiplier,
-  });
   const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Initial);
 
   // The program books `amount * (1 + protocol_origination_fee)` as the new liability (the fee is
@@ -231,13 +214,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
   );
   const liabPriceWeighted = priceHighestBias.times(liabWeight).times(originationFeeFactor);
 
-  const healthMaxBorrow = assetWeight.eq(0)
-    ? computeQuantityUi(balance, bank, assetShareValueMultiplier).assets.plus(
-        freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted)
-      )
-    : untiedCollateralForBank
-        .div(priceLowestBias.times(assetWeight))
-        .plus(freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted));
+  const healthMaxBorrow = freeCollateral.div(liabPriceWeighted);
 
   if (ignoreBankLimits) return healthMaxBorrow;
 

@@ -173,6 +173,19 @@ describe("computeMaxBorrowForBank bank-level clamps", () => {
     expect(max.toNumber()).toBeCloseTo(HEALTH_MAX, 6);
   });
 
+  it("returns 0 for a bank the account deposits in", () => {
+    const b = bank({ totalDeposits: 10_000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const max = computeMaxBorrowForBank({
+      account: account({
+        freeCollateralUsd: 1000,
+        balances: [{ bankPk: b.address, assetShares: ui(400) }],
+      }),
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBe(0);
+  });
+
   it("clamps to remaining borrow cap", () => {
     const b = bank({
       totalDeposits: 10_000,
