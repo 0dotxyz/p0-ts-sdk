@@ -298,6 +298,18 @@ describe("computeMaxWithdrawForBank bank-level clamp", () => {
     expect(max.toNumber()).toBeCloseTo(400, 6);
   });
 
+  it("returns entire balance of init-weight-0 collateral while the account is healthy", () => {
+    const b = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    b.config.assetWeightInit = new BigNumber(0);
+    const acc = account({
+      freeCollateralUsd: 1000,
+      liabilitiesUsd: 500,
+      balances: [{ bankPk: b.address, assetShares: ui(10) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    expect(max.toNumber()).toBeCloseTo(10, 6);
+  });
+
   it("clamps to available liquidity", () => {
     const b = bank({ totalDeposits: 400, totalBorrows: 250, depositLimit: 1e9, borrowLimit: 1e9 });
     const acc = account({

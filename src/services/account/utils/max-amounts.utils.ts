@@ -480,14 +480,6 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
     assetShareValueMultiplier,
     ignoreSoftLimits: false,
   });
-  const maintAssetWeight = getAssetWeight({
-    bank,
-    marginRequirement: MarginRequirementType.Maintenance,
-    oraclePrice,
-    activeEmodeWeights: activeEmodeWeightsForBank,
-    assetShareValueMultiplier,
-    ignoreSoftLimits: false,
-  });
   const activeBalances = getActiveBalances(account.balances);
   const balance = getBalance(bankAddress, activeBalances);
 
@@ -519,43 +511,19 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
     MarginRequirementType.Initial
   );
 
-  // -------------------------------------------------- //
-  // isolated bank (=> init weight = maint weight = 0)  //
-  // or collateral bank with 0-weights (does not happen //
-  // in practice)                                       //
-  // -------------------------------------------------- //
+  // ---------------------------------------------- //
+  // isolated bank or collateral with init weight 0 //
+  // ---------------------------------------------- //
 
-  if (
-    bank.config.riskTier === RiskTier.Isolated ||
-    (initAssetWeight.isZero() && maintAssetWeight.isZero())
-  ) {
+  // Withdraws only check initial health, which this collateral (retired, reduce-only, Kamino
+  // emergency) adds nothing to
+  if (bank.config.riskTier === RiskTier.Isolated || initAssetWeight.isZero()) {
     if (freeCollateral.isZero() && !liabilitiesInit.isZero()) {
       // if account is already below init requirements and has active debt, prevent any withdrawal even if those don't count as collateral
       // inefficient, but reflective of contract which does not look at action delta, but only end state atm
       return new BigNumber(0);
     } else {
       return entireBalance;
-    }
-  }
-
-  // ----------------------------- //
-  // collateral bank being retired //
-  // ----------------------------- //
-
-  if (initAssetWeight.isZero() && !maintAssetWeight.isZero()) {
-    if (liabilitiesInit.eq(0)) {
-      return entireBalance;
-    } else if (freeCollateral.isZero()) {
-      return new BigNumber(0); // inefficient, but reflective of contract which does not look at action delta, but only end state
-    } else {
-      const { liabilities: maintLiabilities, assets: maintAssets } =
-        computeHealthComponentsFromCache(account, MarginRequirementType.Maintenance);
-      const maintUntiedCollateral = maintAssets.minus(maintLiabilities);
-
-      const priceLowestBias = getPrice(oraclePrice, PriceBias.Lowest, true);
-      const maintWeightedPrice = priceLowestBias.times(maintAssetWeight);
-
-      return maintUntiedCollateral.div(maintWeightedPrice);
     }
   }
 
