@@ -197,4 +197,34 @@ describe("transaction projection", () => {
       projectedBalances: result.projectedBalances.map(balanceToDto),
     }).toMatchSnapshot();
   });
+
+  it("closes a balance on repay-all whatever its dust, and never on a partial repay", async () => {
+    const repay = (amount: bigint, repayAll: boolean | null) =>
+      instructions.makeRepayIx(programAddress, {
+        ...tokenAccounts,
+        group,
+        marginfiAccount,
+        authority,
+        bank: banks.sol.address,
+        signerTokenAccount: key(5),
+        amount,
+        repayAll,
+      });
+    const projectedSol = (balances: typeof account.balances, ix: Instruction) =>
+      computeProjectedActiveBalancesNoCpi({
+        account: { ...account, balances },
+        instructions: [ix],
+        programAddress,
+        banksMap,
+        assetShareValueMultiplierByBank: new Map(),
+      }).projectedBalances.find((balance) => balance.bankPk === banks.sol.address);
+
+    const withAssetDust = account.balances.map((balance) =>
+      balance.bankPk === banks.sol.address
+        ? { ...balance, assetShares: new BigNumber(0.000001) }
+        : balance
+    );
+    expect(projectedSol(withAssetDust, await repay(0n, true))).toBeUndefined();
+    expect(projectedSol(account.balances, await repay(10n ** 18n, null))?.active).toBe(true);
+  });
 });

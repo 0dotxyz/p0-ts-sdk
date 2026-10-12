@@ -3,6 +3,7 @@ import { BigNumber } from "bignumber.js";
 
 import { BalanceType, HealthCacheStatus, MarginfiAccountType } from "../types";
 
+import { createEmptyBalance } from "./balance.utils";
 import { computeBalancePremium } from "./premium.utils";
 
 import { DEFAULT_ADDRESS, MAX_BALANCES } from "~/constants";
@@ -398,17 +399,9 @@ export function computeProjectedActiveBalancesNoCpi({
           );
         }
 
-        // Check if this is a full repay
+        // repay_all closes the balance, writing off any asset dust; a partial repay never does
         if (closesPosition(parsed.data)) {
-          targetBalance.liabilityShares = new BigNumber(0);
-          targetBalance.premiumOutstanding = new BigNumber(0);
-          targetBalance.premiumRate = new BigNumber(0);
-
-          // If no assets and no liabilities, close the balance
-          if (targetBalance.assetShares.eq(0)) {
-            targetBalance.active = false;
-            targetBalance.bankPk = DEFAULT_ADDRESS;
-          }
+          Object.assign(targetBalance, createEmptyBalance(DEFAULT_ADDRESS));
         } else {
           // Convert token amount to shares and subtract from liability shares
           const repayTokenAmount = new BigNumber(parsed.data.amount.toString());
@@ -430,12 +423,6 @@ export function computeProjectedActiveBalancesNoCpi({
             0,
             targetBalance.liabilityShares.minus(repayShares)
           );
-
-          // If fully repaid and no assets, close the balance
-          if (targetBalance.liabilityShares.eq(0) && targetBalance.assetShares.eq(0)) {
-            targetBalance.active = false;
-            targetBalance.bankPk = DEFAULT_ADDRESS;
-          }
         }
         break;
       }
@@ -461,15 +448,10 @@ export function computeProjectedActiveBalancesNoCpi({
           );
         }
 
-        // Check if this is a full withdraw
+        // withdraw_all closes the balance, writing off any liability dust; a partial withdraw never
+        // does
         if (closesPosition(parsed.data)) {
-          targetBalance.assetShares = new BigNumber(0);
-
-          // If no assets and no liabilities, close the balance
-          if (targetBalance.liabilityShares.eq(0)) {
-            targetBalance.active = false;
-            targetBalance.bankPk = DEFAULT_ADDRESS;
-          }
+          Object.assign(targetBalance, createEmptyBalance(DEFAULT_ADDRESS));
         } else {
           const withdrawTokenAmount = new BigNumber(parsed.data.amount.toString());
           const bank = banksMap.get(targetBank);
@@ -491,12 +473,6 @@ export function computeProjectedActiveBalancesNoCpi({
             0,
             targetBalance.assetShares.minus(withdrawShares)
           );
-
-          // If fully withdrawn and no liabilities, close the balance
-          if (targetBalance.assetShares.eq(0) && targetBalance.liabilityShares.eq(0)) {
-            targetBalance.active = false;
-            targetBalance.bankPk = DEFAULT_ADDRESS;
-          }
         }
         break;
       }
