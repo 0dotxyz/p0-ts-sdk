@@ -11,7 +11,7 @@ import {
 
 import { getBalanceUsdValueWithPriceBias } from "./value.utils";
 
-import { BankType } from "~/services/bank";
+import { BankType, requireBank } from "~/services/bank";
 import { OraclePrice } from "~/services/price";
 import { shortenAddress } from "~/utils";
 
@@ -267,19 +267,15 @@ export function computeHealthComponentsFromBalances(
   for (const accountBalance of filteredBalances) {
     const bankKey = accountBalance.bankPk;
 
-    const bank = banksMap.get(bankKey);
-    if (!bank) {
-      console.warn(
-        `Bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
-      );
-      continue;
-    }
+    const bank = requireBank(banksMap, bankKey);
 
+    // Like the program, a liability without a price fails the whole check, while an asset without
+    // one is worth 0 (as the program values it for Initial)
     const oraclePrice = oraclePricesByBank.get(bankKey);
     if (!oraclePrice) {
-      console.warn(
-        `Price info for bank ${shortenAddress(accountBalance.bankPk)} not found, excluding from health computation`
-      );
+      if (accountBalance.liabilityShares.gt(0)) {
+        throw Error(`Oracle price for ${bankKey} not found`);
+      }
       continue;
     }
 
