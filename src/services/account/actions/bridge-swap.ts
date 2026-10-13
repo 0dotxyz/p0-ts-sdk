@@ -78,6 +78,8 @@ export interface ComposeBridgedSwapParams {
   feePayer: PublicKey;
   /** Override the bundle-size ceiling (default {@link MAX_BRIDGED_BUNDLE_TXS}). */
   maxBundleTxs?: number;
+  /** Bundle slots to leave for transactions the caller appends, e.g. order changes. */
+  reservedTxs?: number;
 }
 
 export interface ComposeBridgedSwapResult {
@@ -318,6 +320,7 @@ export async function composeBridgedSwap(
     assetShareValueMultiplierByBank,
     feePayer,
     maxBundleTxs = MAX_BRIDGED_BUNDLE_TXS,
+    reservedTxs = 0,
   } = params;
 
   if (!firstLeg.quoteResponse) return null;
@@ -338,7 +341,7 @@ export async function composeBridgedSwap(
     secondLeg.transactions,
     feePayer,
     blockhashOf(firstLeg),
-    maxBundleTxs
+    maxBundleTxs - reservedTxs
   );
   if (!transactions) return null;
 

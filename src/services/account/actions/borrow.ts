@@ -8,6 +8,8 @@ import {
 import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from "../types";
 import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
 
+import { prependOrderCloses } from "./orders";
+
 import instructions from "~/instructions";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
@@ -145,6 +147,11 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
   );
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
+  const ixs = await prependOrderCloses(
+    params,
+    [...refreshIntegrationIxs.instructions, ...borrowIxs.instructions],
+    selectedLuts
+  );
 
   const {
     value: { blockhash },
@@ -153,7 +160,7 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<Transact
   const borrowTx = addTransactionMetadata(
     new VersionedTransaction(
       new TransactionMessage({
-        instructions: [...refreshIntegrationIxs.instructions, ...borrowIxs.instructions],
+        instructions: ixs,
         payerKey: params.authority,
         recentBlockhash: blockhash,
       }).compileToV0Message(selectedLuts)

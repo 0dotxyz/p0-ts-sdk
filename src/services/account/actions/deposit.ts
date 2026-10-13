@@ -21,6 +21,7 @@ import {
 import { exceedsCostlyPositionLimit } from "../utils";
 
 import { appendPremiumRefresh } from "./account-lifecycle";
+import { prependOrderCloses } from "./orders";
 
 import { SYSTEM_PROGRAM_ID } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -31,6 +32,7 @@ import {
   ExtendedV0Transaction,
   InstructionsWrapper,
   makeWrapSolIxs,
+  selectLutsForBanks,
   TransactionType,
 } from "~/services/transaction";
 import syncInstructions from "~/sync-instructions";
@@ -200,9 +202,14 @@ export async function makeDriftDepositTx(
     amount,
     ...depositIxParams,
   });
-  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+  const actionIxs = await prependOrderCloses(
     params,
     depositIxs.instructions,
+    selectLutsForBanks(luts, [params.bank])
+  );
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    actionIxs,
     [params.bank.address],
     []
   );
@@ -435,9 +442,14 @@ export async function makeKaminoDepositTx(
     amount,
     ...depositIxParams,
   });
-  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+  const actionIxs = await prependOrderCloses(
     params,
     [...refreshIxs, ...depositIxs.instructions],
+    selectLutsForBanks(luts, [params.bank])
+  );
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    actionIxs,
     [params.bank.address],
     []
   );
@@ -591,9 +603,14 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Extend
   }
 
   const ixs = await makeDepositIx(depositIxParams);
-  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+  const actionIxs = await prependOrderCloses(
     params,
     ixs.instructions,
+    selectLutsForBanks(luts, [params.bank])
+  );
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    actionIxs,
     [params.bank.address],
     []
   );
@@ -748,9 +765,14 @@ export async function makeJuplendDepositTx(
     amount,
     ...depositIxParams,
   });
-  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+  const actionIxs = await prependOrderCloses(
     params,
     depositIxs.instructions,
+    selectLutsForBanks(luts, [params.bank])
+  );
+  const { instructions, luts: selectedLuts } = await appendPremiumRefresh(
+    params,
+    actionIxs,
     [params.bank.address],
     []
   );

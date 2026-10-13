@@ -1,22 +1,34 @@
-import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import {
+  AddressLookupTableAccount,
+  PublicKey,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 
 import {
   MakeCloseOrderIxParams,
   MakeCloseOrderTxParams,
+  MakeOrderChangesIxParams,
+  MakeOrderChangesTxParams,
   MakePlaceOrderIxParams,
   MakePlaceOrderTxParams,
+  MarginfiAccountType,
+  OrderChangesParams,
   OrderTriggerParams,
 } from "../types";
 
+import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import {
   addTransactionMetadata,
   ExtendedV0Transaction,
+  fitsInOneTransaction,
   InstructionsWrapper,
   TransactionType,
 } from "~/services/transaction";
-import { OrderTrigger } from "~/types";
+import { MarginfiProgram, OrderTrigger } from "~/types";
 import {
   bigNumberToWrappedI80F48,
   deriveFeeState,
@@ -197,4 +209,115 @@ export async function makeUpdateOrderTx(
   const placeIxs = await makePlaceOrderIx(params);
   const payerKey = params.feePayer ?? params.marginfiAccount.authority;
   return compileOrderTx(params, payerKey, [closeIxs, placeIxs], TransactionType.UPDATE_ORDER);
+}
+
+// Leaves room for what the send pipeline appends: compute-budget and priority-fee ixs, and in
+// bundles a Jito tip, which lock the ComputeBudget program, tip account and System program
+const SEND_PIPELINE_MARGINS = {
+  sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
+  maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
+};
+
+/**
+ * Instructions closing `ordersToClose`, then placing `placeOrder`, for composing with an action.
+ * The closes return the rent to the authority.
+ *
+ * @param params - The account, the orders to close and the order to place
+ * @returns The closes, then the placement
+ * @throws {TransactionBuildingError} `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an
+ *   invalid `placeOrder.trigger`
+ */
+export async function makeOrderChangesIxs(
+  params: MakeOrderChangesIxParams
+): Promise<TransactionInstruction[]> {
+  const { program, marginfiAccount, ordersToClose = [], placeOrder } = params;
+  const wrappers = await Promise.all([
+    ...ordersToClose.map((order) => makeCloseOrderIx({ program, marginfiAccount, order })),
+    ...(placeOrder ? [makePlaceOrderIx({ ...placeOrder, program, marginfiAccount })] : []),
+  ]);
+  return wrappers.flatMap((wrapper) => wrapper.instructions);
+}
+
+/**
+ * Puts the closes of `ordersToClose` in front of an action that lands in one transaction. Unlike
+ * the premium refresh they can't be left out, so builders call this before `appendPremiumRefresh`,
+ * which then only adds the refresh if it still fits.
+ *
+ * @param params - The builder's params: program, account (before the action), orders to close and
+ *   authority
+ * @param actionIxs - The action's instructions
+ * @param luts - The lookup tables the transaction compiles with
+ * @returns The closes, then the action's instructions
+ * @throws {TransactionBuildingError} `ORDER_CLOSES_DONT_FIT` if the closes don't fit next to the
+ *   action
+ */
+export async function prependOrderCloses(
+  params: OrderChangesParams & {
+    program: MarginfiProgram;
+    marginfiAccount: MarginfiAccountType;
+    authority: PublicKey;
+  },
+  actionIxs: TransactionInstruction[],
+  luts: AddressLookupTableAccount[]
+): Promise<TransactionInstruction[]> {
+  const { program, marginfiAccount, ordersToClose = [] } = params;
+  if (ordersToClose.length === 0) return actionIxs;
+
+  const closeIxs = await makeOrderChangesIxs({ program, marginfiAccount, ordersToClose });
+  const withCloses = [...closeIxs, ...actionIxs];
+  if (
+    !fitsInOneTransaction(withCloses, {
+      payerKey: params.authority,
+      luts,
+      ...SEND_PIPELINE_MARGINS,
+    })
+  ) {
+    throw TransactionBuildingError.orderClosesDontFit(
+      ordersToClose.map((order) => order.toBase58())
+    );
+  }
+  return withCloses;
+}
+
+/**
+ * Builds the transaction that closes `ordersToClose`, then places `placeOrder`, after a
+ * multi-transaction action, to send in the same atomic bundle. Also adds order changes to an
+ * action built earlier without rebuilding it, e.g. a loop's take-profit / stop-loss set after its
+ * quote.
+ *
+ * @param params - The account, the orders to close, the order to place and the lookup tables
+ * @returns The transaction to run after the action, none when there's nothing to change
+ * @throws {TransactionBuildingError} `ORDER_CLOSES_DONT_FIT` if the changes don't fit in one
+ *   transaction; `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an invalid
+ *   `placeOrder.trigger`
+ */
+export async function makeOrderChangesTx(
+  params: MakeOrderChangesTxParams
+): Promise<ExtendedV0Transaction | undefined> {
+  const { program, marginfiAccount, ordersToClose = [], placeOrder, luts } = params;
+  const ixs = await makeOrderChangesIxs(params);
+  if (ixs.length === 0) return undefined;
+  if (
+    !fitsInOneTransaction(ixs, {
+      payerKey: marginfiAccount.authority,
+      luts,
+      ...SEND_PIPELINE_MARGINS,
+    })
+  ) {
+    throw TransactionBuildingError.orderClosesDontFit(
+      ordersToClose.map((order) => order.toBase58())
+    );
+  }
+
+  let type = TransactionType.CLOSE_ORDER;
+  if (placeOrder) {
+    const [placedOrder] = deriveOrderPda(program.programId, marginfiAccount.address, [
+      placeOrder.collateralBank,
+      placeOrder.debtBank,
+    ]);
+    type = ordersToClose.some((order) => order.equals(placedOrder))
+      ? TransactionType.UPDATE_ORDER
+      : TransactionType.PLACE_ORDER;
+  }
+  return compileOrderTx(params, marginfiAccount.authority, [{ instructions: ixs, keys: [] }], type);
 }

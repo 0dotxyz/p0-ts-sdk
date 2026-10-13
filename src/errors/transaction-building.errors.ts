@@ -18,6 +18,7 @@ export enum TransactionBuildingErrorCode {
   BRIDGE_CONFLICT = "BRIDGE_CONFLICT",
   ORDER_INVALID_TRIGGER = "ORDER_INVALID_TRIGGER",
   ORDER_INVALID_SLIPPAGE = "ORDER_INVALID_SLIPPAGE",
+  ORDER_CLOSES_DONT_FIT = "ORDER_CLOSES_DONT_FIT",
   COSTLY_POSITION_LIMIT_EXCEEDED = "COSTLY_POSITION_LIMIT_EXCEEDED",
   ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
 }
@@ -108,6 +109,9 @@ export interface TransactionBuildingErrorDetails {
   [TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE]: {
     maxSlippagePercent: number;
     maxAllowedPercent: number;
+  };
+  [TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT]: {
+    orderAddresses: string[];
   };
   [TransactionBuildingErrorCode.COSTLY_POSITION_LIMIT_EXCEEDED]: {
     /** Integration/staked bank the action would open a position in */
@@ -374,6 +378,22 @@ export class TransactionBuildingError<
       TransactionBuildingErrorCode.ORDER_INVALID_SLIPPAGE,
       `Max slippage percent must be in (0, ${maxAllowedPercent}], got ${maxSlippagePercent}`,
       { maxSlippagePercent, maxAllowedPercent }
+    );
+  }
+
+  /**
+   * Closing the orders an action touches doesn't fit in one transaction: next to the action, or in
+   * the one order transaction after a multi-transaction action. Builders throw rather than leave the
+   * closes out, since an order on a changed position can still fire: close the orders on their own
+   * first, then retry the action.
+   */
+  static orderClosesDontFit(
+    orderAddresses: string[]
+  ): TransactionBuildingError<TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT> {
+    return new TransactionBuildingError(
+      TransactionBuildingErrorCode.ORDER_CLOSES_DONT_FIT,
+      `Closing ${orderAddresses.length} order(s) doesn't fit in one transaction`,
+      { orderAddresses }
     );
   }
 

@@ -33,6 +33,7 @@ import {
   makeKaminoDepositIx,
 } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeSwapDebtTx } from "./swap-debt";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -153,13 +154,24 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<{
       luts: addressLookupTableAccounts ?? [],
     }
   );
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    placeOrder: params.placeOrder && {
+      collateralBank: depositOpts.depositBank.address,
+      debtBank: borrowOpts.borrowBank.address,
+      trigger: params.placeOrder,
+    },
+    luts: addressLookupTableAccounts ?? [],
+    blockhash,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
+  if (orderTx) transactions.push(orderTx);
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 
@@ -630,6 +642,15 @@ async function tryBridgedLoop(
   const borrowBankPrice = oraclePriceOf(borrowBank);
   if (borrowBankPrice <= 0) return null;
 
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    placeOrder: params.placeOrder && {
+      collateralBank: depositBank.address,
+      debtBank: borrowBank.address,
+      trigger: params.placeOrder,
+    },
+    luts: params.addressLookupTableAccounts ?? [],
+  });
   const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
   return tryBridgeCandidates({
     usableBridgeBanks,
@@ -652,6 +673,9 @@ async function tryBridgedLoop(
       // First leg: loop P borrowing the bridge (borrow bridge, swap bridge→P, deposit P).
       const firstLeg = await makeLoopTx({
         ...params,
+        // The order changes run after the second leg, once the loop's final debt exists
+        ordersToClose: undefined,
+        placeOrder: undefined,
         depositOpts: {
           ...params.depositOpts,
           marketPrice: oraclePriceOf(depositBank),
@@ -692,11 +716,12 @@ async function tryBridgedLoop(
         assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
         feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
         maxBundleTxs: bridgeOpts?.maxBundleTxs,
+        reservedTxs: orderTx ? 1 : 0,
       });
       if (!result) return null; // both legs didn't build / bundle didn't fit — try the next bridge
 
       return {
-        transactions: result.transactions,
+        transactions: orderTx ? [...result.transactions, orderTx] : result.transactions,
         actionTxIndex: result.transactions.length - 1,
         quoteResponse: mergeBridgeQuotesLoop(result.firstLegQuote, result.secondLegQuote),
         bridgeMint: bridgeBank.mint,

@@ -303,8 +303,10 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
     expect(store.flashloanIxs).toHaveLength(6);
   });
 
-  it("needs no atomic bundle without integration collateral", async () => {
+  it("needs no atomic bundle when the roll is a single transaction", async () => {
+    store.setupIxs = [];
     const res = await makeRollPtTx(makeParams());
+    expect(res.transactions).toHaveLength(1);
     expect(res.mustBeAtomicBundle).toBe(false);
   });
 

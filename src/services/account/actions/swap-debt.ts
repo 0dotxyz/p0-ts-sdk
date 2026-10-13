@@ -23,6 +23,7 @@ import { makeSetupIx } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 
 import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -139,14 +140,20 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
       luts: addressLookupTableAccounts ?? [],
     }
   );
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    luts: addressLookupTableAccounts ?? [],
+    blockhash,
+  });
 
   const transactions = [...additionalTxs, flashloanTx];
+  if (orderTx) transactions.push(orderTx);
 
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.instructions.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 
@@ -421,6 +428,10 @@ async function tryBridgedDebtSwap(
     bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
   });
 
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    luts: params.addressLookupTableAccounts ?? [],
+  });
   const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
   return tryBridgeCandidates({
     usableBridgeBanks,
@@ -483,11 +494,12 @@ async function tryBridgedDebtSwap(
         assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
         feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
         maxBundleTxs: bridgeOpts?.maxBundleTxs,
+        reservedTxs: orderTx ? 1 : 0,
       });
       if (!result) return null;
 
       return {
-        transactions: result.transactions,
+        transactions: orderTx ? [...result.transactions, orderTx] : result.transactions,
         actionTxIndex: result.transactions.length - 1,
         quoteResponse: mergeBridgeQuotesDebt(result.firstLegQuote, result.secondLegQuote),
         bridgeMint: bridgeBank.mint,
