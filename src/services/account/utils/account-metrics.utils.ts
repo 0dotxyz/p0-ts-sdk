@@ -4,7 +4,11 @@ import { MarginfiAccountType, BalanceType, MarginRequirementType } from "../type
 
 import { getBalance } from "./balance.utils";
 import { computeHealthComponentsFromCache } from "./health.utils";
-import { computeBalanceUsdValue, computeQuantityUi } from "./value.utils";
+import {
+  computeBalanceUsdValue,
+  computeQuantityUi,
+  getBalanceUsdValueWithPriceBias,
+} from "./value.utils";
 
 import {
   BankType,
@@ -215,7 +219,8 @@ export function computeLiquidationPriceForBank(
 
   if (!balance.active) return null;
 
-  const { assets: assetBank, liabilities: liabilitiesBank } = computeBalanceUsdValue({
+  // Biased like the health cache, so subtracting leaves exactly the other positions
+  const { assets: assetBank, liabilities: liabilitiesBank } = getBalanceUsdValueWithPriceBias({
     balance,
     bank,
     oraclePrice,
@@ -233,7 +238,8 @@ export function computeLiquidationPriceForBank(
   const isLending = balance.liabilityShares.isZero();
   const { assets: assetQuantityUi, liabilities: liabQuantitiesUi } = computeQuantityUi(
     balance,
-    bank
+    bank,
+    assetShareValueMultiplier
   );
 
   let liquidationPrice: BigNumber;
