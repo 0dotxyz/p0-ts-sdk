@@ -11,10 +11,7 @@ import { TransactionBuildingError } from "~/errors";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 import { requireBank } from "~/services/bank/utils/lookup.utils";
-import {
-  getAssetShares,
-  getLiabilityShares,
-} from "~/services/bank/utils/shares.utils";
+import { getAssetShares, getLiabilityShares } from "~/services/bank/utils/shares.utils";
 import { composeRemainingAccounts } from "~/utils";
 
 /**
@@ -80,14 +77,9 @@ function computeBankRiskAccountKeys(bank: BankType): Address[] {
   }
 
   if (bank.config.assetTag === AssetTag.STAKED) {
-    keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
-    // 0.1.9 SVSP transition: the 1.9 program requires the pool's on-ramp as a 4th staked
-    // risk account, read from oracle_keys[3] (written by the permissionless backfill and by
-    // add_pool_permissionless for new banks).
-    const onrampKey = bank.config.oracleKeys[3];
-    if (onrampKey !== DEFAULT_ADDRESS) {
-      keys.push(onrampKey);
-    }
+    // The program always takes the on-ramp slot but reads it only with on-ramp pricing, so a
+    // bank not yet backfilled passes its empty `oracleKeys[3]` as a placeholder
+    keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2], bank.config.oracleKeys[3]);
   }
 
   return keys;

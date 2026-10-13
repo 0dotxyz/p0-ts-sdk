@@ -1,6 +1,7 @@
 import { getAddressDecoder, type Address } from "@solana/kit";
 import { describe, it, expect } from "vitest";
 
+import { DEFAULT_ADDRESS } from "~/constants";
 import { computeHealthAccounts } from "~/services/account/utils/transaction-projection.utils";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
 
@@ -60,6 +61,30 @@ describe("bank risk account keys", () => {
       const b = bank({ oracleSetup, assetTag });
       expect(riskAccountKeys(b)).toEqual([b.address, KEYS[0], KEYS[1], KEYS[2]]);
     }
+  });
+
+  it("always passes the staked on-ramp slot, empty when the bank isn't backfilled", () => {
+    const backfilled = bank({ oracleSetup: OracleSetup.StakedWithPythPush, assetTag: AssetTag.STAKED });
+    expect(riskAccountKeys(backfilled)).toEqual([
+      backfilled.address,
+      KEYS[0],
+      KEYS[1],
+      KEYS[2],
+      KEYS[3],
+    ]);
+
+    const notBackfilled = bank({
+      oracleSetup: OracleSetup.StakedWithPythPush,
+      assetTag: AssetTag.STAKED,
+      oracleKeys: [KEYS[0], KEYS[1], KEYS[2], DEFAULT_ADDRESS, DEFAULT_ADDRESS],
+    });
+    expect(riskAccountKeys(notBackfilled)).toEqual([
+      notBackfilled.address,
+      KEYS[0],
+      KEYS[1],
+      KEYS[2],
+      DEFAULT_ADDRESS,
+    ]);
   });
 
   it("needs no extra accounts for Scope and PTFixed", () => {
