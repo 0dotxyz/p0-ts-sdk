@@ -174,7 +174,11 @@ export const adjustPriceComponent = (priceComponent: PriceWithConfidence, priceC
 });
 
 /**
- * Parses a Pyth `PriceUpdateV2` account into standardized OraclePrice format
+ * Parses a Pyth `PriceUpdateV2` account into standardized OraclePrice format. The confidence is
+ * widened by {@link PYTH_PRICE_CONF_INTERVALS} and capped at {@link MAX_CONFIDENCE_INTERVAL_RATIO}
+ * of price, like the program's price bias. The program also rejects a price whose widened
+ * confidence exceeds the bank's `oracleMaxConfidence` (default 10%) with 6055
+ * `OracleMaxConfidenceExceeded`; that isn't modeled, so the price still looks usable here.
  * @param rawData - Raw data of the Pyth price account
  * @returns Parsed oracle price data with realtime and weighted price information
  * @throws if the account is not a `PriceUpdateV2`
