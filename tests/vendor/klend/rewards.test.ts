@@ -1,17 +1,28 @@
 import { address } from "@solana/kit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getRewardPerTimeUnitSecond, type KaminoFarmRewardInfo } from "~/vendor/klend";
+import {
+  calculateRewardApy,
+  getReserveRewardsApy,
+  getRewardPerTimeUnitSecond,
+  type KaminoFarmRewardInfo,
+  type KaminoFarmState,
+  type KaminoReserve,
+} from "~/vendor/klend";
 
 const NOW_SECONDS = 1_760_000_000;
 
+const REWARD_MINT = address("So11111111111111111111111111111111111111112");
+const NULL_MINT = address("11111111111111111111111111111111");
+
 function reward(
   points: [tsStart: number, rewardPerTimeUnit: number][],
-  decimals: { token?: number; rewardsPerSecond?: number } = {}
+  decimals: { token?: number; rewardsPerSecond?: number } = {},
+  mint = REWARD_MINT
 ): KaminoFarmRewardInfo {
   return {
     token: {
-      mint: address("So11111111111111111111111111111111111111112"),
+      mint,
       decimals: BigInt(decimals.token ?? 0),
     },
     rewardsAvailable: 0n,
@@ -67,5 +78,53 @@ describe("getRewardPerTimeUnitSecond", () => {
       { token: 3, rewardsPerSecond: 3 }
     );
     expect(getRewardPerTimeUnitSecond(schedule).toNumber()).toBe(5);
+  });
+});
+
+describe("calculateRewardApy", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW_SECONDS * 1000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // 1_000 tokens supplied at $1; one reward token a second at $0.00001
+  const reserveMint = address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+  const reserve = {
+    liquidity: {
+      mintPubkey: reserveMint,
+      mintDecimals: 6n,
+      totalAvailableAmount: 1_000_000_000n,
+      borrowedAmountSf: 0n,
+      accumulatedProtocolFeesSf: 0n,
+      accumulatedReferrerFeesSf: 0n,
+      pendingReferrerFeesSf: 0n,
+    },
+  } as unknown as KaminoReserve;
+  const prices = { [reserveMint]: 1, [REWARD_MINT]: 0.00001 };
+  const schedule = reward([
+    [1_700_000_000, 1],
+    [1_800_000_000, 0],
+  ]);
+
+  it("is a year of rewards at their price over the reserve's supply value", () => {
+    const { apr, apy } = calculateRewardApy(prices, reserve, schedule);
+    expect(apr.toNumber()).toBeCloseTo(0.31536);
+    expect(apy.toNumber()).toBeCloseTo(0.31536);
+  });
+
+  it("leaves out unset rewards and rewards without a price", async () => {
+    const unpriced = reward(
+      [[1_700_000_000, 1]],
+      {},
+      address("JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN")
+    );
+    const farm = {
+      rewardInfos: [schedule, reward([[1_700_000_000, 1]], {}, NULL_MINT), unpriced],
+    } as unknown as KaminoFarmState;
+
+    const apys = await getReserveRewardsApy(prices, farm, reserve);
+
+    expect(apys.map(({ rewardInfo }) => rewardInfo.token.mint)).toEqual([REWARD_MINT]);
   });
 });
