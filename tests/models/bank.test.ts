@@ -13,10 +13,17 @@ import {
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
 const base64 = getBase64Encoder();
-const banks = bankFixtures.map(({ label, address: bankAddress, data }) => ({
+const decoded = bankFixtures.map(({ label, address: bankAddress, data }) => ({
   label,
-  bank: Bank.fromBankType(decodeBank(address(bankAddress), base64.encode(data))),
+  bankType: decodeBank(address(bankAddress), base64.encode(data)),
 }));
+const banks = decoded.map(({ label, bankType }) => ({ label, bank: Bank.fromBankType(bankType) }));
+
+describe("Bank.fromBankType", () => {
+  it.each(decoded)("keeps every decoded field for $label", ({ bankType }) => {
+    expect(Bank.fromBankType(bankType)).toMatchObject(bankType);
+  });
+});
 
 describe("Bank", () => {
   it.each(banks)("forwards APY and borrowability for $label", ({ bank }) => {

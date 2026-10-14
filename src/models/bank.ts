@@ -102,6 +102,8 @@ class Bank implements BankType {
     public readonly premiumActive: boolean,
     public readonly premiumActivatedAt: number,
     public readonly kaminoEmergency: boolean,
+    public readonly stakedOracleDisabled?: boolean,
+    public readonly stakedOracleUsesOnramp?: boolean,
     public readonly rateLimiter?: BankRateLimiterType,
     public readonly kaminoIntegrationAccounts?: {
       kaminoReserve: Address;
@@ -120,6 +122,9 @@ class Bank implements BankType {
       jupLendingState: Address;
       jupFTokenVault: Address;
       jupFTokenAta: Address;
+    },
+    public readonly stakedIntegrationAccounts?: {
+      validatorVoteAccount: Address;
     },
     public readonly feesDestinationAccount?: Address,
     public readonly lendingPositionCount?: BigNumber,
@@ -204,11 +209,14 @@ class Bank implements BankType {
       bankType.premiumActive,
       bankType.premiumActivatedAt,
       bankType.kaminoEmergency,
+      bankType.stakedOracleDisabled,
+      bankType.stakedOracleUsesOnramp,
       bankType.rateLimiter,
       bankType.kaminoIntegrationAccounts,
       bankType.driftIntegrationAccounts,
       bankType.solendIntegrationAccounts,
       bankType.jupLendIntegrationAccounts,
+      bankType.stakedIntegrationAccounts,
       bankType.feesDestinationAccount,
       bankType.lendingPositionCount,
       bankType.borrowingPositionCount,
