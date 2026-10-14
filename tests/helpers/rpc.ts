@@ -2,6 +2,7 @@ import {
   createSolanaRpc,
   type Address,
   type GetAccountInfoApi,
+  type GetEpochInfoApi,
   type GetLatestBlockhashApi,
   type GetMultipleAccountsApi,
   type Rpc,
@@ -10,19 +11,22 @@ import { vi } from "vitest";
 
 import { LATEST_BLOCKHASH } from "./addresses";
 
-type BuilderRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
+type FakeRpc = Rpc<
+  GetAccountInfoApi & GetEpochInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi
+>;
 
-// An RPC whose blockhash is LATEST_BLOCKHASH and on which every account either exists (empty data)
-// or doesn't; for builders that only fetch a blockhash and check token accounts exist
-export function fakeRpc({ accountsExist }: { accountsExist: boolean }): BuilderRpc {
+// An RPC whose blockhash is LATEST_BLOCKHASH, epoch 0, and on which every account either exists
+// (empty data) or doesn't
+export function fakeRpc({ accountsExist }: { accountsExist: boolean }): FakeRpc {
   const account = accountsExist ? { data: ["", "base64"] } : null;
   return {
     getLatestBlockhash: () => ({ send: async () => ({ value: LATEST_BLOCKHASH }) }),
+    getEpochInfo: () => ({ send: async () => ({ epoch: 0n }) }),
     getAccountInfo: () => ({ send: async () => ({ context: { slot: 1n }, value: account }) }),
     getMultipleAccounts: (addresses: Address[]) => ({
       send: async () => ({ context: { slot: 1n }, value: addresses.map(() => account) }),
     }),
-  } as unknown as BuilderRpc;
+  } as unknown as FakeRpc;
 }
 
 // A real Kit RPC, for code that serializes its requests (e.g. through a swap engine runner); its
