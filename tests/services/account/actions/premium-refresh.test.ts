@@ -7,7 +7,7 @@ import {
   type Address,
   type Instruction,
 } from "@solana/kit";
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";

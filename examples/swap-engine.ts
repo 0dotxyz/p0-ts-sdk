@@ -95,7 +95,7 @@ async function main() {
     rpc: createSolanaRpc(rpc),
     footprint: {
       instructions: footprintIxs,
-      luts: {},
+      txFormat: { version: 0, luts: {} },
       payer: taker,
       sizeConstraint: 900,
       maxSwapTotalAccounts: 40,

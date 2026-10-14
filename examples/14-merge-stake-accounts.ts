@@ -67,7 +67,7 @@ async function mergeStakeAccountsExample() {
     authority,
     sourceStakeAccount: SOURCE_STAKE_ACCOUNT,
     destinationStakeAccount: DESTINATION_STAKE_ACCOUNT,
-    luts: {},
+    txFormat: { version: 0, luts: {} },
   });
 
   console.log(`   Transaction built successfully`);

@@ -69,7 +69,7 @@ async function redeemStakedLstExample() {
     authority,
     amount: REDEEM_AMOUNT,
     validator: VALIDATOR_VOTE_ACCOUNT,
-    luts: {},
+    txFormat: { version: 0, luts: {} },
   });
 
   console.log(`   Transaction built successfully`);

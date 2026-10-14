@@ -116,6 +116,7 @@ async function main() {
         instructions: [getSetComputeUnitPriceInstruction({ microLamports: 50_000 }), ...instructions],
         feePayer: payer,
         latestBlockhash,
+        txFormat: { version: 0, luts: {} },
       })
     );
     assertIsTransactionWithBlockhashLifetime(tx);

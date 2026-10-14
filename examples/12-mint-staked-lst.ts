@@ -78,7 +78,7 @@ async function mintStakedLstExample() {
     amount: MINT_AMOUNT,
     stakeAccount: STAKE_ACCOUNT_ADDRESS,
     validator: VALIDATOR_VOTE_ACCOUNT,
-    luts: {},
+    txFormat: { version: 0, luts: {} },
   });
 
   console.log(`   Transaction built successfully`);
