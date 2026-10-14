@@ -21,4 +21,3 @@ export function scopeAccountData(
   }
   return data;
 }
-
