@@ -216,6 +216,8 @@ describe("titan WS adapter", () => {
   it("throws when no viable route is returned", async () => {
     hoisted.quotes = { quotes: { "Titan-DART": route(0) } };
 
-    await expect(titanAdapter.buildCandidates(makeRequest(), apiConfig)).rejects.toThrow();
+    await expect(titanAdapter.buildCandidates(makeRequest(), apiConfig)).rejects.toThrow(
+      "No Titan V3 route found"
+    );
   });
 });

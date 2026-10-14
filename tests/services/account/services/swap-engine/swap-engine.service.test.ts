@@ -9,6 +9,7 @@ import {
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { WSOL_MINT } from "~/constants";
+import { TransactionBuildingErrorCode } from "~/errors";
 import { runSwapEngine } from "~/services/account/services/swap-engine/swap-engine.service";
 import type {
   ProviderSwapRoute,
@@ -167,13 +168,17 @@ describe("runSwapEngine selection", () => {
     store.routes.set(SwapProvider.TITAN, [makeRoute(SwapProvider.TITAN, 5000, 500)]);
     store.routes.set(SwapProvider.JUPITER, [makeRoute(SwapProvider.JUPITER, 4000, 800)]);
 
-    await expect(runSwapEngine(makeRequest())).rejects.toThrow();
+    await expect(runSwapEngine(makeRequest())).rejects.toMatchObject({
+      code: TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP,
+    });
   });
 
   it("throws when no provider returns a route", async () => {
     store.routes.set(SwapProvider.TITAN, []);
     store.routes.set(SwapProvider.JUPITER, []);
-    await expect(runSwapEngine(makeRequest())).rejects.toThrow();
+    await expect(runSwapEngine(makeRequest())).rejects.toMatchObject({
+      code: TransactionBuildingErrorCode.SWAP_QUOTE_FAILED,
+    });
   });
 
   it("survives one provider returning nothing and selects from the other", async () => {
@@ -197,7 +202,9 @@ describe("runSwapEngine selection", () => {
     store.routes.set(SwapProvider.TITAN, [makeRoute(SwapProvider.TITAN, 0, 20, "titan-zero")]);
     store.routes.set(SwapProvider.JUPITER, []);
 
-    await expect(runSwapEngine(makeRequest())).rejects.toThrow();
+    await expect(runSwapEngine(makeRequest())).rejects.toMatchObject({
+      code: TransactionBuildingErrorCode.SWAP_SIZE_EXCEEDED_LOOP,
+    });
   });
 
   it("drops provider SOL wrap/unwrap ixs around the swap so our flows own wSOL handling", async () => {

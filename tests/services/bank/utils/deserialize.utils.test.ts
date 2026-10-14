@@ -53,7 +53,9 @@ describe("OracleSetup (de)serialization", () => {
   });
 
   it("refuses to serialize Unknown", () => {
-    expect(() => serializeOracleSetup(OracleSetup.Unknown)).toThrow();
+    expect(() => serializeOracleSetup(OracleSetup.Unknown)).toThrow(
+      'Invalid oracle setup "Unknown"'
+    );
   });
 });
 

@@ -69,20 +69,24 @@ describe("decodeMarinadeState", () => {
   });
 
   it("rejects undersized accounts", () => {
-    expect(() => decodeMarinadeState(marinadeStateData().subarray(0, 575))).toThrow();
+    expect(() => decodeMarinadeState(marinadeStateData().subarray(0, 575))).toThrow(
+      "account size: 575"
+    );
   });
 
   it("rejects a wrong discriminator", () => {
     const data = marinadeStateData();
     data[0] ^= 0xff;
-    expect(() => decodeMarinadeState(data)).toThrow();
+    expect(() => decodeMarinadeState(data)).toThrow("discriminator");
   });
 
   it("rejects out-of-bounds rates", () => {
-    expect(() => decodeMarinadeState(marinadeStateData({ msolSupply: 0n }))).toThrow();
+    expect(() => decodeMarinadeState(marinadeStateData({ msolSupply: 0n }))).toThrow(
+      "zero mSOL supply"
+    );
     expect(() =>
       decodeMarinadeState(marinadeStateData({ totalActiveBalance: 3_000n, msolSupply: 1_000n }))
-    ).toThrow();
+    ).toThrow("rate out of bounds");
     expect(() =>
       decodeMarinadeState(
         marinadeStateData({
@@ -90,6 +94,6 @@ describe("decodeMarinadeState", () => {
           availableReserveBalance: 1n,
         })
       )
-    ).toThrow();
+    ).toThrow("overflow");
   });
 });

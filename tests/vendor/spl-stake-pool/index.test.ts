@@ -27,13 +27,19 @@ describe("decodeStakePool", () => {
   });
 
   it("rejects zero supply, wrong account type, and short buffers", () => {
-    expect(() => decodeStakePool(stakePoolData(1_000n, 0n, 700n))).toThrow();
-    expect(() => decodeStakePool(stakePoolData(1_000n, 1_000n, 700n, 2))).toThrow();
-    expect(() => decodeStakePool(new Uint8Array(100))).toThrow();
+    expect(() => decodeStakePool(stakePoolData(1_000n, 0n, 700n))).toThrow("zero token supply");
+    expect(() => decodeStakePool(stakePoolData(1_000n, 1_000n, 700n, 2))).toThrow(
+      "account type: 2"
+    );
+    expect(() => decodeStakePool(new Uint8Array(100))).toThrow("account size: 100");
   });
 
   it("rejects out-of-bounds rates", () => {
-    expect(() => decodeStakePool(stakePoolData(0n, 1_000_000_000_000n, 700n))).toThrow();
-    expect(() => decodeStakePool(stakePoolData(3_000n, 1_000n, 700n))).toThrow();
+    expect(() => decodeStakePool(stakePoolData(0n, 1_000_000_000_000n, 700n))).toThrow(
+      "rate out of bounds"
+    );
+    expect(() => decodeStakePool(stakePoolData(3_000n, 1_000n, 700n))).toThrow(
+      "rate out of bounds"
+    );
   });
 });

@@ -47,21 +47,21 @@ describe("decodeScopePriceAtIndex", () => {
     const data = scopeAccountData([
       { index: 7, value: 1_000n, exp: 24n, slot: 1n, timestamp: 500n },
     ]);
-    expect(() => decodeScopePriceAtIndex(data, 7)).toThrow();
+    expect(() => decodeScopePriceAtIndex(data, 7)).toThrow("exponent out of bounds: 24");
   });
 
   it("rejects out-of-range indices", () => {
     const data = scopeAccountData([]);
-    expect(() => decodeScopePriceAtIndex(data, -1)).toThrow();
-    expect(() => decodeScopePriceAtIndex(data, SCOPE_MAX_ENTRIES)).toThrow();
+    expect(() => decodeScopePriceAtIndex(data, -1)).toThrow("index out of range: -1");
+    expect(() => decodeScopePriceAtIndex(data, SCOPE_MAX_ENTRIES)).toThrow("index out of range");
   });
 
   it("rejects a wrong discriminator and a wrong account size", () => {
     const badDisc = scopeAccountData([]);
     badDisc[0] ^= 0xff;
-    expect(() => decodeScopePriceAtIndex(badDisc, 0)).toThrow();
+    expect(() => decodeScopePriceAtIndex(badDisc, 0)).toThrow("discriminator");
 
     const short = scopeAccountData([]).subarray(0, SCOPE_ORACLE_PRICES_SIZE - 1);
-    expect(() => decodeScopePriceAtIndex(short, 0)).toThrow();
+    expect(() => decodeScopePriceAtIndex(short, 0)).toThrow("account size");
   });
 });
