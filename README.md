@@ -323,13 +323,7 @@ const maxDeposit = wrapped.computeMaxDepositForBank(bankAddress, { walletBalance
 The SDK includes comprehensive tests:
 
 ```bash
-# Unit tests (fast, no RPC needed)
-pnpm test:unit
-
-# Integration tests (requires RPC)
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com pnpm test:integration
-
-# All tests
+# All tests (no RPC needed)
 pnpm test
 
 # With coverage
@@ -412,31 +406,17 @@ p0-ts-sdk/
 | `pnpm build`            | Build ESM + CJS bundles    |
 | `pnpm dev`              | Watch mode for development |
 | `pnpm test`             | Run all tests              |
-| `pnpm test:unit`        | Run unit tests only        |
-| `pnpm test:integration` | Run integration tests      |
-| `pnpm test:coverage`    | Generate coverage report   |
+| `pnpm test:coverage`    | Run tests with coverage    |
 | `pnpm lint`             | Lint with ESLint           |
 | `pnpm format`           | Format with Prettier       |
 | `pnpm typecheck`        | TypeScript type checking   |
+| `pnpm knip`             | Find unused code and deps  |
 | `pnpm clean`            | Remove build artifacts     |
-| `pnpm changeset`        | Create a changeset for releases |
-| `pnpm version`          | Bump version from changesets |
-| `pnpm release`          | Build and publish to npm |
+| `pnpm changeset`        | Add a changeset to a PR    |
 
 ## 📦 Publishing
 
-This package uses [Changesets](https://github.com/changesets/changesets) for version management and npm publishing.
-
-See [RELEASING.md](./RELEASING.md) for detailed instructions, or [.changeset/QUICKSTART.md](./.changeset/QUICKSTART.md) for a quick reference.
-
-**Quick publish:**
-```bash
-npm login
-pnpm changeset    # Document changes
-pnpm version      # Bump version
-pnpm release      # Publish to npm
-git push --follow-tags
-```
+This package uses [Changesets](https://github.com/changesets/changesets) for versioning; GitHub Actions publishes to npm through a release PR. Add a changeset to your PR with `pnpm changeset`. See [RELEASING.md](./RELEASING.md).
 
 ## 🤝 Contributing
 
@@ -457,10 +437,10 @@ We welcome contributions! Please see our contributing guidelines:
 vim src/models/client.ts
 
 # 2. Add tests
-vim tests/unit/models/client.test.ts
+vim tests/models/client.test.ts
 
 # 3. Run tests
-pnpm test:unit
+pnpm test
 
 # 4. Build
 pnpm build

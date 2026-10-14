@@ -61,8 +61,6 @@
     "example:mint-holders": "tsx examples/18-mint-holders.ts",
     "docs": "typedoc",
     "changeset": "changeset",
-    "version": "changeset version",
-    "release": "pnpm build && changeset publish",
     "prepublishOnly": "pnpm build",
     "prepack": "pnpm build",
     "knip": "knip",

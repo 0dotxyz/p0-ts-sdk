@@ -230,13 +230,7 @@ p0-ts-sdk/
 
 ## Release Process
 
-Releases are handled by maintainers:
-
-1. Update version in `package.json`
-2. Update `CHANGELOG.md`
-3. Create a git tag
-4. Push tag to trigger CI/CD
-5. CI automatically publishes to npm
+Add a changeset to your PR with `pnpm changeset` when it changes what consumers get. Maintainers ship releases through the release PR the workflow opens; see [RELEASING.md](RELEASING.md).
 
 ## Questions?
 
