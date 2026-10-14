@@ -1,8 +1,9 @@
-import { address, getBase64Encoder, type Address } from "@solana/kit";
+import { address, getBase64Decoder, getBase64Encoder, type Address } from "@solana/kit";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 import banks from "../../../fixtures/mainnet-banks.json";
 import { addr } from "../../../helpers/addresses";
+import { scopeAccountData } from "../../../helpers/scope";
 
 import { BankType, OracleSetup } from "~/services/bank/types";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
@@ -69,8 +70,8 @@ describe("fetchScopeOracleData", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(bankOraclePriceMap.size).toBe(2);
-    expect(bankOraclePriceMap.get(bankA.address)!.priceRealtime.price.toNumber()).toBe(103.44);
-    expect(bankOraclePriceMap.get(bankB.address)!.priceRealtime.price.toNumber()).toBe(1.29);
+    expect(bankOraclePriceMap.get(bankA.address)?.priceRealtime.price.toNumber()).toBe(103.44);
+    expect(bankOraclePriceMap.get(bankB.address)?.priceRealtime.price.toNumber()).toBe(1.29);
     expect(bankOraclePriceMap.has(pythBank.address)).toBe(false);
   });
 
@@ -91,9 +92,9 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(freshBank.address)!.priceRealtime.price.toNumber()).toBe(100);
-    expect(bankOraclePriceMap.get(staleBank.address)!.priceRealtime.price.isZero()).toBe(true);
-    expect(bankOraclePriceMap.get(zeroAgeBank.address)!.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(freshBank.address)?.priceRealtime.price.toNumber()).toBe(100);
+    expect(bankOraclePriceMap.get(staleBank.address)?.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(zeroAgeBank.address)?.priceRealtime.price.isZero()).toBe(true);
   });
 
   it("zeroes future-dated entries, which the program rejects", async () => {
@@ -106,7 +107,7 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(bank.address)?.priceRealtime.price.isZero()).toBe(true);
   });
 
   it("prices a bank without scopeEntryIndex at zero instead of reading entry 0", async () => {
@@ -121,7 +122,7 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(bank.address)?.priceRealtime.price.isZero()).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -140,6 +141,63 @@ describe("fetchScopeOracleData", () => {
       scopeOnchainData: { endpoint: "https://example.com/api/oracles/scopeOracleData" },
     });
 
-    expect(bankOraclePriceMap.get(bank.address)!.priceRealtime.price.isZero()).toBe(true);
+    expect(bankOraclePriceMap.get(bank.address)?.priceRealtime.price.isZero()).toBe(true);
+  });
+});
+
+describe("fetchScopeOracleData on chain", () => {
+  // The OraclePrices account, read straight from the RPC
+  const rpcServing = (data: Uint8Array) =>
+    ({
+      getMultipleAccounts: (addresses: Address[]) => ({
+        send: async () => ({
+          context: { slot: 1n },
+          value: addresses.map(() => ({
+            data: [getBase64Decoder().decode(data), "base64"],
+            executable: false,
+            lamports: 1n,
+            owner: addr(),
+            space: BigInt(data.length),
+          })),
+        }),
+      }),
+    }) as never;
+
+  it("prices each bank from its entry in the OraclePrices account", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const bank = scopeBank({ address: addr(), entryIndex: 13, oracleMaxAge: 3600 });
+    const data = scopeAccountData([
+      { index: 13, value: 10_344_510_800n, exp: 8n, slot: 1n, timestamp: BigInt(now - 10) },
+    ]);
+
+    const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
+      mode: "on-chain",
+      rpc: rpcServing(data),
+    });
+
+    const price = bankOraclePriceMap.get(bank.address);
+    expect(price?.priceRealtime.price.toNumber()).toBeCloseTo(103.445108, 9);
+    expect(price?.priceWeighted.lowestPrice.toNumber()).toBeCloseTo(103.445108, 9);
+  });
+
+  it("prices a bank whose entry can't be decoded at zero", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const bank = scopeBank({ address: addr(), entryIndex: 7, oracleMaxAge: 3600 });
+    const data = scopeAccountData([
+      {
+        index: 7,
+        value: 1_000n,
+        exp: 24n,
+        slot: 1n,
+        timestamp: BigInt(Math.floor(Date.now() / 1000)),
+      },
+    ]);
+
+    const { bankOraclePriceMap } = await fetchScopeOracleData([bank], {
+      mode: "on-chain",
+      rpc: rpcServing(data),
+    });
+
+    expect(bankOraclePriceMap.get(bank.address)?.priceRealtime.price.isZero()).toBe(true);
   });
 });
