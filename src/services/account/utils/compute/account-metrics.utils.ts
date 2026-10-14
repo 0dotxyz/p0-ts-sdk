@@ -3,7 +3,11 @@ import BigNumber from "bignumber.js";
 import { MarginfiAccountType, BalanceType, MarginRequirementType } from "../../types";
 
 import { getBalance } from "./balance-helper.utils";
-import { computeBalanceUsdValue, computeQuantityUi } from "./balance-value-compute.utils";
+import {
+  computeBalanceUsdValue,
+  computeQuantityUi,
+  getBalanceUsdValueWithPriceBias,
+} from "./balance-value-compute.utils";
 import { computeHealthComponentsFromCache } from "./health-compute.utils";
 
 import {
@@ -220,7 +224,8 @@ export function computeLiquidationPriceForBank(
 
   if (!balance.active) return null;
 
-  const { assets: assetBank, liabilities: liabilitiesBank } = computeBalanceUsdValue({
+  // Biased like the health cache, so subtracting leaves exactly the other positions
+  const { assets: assetBank, liabilities: liabilitiesBank } = getBalanceUsdValueWithPriceBias({
     balance,
     bank,
     oraclePrice,
@@ -238,7 +243,8 @@ export function computeLiquidationPriceForBank(
   const isLending = balance.liabilityShares.isZero();
   const { assets: assetQuantityUi, liabilities: liabQuantitiesUi } = computeQuantityUi(
     balance,
-    bank
+    bank,
+    assetShareValueMultiplier
   );
 
   let liquidationPrice: BigNumber;
