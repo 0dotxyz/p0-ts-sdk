@@ -32,7 +32,7 @@ export default {
     },
     {
       // Drift was exploited; the SDK only needs to value and refresh the frozen banks
-      from: "./keep-only.mjs#keepOnly",
+      from: "./visitors/keep-only.mjs#keepOnly",
       args: [
         {
           instructions: ["updateSpotMarketCumulativeInterest"],

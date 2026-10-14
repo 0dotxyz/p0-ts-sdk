@@ -6,6 +6,4 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./config";
 export * from "./priceUpdateV2";
-export * from "./twapUpdate";

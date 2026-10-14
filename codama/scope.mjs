@@ -5,6 +5,14 @@ export default {
       from: "@codama/visitors#updateProgramsVisitor",
       args: [{ scope: { publicKey: "HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ" } }],
     },
+    {
+      from: "./visitors/keep-only.mjs#keepOnly",
+      args: [
+        {
+          accounts: ["oraclePrices"],
+        },
+      ],
+    },
   ],
   scripts: {
     js: {

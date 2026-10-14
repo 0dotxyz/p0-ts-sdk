@@ -6,8 +6,5 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./dataSource";
-export * from "./merklePriceUpdate";
 export * from "./priceFeedMessage";
-export * from "./twapPrice";
 export * from "./verificationLevel";

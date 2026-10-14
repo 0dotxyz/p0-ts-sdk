@@ -6,28 +6,15 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./amount";
-export * from "./claimLimits";
 export * from "./configurationOptions";
 export * from "./cpiAccounts";
 export * from "./cpiCoreAccounts";
 export * from "./cpiInterfaceContext";
-export * from "./crossingSplit";
-export * from "./emissionInfo";
 export * from "./farmEmission";
 export * from "./liquidityNetBalanceLimits";
 export * from "./lpFarm";
-export * from "./marketAdminAction";
 export * from "./marketEmission";
 export * from "./marketEmissions";
 export * from "./marketFinancials";
-export * from "./modifiedTick";
-export * from "./modifiedTicks";
-export * from "./personalYieldTracker";
-export * from "./personalYieldTrackers";
 export * from "./preciseNumber";
-export * from "./principalShare";
-export * from "./principalShareTrackers";
-export * from "./principleDetails";
-export * from "./principles";
 export * from "./swapDirection";

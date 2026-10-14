@@ -10,6 +10,14 @@ export default {
       from: "@codama/visitors#deleteNodesVisitor",
       args: [["[instructionNode]initialize"]],
     },
+    {
+      from: "./visitors/keep-only.mjs#keepOnly",
+      args: [
+        {
+          accounts: ["priceUpdateV2"],
+        },
+      ],
+    },
   ],
   scripts: {
     js: {

@@ -5,6 +5,14 @@ export default {
       from: "@codama/visitors#updateProgramsVisitor",
       args: [{ farms: { publicKey: "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr" } }],
     },
+    {
+      from: "./visitors/keep-only.mjs#keepOnly",
+      args: [
+        {
+          accounts: ["farmState"],
+        },
+      ],
+    },
   ],
   scripts: {
     js: {

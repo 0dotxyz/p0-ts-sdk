@@ -6,6 +6,15 @@ export default {
       from: "@codama/visitors#updateDefinedTypesVisitor",
       args: [{ number: { name: "preciseNumber" } }],
     },
+    {
+      from: "./visitors/keep-only.mjs#keepOnly",
+      args: [
+        {
+          instructions: ["tradePt"],
+          accounts: ["marketThree"],
+        },
+      ],
+    },
   ],
   scripts: {
     js: {

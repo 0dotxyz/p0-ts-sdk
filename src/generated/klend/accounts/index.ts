@@ -6,13 +6,5 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./globalConfig";
-export * from "./lendingMarket";
 export * from "./obligation";
-export * from "./referrerState";
-export * from "./referrerTokenState";
 export * from "./reserve";
-export * from "./shortUrl";
-export * from "./userMetadata";
-export * from "./userState";
-export * from "./withdrawTicket";

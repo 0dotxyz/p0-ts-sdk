@@ -6,20 +6,4 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./deposit";
-export * from "./depositWithMinAmountOut";
-export * from "./initLending";
-export * from "./initLendingAdmin";
-export * from "./mint";
-export * from "./mintWithMaxAssets";
-export * from "./rebalance";
-export * from "./rebalanceWithAmounts";
-export * from "./redeem";
-export * from "./redeemWithMinAmountOut";
-export * from "./setRewardsRateModel";
-export * from "./updateAuthority";
-export * from "./updateAuths";
 export * from "./updateRate";
-export * from "./updateRebalancer";
-export * from "./withdraw";
-export * from "./withdrawWithMaxSharesBurn";

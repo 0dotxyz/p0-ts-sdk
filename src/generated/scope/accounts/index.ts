@@ -6,9 +6,4 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./configuration";
-export * from "./mintsToScopeChains";
-export * from "./oracleMappings";
 export * from "./oraclePrices";
-export * from "./oracleTwaps";
-export * from "./tokenMetadatas";

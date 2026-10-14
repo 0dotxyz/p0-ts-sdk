@@ -6,8 +6,5 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./admin";
-export * from "./lpPosition";
 export * from "./marketTwo";
 export * from "./vault";
-export * from "./yieldTokenPosition";

@@ -6,10 +6,5 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./authorizationList";
-export * from "./liquidity";
 export * from "./rateModel";
 export * from "./tokenReserve";
-export * from "./userBorrowPosition";
-export * from "./userClaim";
-export * from "./userSupplyPosition";
