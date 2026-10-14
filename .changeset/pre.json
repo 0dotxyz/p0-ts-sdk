@@ -5,8 +5,16 @@
     "@0dotxyz/p0-ts-sdk": "2.10.0"
   },
   "changesets": [
+    "bank-staked-fields",
+    "health-unpriced-liabilities",
     "hot-dots-nail",
+    "liquidation-price-biased",
     "order-changes-in-builders",
-    "slimy-feet-switch"
+    "pinned-swap-routes",
+    "slimy-feet-switch",
+    "staked-fetch-missing-accounts",
+    "staked-multiplier-program-formula",
+    "staked-onramp-slot",
+    "swap-debt-repay-all"
   ]
 }

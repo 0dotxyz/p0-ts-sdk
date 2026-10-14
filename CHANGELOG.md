@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.10.1-alpha.1
+
+### Patch Changes
+
+- 07f08ac: The `Bank` model keeps `stakedOracleDisabled`, `stakedOracleUsesOnramp` and `stakedIntegrationAccounts`. Banks fetched through `Project0Client` lost them, so staked banks with on-ramp pricing were treated as pre-transition when building health accounts and computing the LST multiplier.
+- bd7ea9f: `computeHealthComponentsFromBalances` (and the free-collateral and simulation-fallback helpers built on it) no longer drop positions it can't value. A debt without an oracle price, or a balance whose bank isn't in `banksMap`, now throws instead of being skipped with a console warning, which made the account look healthier than it is. A deposit without a price still counts as 0, as the program values it. `Project0Client` prices every bank, so its own calls are unaffected; callers that build their own price map from a subset of banks may now see the error.
+- 84868c5: `computeLiquidationPriceForBank` subtracts the bank's price-biased value from the price-biased health cache, and counts collateral in venue banks (Kamino, Juplend, Drift, staked) in underlying tokens. It used to subtract the unbiased value and divide by the cToken quantity, which put the liquidation price of collateral too high.
+- 41f3aa2: `makeSwapCollateralTx` and `makeSwapDebtTx` swap through a pinned route (`swapOpts.swapIxs`) instead of ignoring it and re-quoting through the swap engine. A collateral swap's pinned route must be quoted for the withdrawal amount; a debt swap borrows what the route takes in and repays its minimum output. `resolvePinnedSwapRoute` takes the expected input as optional, and its result's `lookupTables` is renamed `swapLuts` to match the swap engine's result.
+- 3872789: `computeStakedBankMultipliers`, `fetchStakePoolMev` and `fetchStakePoolActiveStates` keep each pool's accounts aligned when one of them doesn't exist. A missing account used to shift every later account onto the wrong pool (and crashed `fetchStakePoolActiveStates`); now that pool alone falls back.
+- 03950db: `computeStakedBankMultipliers` prices staked collateral the way the program does. Pre-transition pools use the delegated stake above the 1 SOL bootstrap instead of the stake account's lamports, which also counted rent and undelegated SOL and overvalued some LSTs by up to ~17%. Banks with on-ramp pricing (`stakedOracleUsesOnramp`) use both pool accounts above rent over the supply plus the 1 SOL phantom supply.
+- 15c5b6f: Health accounts for a staked bank always include the on-ramp slot. A bank whose `oracleKeys[3]` isn't backfilled yet used to get one account too few, so any transaction that health-checked it failed with `WrongNumberOfOracleAccounts`; it now passes the empty key as the placeholder the program expects.
+- c971f51: Swap debt sends `repay_all` whenever the quoted output covers the debt. It used to decide from a float-rounded total, which missed most debts that weren't a whole number of native units and left dust behind; since marginfi 0.1.12 the program rejects some of those repays. `computeClosePositionTokenAmount` now rounds in decimal, so float error can't add or drop a native unit.
+
 ## 2.10.1-alpha.0
 
 ### Patch Changes
