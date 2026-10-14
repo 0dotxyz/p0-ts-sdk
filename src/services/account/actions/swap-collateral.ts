@@ -24,6 +24,7 @@ import {
   sharedBridgeLegContext,
   tryBridgeCandidates,
   exceedsCostlyPositionLimit,
+  resolvePinnedSwapRoute,
 } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -480,25 +481,32 @@ async function buildSwapCollateralFlashloanTx({
     sizeConstraintUsed = swapConstraints.sizeConstraint;
 
     const runEngine = swapEngineRunner ?? runSwapEngine;
-    const engineResult = await runEngine({
-      inputMint: withdrawBank.mint.toBase58(),
-      outputMint: depositBank.mint.toBase58(),
-      amountNative: uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals).toNumber(),
-      inputDecimals: withdrawBank.mintDecimals,
-      outputDecimals: depositBank.mintDecimals,
-      ...swapEngineQuoteFieldsFromOpts(swapOpts),
-      taker: marginfiAccount.authority,
-      destinationTokenAccount,
-      connection,
-      footprint: {
-        instructions: [...cuRequestIxs, ...withdrawIxs.instructions, ...depositIxs.instructions],
-        luts: addressLookupTableAccounts ?? [],
-        payer: marginfiAccount.authority,
-        sizeConstraint: swapConstraints.sizeConstraint,
-        maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-      },
-      providers: swapEngineProvidersFromOpts(swapOpts),
-    });
+    const amountNative = uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals);
+    const engineResult = swapOpts.swapIxs
+      ? resolvePinnedSwapRoute(swapOpts.swapIxs, amountNative)
+      : await runEngine({
+          inputMint: withdrawBank.mint.toBase58(),
+          outputMint: depositBank.mint.toBase58(),
+          amountNative: amountNative.toNumber(),
+          inputDecimals: withdrawBank.mintDecimals,
+          outputDecimals: depositBank.mintDecimals,
+          ...swapEngineQuoteFieldsFromOpts(swapOpts),
+          taker: marginfiAccount.authority,
+          destinationTokenAccount,
+          connection,
+          footprint: {
+            instructions: [
+              ...cuRequestIxs,
+              ...withdrawIxs.instructions,
+              ...depositIxs.instructions,
+            ],
+            luts: addressLookupTableAccounts ?? [],
+            payer: marginfiAccount.authority,
+            sizeConstraint: swapConstraints.sizeConstraint,
+            maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+          },
+          providers: swapEngineProvidersFromOpts(swapOpts),
+        });
 
     // Patch the seeded deposit to the real (minimum guaranteed) swap output.
     const depositIxToPatch = depositIxs.instructions.find(isDepositIx);

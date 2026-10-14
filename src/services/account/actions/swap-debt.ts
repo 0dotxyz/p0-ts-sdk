@@ -16,6 +16,7 @@ import {
   selectSwapBridges,
   sharedBridgeLegContext,
   tryBridgeCandidates,
+  resolvePinnedSwapRoute,
 } from "../utils";
 
 import { makeSetupIx } from "./account-lifecycle";
@@ -248,29 +249,32 @@ async function buildSwapDebtFlashloanTx({
 
   // Step 2: run the multi-provider engine (ExactIn on the estimated borrow amount).
   const runEngine = swapEngineRunner ?? runSwapEngine;
-  const engineResult = await runEngine({
-    inputMint: borrowBank.mint.toBase58(),
-    outputMint: repayBank.mint.toBase58(),
-    amountNative: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
-    inputDecimals: borrowBank.mintDecimals,
-    outputDecimals: repayBank.mintDecimals,
-    ...swapEngineQuoteFieldsFromOpts(swapOpts),
-    taker: marginfiAccount.authority,
-    destinationTokenAccount,
-    connection,
-    footprint: {
-      instructions: [
-        ...cuRequestIxs,
-        ...footprintBorrowIxs.instructions,
-        ...footprintRepayIxs.instructions,
-      ],
-      luts: addressLookupTableAccounts ?? [],
-      payer: marginfiAccount.authority,
-      sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-    },
-    providers: swapEngineProvidersFromOpts(swapOpts),
-  });
+  // A pinned route's input is what gets borrowed, as with an engine quote
+  const engineResult = swapOpts.swapIxs
+    ? resolvePinnedSwapRoute(swapOpts.swapIxs)
+    : await runEngine({
+        inputMint: borrowBank.mint.toBase58(),
+        outputMint: repayBank.mint.toBase58(),
+        amountNative: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
+        inputDecimals: borrowBank.mintDecimals,
+        outputDecimals: repayBank.mintDecimals,
+        ...swapEngineQuoteFieldsFromOpts(swapOpts),
+        taker: marginfiAccount.authority,
+        destinationTokenAccount,
+        connection,
+        footprint: {
+          instructions: [
+            ...cuRequestIxs,
+            ...footprintBorrowIxs.instructions,
+            ...footprintRepayIxs.instructions,
+          ],
+          luts: addressLookupTableAccounts ?? [],
+          payer: marginfiAccount.authority,
+          sizeConstraint: swapConstraints.sizeConstraint,
+          maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+        },
+        providers: swapEngineProvidersFromOpts(swapOpts),
+      });
 
   const quoteResponse = engineResult.quoteResponse;
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);

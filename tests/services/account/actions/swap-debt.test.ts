@@ -1,79 +1,28 @@
-import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { BigNumber } from "bignumber.js";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { MARGINFI_IDL, MarginfiIdlType } from "~/idl";
 import {
-  BalanceType,
-  createEmptyBalance,
-  HealthCacheStatus,
-  makeSwapDebtTx,
-  MarginfiAccountType,
-  SwapEngineRunner,
-  SwapProvider,
-} from "~/services/account";
-import { AssetTag, BankType, OracleSetup } from "~/services/bank";
-import { decodeInstruction } from "~/services/transaction";
-import type { MarginfiProgram } from "~/types";
+  account,
+  balance,
+  bank,
+  instructionsOf,
+  marginfiIxArgs,
+  program,
+  txBuildingConnection,
+} from "../../../helpers/marginfi";
+
+import { makeSwapDebtTx, SwapEngineRunner, SwapOpts, SwapProvider } from "~/services/account";
 import { TOKEN_PROGRAM_ID } from "~/vendor/spl";
-
-const program = new Program<MarginfiIdlType>(
-  MARGINFI_IDL,
-  new AnchorProvider(new Connection("http://127.0.0.1:1"), {} as Wallet, {})
-) as unknown as MarginfiProgram;
-
-const BLOCKHASH = PublicKey.default.toBase58();
-const connection = {
-  getLatestBlockhash: async () => ({ blockhash: BLOCKHASH }),
-  getLatestBlockhashAndContext: async () => ({ value: { blockhash: BLOCKHASH } }),
-  // Every ATA exists, so no setup transactions
-  getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.map(() => ({})),
-} as unknown as Connection;
-
-function bank(): BankType {
-  const oracle = PublicKey.unique();
-  return {
-    address: PublicKey.unique(),
-    mint: PublicKey.unique(),
-    mintDecimals: 9,
-    assetShareValue: new BigNumber(1),
-    liabilityShareValue: new BigNumber(1),
-    group: PublicKey.unique(),
-    liquidityVault: PublicKey.unique(),
-    oracleKey: oracle,
-    premiumActive: false,
-    config: {
-      oracleSetup: OracleSetup.PythPushOracle,
-      assetTag: AssetTag.DEFAULT,
-      oracleKeys: [oracle],
-    },
-  } as unknown as BankType;
-}
 
 const collateral = bank();
 const oldDebt = bank();
 const newDebt = bank();
 const bankMap = new Map([collateral, oldDebt, newDebt].map((b) => [b.address.toBase58(), b]));
-
-const balance = (b: BankType, side: "asset" | "liability", shares: number): BalanceType => ({
-  ...createEmptyBalance(b.address),
-  active: true,
-  assetShares: new BigNumber(side === "asset" ? shares : 0),
-  liabilityShares: new BigNumber(side === "liability" ? shares : 0),
-});
-const marginfiAccount = {
-  address: PublicKey.unique(),
-  group: PublicKey.unique(),
-  authority: PublicKey.unique(),
-  balances: [
-    balance(collateral, "asset", 1_000e9),
-    balance(oldDebt, "liability", 123_456_789),
-    ...Array.from({ length: 14 }, () => createEmptyBalance(PublicKey.default)),
-  ],
-  accountFlags: [],
-  healthCache: { simulationStatus: HealthCacheStatus.UNSET },
-} as unknown as MarginfiAccountType;
+const marginfiAccount = account([
+  balance(collateral, "asset", 1_000e9),
+  balance(oldDebt, "liability", 123_456_789),
+]);
 
 const swapProgram = PublicKey.unique();
 const runner =
@@ -89,11 +38,11 @@ const runner =
     provider: SwapProvider.JUPITER,
   });
 
-async function repayIxOf(swapEngineRunner: SwapEngineRunner) {
+async function swapDebtTx(opts: { swapEngineRunner: SwapEngineRunner; swapOpts?: SwapOpts }) {
   const { transactions, actionTxIndex } = await makeSwapDebtTx({
     program,
     marginfiAccount,
-    connection,
+    connection: txBuildingConnection,
     bankMap,
     oraclePrices: new Map(),
     bankMetadataMap: {},
@@ -106,29 +55,60 @@ async function repayIxOf(swapEngineRunner: SwapEngineRunner) {
       marketPrice: 150,
     },
     borrowOpts: { borrowBank: newDebt, tokenProgram: TOKEN_PROGRAM_ID, marketPrice: 1 },
-    swapOpts: {},
+    swapOpts: opts.swapOpts ?? {},
     overrideInferAccounts: { group: marginfiAccount.group },
-    swapEngineRunner,
+    swapEngineRunner: opts.swapEngineRunner,
   });
-  const message = transactions[actionTxIndex].message;
-  const keys = message.staticAccountKeys;
-  const repay = message.compiledInstructions
-    .filter((ix) => keys[ix.programIdIndex]?.equals(program.programId))
-    .map((ix) => decodeInstruction(program.idl, Buffer.from(ix.data)))
-    .find((ix) => ix?.name === "lendingAccountRepay");
-  if (!repay) throw new Error("no repay ix");
-  return repay.data as { amount: BN; repayAll: boolean | null };
+  return transactions[actionTxIndex];
 }
+
+type RepayArgs = { amount: BN; repayAll: boolean | null };
 
 describe("makeSwapDebtTx", () => {
   it("repays all of a debt that isn't a whole number of native units", async () => {
-    const repay = await repayIxOf(runner("124000000", "123400000"));
-    expect(repay.repayAll).toBe(true);
+    const tx = await swapDebtTx({ swapEngineRunner: runner("124000000", "123400000") });
+    expect(marginfiIxArgs<RepayArgs>(tx, "lendingAccountRepay").repayAll).toBe(true);
   });
 
   it("repays the minimum output, not all, when the quote falls short of the debt", async () => {
-    const repay = await repayIxOf(runner("123456789", "123456789"));
+    const tx = await swapDebtTx({ swapEngineRunner: runner("123456789", "123456789") });
+    const repay = marginfiIxArgs<RepayArgs>(tx, "lendingAccountRepay");
     expect(repay.repayAll).toBeFalsy();
     expect(repay.amount.toString()).toBe("123456789");
+  });
+
+  it("borrows what a pinned route takes in and repays its minimum output", async () => {
+    let engineCalled = false;
+    const tx = await swapDebtTx({
+      swapEngineRunner: async () => {
+        engineCalled = true;
+        throw new Error("the swap engine shouldn't run");
+      },
+      swapOpts: {
+        swapIxs: {
+          instructions: [
+            new TransactionInstruction({
+              programId: swapProgram,
+              keys: [],
+              data: Buffer.from([7]),
+            }),
+          ],
+          lookupTables: [],
+          quoteResponse: {
+            inAmount: "15000000",
+            outAmount: "100000000",
+            otherAmountThreshold: "99000000",
+            slippageBps: 50,
+          },
+        },
+      },
+    });
+
+    expect(engineCalled).toBe(false);
+    expect(instructionsOf(tx)).toContainEqual({ programId: swapProgram, data: Buffer.from([7]) });
+    expect(marginfiIxArgs(tx, "lendingAccountBorrow").amount.toString()).toBe("15000000");
+    const repay = marginfiIxArgs<RepayArgs>(tx, "lendingAccountRepay");
+    expect(repay.amount.toString()).toBe("99000000");
+    expect(repay.repayAll).toBeFalsy();
   });
 });

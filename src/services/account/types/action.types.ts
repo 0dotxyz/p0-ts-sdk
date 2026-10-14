@@ -58,8 +58,8 @@ export interface SwapOpts {
    * Pin an exact, caller-reviewed swap route instead of running the swap engine.
    *
    * The caller owns ATA setup for the route, the route's input amount MUST equal the flow's swap
-   * input (e.g. the loop's borrow amount), and the route MUST pay out to the flow's destination
-   * token account. `quoteResponse.otherAmountThreshold` (guaranteed min-out, native units) sizes
+   * input (the loop's borrow, the collateral swap's withdrawal; a debt swap borrows what the route
+   * takes in), and the route MUST pay out to the flow's destination token account. `quoteResponse.otherAmountThreshold` (guaranteed min-out, native units) sizes
    * the follow-up amount — e.g. the loop's deposit byte-patch — exactly like an engine-selected
    * route would. For dynamic caller-controlled routing (inspect/veto routes at build time),
    * prefer `swapEngineRunner`.

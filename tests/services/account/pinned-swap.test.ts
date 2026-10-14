@@ -50,6 +50,14 @@ describe("resolvePinnedSwapRoute", () => {
     expect(resolved.outputAmountNative.toString()).toBe("7");
   });
 
+  it("takes the route's input as given when the flow has no fixed input", () => {
+    const resolved = resolvePinnedSwapRoute(
+      pinned(quote({ inAmount: "123", otherAmountThreshold: "100" }))
+    );
+    expect(resolved.quoteResponse.inAmount).toBe("123");
+    expect(resolved.outputAmountNative.toString()).toBe("100");
+  });
+
   it("throws when min-out is zero (the old silent zero-collateral deposit)", () => {
     expect(() =>
       resolvePinnedSwapRoute(

@@ -25,7 +25,7 @@ import { createJupiterClient, type QuoteResponse } from "~/vendor/jupiter";
 export interface ResolvedPinnedSwapRoute {
   swapInstructions: TransactionInstruction[];
   setupInstructions: TransactionInstruction[];
-  lookupTables: AddressLookupTableAccount[];
+  swapLuts: AddressLookupTableAccount[];
   quoteResponse: SwapQuoteResult;
   /** The route's guaranteed min-out (native) — what sizes the follow-up amount (deposit patch). */
   outputAmountNative: BN;
@@ -37,18 +37,19 @@ export interface ResolvedPinnedSwapRoute {
  *
  * - `otherAmountThreshold` (min-out) must be a positive integer — it becomes the loop's deposit
  *   byte-patch, exactly like an engine-selected route's min-out.
- * - `inAmount` must equal the flow's swap input (e.g. the loop's borrow, native units) — a
- *   mismatch means the route was quoted for a different size than the flow will actually swap.
+ * - `inAmount` must equal `expectedInAmountNative`, the flow's swap input (e.g. the loop's borrow,
+ *   native units) — a mismatch means the route was quoted for a different size than the flow will
+ *   actually swap. Omit it when the route's input sets the swap's size, as in a debt swap, which
+ *   borrows what the route takes in.
  *
  * Throws plain `Error`s (not `TransactionBuildingError`) so caller-input mistakes are never
  * classified as decomposable swap failures (which would wrongly engage the bridged fallback).
  */
 export function resolvePinnedSwapRoute(
   swapIxs: NonNullable<SwapOpts["swapIxs"]>,
-  expectedInAmountNative: BN | number
+  expectedInAmountNative?: BN | number
 ): ResolvedPinnedSwapRoute {
   const { quoteResponse } = swapIxs;
-  const expectedIn = new BN(expectedInAmountNative);
 
   let minOut: BN;
   try {
@@ -65,10 +66,10 @@ export function resolvePinnedSwapRoute(
   }
 
   const pinnedIn = new BN(quoteResponse.inAmount);
-  if (!pinnedIn.eq(expectedIn)) {
+  if (expectedInAmountNative !== undefined && !pinnedIn.eq(new BN(expectedInAmountNative))) {
     throw new Error(
       `Pinned swap route (swapOpts.swapIxs) was quoted for a different input amount than the flow ` +
-        `will swap: quote inAmount=${pinnedIn.toString()}, flow swap input=${expectedIn.toString()} ` +
+        `will swap: quote inAmount=${pinnedIn.toString()}, flow swap input=${expectedInAmountNative.toString()} ` +
         `(native units). Re-quote the pinned route for the exact flow amount.`
     );
   }
@@ -76,7 +77,7 @@ export function resolvePinnedSwapRoute(
   return {
     swapInstructions: swapIxs.instructions,
     setupInstructions: [],
-    lookupTables: swapIxs.lookupTables,
+    swapLuts: swapIxs.lookupTables,
     quoteResponse,
     outputAmountNative: minOut,
   };
@@ -242,7 +243,7 @@ export const getSwapIxsForFlashloan = async (
     return {
       swapInstructions: pinned.swapInstructions,
       setupInstructions: pinned.setupInstructions,
-      addressLookupTableAddresses: pinned.lookupTables,
+      addressLookupTableAddresses: pinned.swapLuts,
       quoteResponse: pinned.quoteResponse,
     };
   }

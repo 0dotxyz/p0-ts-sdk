@@ -485,16 +485,7 @@ async function runLoopSwapEngine(
   // Caller-pinned route override: the pinned quote's min-out sizes the deposit byte-patch,
   // exactly like an engine-selected route (validated — a pinned route can never silently
   // produce a zero-collateral deposit).
-  if (swapOpts.swapIxs) {
-    const pinned = resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
-    return {
-      swapInstructions: pinned.swapInstructions,
-      setupInstructions: pinned.setupInstructions,
-      swapLuts: pinned.lookupTables,
-      quoteResponse: pinned.quoteResponse,
-      outputAmountNative: pinned.outputAmountNative,
-    };
-  }
+  if (swapOpts.swapIxs) return resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
 
   const runEngine = swapEngineRunner ?? runSwapEngine;
   const engineResult = await runEngine({
