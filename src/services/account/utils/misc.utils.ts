@@ -1,26 +1,29 @@
+import { BigNumber } from "bignumber.js";
+
 import { BalanceType } from "../types";
 
 import { MAX_COSTLY_POSITIONS } from "~/constants";
 import { AssetTag, BankType } from "~/services/bank";
 
-function floor(value: number, decimals: number): number {
-  return Math.floor(value * 10 ** decimals) / 10 ** decimals;
-}
-
-function ceil(value: number, decimals: number): number {
-  return Math.ceil(value * 10 ** decimals) / 10 ** decimals;
-}
-
+/**
+ * The position's `amount` (UI units) rounded to whole native units: down for a deposit (no more
+ * can be withdrawn), up for a debt (no less repays it).
+ */
 export function computeClosePositionTokenAmount(
   position: { amount: number; isLending: boolean },
   mintDecimals: number
 ): number {
-  const closePositionTokenAmount = position.isLending
-    ? floor(position.amount, mintDecimals)
-    : ceil(position.amount, mintDecimals);
-  return closePositionTokenAmount;
+  // Rounded in decimal: in floating point 2.007 * 10 ** 6 is 2007000.0000000002, which
+  // `Math.ceil` would round up a whole native unit
+  return new BigNumber(position.amount)
+    .decimalPlaces(mintDecimals, position.isLending ? BigNumber.ROUND_FLOOR : BigNumber.ROUND_CEIL)
+    .toNumber();
 }
 
+/**
+ * Whether `amount` (UI units) covers the whole position: at least
+ * {@link computeClosePositionTokenAmount}.
+ */
 export function isWholePosition(
   position: { amount: number; isLending: boolean },
   amount: number,

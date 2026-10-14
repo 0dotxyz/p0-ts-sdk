@@ -8,7 +8,6 @@ import {
 } from "../services/swap-engine";
 import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
 import {
-  isWholePosition,
   computeFlashloanSwapConstraints,
   compileFlashloanPrecheck,
   BridgeOpts,
@@ -277,9 +276,9 @@ async function buildSwapDebtFlashloanTx({
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);
   const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
 
-  // If output exceeds total debt, cap at total debt (for repayAll)
-  // Otherwise use minimum output with slippage protection
-  const amountToRepay = outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
+  // An expected output above the debt repays all of it; otherwise repay the guaranteed minimum
+  const repayAll = outAmount > totalPositionAmount;
+  const amountToRepay = repayAll ? totalPositionAmount : outAmountThreshold;
 
   // For ExactIn, inAmount is what we borrow
   const borrowAmount = nativeToUi(quoteResponse.inAmount, borrowBank.mintDecimals);
@@ -309,14 +308,7 @@ async function buildSwapDebtFlashloanTx({
     amount: amountToRepay,
     accountAddress: marginfiAccount.address,
     authority: marginfiAccount.authority,
-    repayAll: isWholePosition(
-      {
-        amount: totalPositionAmount,
-        isLending: false,
-      },
-      amountToRepay,
-      repayBank.mintDecimals
-    ),
+    repayAll,
     isSync: true,
     opts: {
       wrapAndUnwrapSol: false,
