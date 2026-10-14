@@ -20,10 +20,10 @@ export function getRewardPerTimeUnitSecond(reward: KaminoFarmRewardInfo) {
     const thisPeriodStart = new Decimal(tsStartThisPoint.toString());
     const thisPeriodEnd = new Decimal(tsStartNextPoint.toString());
     const rps = new Decimal(rewardPerTimeUnit.toString());
-    if (thisPeriodStart <= now && thisPeriodEnd >= now) {
+    if (thisPeriodStart.lte(now) && thisPeriodEnd.gte(now)) {
       rewardPerTimeUnitSecond = rps;
       break;
-    } else if (thisPeriodStart > now && thisPeriodEnd > now) {
+    } else if (thisPeriodStart.gt(now) && thisPeriodEnd.gt(now)) {
       rewardPerTimeUnitSecond = rps;
       break;
     }
