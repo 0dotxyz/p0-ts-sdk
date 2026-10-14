@@ -114,7 +114,12 @@ class Bank implements BankType {
     public readonly feesDestinationAccount?: PublicKey,
     public readonly lendingPositionCount?: BigNumber,
     public readonly borrowingPositionCount?: BigNumber,
-    public readonly tokenSymbol?: string
+    public readonly tokenSymbol?: string,
+    public readonly stakedOracleDisabled?: boolean,
+    public readonly stakedOracleUsesOnramp?: boolean,
+    public readonly stakedIntegrationAccounts?: {
+      validatorVoteAccount: PublicKey;
+    }
   ) {}
 
   static async fetch(
@@ -198,7 +203,10 @@ class Bank implements BankType {
       bankType.feesDestinationAccount,
       bankType.lendingPositionCount,
       bankType.borrowingPositionCount,
-      bankType.tokenSymbol
+      bankType.tokenSymbol,
+      bankType.stakedOracleDisabled,
+      bankType.stakedOracleUsesOnramp,
+      bankType.stakedIntegrationAccounts
     );
   }
 
@@ -250,7 +258,10 @@ class Bank implements BankType {
       props.feesDestinationAccount,
       props.lendingPositionCount,
       props.borrowingPositionCount,
-      props.tokenSymbol
+      props.tokenSymbol,
+      props.stakedOracleDisabled,
+      props.stakedOracleUsesOnramp,
+      props.stakedIntegrationAccounts
     );
   }
 
