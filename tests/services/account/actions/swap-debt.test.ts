@@ -77,6 +77,53 @@ describe("makeSwapDebtTx", () => {
     expect(unwrapOption(repay.data.repayAll)).toBe(true);
   });
 
+  it("borrows what a pinned route takes in and repays its minimum output", async () => {
+    const pinnedSwap = { programAddress: swapProgram, accounts: [], data: new Uint8Array([7]) };
+    let engineCalled = false;
+    const result = await makeSwapDebtTx({
+      programAddress,
+      marginfiAccount,
+      authority: createNoopSigner(marginfiAccount.authority),
+      rpc: stubbedRpc,
+      bankMap,
+      bankMetadataMap: {},
+      assetShareValueMultiplierByBank: new Map(),
+      repayOpts: {
+        repayBank: mainnetBanks.sol,
+        tokenProgram,
+        totalPositionAmount: 0.123456789123,
+        marketPrice: 150,
+      },
+      borrowOpts: { borrowBank, tokenProgram, marketPrice: 1 },
+      swapOpts: {
+        swapIxs: {
+          instructions: [pinnedSwap],
+          lookupTables: {},
+          quoteResponse: {
+            inAmount: "15000000",
+            outAmount: "100000000",
+            otherAmountThreshold: "99000000",
+            slippageBps: 50,
+          },
+        },
+      },
+      txFormat: { version: 0, luts: {} },
+      swapEngineRunner: async () => {
+        engineCalled = true;
+        throw new Error("the swap engine shouldn't run");
+      },
+    });
+
+    const flashloan = result.transactions[result.actionTxIndex];
+    expect(engineCalled).toBe(false);
+    expect(flashloan.message.instructions).toContain(pinnedSwap);
+    const [borrow] = findMarginfiIxs(MarginfiInstruction.LendingAccountBorrow, flashloan);
+    const [repay] = findMarginfiIxs(MarginfiInstruction.LendingAccountRepay, flashloan);
+    expect(borrow.data.amount).toBe(15_000_000n);
+    expect(repay.data.amount).toBe(99_000_000n);
+    expect(unwrapOption(repay.data.repayAll)).toBeFalsy();
+  });
+
   it("doesn't repay-all a bridge the account already owed", async () => {
     // The account also owes `otherDebtBank`, swapped into `borrowBank` through its SOL debt
     const firstFree = marginfiAccount.balances.findIndex((balance) => !balance.active);

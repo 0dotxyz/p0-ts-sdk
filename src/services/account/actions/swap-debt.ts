@@ -22,6 +22,7 @@ import {
   compileFlashloanPrecheck,
   filterRouteSetupIxs,
   getBalance,
+  resolvePinnedSwapRoute,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -55,6 +56,7 @@ import { nativeToUi, uiToNative } from "~/utils";
  * one transaction
  * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit in one
  * transaction after the flashloan
+ * @throws if a pinned route (`swapOpts.swapIxs`) has no min-out
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapDebtTx({
@@ -222,25 +224,28 @@ async function buildSwapDebtFlashloanTx({
   const footprintRepayIxs = await makeRepayIx({ ...repayParams, amount: actualRepayAmount });
 
   const runEngine = swapEngineRunner ?? runSwapEngine;
-  const engineResult = await runEngine({
-    inputMint: borrowBank.mint,
-    outputMint: repayBank.mint,
-    amountNative: Number(uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals)),
-    inputDecimals: borrowBank.mintDecimals,
-    outputDecimals: repayBank.mintDecimals,
-    ...swapEngineQuoteFieldsFromOpts(swapOpts),
-    taker: authority.address,
-    destinationTokenAccount,
-    rpc,
-    footprint: {
-      instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
-      txFormat,
-      payer: authority.address,
-      sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-    },
-    providers: swapEngineProvidersFromOpts(swapOpts),
-  });
+  // A pinned route's input is what gets borrowed, as with an engine quote
+  const engineResult = swapOpts.swapIxs
+    ? resolvePinnedSwapRoute(swapOpts.swapIxs)
+    : await runEngine({
+        inputMint: borrowBank.mint,
+        outputMint: repayBank.mint,
+        amountNative: Number(uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals)),
+        inputDecimals: borrowBank.mintDecimals,
+        outputDecimals: repayBank.mintDecimals,
+        ...swapEngineQuoteFieldsFromOpts(swapOpts),
+        taker: authority.address,
+        destinationTokenAccount,
+        rpc,
+        footprint: {
+          instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
+          txFormat,
+          payer: authority.address,
+          sizeConstraint: swapConstraints.sizeConstraint,
+          maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+        },
+        providers: swapEngineProvidersFromOpts(swapOpts),
+      });
 
   const quoteResponse = engineResult.quoteResponse;
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);

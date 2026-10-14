@@ -346,16 +346,7 @@ async function runLoopSwapEngine(
 }> {
   const { rpc, swapOpts, authority, swapEngineRunner } = params;
 
-  if (swapOpts.swapIxs) {
-    const pinned = resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
-    return {
-      swapInstructions: pinned.swapInstructions,
-      setupInstructions: pinned.setupInstructions,
-      swapLuts: pinned.lookupTables,
-      quoteResponse: pinned.quoteResponse,
-      outputAmountNative: pinned.outputAmountNative,
-    };
-  }
+  if (swapOpts.swapIxs) return resolvePinnedSwapRoute(swapOpts.swapIxs, descriptor.inAmountNative);
 
   const runEngine = swapEngineRunner ?? runSwapEngine;
   return runEngine({

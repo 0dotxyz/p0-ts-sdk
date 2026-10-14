@@ -13,7 +13,7 @@ import { TransactionBuildingErrorCode } from "~/errors";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { makeSwapCollateralTx } from "~/services/account/actions/swap-collateral";
 import type { SwapEngineRunner } from "~/services/account/services/swap-engine";
-import { SwapProvider, type MarginfiAccountType } from "~/services/account/types";
+import { SwapProvider, type MarginfiAccountType, type SwapOpts } from "~/services/account/types";
 import { AssetTag, type BankType } from "~/services/bank";
 import { TransactionType } from "~/services/transaction";
 
@@ -51,6 +51,7 @@ function swapCollateral(opts: {
   account?: MarginfiAccountType;
   withdrawBank?: BankType;
   ordersToClose?: ReturnType<typeof key>[];
+  swapOpts?: SwapOpts;
 }) {
   const account = opts.account ?? marginfiAccount;
   return makeSwapCollateralTx({
@@ -68,7 +69,7 @@ function swapCollateral(opts: {
       withdrawAmount: opts.withdrawAmount,
     },
     depositOpts: { depositBank: opts.depositBank, tokenProgram: TOKEN_PROGRAM_ADDRESS },
-    swapOpts: {},
+    swapOpts: opts.swapOpts ?? {},
     txFormat: { version: 0, luts: {} },
     swapEngineRunner: opts.swapEngineRunner,
     ordersToClose: opts.ordersToClose,
@@ -108,6 +109,55 @@ describe("makeSwapCollateralTx", () => {
       outputMint: otherMintBank.mint,
       amountNative: 4_000_000_000,
     });
+  });
+
+  it("swaps through a pinned route instead of asking the swap engine", async () => {
+    const runner = swapRunner(0n);
+    const pinnedSwap = { programAddress: swapProgram, accounts: [], data: new Uint8Array([7]) };
+    const result = await swapCollateral({
+      depositBank: otherMintBank,
+      withdrawAmount: 4,
+      swapEngineRunner: runner,
+      swapOpts: {
+        swapIxs: {
+          instructions: [pinnedSwap],
+          lookupTables: {},
+          quoteResponse: {
+            inAmount: "4000000000",
+            outAmount: "3950000000",
+            otherAmountThreshold: "3900000000",
+            slippageBps: 50,
+          },
+        },
+      },
+    });
+
+    expect(runner).not.toHaveBeenCalled();
+    const flashloan = result.transactions[result.actionTxIndex];
+    expect(flashloan.message.instructions).toContain(pinnedSwap);
+    const [deposit] = findMarginfiIxs(MarginfiInstruction.LendingAccountDeposit, flashloan);
+    expect(deposit.data.amount).toBe(3_900_000_000n);
+  });
+
+  it("rejects a pinned route quoted for a different amount than the withdrawal", async () => {
+    await expect(
+      swapCollateral({
+        depositBank: otherMintBank,
+        withdrawAmount: 4,
+        swapOpts: {
+          swapIxs: {
+            instructions: [],
+            lookupTables: {},
+            quoteResponse: {
+              inAmount: "3000000000",
+              outAmount: "2950000000",
+              otherAmountThreshold: "2900000000",
+              slippageBps: 50,
+            },
+          },
+        },
+      })
+    ).rejects.toThrow(/inAmount=3000000000.*swap input=4000000000/);
   });
 
   it("deposits the withdrawn amount without a swap when both banks share a mint", async () => {

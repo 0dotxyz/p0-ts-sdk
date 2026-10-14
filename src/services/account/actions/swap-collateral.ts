@@ -24,6 +24,7 @@ import {
   compileFlashloanPrecheck,
   patchDepositAmount,
   filterRouteSetupIxs,
+  resolvePinnedSwapRoute,
 } from "../utils";
 
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
@@ -59,6 +60,8 @@ import { nativeToUi, uiToNative } from "~/utils";
  * one transaction
  * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit in one
  * transaction after the flashloan
+ * @throws if a pinned route (`swapOpts.swapIxs`) has no min-out or was quoted for a different amount
+ * than the withdrawal
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapCollateralTx({
@@ -261,25 +264,28 @@ async function buildSwapCollateralFlashloanTx({
     sizeConstraintUsed = swapConstraints.sizeConstraint;
 
     const runEngine = swapEngineRunner ?? runSwapEngine;
-    const engineResult = await runEngine({
-      inputMint: withdrawBank.mint,
-      outputMint: depositBank.mint,
-      amountNative: Number(uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals)),
-      inputDecimals: withdrawBank.mintDecimals,
-      outputDecimals: depositBank.mintDecimals,
-      ...swapEngineQuoteFieldsFromOpts(swapOpts),
-      taker: authority.address,
-      destinationTokenAccount,
-      rpc,
-      footprint: {
-        instructions: [...cuRequestIxs, ...withdrawIxs, ...depositIxs],
-        txFormat,
-        payer: authority.address,
-        sizeConstraint: swapConstraints.sizeConstraint,
-        maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-      },
-      providers: swapEngineProvidersFromOpts(swapOpts),
-    });
+    const amountNative = uiToNative(actualWithdrawAmount, withdrawBank.mintDecimals);
+    const engineResult = swapOpts.swapIxs
+      ? resolvePinnedSwapRoute(swapOpts.swapIxs, amountNative)
+      : await runEngine({
+          inputMint: withdrawBank.mint,
+          outputMint: depositBank.mint,
+          amountNative: Number(amountNative),
+          inputDecimals: withdrawBank.mintDecimals,
+          outputDecimals: depositBank.mintDecimals,
+          ...swapEngineQuoteFieldsFromOpts(swapOpts),
+          taker: authority.address,
+          destinationTokenAccount,
+          rpc,
+          footprint: {
+            instructions: [...cuRequestIxs, ...withdrawIxs, ...depositIxs],
+            txFormat,
+            payer: authority.address,
+            sizeConstraint: swapConstraints.sizeConstraint,
+            maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+          },
+          providers: swapEngineProvidersFromOpts(swapOpts),
+        });
 
     // Without wSOL wrapping the deposit is a single instruction
     depositIxs[0] = patchDepositAmount(depositIxs[0], engineResult.outputAmountNative);
