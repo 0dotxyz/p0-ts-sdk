@@ -5,7 +5,7 @@ import BigNumber from "bignumber.js";
 
 import { getStakedBankMetadataMap } from "./metadata.utils";
 
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
   findPoolAddress,
   findPoolStakeAddress,
@@ -71,7 +71,10 @@ export async function computeStakedBankMultipliers(
     ...poolStakeAddresses.map((a) => a.toBase58()),
     ...lstMintAddresses.map((a) => a.toBase58()),
   ];
-  const accountInfos = await chunkedGetRawMultipleAccountInfoOrdered(connection, allAddresses);
+  const accountInfos = await chunkedGetRawMultipleAccountInfoOrderedWithNulls(
+    connection,
+    allAddresses
+  );
   const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
   const lstMintInfos = accountInfos.slice(poolStakeAddresses.length);
 

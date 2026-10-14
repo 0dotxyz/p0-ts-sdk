@@ -11,7 +11,7 @@ import {
 import { ValidatorStakeGroup, StakeAccount, StakePoolMevMap } from "../types";
 
 import { MAX_U64 } from "~/constants";
-import { chunkedGetRawMultipleAccountInfoOrdered } from "~/services/misc";
+import { chunkedGetRawMultipleAccountInfoOrderedWithNulls } from "~/services/misc";
 import {
   findPoolAddress,
   findPoolStakeAddress,
@@ -153,7 +153,7 @@ export const fetchStakePoolActiveStates = async (
   const poolStakeAddressKeys = Object.keys(poolStakeAddressRecord);
 
   const poolStakeAccounts = Object.fromEntries(
-    (await chunkedGetRawMultipleAccountInfoOrdered(connection, poolStakeAddressKeys))
+    (await chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, poolStakeAddressKeys))
       .map((ai, index) => {
         const key = poolStakeAddressKeys[index];
         const validatorVote = key ? poolStakeAddressRecord[key] : undefined;
@@ -164,7 +164,8 @@ export const fetchStakePoolActiveStates = async (
 
   validatorVoteAccounts.map((validatorVoteAccount) => {
     const voteAccountKey = validatorVoteAccount.toBase58();
-    const stakeAccount = fetchStakeAccount(poolStakeAccounts[voteAccountKey]);
+    const stakeData = poolStakeAccounts[voteAccountKey];
+    const stakeAccount = stakeData ? fetchStakeAccount(stakeData) : null;
     const poolMintAddress = poolMintAddressRecord[voteAccountKey];
 
     if (!poolMintAddress) {
@@ -319,29 +320,31 @@ export const fetchStakePoolMev = async (
     address.toBase58()
   );
 
-  return chunkedGetRawMultipleAccountInfoOrdered(connection, allAddresses).then((accountInfos) => {
-    const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
-    const onRampInfos = accountInfos.slice(poolStakeAddresses.length);
-    const rent = 2282280;
+  return chunkedGetRawMultipleAccountInfoOrderedWithNulls(connection, allAddresses).then(
+    (accountInfos) => {
+      const poolStakeInfos = accountInfos.slice(0, poolStakeAddresses.length);
+      const onRampInfos = accountInfos.slice(poolStakeAddresses.length);
+      const rent = 2282280;
 
-    validatorVoteAccounts.forEach((validatorVoteAccount, index) => {
-      const poolStakeInfo = poolStakeInfos[index];
-      const onRampInfo = onRampInfos[index];
+      validatorVoteAccounts.forEach((validatorVoteAccount, index) => {
+        const poolStakeInfo = poolStakeInfos[index];
+        const onRampInfo = onRampInfos[index];
 
-      if (poolStakeInfo && onRampInfo) {
-        const stakeDecoded = fetchStakeAccount(poolStakeInfo.data);
-        const onrampDecoded = fetchStakeAccount(onRampInfo.data);
-        const poolLamps =
-          poolStakeInfo.lamports - rent - Number(stakeDecoded.stake.delegation.stake.toString());
-        const onrampStake = Number(onrampDecoded.stake.delegation.stake.toString());
+        if (poolStakeInfo && onRampInfo) {
+          const stakeDecoded = fetchStakeAccount(poolStakeInfo.data);
+          const onrampDecoded = fetchStakeAccount(onRampInfo.data);
+          const poolLamps =
+            poolStakeInfo.lamports - rent - Number(stakeDecoded.stake.delegation.stake.toString());
+          const onrampStake = Number(onrampDecoded.stake.delegation.stake.toString());
 
-        mev.set(validatorVoteAccount.toBase58(), {
-          pool: poolLamps >= 1000 ? poolLamps : 0,
-          onramp: onrampStake,
-        });
-      }
-    });
+          mev.set(validatorVoteAccount.toBase58(), {
+            pool: poolLamps >= 1000 ? poolLamps : 0,
+            onramp: onrampStake,
+          });
+        }
+      });
 
-    return mev;
-  });
+      return mev;
+    }
+  );
 };
