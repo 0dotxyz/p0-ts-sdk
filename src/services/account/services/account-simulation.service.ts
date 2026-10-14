@@ -161,7 +161,6 @@ export async function simulateAccountHealthCacheWithFallback(
       },
     });
   } catch (e) {
-    console.log("e", e);
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
       computeHealthComponentsFromBalances({
         activeBalances,
@@ -182,17 +181,20 @@ export async function simulateAccountHealthCacheWithFallback(
         activeEmodeWeightsByBank,
       });
 
-    marginfiAccount.healthCache = {
-      assetValue: assetValueInitial,
-      liabilityValue: liabilityValueInitial,
-      assetValueMaint: assetValueMaint,
-      liabilityValueMaint: liabilityValueMaint,
-      assetValueEquity: assetValueEquity,
-      liabilityValueEquity: liabilityValueEquity,
-      timestamp: new BigNumber(0),
-      flags: [],
-      prices: [],
-      simulationStatus: HealthCacheStatus.COMPUTED,
+    marginfiAccount = {
+      ...marginfiAccount,
+      healthCache: {
+        assetValue: assetValueInitial,
+        liabilityValue: liabilityValueInitial,
+        assetValueMaint: assetValueMaint,
+        liabilityValueMaint: liabilityValueMaint,
+        assetValueEquity: assetValueEquity,
+        liabilityValueEquity: liabilityValueEquity,
+        timestamp: new BigNumber(0),
+        flags: [],
+        prices: [],
+        simulationStatus: HealthCacheStatus.COMPUTED,
+      },
     };
 
     // Return the error if it's a HealthCacheSimulationError

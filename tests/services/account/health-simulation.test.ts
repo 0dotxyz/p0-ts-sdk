@@ -13,11 +13,15 @@ import bankFixtures from "../bank/fixtures/mainnet-banks.json";
 import accountFixtures from "./fixtures/mainnet-accounts.json";
 
 import { decodeMarginfiAccountRaw } from "~/accounts";
-import { simulateAccountHealthCache } from "~/services/account/services/account-simulation.service";
-import { HealthCacheSimulationError } from "~/services/account/types";
+import {
+  simulateAccountHealthCache,
+  simulateAccountHealthCacheWithFallback,
+} from "~/services/account/services/account-simulation.service";
+import { HealthCacheSimulationError, HealthCacheStatus } from "~/services/account/types";
 import type { HealthCacheRaw } from "~/services/account/types/raw-account.types";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
+import type { OraclePrice } from "~/services/price";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
 // The simulated post-execution account is the fixture itself, with `post.healthCache` applied.
@@ -67,34 +71,34 @@ function decodeBundleTx(wireTransaction: string) {
   };
 }
 
-describe("simulateAccountHealthCache", () => {
-  let request: { params: [{ encodedTransactions: string[] }, Record<string, unknown>] };
+let request: { params: [{ encodedTransactions: string[] }, Record<string, unknown>] };
 
-  beforeEach(() => {
-    post.healthCache = {};
-    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
-      const body = JSON.parse(init.body);
-      const respond = (value: unknown) =>
-        new Response(
-          JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { context: { slot: 1 }, value } })
-        );
-      if (body.method === "getLatestBlockhash") {
-        return respond({
-          blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N",
-          lastValidBlockHeight: 100,
-        });
-      }
-      request = body;
-      const transactionResults = request.params[0].encodedTransactions.map((_, i, txs) => ({
-        logs: [],
-        postExecutionAccounts:
-          i === txs.length - 1 ? [{ data: [accountFixture.data, "base64"] }] : [],
-      }));
-      return respond({ summary: "succeeded", transactionResults });
-    });
+beforeEach(() => {
+  post.healthCache = {};
+  vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+    const body = JSON.parse(init.body);
+    const respond = (value: unknown) =>
+      new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { context: { slot: 1 }, value } })
+      );
+    if (body.method === "getLatestBlockhash") {
+      return respond({
+        blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N",
+        lastValidBlockHeight: 100,
+      });
+    }
+    request = body;
+    const transactionResults = request.params[0].encodedTransactions.map((_, i, txs) => ({
+      logs: [],
+      postExecutionAccounts:
+        i === txs.length - 1 ? [{ data: [accountFixture.data, "base64"] }] : [],
+    }));
+    return respond({ summary: "succeeded", transactionResults });
   });
-  afterEach(() => vi.unstubAllGlobals());
+});
+afterEach(() => vi.unstubAllGlobals());
 
+describe("simulateAccountHealthCache", () => {
   const simulate = () =>
     simulateAccountHealthCache({ rpc, rpcEndpoint, programAddress, banksMap, marginfiAccount });
 
@@ -146,5 +150,37 @@ describe("simulateAccountHealthCache", () => {
     const error = await simulate().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(HealthCacheSimulationError);
     expect(error).toMatchObject({ mrgnErr: 6010, internalErr: 3 });
+  });
+});
+
+describe("simulateAccountHealthCacheWithFallback", () => {
+  const price = (value: number): OraclePrice => {
+    const p = {
+      price: new BigNumber(value),
+      confidence: new BigNumber(0),
+      lowestPrice: new BigNumber(value),
+      highestPrice: new BigNumber(value),
+    };
+    return { priceRealtime: p, priceWeighted: p, timestamp: new BigNumber(0) };
+  };
+
+  it("computes the health cache on a failed simulation, leaving the caller's account as is", async () => {
+    post.healthCache = { mrgnErr: 6010, internalErr: 3 };
+    const healthCache = marginfiAccount.healthCache;
+
+    const result = await simulateAccountHealthCacheWithFallback({
+      rpc,
+      rpcEndpoint,
+      programAddress,
+      banksMap,
+      oraclePricesByBank: new Map([...banksMap.keys()].map((bank) => [bank, price(1)])),
+      marginfiAccount,
+      bankIntegrationMap: {},
+      assetShareValueMultiplierByBank: new Map(),
+    });
+
+    expect(result.error).toBeInstanceOf(HealthCacheSimulationError);
+    expect(result.marginfiAccount.healthCache.simulationStatus).toBe(HealthCacheStatus.COMPUTED);
+    expect(marginfiAccount.healthCache).toBe(healthCache);
   });
 });
