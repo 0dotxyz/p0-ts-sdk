@@ -139,6 +139,18 @@ export interface PremiumRefreshParams {
   bankMetadataMap: BankIntegrationMetadataMap;
 }
 
+/**
+ * Orders a transaction builder closes with its action, e.g. every order on a bank the action
+ * touches: an order covers its two balances in full, so it mustn't fire on the changed position.
+ * Single-transaction builders put the closes in front of the action and flashloan builders in one
+ * transaction after it, throwing `ORDER_CLOSES_DONT_FIT` when they don't fit; bulk builders pack
+ * them in with the action. A result of more than one transaction sets `mustBeAtomicBundle`.
+ */
+export interface OrderChangesParams {
+  /** Order PDAs to close (see `deriveOrderPda`) */
+  ordersToClose?: Address[];
+}
+
 export interface MakePremiumRefreshIxsParams extends PremiumRefreshParams {
   programAddress: Address;
   /** Banks the action opens (the deposited bank) */
@@ -159,7 +171,7 @@ export interface AppendPremiumRefreshParams extends MakePremiumRefreshIxsParams 
 }
 
 export interface MakeDepositTxParams
-  extends MakeDepositIxParams, ActionTxParams, PremiumRefreshParams {
+  extends MakeDepositIxParams, ActionTxParams, PremiumRefreshParams, OrderChangesParams {
   bankMetadataMap: BankIntegrationMetadataMap;
 }
 
@@ -182,7 +194,7 @@ export interface MakeRepayIxParams {
 }
 
 export interface MakeRepayTxParams
-  extends MakeRepayIxParams, ActionTxParams, PremiumRefreshParams {}
+  extends MakeRepayIxParams, ActionTxParams, PremiumRefreshParams, OrderChangesParams {}
 
 export interface MakeWithdrawIxOpts extends MakeBorrowIxOpts {
   /**
@@ -219,7 +231,10 @@ interface AccountActionTxParams extends ActionTxParams {
 }
 
 export interface MakeWithdrawTxParams
-  extends Omit<MakeWithdrawIxParams, "bankMetadataMap">, AccountActionTxParams {}
+  extends
+    Omit<MakeWithdrawIxParams, "bankMetadataMap">,
+    AccountActionTxParams,
+    OrderChangesParams {}
 
 export interface MakeBorrowIxOpts {
   /**
@@ -249,7 +264,8 @@ export interface MakeBorrowIxParams {
   opts?: MakeBorrowIxOpts;
 }
 
-export interface MakeBorrowTxParams extends MakeBorrowIxParams, AccountActionTxParams {}
+export interface MakeBorrowTxParams
+  extends MakeBorrowIxParams, AccountActionTxParams, OrderChangesParams {}
 
 export interface MakeCreateAccountIxOpts {}
 
@@ -368,11 +384,11 @@ export interface MakeFlashLoanTxParams {
 
 export type TransferPositionSide = "collateral" | "debt";
 
-export interface MakeTransferPositionsTxParams {
+export interface MakeTransferPositionsTxParams extends OrderChangesParams {
   programAddress: Address;
   /** The authority of both accounts; signs and pays. */
   authority: TransactionSigner;
-  rpc: Rpc<GetLatestBlockhashApi & GetMultipleAccountsApi>;
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
   /** Source account A (positions move out of this account). */
   marginfiAccount: MarginfiAccountType;
   /** Banks whose A-positions to move; the side is inferred from A's balance. */
@@ -381,6 +397,8 @@ export interface MakeTransferPositionsTxParams {
   destinationAccount?: MarginfiAccountType;
   /** Only used when `destinationAccount` is omitted. */
   createDestinationOpts?: { accountIndex?: number; thirdPartyId?: number };
+  /** Orders to close on the destination account (`ordersToClose` closes the source's). */
+  destinationOrdersToClose?: Address[];
   bankMap: Map<string, BankType>;
   bankMetadataMap: BankIntegrationMetadataMap;
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
@@ -399,7 +417,7 @@ export interface MakeTransferPositionsTxParams {
 }
 
 export interface TransferPositionsResult {
-  /** Ordered for execution: [setup/crank txs…, flashloan tx]. */
+  /** Ordered for execution: [setup/crank txs…, flashloan tx, order txs…]. */
   transactions: SolanaTransaction[];
   /** Index of the flashloan tx in `transactions`. */
   actionTxIndex: number;
@@ -409,7 +427,7 @@ export interface TransferPositionsResult {
   mustBeAtomicBundle: boolean;
 }
 
-export interface MakeBulkWithdrawTxParams {
+export interface MakeBulkWithdrawTxParams extends OrderChangesParams {
   programAddress: Address;
   /** The account authority; signs and pays. */
   authority: TransactionSigner;
@@ -429,7 +447,7 @@ export interface MakeBulkWithdrawTxParams {
   groupRateLimiterEnabled?: boolean;
 }
 
-export interface MakeBulkRepayTxParams {
+export interface MakeBulkRepayTxParams extends OrderChangesParams {
   programAddress: Address;
   /** The account authority; signs and pays. */
   authority: TransactionSigner;
@@ -459,7 +477,10 @@ export interface BulkLendTxsResult {
 /** RPC methods the swap flows use: blockhash, ATA and mint lookups, swap lookup tables. */
 export type SwapFlowRpc = Rpc<GetAccountInfoApi & GetLatestBlockhashApi & GetMultipleAccountsApi>;
 
-/** Result of a flashloan swap flow: its prelude transactions, then the flashloan transaction. */
+/**
+ * Result of a flashloan swap flow: its prelude transactions, the flashloan transaction, then the
+ * order transaction when there are order changes.
+ */
 export interface SwapFlowTxResult {
   transactions: SolanaTransaction[];
   /** Index of the flashloan transaction in `transactions`. */
@@ -471,7 +492,7 @@ export interface SwapFlowTxResult {
 }
 
 /** Params the flashloan swap flows share: loop, collateral and debt swaps, repay with collateral. */
-export interface SwapFlowTxParams {
+export interface SwapFlowTxParams extends OrderChangesParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs and pays. */
@@ -513,6 +534,12 @@ export interface MakeLoopTxParams extends SwapFlowTxParams {
     marketPrice: number;
   };
   additionalIxs?: Instruction[];
+  /**
+   * Places a take-profit / stop-loss order with this trigger on the loop's pair (deposit bank as
+   * collateral, borrow bank as debt) after the loop. Put the pair's existing order in
+   * `ordersToClose` to replace it.
+   */
+  placeOrder?: OrderTriggerParams;
 }
 
 /**
@@ -588,7 +615,7 @@ export interface MakeSwapCollateralTxParams extends SwapFlowTxParams {
  * vault's `pt_redemption_rate`; the SY → PT price is quoted by simulating a standalone
  * `trade_pt`, so the deposit is sized to the guaranteed minimum out.
  */
-export interface MakeRollPtTxParams {
+export interface MakeRollPtTxParams extends OrderChangesParams {
   programAddress: Address;
   marginfiAccount: MarginfiAccountType;
   /** The account authority; signs, pays and owns the PT/SY token accounts. */
@@ -760,3 +787,32 @@ export interface MakeCloseOrderIxParams {
 }
 
 export interface MakeCloseOrderTxParams extends MakeCloseOrderIxParams, ActionTxParams {}
+
+export interface MakeOrderChangesIxsParams extends OrderChangesParams {
+  programAddress: Address;
+  marginfiAccount: MarginfiAccountType;
+  /** The account authority; signs, and gets the closed orders' rent. */
+  authority: TransactionSigner;
+  /** Placed after the closes; close the pair's existing order in the same call to replace it. */
+  placeOrder?: Pick<
+    MakePlaceOrderIxParams,
+    "collateralBank" | "debtBank" | "trigger" | "globalFeeWallet"
+  >;
+}
+
+export interface PrependOrderClosesParams extends Omit<MakeOrderChangesIxsParams, "placeOrder"> {
+  /** The action's instructions */
+  actionIxs: Instruction[];
+  /** The format the action's transaction compiles with, with its lookup tables */
+  txFormat: TransactionFormat;
+}
+
+export interface MakeOrderChangesTxParams
+  extends Omit<MakeOrderChangesIxsParams, "placeOrder">, ActionTxParams {
+  rpc: Rpc<GetAccountInfoApi & GetLatestBlockhashApi>;
+  /** Placed after the closes; its global fee wallet is read from chain when omitted. */
+  placeOrder?: Pick<
+    MakePlaceOrderTxParams,
+    "collateralBank" | "debtBank" | "trigger" | "globalFeeWallet"
+  >;
+}

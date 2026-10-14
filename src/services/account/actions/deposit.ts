@@ -6,6 +6,7 @@ import { MakeDepositIxParams, MakeDepositTxParams } from "../types";
 import { exceedsCostlyPositionLimit } from "../utils";
 
 import { appendPremiumRefresh } from "./account-lifecycle";
+import { prependOrderCloses } from "./orders";
 
 import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
@@ -14,6 +15,7 @@ import { AssetTag } from "~/services/bank";
 import {
   makeTransactionMessage,
   makeWrapSolIxs,
+  selectLutsForBanks,
   SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
@@ -192,6 +194,8 @@ export async function makeDepositIx({
  * integration or staked position beyond the account's limit
  * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
  * active banks
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, bankMap, ...depositIxParams } = params;
@@ -209,9 +213,14 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
       ? makeRefreshingIxs(kaminoAccounts.kaminoReserve, reserve, kaminoAccounts.kaminoObligation)
       : [];
 
-  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+  const actionIxs = await prependOrderCloses({
     ...params,
     actionIxs: [...refreshIxs, ...depositIxs],
+    txFormat: selectLutsForBanks(txFormat, [bank]),
+  });
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs,
     mandatoryBanks: [bank.address],
     excludedBanks: [],
   });

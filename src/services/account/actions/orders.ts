@@ -4,16 +4,25 @@ import {
   ActionTxParams,
   MakeCloseOrderIxParams,
   MakeCloseOrderTxParams,
+  MakeOrderChangesIxsParams,
+  MakeOrderChangesTxParams,
   MakePlaceOrderIxParams,
   MakePlaceOrderTxParams,
   MakeUpdateOrderTxParams,
   OrderTriggerParams,
+  PrependOrderClosesParams,
 } from "../types";
 import { fetchGlobalFeeWallet } from "../utils";
 
+import { SEND_PIPELINE_ROOM } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
-import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
+import {
+  fitsInOneTransaction,
+  makeTransactionMessage,
+  SolanaTransaction,
+  TransactionType,
+} from "~/services/transaction";
 import { OrderTrigger } from "~/types";
 import { bigNumberToWrappedI80F48, deriveOrderPda, percentToMaxSlippageU32 } from "~/utils";
 
@@ -197,4 +206,112 @@ export async function makeUpdateOrderTx(
       params.globalFeeWallet ?? (await fetchGlobalFeeWallet(params.rpc, params.programAddress)),
   });
   return compileOrderTx(params, feePayer, [closeIx, placeIx], TransactionType.UPDATE_ORDER);
+}
+
+/**
+ * Instructions closing `ordersToClose`, then placing `placeOrder`, for composing with an action.
+ * The closes return the rent to the authority.
+ * @throws see {@link buildOrderTrigger} for an invalid `placeOrder.trigger`
+ */
+export async function makeOrderChangesIxs(
+  params: MakeOrderChangesIxsParams
+): Promise<Instruction[]> {
+  const { ordersToClose = [], placeOrder } = params;
+  return Promise.all([
+    ...ordersToClose.map((order) => makeCloseOrderIx({ ...params, order })),
+    ...(placeOrder ? [makePlaceOrderIx({ ...params, ...placeOrder })] : []),
+  ]);
+}
+
+/**
+ * Puts the closes of `ordersToClose` in front of an action that lands in one transaction compiled
+ * with `txFormat`. Unlike the premium refresh they can't be left out, so builders call this before
+ * `appendPremiumRefresh`, which then only adds the refresh if it still fits.
+ * @returns The closes, then the action's instructions
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if the closes don't fit next to the
+ * action
+ */
+export async function prependOrderCloses(params: PrependOrderClosesParams): Promise<Instruction[]> {
+  const {
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose = [],
+    actionIxs,
+    txFormat,
+  } = params;
+  if (ordersToClose.length === 0) return actionIxs;
+
+  const closeIxs = await makeOrderChangesIxs({
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose,
+  });
+  const withCloses = [...closeIxs, ...actionIxs];
+  if (!fitsInOneTransaction(withCloses, { feePayer: authority, txFormat, ...SEND_PIPELINE_ROOM })) {
+    throw TransactionBuildingError.orderClosesDontFit(ordersToClose);
+  }
+  return withCloses;
+}
+
+/**
+ * Builds an order transaction around {@link makeOrderChangesIxs}, to run after a multi-transaction
+ * action in the same atomic bundle, or to add order changes to an action built earlier without
+ * rebuilding it (e.g. a loop's take-profit / stop-loss set after its quote). The global fee wallet
+ * is read from the program's fee state when `placeOrder.globalFeeWallet` is omitted. The authority
+ * pays; `latestBlockhash` is fetched when omitted.
+ * @returns The transaction, none when there's nothing to change
+ * @throws see {@link makeOrderChangesIxs}
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if the changes don't fit in one
+ * transaction
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `placeOrder.globalFeeWallet` is omitted
+ * and the program's fee state account doesn't exist
+ */
+export async function makeOrderChangesTx(
+  params: MakeOrderChangesTxParams
+): Promise<SolanaTransaction | undefined> {
+  const {
+    rpc,
+    txFormat,
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose = [],
+    placeOrder,
+  } = params;
+  if (ordersToClose.length === 0 && !placeOrder) return undefined;
+
+  const ixs = await makeOrderChangesIxs({
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose,
+    placeOrder: placeOrder && {
+      ...placeOrder,
+      globalFeeWallet:
+        placeOrder.globalFeeWallet ?? (await fetchGlobalFeeWallet(rpc, programAddress)),
+    },
+  });
+  if (
+    !fitsInOneTransaction(ixs, {
+      feePayer: authority,
+      txFormat,
+      ...SEND_PIPELINE_ROOM,
+    })
+  ) {
+    throw TransactionBuildingError.orderClosesDontFit(ordersToClose);
+  }
+
+  let type = TransactionType.CLOSE_ORDER;
+  if (placeOrder) {
+    const [placedOrder] = await deriveOrderPda(programAddress, marginfiAccount.address, [
+      placeOrder.collateralBank,
+      placeOrder.debtBank,
+    ]);
+    type = ordersToClose.includes(placedOrder)
+      ? TransactionType.UPDATE_ORDER
+      : TransactionType.PLACE_ORDER;
+  }
+  return compileOrderTx(params, authority, ixs, type);
 }

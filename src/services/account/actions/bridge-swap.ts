@@ -6,8 +6,15 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { SwapFlowTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
+import {
+  MakeOrderChangesTxParams,
+  SwapFlowTxParams,
+  SwapFlowTxResult,
+  SwapQuoteResult,
+} from "../types";
 import { computeProjectedActiveBalancesNoCpi } from "../utils";
+
+import { makeOrderChangesTx } from "./orders";
 
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
 import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
@@ -100,6 +107,11 @@ export interface MakeBridgedTxParams extends SwapFlowTxParams {
     context: SwapFlowTxParams;
     openLegQuote: SwapQuoteResult;
   }) => Promise<BridgeLeg | null>;
+  /**
+   * Placed after the close leg, with the closes of `ordersToClose`, in one transaction that takes
+   * one of the bundle's slots; the legs themselves change no orders.
+   */
+  placeOrder?: MakeOrderChangesTxParams["placeOrder"];
 }
 
 /**
@@ -109,6 +121,7 @@ export interface MakeBridgedTxParams extends SwapFlowTxParams {
  * @throws `buildWithoutBridge`'s error when it can't be split or no bridge fits
  * @throws TransactionBuildingError (BRIDGE_CONFLICT) if every bridge is blocked by a position on
  * the opposite side of its bank
+ * @throws see {@link makeOrderChangesTx} for the bridged bundle's order changes
  */
 export async function makeBridgedTx(params: MakeBridgedTxParams): Promise<BridgedTxResult> {
   try {
@@ -158,6 +171,7 @@ async function findBridgedBundle(params: MakeBridgedTxParams): Promise<BridgedTx
     }
   }
 
+  const orderTx = await makeOrderChangesTx(params);
   for (const bank of usable) {
     if (bridgeOpts?.abortSignal?.aborted) {
       throw new DOMException("Operation was aborted", "AbortError");
@@ -165,7 +179,7 @@ async function findBridgedBundle(params: MakeBridgedTxParams): Promise<BridgedTx
     const tokenProgram = tokenPrograms.get(bank.mint);
     if (!tokenProgram) continue;
     try {
-      const bridged = await buildBridgedBundle(params, bank, tokenProgram);
+      const bridged = await buildBridgedBundle(params, bank, tokenProgram, orderTx);
       if (bridged) return bridged;
     } catch (error) {
       // A leg that can't be built through this bridge may still be through the next one
@@ -178,7 +192,8 @@ async function findBridgedBundle(params: MakeBridgedTxParams): Promise<BridgedTx
 async function buildBridgedBundle(
   params: MakeBridgedTxParams,
   bridgeBank: BankType,
-  bridgeTokenProgram: Address
+  bridgeTokenProgram: Address,
+  orderTx: SolanaTransaction | undefined
 ): Promise<BridgedTxResult | null> {
   const context: SwapFlowTxParams = {
     programAddress: params.programAddress,
@@ -234,7 +249,7 @@ async function buildBridgedBundle(
     ...prelude(closeLeg).filter((tx) => !isSetup(tx)),
     ...action(closeLeg),
   ];
-  if (transactions.length > MAX_BUNDLE_TXS) return null;
+  if (transactions.length + (orderTx ? 1 : 0) > MAX_BUNDLE_TXS) return null;
 
   // A deposited bridge is swapped into by the open leg, a borrowed one by the close leg
   const [into, outOf] =
@@ -242,7 +257,7 @@ async function buildBridgedBundle(
       ? [openLeg.quoteResponse, closeLeg.quoteResponse]
       : [closeLeg.quoteResponse, openLeg.quoteResponse];
   return {
-    transactions,
+    transactions: [...transactions, orderTx].filter((tx) => tx !== undefined),
     actionTxIndex: transactions.length - 1,
     quoteResponse: {
       inAmount: into.inAmount,

@@ -37,6 +37,7 @@ import {
 import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -82,6 +83,8 @@ const TRADE_PT_EVENT_AMOUNT_OUT_OFFSET = 138;
  * too little liquidity for the size
  * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
  * one transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit in one
+ * transaction after the flashloan
  */
 export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<SwapFlowTxResult> {
   const {
@@ -159,13 +162,15 @@ export async function makeRollPtTx(params: MakeRollPtTxParams): Promise<SwapFlow
     txFormat,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const orderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
+
+  const transactions = [...additionalTxs, flashloanTx, orderTx].filter((tx) => tx !== undefined);
 
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 

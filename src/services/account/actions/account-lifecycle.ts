@@ -27,7 +27,7 @@ import {
   needsPremiumRefresh,
 } from "../utils";
 
-import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
+import { SEND_PIPELINE_ROOM } from "~/constants";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -437,15 +437,12 @@ export async function appendPremiumRefresh(
     instructions: [...actionIxs, ...premiumIxs],
     txFormat: selectLutsForAccountAction(txFormat, bank, marginfiAccount.balances, bankMap),
   };
-  // Leaves room for what the send pipeline may append: compute-budget and priority-fee ixs, and
-  // in bundles a Jito tip, which lock the ComputeBudget program, tip account and System program
   const fits =
     premiumIxs.length > 0 &&
     fitsInOneTransaction(withPremium.instructions, {
       feePayer: params.authority,
       txFormat: withPremium.txFormat,
-      sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
-      maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
+      ...SEND_PIPELINE_ROOM,
     });
   return fits ? withPremium : actionOnly;
 }

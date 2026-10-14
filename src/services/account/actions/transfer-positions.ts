@@ -24,6 +24,7 @@ import { makeCreateAccountIxWithProjection, makeCreateMissingAtaIxs } from "./ac
 import { makeBorrowIx } from "./borrow";
 import { makeDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
@@ -494,6 +495,8 @@ function destPreexistingBanksOf(
  * is in a Drift or Solend bank
  * @throws TransactionBuildingError (TRANSFER_POSITIONS_UNSPLITTABLE) if the flashloan doesn't fit
  * one transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if either account's orders to close
+ * don't fit in one transaction after the flashloan
  */
 export async function makeTransferPositionsTx(
   params: MakeTransferPositionsTxParams
@@ -607,11 +610,21 @@ export async function makeTransferPositionsTx(
     txFormat,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const sourceOrderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
+  const destinationOrderTx = await makeOrderChangesTx({
+    ...params,
+    marginfiAccount: accountB,
+    ordersToClose: params.destinationOrdersToClose,
+    latestBlockhash,
+  });
+
+  const transactions = [...additionalTxs, flashloanTx, sourceOrderTx, destinationOrderTx].filter(
+    (tx) => tx !== undefined
+  );
   return {
     transactions,
     actionTxIndex: additionalTxs.length,
     destinationAccount: accountB,
-    mustBeAtomicBundle: refreshIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }

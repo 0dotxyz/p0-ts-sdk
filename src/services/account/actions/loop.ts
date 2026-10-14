@@ -38,6 +38,7 @@ import { makeBorrowIx } from "./borrow";
 import { BridgedTxResult, BridgeOpts, makeBridgedTx } from "./bridge-swap";
 import { makeDepositIx } from "./deposit";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeSwapDebtTx } from "./swap-debt";
 
 import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
@@ -64,9 +65,19 @@ import { nativeToUi, uiToNative } from "~/utils";
  * integration or staked position beyond the account's limit
  * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_LOOP) if the flashloan doesn't fit one
  * transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if the order changes don't fit in one
+ * transaction after the flashloan
  */
 export async function makeLoopTx(params: MakeLoopTxParams): Promise<SwapFlowTxResult> {
-  const { authority, depositOpts, borrowOpts, txFormat, rpc, additionalIxs = [] } = params;
+  const {
+    authority,
+    depositOpts,
+    borrowOpts,
+    placeOrder,
+    txFormat,
+    rpc,
+    additionalIxs = [],
+  } = params;
   if (
     exceedsCostlyPositionLimit(
       params.marginfiAccount.balances,
@@ -134,13 +145,22 @@ export async function makeLoopTx(params: MakeLoopTxParams): Promise<SwapFlowTxRe
     feePayer: authority,
     txFormat,
   });
+  const orderTx = await makeOrderChangesTx({
+    ...params,
+    placeOrder: placeOrder && {
+      collateralBank: depositOpts.depositBank.address,
+      debtBank: borrowOpts.borrowBank.address,
+      trigger: placeOrder,
+    },
+    latestBlockhash,
+  });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const transactions = [...additionalTxs, flashloanTx, orderTx].filter((tx) => tx !== undefined);
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 
@@ -434,7 +454,7 @@ export interface MakeBridgedLoopTxParams extends MakeLoopTxParams {
  * directly.
  */
 export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promise<BridgedTxResult> {
-  const { depositOpts, borrowOpts } = params;
+  const { depositOpts, borrowOpts, placeOrder } = params;
   // The legs are priced by oracle (0 when missing): the caller's market prices only cover the pair
   const priceOf = (bank: BankType) =>
     params.oraclePrices.get(bank.address)?.priceRealtime.price.toNumber() ?? 0;
@@ -443,6 +463,11 @@ export async function makeBridgedLoopTx(params: MakeBridgedLoopTxParams): Promis
     side: "borrow",
     sourceMint: depositOpts.depositBank.mint,
     destinationMint: borrowOpts.borrowBank.mint,
+    placeOrder: placeOrder && {
+      collateralBank: depositOpts.depositBank.address,
+      debtBank: borrowOpts.borrowBank.address,
+      trigger: placeOrder,
+    },
     buildWithoutBridge: () => makeLoopTx(params),
     buildOpenBridgeLeg: async ({ bridgeBank, bridgeTokenProgram, context }) => {
       const borrowPrice = priceOf(borrowOpts.borrowBank);

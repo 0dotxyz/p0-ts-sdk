@@ -31,6 +31,7 @@ import {
 
 import { appendPremiumRefresh, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx, prependOrderCloses } from "./orders";
 import { makeWithdrawIx } from "./withdraw";
 
 import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
@@ -44,6 +45,7 @@ import {
   makePreludeTxs,
   makeTransactionMessage,
   makeWrapSolIxs,
+  selectLutsForBanks,
   SolanaTransaction,
   TransactionType,
   withLookupTables,
@@ -100,14 +102,21 @@ export async function makeRepayIx({
 /**
  * Builds a repay transaction around {@link makeRepayIx}. The authority pays and signs;
  * `latestBlockhash` is fetched when omitted.
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
  */
 export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, ...repayIxParams } = params;
 
   const repayIxs = await makeRepayIx(repayIxParams);
-  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+  const actionIxs = await prependOrderCloses({
     ...params,
     actionIxs: repayIxs,
+    txFormat: selectLutsForBanks(txFormat, [params.bank]),
+  });
+  const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
+    ...params,
+    actionIxs,
     mandatoryBanks: [],
     excludedBanks: params.repayAll ? [params.bank.address] : [],
   });
@@ -130,8 +139,8 @@ export async function makeRepayTx(params: MakeRepayTxParams): Promise<SolanaTran
  * repay mint when the mints differ, and repays the swap's minimum output (the withdrawn amount
  * when no swap is needed), or the whole liability when the quoted output covers
  * `repayOpts.totalPositionAmount`. ATA creation and integration-bank refreshes go in
- * transactions before the flash loan, which must land in the same bundle when
- * `mustBeAtomicBundle` is set.
+ * transactions before the flash loan and `ordersToClose` in one after it, which must land in the
+ * same bundle when `mustBeAtomicBundle` is set.
  * @throws TransactionBuildingError if the swap has no route, the flash loan transaction exceeds
  * the size or account-lock limits, or the withdraw bank's venue state is missing
  */
@@ -205,12 +214,14 @@ export async function makeRepayWithCollatTx(params: MakeRepayWithCollatTxParams)
     txFormat,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const orderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
+
+  const transactions = [...additionalTxs, flashloanTx, orderTx].filter((tx) => tx !== undefined);
   return {
     transactions,
     swapQuote,
     amountToRepay,
-    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 

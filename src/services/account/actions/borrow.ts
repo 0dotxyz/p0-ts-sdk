@@ -7,6 +7,8 @@ import {
 import { MakeBorrowIxParams, MakeBorrowTxParams } from "../types";
 import { computeHealthAccounts, getActiveBalances } from "../utils";
 
+import { prependOrderCloses } from "./orders";
+
 import { WSOL_MINT } from "~/constants";
 import instructions from "~/instructions";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -91,6 +93,8 @@ export async function makeBorrowIx({
  * @throws see {@link makeBorrowIx}
  * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
  * JUPLEND_STATE_NOT_FOUND) if an integration bank's venue state is missing from `bankMetadataMap`
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
  */
 export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, bankMetadataMap, ...borrowIxParams } = params;
@@ -110,19 +114,26 @@ export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTr
     [bank.address, ...openedBanks]
   );
 
+  const selectedFormat = selectLutsForAccountAction(
+    txFormat,
+    bank,
+    marginfiAccount.balances,
+    bankMap,
+    opts?.activeBanks
+  );
+  const ixs = await prependOrderCloses({
+    ...params,
+    actionIxs: [...refreshIxs, ...borrowIxs],
+    txFormat: selectedFormat,
+  });
+
   return {
     message: makeTransactionMessage({
-      instructions: [...refreshIxs, ...borrowIxs],
+      instructions: ixs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      txFormat: selectLutsForAccountAction(
-        txFormat,
-        bank,
-        marginfiAccount.balances,
-        bankMap,
-        opts?.activeBanks
-      ),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.BORROW,
   };

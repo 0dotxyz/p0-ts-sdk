@@ -8,6 +8,8 @@ import { BigNumber } from "bignumber.js";
 import { MakeWithdrawIxParams, MakeWithdrawTxParams } from "../types";
 import { computeHealthAccounts, getActiveBalances } from "../utils";
 
+import { prependOrderCloses } from "./orders";
+
 import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
@@ -264,6 +266,8 @@ export async function makeWithdrawIx({
  * account's integration banks, including those `opts.activeBanks` adds. The authority pays and
  * signs; `latestBlockhash` is fetched when omitted.
  * @throws see {@link makeWithdrawIx}
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
  */
 export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<SolanaTransaction> {
   const { rpc, txFormat, latestBlockhash, ...withdrawIxParams } = params;
@@ -283,19 +287,26 @@ export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<Sola
     [bank.address, ...openedBanks]
   );
 
+  const selectedFormat = selectLutsForAccountAction(
+    txFormat,
+    bank,
+    marginfiAccount.balances,
+    bankMap,
+    opts?.activeBanks
+  );
+  const ixs = await prependOrderCloses({
+    ...params,
+    actionIxs: [...refreshIxs, ...withdrawIxs],
+    txFormat: selectedFormat,
+  });
+
   return {
     message: makeTransactionMessage({
-      instructions: [...refreshIxs, ...withdrawIxs],
+      instructions: ixs,
       feePayer: params.authority,
       latestBlockhash:
         latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
-      txFormat: selectLutsForAccountAction(
-        txFormat,
-        bank,
-        marginfiAccount.balances,
-        bankMap,
-        opts?.activeBanks
-      ),
+      txFormat: selectedFormat,
     }),
     type: TransactionType.WITHDRAW,
   };

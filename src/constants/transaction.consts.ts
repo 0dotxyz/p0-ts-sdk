@@ -6,6 +6,16 @@ export const BUNDLE_TX_SIZE: number = 81;
 export const PRIORITY_TX_SIZE: number = 44;
 
 /**
+ * Room a built transaction leaves for what the send pipeline appends: compute-budget and
+ * priority-fee ixs, and in bundles a Jito tip, which lock the ComputeBudget program, tip account
+ * and System program.
+ */
+export const SEND_PIPELINE_ROOM = {
+  sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
+  maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
+};
+
+/**
  * The resource limits every SDK-built v1 message carries in its config. A v1 message has no
  * implicit limits (unset means zero compute units and zero loaded bytes), so these are the maximum
  * compute budget and the loaded-accounts size a v0 message gets by default. The zero priority fee

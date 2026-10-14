@@ -28,6 +28,7 @@ import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
 import { BridgedTxResult, BridgeOpts, makeBridgedTx } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
+import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
@@ -52,6 +53,8 @@ import { nativeToUi, uiToNative } from "~/utils";
  * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if no provider can quote the swap
  * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
  * one transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit in one
+ * transaction after the flashloan
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapDebtTx({
@@ -120,13 +123,15 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<Swap
     txFormat,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
+  const orderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
+
+  const transactions = [...additionalTxs, flashloanTx, orderTx].filter((tx) => tx !== undefined);
 
   return {
     transactions,
-    actionTxIndex: transactions.length - 1,
+    actionTxIndex: additionalTxs.length,
     quoteResponse: swapQuote,
-    mustBeAtomicBundle: refreshIntegrationIxs.length > 0,
+    mustBeAtomicBundle: transactions.length > 1,
   };
 }
 

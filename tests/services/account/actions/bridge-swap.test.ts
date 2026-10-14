@@ -252,6 +252,39 @@ describe("makeBridgedTx", () => {
     });
   });
 
+  it("runs the order changes after the close leg, in one of the bundle's slots", async () => {
+    const legOf = (...fills: number[]): BridgeLeg => ({
+      transactions: [
+        ...fills.slice(0, -1).map((fill) => tx(TransactionType.CRANK, fill)),
+        tx(TransactionType.FLASHLOAN, fills[fills.length - 1]),
+      ],
+      actionTxIndex: fills.length - 1,
+      quoteResponse: quote(),
+    });
+    const order = key(30);
+    const withOrderTx = (openLeg: BridgeLeg) =>
+      params({
+        marginfiAccount: { ...account(), group: key(4) },
+        rpc: {
+          getLatestBlockhash: () => ({ send: async () => ({ value: latestBlockhash }) }),
+        } as never,
+        ordersToClose: [order],
+        buildOpenBridgeLeg: async () => openLeg,
+        buildCloseBridgeLeg: async () => legOf(20, 21),
+      });
+
+    const result = await makeBridgedTx(withOrderTx(legOf(10, 11)));
+    expect(result.transactions).toHaveLength(5);
+    const orderTx = result.transactions[4];
+    expect(orderTx.type).toBe(TransactionType.CLOSE_ORDER);
+    // close_order accounts: group, marginfi_account, authority, order, fee_recipient
+    expect(orderTx.message.instructions[0].accounts?.[3].address).toBe(order);
+    expect(result.actionTxIndex).toBe(3);
+
+    // Legs filling all five slots leave none for the order transaction
+    await expect(makeBridgedTx(withOrderTx(legOf(10, 11, 12)))).rejects.toBe(tooLarge);
+  });
+
   it("places a leg's action by actionTxIndex, whatever its tag", async () => {
     const result = await makeBridgedTx(
       params({

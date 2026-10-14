@@ -4,10 +4,11 @@ import { MakeBulkRepayTxParams, MakeBulkWithdrawTxParams, BulkLendTxsResult } fr
 import { computeQuantityUi, needsPremiumRefresh } from "../utils";
 
 import { makeCreateMissingAtaIxs, makePremiumRefreshIxs } from "./account-lifecycle";
+import { makeOrderChangesIxs } from "./orders";
 import { makeRepayIx } from "./repay";
 import { makeWithdrawIx } from "./withdraw";
 
-import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE, WSOL_MINT } from "~/constants";
+import { SEND_PIPELINE_ROOM, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
@@ -20,13 +21,6 @@ import {
   TransactionType,
 } from "~/services/transaction";
 
-// Room for what the send pipeline appends: compute-budget and priority-fee ixs, and in bundles a
-// Jito tip, which lock the ComputeBudget program, tip account and System program
-const SEND_PIPELINE_ROOM = {
-  sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
-  maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
-};
-
 // Repay-all repays the debt as of execution, a little over the snapshot it's sized from; the extra
 // wrapped SOL comes back when the wSOL account is closed after the repays
 const SOL_REPAY_ALL_BUFFER = 1.001;
@@ -38,9 +32,10 @@ const invalidSelection =
 
 /**
  * Withdraws the full position of each of `bankAddresses`, in order, packing as many withdraws per
- * transaction as fit. Returns `[setup txs…, refresh txs…, withdraw txs…]`, `actionTxIndex` at the
- * first withdraw. With refreshes it must land as one atomic bundle (`mustBeAtomicBundle`): Kamino
- * only accepts a reserve refreshed in the same slot.
+ * transaction as fit, after the closes of `ordersToClose`. Returns `[setup txs…, refresh txs…,
+ * withdraw txs…]`, `actionTxIndex` at the first withdraw. It must land as one atomic bundle
+ * (`mustBeAtomicBundle`) with refreshes, since Kamino only accepts a reserve refreshed in the same
+ * slot, and with closes in a batch that splits, since the closes must land with every withdraw.
  * @throws TransactionBuildingError (BULK_INVALID_SELECTION) if `bankAddresses` is empty, repeats
  * a bank, or names a bank without a deposit
  */
@@ -133,7 +128,9 @@ export async function makeBulkWithdrawTx(
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const withdrawTxs: SolanaTransaction[] = splitInstructionsToFitTransactions([], withdrawIxs, {
+  const closeIxs = await makeOrderChangesIxs(params);
+  const actionIxs = [...closeIxs, ...withdrawIxs];
+  const withdrawTxs: SolanaTransaction[] = splitInstructionsToFitTransactions([], actionIxs, {
     latestBlockhash,
     feePayer: authority,
     txFormat: selectedFormat,
@@ -164,16 +161,17 @@ export async function makeBulkWithdrawTx(
   return {
     transactions: [...additionalTxs, ...withdrawTxs],
     actionTxIndex: additionalTxs.length,
-    mustBeAtomicBundle: refreshIxs.length > 0,
+    // Order closes must land with every withdraw
+    mustBeAtomicBundle: refreshIxs.length > 0 || (closeIxs.length > 0 && withdrawTxs.length > 1),
   };
 }
 
 /**
  * Repays the full debt of each of `bankAddresses` from the wallet, packing as many repays per
- * transaction as fit, followed by the premium refresh while premium-bearing debt remains. A batch
- * that splits with the premium refresh in it must land as one bundle (`mustBeAtomicBundle`). A SOL
- * repay wraps a little extra SOL and closes the wSOL account afterwards, which also unwraps wSOL
- * already in it.
+ * transaction as fit after the closes of `ordersToClose`, followed by the premium refresh while
+ * premium-bearing debt remains. A batch that splits with the premium refresh or closes in it must
+ * land as one bundle (`mustBeAtomicBundle`). A SOL repay wraps a little extra SOL and closes the
+ * wSOL account afterwards, which also unwraps wSOL already in it.
  * @throws TransactionBuildingError (BULK_INVALID_SELECTION) if `bankAddresses` is empty, repeats
  * a bank, or names a bank without debt
  */
@@ -247,7 +245,9 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
-  const transactions = splitInstructionsToFitTransactions([], [...repayIxs, ...premiumIxs], {
+  const closeIxs = await makeOrderChangesIxs(params);
+  const actionIxs = [...closeIxs, ...repayIxs, ...premiumIxs];
+  const transactions = splitInstructionsToFitTransactions([], actionIxs, {
     latestBlockhash,
     feePayer: authority,
     txFormat,
@@ -257,7 +257,8 @@ export async function makeBulkRepayTx(params: MakeBulkRepayTxParams): Promise<Bu
   return {
     transactions,
     actionTxIndex: 0,
-    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay
-    mustBeAtomicBundle: premiumIxs.length > 0 && transactions.length > 1,
+    // Venue refreshes only count in the pulse's slot, and the pulse must follow every repay;
+    // order closes must land with every repay
+    mustBeAtomicBundle: (premiumIxs.length > 0 || closeIxs.length > 0) && transactions.length > 1,
   };
 }
