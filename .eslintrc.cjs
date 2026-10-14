@@ -69,6 +69,11 @@ module.exports = {
       files: ['src/instructions.ts', 'src/accounts.ts', 'src/vendor/**/*.ts'],
       rules: { '@typescript-eslint/no-restricted-imports': 'off' },
     },
+    {
+      // Tests build raw account fixtures with the generated encoders and sizes.
+      files: ['tests/**/*.ts'],
+      rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+    },
   ],
   ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.ts', '*.config.js', 'src/generated'],
 };

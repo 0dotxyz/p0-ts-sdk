@@ -6,7 +6,6 @@
   ],
   "ignoreDependencies": [
     "buffer",
-    "@vitest/coverage-v8",
     "@codama/nodes-from-anchor",
     "@codama/renderers-js",
     "@codama/visitors"
