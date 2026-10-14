@@ -5,16 +5,20 @@ import {
   type Address,
   type Instruction,
 } from "@solana/kit";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import accountFixtures from "../../../fixtures/mainnet-accounts.json";
 import { addr, key } from "../../../helpers/addresses";
 import { mainnetBankMap, mainnetBanks } from "../../../helpers/mainnet";
+import { makeDebt, makePremiumBank, NOW, usdc, YEAR } from "../../../helpers/premium";
 
 import { DEFAULT_ADDRESS } from "~/constants";
 import instructions from "~/instructions";
+import { BalanceType, MarginfiAccountType } from "~/services/account/types";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
+import { computeBalancePremium } from "~/services/account/utils/premium.utils";
 import { balanceToDto } from "~/services/account/utils/serialize.utils";
 import {
   computeHealthAccounts,
@@ -311,5 +315,82 @@ describe("computeHealthAccounts", () => {
       const b = bank({ oracleSetup, assetTag: AssetTag.DEFAULT });
       expect(riskAccountKeys(b)).toEqual([b.address, KEYS[0]]);
     }
+  });
+});
+
+describe("computeProjectedActiveBalancesNoCpi", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW * 1000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function projectRepay(balance: BalanceType, b: BankType, amount: number, repayAll = false) {
+    const debtor = {
+      address: addr(),
+      balances: [balance],
+    } as unknown as MarginfiAccountType;
+    const ix = await instructions.makeRepayIx(programAddress, {
+      group: addr(),
+      marginfiAccount: debtor.address,
+      authority: createNoopSigner(addr()),
+      signerTokenAccount: addr(),
+      bank: b.address,
+      liquidityVault: addr(),
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      mint: b.mint,
+      amount: BigInt(usdc(amount).toFixed()),
+      repayAll,
+    });
+    return computeProjectedActiveBalancesNoCpi({
+      account: debtor,
+      instructions: [ix],
+      programAddress,
+      banksMap: new Map([[b.address, b]]),
+      assetShareValueMultiplierByBank: new Map(),
+    }).projectedBalances[0];
+  }
+
+  it("settles premium before principal on repay (vb03: repay 4 of 10 premium, shares unchanged)", async () => {
+    const b = makePremiumBank();
+    const balance = makeDebt({
+      bankPk: b.address,
+      principal: 1000,
+      rate: 0.01,
+      lastUpdate: NOW - YEAR,
+    });
+    const projected = await projectRepay(balance, b, 4);
+    expect(projected.liabilityShares.toNumber()).toBe(usdc(1000).toNumber());
+    expect(projected.premiumOutstanding.toNumber()).toBe(usdc(6).toNumber());
+    expect(computeBalancePremium(projected, b, NOW).toNumber()).toBe(usdc(6).toNumber());
+  });
+
+  it("repays principal with whatever exceeds the premium", async () => {
+    const b = makePremiumBank();
+    const balance = makeDebt({
+      bankPk: b.address,
+      principal: 1000,
+      rate: 0.01,
+      lastUpdate: NOW - YEAR,
+    });
+    const projected = await projectRepay(balance, b, 110);
+    expect(projected.premiumOutstanding.isZero()).toBe(true);
+    expect(projected.liabilityShares.toNumber()).toBe(usdc(900).toNumber());
+  });
+
+  it("clears the premium on repay-all", async () => {
+    const b = makePremiumBank();
+    const balance = makeDebt({
+      bankPk: b.address,
+      principal: 1000,
+      rate: 0.01,
+      lastUpdate: NOW - YEAR,
+    });
+    const projected = await projectRepay(balance, b, 0, true);
+    expect(projected.active).toBe(false);
+    expect(projected.premiumOutstanding.isZero()).toBe(true);
+    expect(projected.premiumRate.isZero()).toBe(true);
   });
 });

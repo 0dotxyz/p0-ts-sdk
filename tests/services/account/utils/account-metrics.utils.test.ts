@@ -1,9 +1,15 @@
 import { getAddressDecoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { makeOraclePrice } from "../../../helpers/factories";
+import { makeDebt, makePremiumBank, NOW } from "../../../helpers/premium";
 
 import { HealthCacheStatus, MarginfiAccountType } from "~/services/account/types";
-import { computeLiquidationPriceForBank } from "~/services/account/utils/account-metrics.utils";
+import {
+  computeLiquidationPriceForBank,
+  computeNetApy,
+} from "~/services/account/utils/account-metrics.utils";
 import { AssetTag, BankType, OperationalState, RiskTier } from "~/services/bank/types";
 import { OraclePrice } from "~/services/price/types";
 
@@ -72,5 +78,42 @@ describe("computeLiquidationPriceForBank", () => {
 
     // 12 * 0.9 * (P - 2) = 600
     expect(liquidationPrice).toBeCloseTo(600 / (12 * 0.9) + 2, 6);
+  });
+});
+
+describe("computeNetApy", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW * 1000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("adds the stored premium rate to the borrow rate", () => {
+    const b = makePremiumBank();
+    const balance = makeDebt({ bankPk: b.address, principal: 1000, rate: 0.05, lastUpdate: NOW });
+    const marginfiAccount = {
+      healthCache: {
+        assetValueEquity: new BigNumber(2000),
+        liabilityValueEquity: new BigNumber(1000),
+        simulationStatus: HealthCacheStatus.COMPUTED,
+      },
+    } as unknown as MarginfiAccountType;
+    const params = {
+      marginfiAccount,
+      activeBalances: [balance],
+      banksMap: new Map([[b.address, b]]),
+      oraclePricesByBank: new Map([[b.address, makeOraclePrice(1)]]),
+    };
+
+    const withPremium = computeNetApy(params);
+    const withoutPremium = computeNetApy({
+      ...params,
+      banksMap: new Map([[b.address, { ...b, premiumActive: false }]]),
+    });
+
+    // 1000 USD of debt over 1000 USD of equity pays 5% more APR with the premium
+    expect(Math.log1p(withoutPremium) - Math.log1p(withPremium)).toBeGreaterThan(0.049);
   });
 });

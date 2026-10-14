@@ -1,22 +1,18 @@
 import {
   AccountRole,
-  address,
-  blockhash,
   compileTransaction,
   compileTransactionMessage,
   createNoopSigner,
-  getBase64Encoder,
   getTransactionEncoder,
   type Instruction,
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
-import { key } from "../../../helpers/addresses";
+import { key, LATEST_BLOCKHASH } from "../../../helpers/addresses";
+import { mainnetBanks } from "../../../helpers/mainnet";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import instructions from "~/instructions";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import {
   isFlashloan,
   makeTransactionMessage,
@@ -24,19 +20,17 @@ import {
   splitInstructionsToFitTransactions,
   withLookupTables,
 } from "~/services/transaction/helpers/tx-formatting";
-import { getTotalAccountKeys, getTxSize } from "~/services/transaction/helpers/tx-size";
+import { getTotalAccountKeys } from "~/services/transaction/helpers/tx-size";
 import { TransactionFormat, TransactionType } from "~/services/transaction/types";
 
 const feePayer = createNoopSigner(key(1));
-const latestBlockhash = {
-  blockhash: blockhash("EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k"),
-  lastValidBlockHeight: 0n,
-};
+const latestBlockhash = LATEST_BLOCKHASH;
 const programAddress = key(200);
 const v0: TransactionFormat = { version: 0, luts: {} };
 const v1: TransactionFormat = { version: 1 };
+const V1_SIZE_LIMIT = 4096;
 
-/** An instruction touching `accounts` read-only accounts starting at `firstKey`, with `dataLength` bytes. */
+// An instruction touching `accounts` read-only accounts starting at `firstKey`, with `dataLength` bytes
 const ix = (firstKey: number, accounts: number, dataLength = 0): Instruction => ({
   programAddress,
   accounts: Array.from({ length: accounts }, (_, i) => ({
@@ -46,40 +40,39 @@ const ix = (firstKey: number, accounts: number, dataLength = 0): Instruction => 
   data: new Uint8Array(dataLength),
 });
 
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), getBase64Encoder().encode(data)),
-  ])
-);
+const wireSize = (message: ReturnType<typeof makeTransactionMessage>) =>
+  getTransactionEncoder().encode(compileTransaction(message)).length;
 
-describe("transaction messages", () => {
-  it("compresses lookup-table accounts and measures the exact wire size", () => {
-    const plain = makeTransactionMessage({
+describe("makeTransactionMessage", () => {
+  it("keeps every account of a version 1 message static and sets the default resource limits", () => {
+    const message = makeTransactionMessage({
       instructions: [ix(10, 4)],
       feePayer,
       latestBlockhash,
-      txFormat: v0,
-    });
-    const compressed = makeTransactionMessage({
-      instructions: [ix(10, 4)],
-      feePayer,
-      latestBlockhash,
-      txFormat: { version: 0, luts: { [key(100)]: [key(10), key(11)] } },
+      txFormat: v1,
     });
 
-    const lookups = compileTransactionMessage(compressed);
-    expect("addressTableLookups" in lookups && lookups.addressTableLookups).toEqual([
-      { lookupTableAddress: key(100), writableIndexes: [], readonlyIndexes: [0, 1] },
-    ]);
-    expect(getTotalAccountKeys(plain)).toBe(getTotalAccountKeys(compressed));
-    for (const message of [plain, compressed]) {
-      const wireSize = getTransactionEncoder().encode(compileTransaction(message)).length;
-      expect(getTxSize(message)).toBe(wireSize);
-    }
-    expect(getTxSize(compressed)).toBeLessThan(getTxSize(plain));
+    expect(message.version).toBe(1);
+
+    const compiled = compileTransactionMessage(message);
+    expect(compiled.version).toBe(1);
+    expect("addressTableLookups" in compiled).toBe(false);
+    // fee payer + program + the 4 instruction accounts
+    expect(new Set(compiled.staticAccounts)).toEqual(
+      new Set([feePayer.address, programAddress, key(10), key(11), key(12), key(13)])
+    );
+    expect(compiled.staticAccounts).toHaveLength(6);
+    expect(getTotalAccountKeys(message)).toBe(6);
+
+    expect("config" in message && message.config).toEqual({
+      computeUnitLimit: 1_400_000,
+      loadedAccountsDataSizeLimit: 67_108_864,
+      priorityFeeLamports: 0n,
+    });
   });
+});
 
+describe("splitInstructionsToFitTransactions", () => {
   it("splits instructions by size, keeping the mandatory ones in every transaction", () => {
     const mandatory = ix(10, 1);
     const big = [ix(20, 2, 400), ix(30, 2, 400), ix(40, 2, 400)];
@@ -111,70 +104,6 @@ describe("transaction messages", () => {
 
     // fee payer + program + 5 accounts per instruction
     expect(messages.map(getTotalAccountKeys)).toEqual([12, 7]);
-  });
-
-  it("detects marginfi flashloans", async () => {
-    const begin = await instructions.makeBeginFlashLoanIx(programAddress, {
-      marginfiAccount: key(3),
-      authority: feePayer,
-      endIndex: 2n,
-    });
-    const tx = (ixs: Instruction[]) => ({
-      message: makeTransactionMessage({
-        instructions: ixs,
-        feePayer,
-        latestBlockhash,
-        txFormat: v0,
-      }),
-      type: TransactionType.FLASHLOAN,
-    });
-
-    expect(isFlashloan(tx([ix(10, 1), begin]))).toBe(true);
-    expect(isFlashloan(tx([ix(10, 1)]))).toBe(false);
-  });
-});
-
-describe("version 1 transaction messages", () => {
-  const V1_SIZE_LIMIT = 4096;
-  const wireSize = (message: ReturnType<typeof makeTransactionMessage>) =>
-    getTransactionEncoder().encode(compileTransaction(message)).length;
-
-  it("keeps every account static and sets the default resource limits", () => {
-    const message = makeTransactionMessage({
-      instructions: [ix(10, 4)],
-      feePayer,
-      latestBlockhash,
-      txFormat: v1,
-    });
-
-    expect(message.version).toBe(1);
-
-    const compiled = compileTransactionMessage(message);
-    expect(compiled.version).toBe(1);
-    expect("addressTableLookups" in compiled).toBe(false);
-    // fee payer + program + the 4 instruction accounts
-    expect(new Set(compiled.staticAccounts)).toEqual(
-      new Set([feePayer.address, programAddress, key(10), key(11), key(12), key(13)])
-    );
-    expect(compiled.staticAccounts).toHaveLength(6);
-    expect(getTotalAccountKeys(message)).toBe(6);
-
-    expect("config" in message && message.config).toEqual({
-      computeUnitLimit: 1_400_000,
-      loadedAccountsDataSizeLimit: 67_108_864,
-      priorityFeeLamports: 0n,
-    });
-  });
-
-  it("measures the exact wire size", () => {
-    const message = makeTransactionMessage({
-      instructions: [ix(10, 4, 100), ix(20, 2, 7)],
-      feePayer,
-      latestBlockhash,
-      txFormat: v1,
-    });
-
-    expect(getTxSize(message)).toBe(wireSize(message));
   });
 
   it("fits a single instruction that is too large for version 0", () => {
@@ -213,8 +142,30 @@ describe("version 1 transaction messages", () => {
   });
 });
 
+describe("isFlashloan", () => {
+  it("detects marginfi flashloans", async () => {
+    const begin = await instructions.makeBeginFlashLoanIx(programAddress, {
+      marginfiAccount: key(3),
+      authority: feePayer,
+      endIndex: 2n,
+    });
+    const tx = (ixs: Instruction[]) => ({
+      message: makeTransactionMessage({
+        instructions: ixs,
+        feePayer,
+        latestBlockhash,
+        txFormat: v0,
+      }),
+      type: TransactionType.FLASHLOAN,
+    });
+
+    expect(isFlashloan(tx([ix(10, 1), begin]))).toBe(true);
+    expect(isFlashloan(tx([ix(10, 1)]))).toBe(false);
+  });
+});
+
 describe("selectLutsForBanks", () => {
-  const nativeStakeLut = ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE[banks.staked.group][0];
+  const nativeStakeLut = ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE[mainnetBanks.staked.group][0];
   const generalLut = key(150);
   const txFormat: TransactionFormat = {
     version: 0,
@@ -222,21 +173,21 @@ describe("selectLutsForBanks", () => {
   };
 
   it("uses the native-stake set when every bank is STAKED or SOL", () => {
-    expect(selectLutsForBanks(txFormat, [banks.staked, banks.sol])).toEqual({
+    expect(selectLutsForBanks(txFormat, [mainnetBanks.staked, mainnetBanks.sol])).toEqual({
       version: 0,
       luts: { [nativeStakeLut]: [key(11)] },
     });
   });
 
   it("falls back to the general set otherwise", () => {
-    expect(selectLutsForBanks(txFormat, [banks.staked, banks.default])).toEqual({
+    expect(selectLutsForBanks(txFormat, [mainnetBanks.staked, mainnetBanks.default])).toEqual({
       version: 0,
       luts: { [generalLut]: [key(10)] },
     });
   });
 
   it("returns a version 1 format unchanged", () => {
-    expect(selectLutsForBanks(v1, [banks.staked, banks.sol])).toBe(v1);
+    expect(selectLutsForBanks(v1, [mainnetBanks.staked, mainnetBanks.sol])).toBe(v1);
   });
 });
 

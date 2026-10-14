@@ -1,16 +1,25 @@
-import { address, createNoopSigner, unwrapOption } from "@solana/kit";
+import {
+  address,
+  createNoopSigner,
+  unwrapOption,
+  type Address,
+  type Instruction,
+} from "@solana/kit";
 import { BigNumber } from "bignumber.js";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { key } from "../../../helpers/addresses";
-import { findMarginfiIxs } from "../../../helpers/ix";
+import { addr, key, LATEST_BLOCKHASH } from "../../../helpers/addresses";
+import { makeAccount, makeBalance, makeBank } from "../../../helpers/factories";
+import { findMarginfiIxs, isMarginfiIx } from "../../../helpers/ix";
 import { mainnetAccount, mainnetBanks } from "../../../helpers/mainnet";
-import { stubRpcFetch, stubbedRpc } from "../../../helpers/rpc";
+import { depositParams, toWire, v283Cases } from "../../../helpers/parity";
+import { fakeRpc, stubRpcFetch, stubbedRpc } from "../../../helpers/rpc";
 
-import { MarginfiInstruction } from "~/instructions";
-import { makeRepayWithCollatTx } from "~/services/account/actions/repay";
+import instructions, { MarginfiInstruction } from "~/instructions";
+import { makeRepayIx, makeRepayTx, makeRepayWithCollatTx } from "~/services/account/actions/repay";
 import { SwapProvider, type MarginfiAccountType } from "~/services/account/types";
-import { BankType } from "~/services/bank";
+import { AssetTag, BankType } from "~/services/bank";
+import { SolanaTransaction, TransactionFormat } from "~/services/transaction";
 
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
@@ -95,6 +104,106 @@ function repayIxOf(result: Awaited<ReturnType<typeof makeRepayWithCollatTx>>) {
   return { repayAll: unwrapOption(repay.data.repayAll), amount: repay.data.amount };
 }
 
+const premiumBank = (overrides: Parameters<typeof makeBank>[0] = {}) =>
+  makeBank({ premiumTag: 1, premiumActive: true, ...overrides });
+const asset = (bank: BankType) => makeBalance(bank, "asset", 1_000e6);
+const debt = (bank: BankType) => makeBalance(bank, "liability", 100e6);
+
+const sol = premiumBank();
+const usdc = premiumBank();
+const usdt = premiumBank();
+const kamino = premiumBank({ config: { assetTag: AssetTag.KAMINO } });
+const usdcCollateral = premiumBank({ mint: usdc.mint });
+const premiumBankMap = new Map<string, BankType>(
+  [sol, usdc, usdt, kamino, usdcCollateral].map((b) => [b.address, b])
+);
+const rpc = fakeRpc({ accountsExist: true });
+const noLuts: TransactionFormat = { version: 0, luts: {} };
+
+const ixsOf = (tx: SolanaTransaction | undefined): readonly Instruction[] =>
+  tx?.message.instructions ?? [];
+const lastIx = (tx: SolanaTransaction): Instruction => ixsOf(tx)[ixsOf(tx).length - 1];
+const keys = (ix: Instruction) => (ix.accounts ?? []).map((meta) => meta.address);
+const isClose = isMarginfiIx(MarginfiInstruction.MarginfiAccountCloseOrder);
+const isPulse = isMarginfiIx(MarginfiInstruction.LendingAccountPulseHealth);
+const hasPulse = (tx: SolanaTransaction) => ixsOf(tx).some(isPulse);
+
+const orders = (count: number) => Array.from({ length: count }, addr);
+
+// Another program's instruction, so the flashloan projection skips it
+const foreignIx = (): Instruction => ({
+  programAddress: addr(),
+  accounts: [],
+  data: new Uint8Array(8),
+});
+
+function repayTx(
+  marginfiAccount: MarginfiAccountType,
+  target: BankType,
+  opts: { amount: number; repayAll?: boolean; ordersToClose?: Address[] }
+) {
+  return makeRepayTx({
+    programAddress,
+    bank: target,
+    tokenProgram,
+    amount: opts.amount,
+    marginfiAccount,
+    authority: createNoopSigner(marginfiAccount.authority),
+    repayAll: opts.repayAll,
+    rpc,
+    txFormat: noLuts,
+    latestBlockhash: LATEST_BLOCKHASH,
+    bankMap: premiumBankMap,
+    bankMetadataMap: {},
+    ordersToClose: opts.ordersToClose,
+  });
+}
+
+describe("makeRepayTx", () => {
+  it("closes the orders in front of the repay", async () => {
+    const borrower = makeAccount([asset(sol), debt(usdc)]);
+    const tx = await repayTx(borrower, usdc, { amount: 5, ordersToClose: orders(1) });
+
+    expect(isClose(ixsOf(tx)[0])).toBe(true);
+  });
+
+  it("adds pulse_health while premium-bearing debt remains, without a fully repaid bank", async () => {
+    const twoDebts = makeAccount([asset(sol), debt(usdc), debt(usdt)]);
+    const pulse = lastIx(await repayTx(twoDebts, usdc, { amount: 100, repayAll: true }));
+
+    expect(isPulse(pulse)).toBe(true);
+    expect(keys(pulse)).toContain(usdt.address);
+    expect(keys(pulse)).not.toContain(usdc.address);
+  });
+
+  it("adds the pulse after a partial repay of the only premium debt, but not after repaying it in full", async () => {
+    const borrower = makeAccount([asset(sol), debt(usdc)]);
+    expect(isPulse(lastIx(await repayTx(borrower, usdc, { amount: 100, repayAll: false })))).toBe(
+      true
+    );
+    expect(hasPulse(await repayTx(borrower, usdc, { amount: 100, repayAll: true }))).toBe(false);
+  });
+
+  it("drops the pulse instead of throwing when a held bank has no venue state", async () => {
+    const kaminoCollateral = makeAccount([asset(kamino), debt(usdc)]);
+    const tx = await repayTx(kaminoCollateral, usdc, { amount: 100, repayAll: false });
+
+    expect(hasPulse(tx)).toBe(false);
+  });
+});
+
+describe("makeRepayIx", () => {
+  it("matches the v2.8.3 instructions for a SOL repay-all", async () => {
+    const ixs = await makeRepayIx({
+      ...depositParams,
+      bank: mainnetBanks.sol,
+      amount: 0.75,
+      repayAll: true,
+    });
+    expect(toWire(ixs)).toEqual(v283Cases.repaySolAll);
+  });
+});
+
 describe("makeRepayWithCollatTx", () => {
   beforeEach(stubRpcFetch);
 
@@ -132,5 +241,44 @@ describe("makeRepayWithCollatTx", () => {
     const repay = repayIxOf(result);
     expect(repay.repayAll).toBe(false);
     expect(repay.amount).toBe(123_456_789n);
+  });
+
+  it("closes the orders in a transaction after the flashloan, as one bundle", async () => {
+    vi.spyOn(instructions, "makeWithdrawIx").mockImplementation(async () => foreignIx());
+    vi.spyOn(instructions, "makeRepayIx").mockImplementation(async () => foreignIx());
+    const collateralized = makeAccount([asset(usdcCollateral), debt(usdc)]);
+    const repayWithCollateral = (ordersToClose?: Address[]) =>
+      makeRepayWithCollatTx({
+        programAddress,
+        marginfiAccount: collateralized,
+        authority: createNoopSigner(collateralized.authority),
+        rpc,
+        bankMap: premiumBankMap,
+        bankMetadataMap: {},
+        assetShareValueMultiplierByBank: new Map(),
+        swapOpts: {},
+        txFormat: noLuts,
+        withdrawOpts: {
+          totalPositionAmount: 1_000,
+          withdrawAmount: 10,
+          withdrawBank: usdcCollateral,
+          tokenProgram,
+        },
+        repayOpts: { repayBank: usdc, tokenProgram, totalPositionAmount: 100 },
+        ordersToClose,
+      });
+
+    const plain = await repayWithCollateral();
+    expect(plain.transactions).toHaveLength(1);
+    expect(plain.mustBeAtomicBundle).toBe(false);
+
+    const toClose = orders(2);
+    const withCloses = await repayWithCollateral(toClose);
+    const [flashloanTx, ordersTx] = withCloses.transactions;
+    expect(withCloses.transactions).toHaveLength(2);
+    expect(withCloses.mustBeAtomicBundle).toBe(true);
+    expect(ixsOf(flashloanTx).some(isClose)).toBe(false);
+    expect(ixsOf(ordersTx).every(isClose)).toBe(true);
+    expect(ixsOf(ordersTx)).toHaveLength(toClose.length);
   });
 });

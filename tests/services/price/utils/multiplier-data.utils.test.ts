@@ -1,11 +1,22 @@
+import { getBase64Encoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
 
-import { computePtMultiplier } from "~/services/price/utils/multiplier-data.utils";
+import accounts from "../../../fixtures/mainnet-oracle-accounts.json";
+
+import {
+  computePtMultiplier,
+  decodeMultiplierAccount,
+} from "~/services/price/utils/multiplier-data.utils";
+
+const [pythPriceUpdate, ...multiplierAccounts] = accounts.map((account) => ({
+  ...account,
+  data: getBase64Encoder().encode(account.data),
+}));
 
 type PtVault = Parameters<typeof computePtMultiplier>[0];
 
-/** Fully-backed vault: `sy_for_pt x rate = pt_supply`, so the redemption cap is exactly 1.0. */
+// Fully-backed vault: `sy_for_pt x rate = pt_supply`, so the redemption cap is exactly 1.0
 function vault(overrides: Partial<PtVault> = {}): PtVault {
   return {
     syForPt: 500_000_000_000n,
@@ -17,6 +28,19 @@ function vault(overrides: Partial<PtVault> = {}): PtVault {
     ...overrides,
   };
 }
+
+// Mainnet oracle accounts; the outputs match the v2.8.3 (web3/borsh) decoders.
+describe("oracle account decoding", () => {
+  it.each(multiplierAccounts)("decodes the $label multiplier account", ({ data }) => {
+    expect(decodeMultiplierAccount(data)).toMatchSnapshot();
+  });
+});
+
+describe("decodeMultiplierAccount", () => {
+  it("rejects accounts that are not a multiplier source", () => {
+    expect(decodeMultiplierAccount(pythPriceUpdate.data)).toBeUndefined();
+  });
+});
 
 describe("computePtMultiplier", () => {
   const startPrice = new BigNumber(0.8);

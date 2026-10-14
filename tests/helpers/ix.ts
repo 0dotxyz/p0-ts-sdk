@@ -1,3 +1,5 @@
+import type { Instruction } from "@solana/kit";
+
 import type { ParsedMarginfiInstruction } from "~/generated/marginfi";
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import type { SolanaTransaction } from "~/services/transaction";
@@ -17,3 +19,6 @@ export function findMarginfiIxs<T extends MarginfiInstruction>(
     .map(parseMarginfiIx)
     .filter((ix): ix is MarginfiIx<T> => ix?.instructionType === type);
 }
+
+export const isMarginfiIx = (type: MarginfiInstruction) => (ix: Instruction) =>
+  parseMarginfiIx(ix)?.instructionType === type;

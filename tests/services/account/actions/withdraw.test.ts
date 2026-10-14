@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { addr, LATEST_BLOCKHASH } from "../../../helpers/addresses";
 import { makeAccount, makeBalance, makeBank } from "../../../helpers/factories";
+import { mainnetBanks } from "../../../helpers/mainnet";
+import { toWire, v283Cases, withdrawParams } from "../../../helpers/parity";
 
 import { TransactionBuildingErrorCode } from "~/errors";
 import { makeWithdrawIx, makeWithdrawTx, MarginfiAccountType } from "~/services/account";
@@ -102,5 +104,30 @@ describe("makeWithdrawIx", () => {
         amount: { value: 10, type: "cToken" },
       })
     ).rejects.toMatchObject({ code: TransactionBuildingErrorCode.INVALID_AMOUNT });
+  });
+
+  it("matches the v2.8.3 instructions for a withdraw-all", async () => {
+    const ixs = await makeWithdrawIx({
+      ...withdrawParams,
+      bank: mainnetBanks.default,
+      amount: 5,
+      withdrawAll: true,
+    });
+    expect(toWire(ixs)).toEqual(v283Cases.withdrawAll);
+  });
+
+  it("matches the v2.8.3 instructions for a Drift withdraw-all", async () => {
+    const ixs = await makeWithdrawIx({
+      ...withdrawParams,
+      bank: mainnetBanks.drift,
+      amount: 1,
+      withdrawAll: true,
+    });
+    expect(toWire(ixs)).toEqual(v283Cases.driftWithdrawAll);
+  });
+
+  it("matches the v2.8.3 instructions for a JupLend withdraw", async () => {
+    const ixs = await makeWithdrawIx({ ...withdrawParams, bank: mainnetBanks.juplend, amount: 2 });
+    expect(toWire(ixs)).toEqual(v283Cases.juplendWithdraw);
   });
 });

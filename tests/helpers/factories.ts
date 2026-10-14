@@ -69,13 +69,13 @@ export function makeAccount(active: BalanceType[]): MarginfiAccountType {
   } as unknown as MarginfiAccountType;
 }
 
-// The same price realtime and time-weighted, with no confidence interval
-export function makeOraclePrice(price: number): OraclePrice {
+// The same price realtime and time-weighted, ± `confidence`
+export function makeOraclePrice(price: number, confidence = 0): OraclePrice {
   const component = {
     price: new BigNumber(price),
-    confidence: new BigNumber(0),
-    lowestPrice: new BigNumber(price),
-    highestPrice: new BigNumber(price),
+    confidence: new BigNumber(confidence),
+    lowestPrice: new BigNumber(price - confidence),
+    highestPrice: new BigNumber(price + confidence),
   };
   return { priceRealtime: component, priceWeighted: component, timestamp: new BigNumber(0) };
 }

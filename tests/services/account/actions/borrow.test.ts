@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { addr, LATEST_BLOCKHASH } from "../../../helpers/addresses";
 import { makeAccount, makeBalance, makeBank } from "../../../helpers/factories";
+import { isMarginfiIx } from "../../../helpers/ix";
+import { mainnetBanks } from "../../../helpers/mainnet";
+import { toWire, v283Cases, withdrawParams } from "../../../helpers/parity";
+import { fakeRpc } from "../../../helpers/rpc";
 
 import { TransactionBuildingErrorCode } from "~/errors";
+import { MarginfiInstruction } from "~/instructions";
 import { makeBorrowIx, makeBorrowTx } from "~/services/account";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
 import type { BankIntegrationMetadataMap } from "~/types";
@@ -66,6 +71,32 @@ describe("makeBorrowTx", () => {
     const tx = await borrow();
     expect(touchesOutsideMarginfi(tx.message.instructions, reserve)).toBe(false);
   });
+
+  it("closes the orders in front of the borrow", async () => {
+    const sol = makeBank({ premiumTag: 1, premiumActive: true });
+    const usdc = makeBank({ premiumTag: 1, premiumActive: true });
+    const holder = makeAccount([
+      makeBalance(sol, "asset", 1_000e6),
+      makeBalance(usdc, "liability", 100e6),
+    ]);
+    const borrowTx = await makeBorrowTx({
+      programAddress,
+      bank: usdc,
+      bankMap: new Map<string, BankType>([sol, usdc].map((b) => [b.address, b])),
+      tokenProgram,
+      amount: 1,
+      marginfiAccount: holder,
+      authority: createNoopSigner(holder.authority),
+      rpc: fakeRpc({ accountsExist: true }),
+      txFormat: { version: 0, luts: {} },
+      latestBlockhash: LATEST_BLOCKHASH,
+      bankMetadataMap: {},
+      ordersToClose: [addr()],
+    });
+
+    const isClose = isMarginfiIx(MarginfiInstruction.MarginfiAccountCloseOrder);
+    expect(isClose(borrowTx.message.instructions[0])).toBe(true);
+  });
 });
 
 describe("makeBorrowIx", () => {
@@ -84,5 +115,10 @@ describe("makeBorrowIx", () => {
       code: TransactionBuildingErrorCode.BANK_NOT_FOUND,
       details: { bankAddress: collateral.address },
     });
+  });
+
+  it("matches the v2.8.3 instructions for a SOL borrow", async () => {
+    const ixs = await makeBorrowIx({ ...withdrawParams, bank: mainnetBanks.sol, amount: 0.1 });
+    expect(toWire(ixs)).toEqual(v283Cases.borrowSol);
   });
 });

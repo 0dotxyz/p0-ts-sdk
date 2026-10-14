@@ -26,21 +26,3 @@ exports[`oracle account decoding > decodes the 'spl stake pool' multiplier accou
   "lastUpdateEpoch": 1041,
 }
 `;
-
-exports[`oracle account decoding > parses a Pyth PriceUpdateV2 into an oracle price 1`] = `
-{
-  "priceRealtime": {
-    "confidence": "0.0005299576",
-    "highestPrice": "1.0004340476",
-    "lowestPrice": "0.9993741324",
-    "price": "0.99990409",
-  },
-  "priceWeighted": {
-    "confidence": "0.0005818976",
-    "highestPrice": "1.0004961876",
-    "lowestPrice": "0.9993323924",
-    "price": "0.99991429",
-  },
-  "timestamp": "1790256222",
-}
-`;

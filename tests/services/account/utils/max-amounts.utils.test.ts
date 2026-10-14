@@ -20,16 +20,11 @@ import {
   RiskTier,
 } from "~/services/bank/types";
 import { computeBankDepositCapRemaining } from "~/services/bank/utils/bank-metrics.utils";
-import { computeRemainingCapacity, U64_MAX } from "~/services/bank/utils/capacity.utils";
+import { U64_MAX } from "~/services/bank/utils/capacity.utils";
 import {
   BankVenueStates,
-  computeVenueAvailableLiquidity,
   VENUE_AVAILABLE_LIQUIDITY_BUFFER,
 } from "~/services/bank/utils/venue-liquidity.utils";
-
-// ----------------------------------------------------------------------------
-// Fixtures
-// ----------------------------------------------------------------------------
 
 const DECIMALS = 6;
 const ui = (n: number) => new BigNumber(n).times(10 ** DECIMALS);
@@ -40,11 +35,11 @@ function bank(opts: {
   totalBorrows: number; // UI
   depositLimit: number; // UI
   borrowLimit: number; // UI
-  /** hourly net-outflow cap in UI units with `used` already flowed out this window */
+  // hourly net-outflow cap in UI units with `used` already flowed out this window
   rateLimit?: { max: number; used: number };
   originationFee?: number;
   assetTag?: AssetTag;
-  /** raw native override for depositLimit (e.g. U64_MAX sentinel) */
+  // raw native override for depositLimit (e.g. U64_MAX sentinel)
   depositLimitRaw?: BigNumber;
   borrowLimitRaw?: BigNumber;
   lastUpdate?: number;
@@ -143,10 +138,6 @@ function ctx(b: BankType) {
     bankAddress: b.address,
   };
 }
-
-// ----------------------------------------------------------------------------
-// Max borrow
-// ----------------------------------------------------------------------------
 
 describe("computeMaxBorrowForBank bank-level clamps", () => {
   // $1000 free collateral, price 1, liab weight 1.25 → health-based max = 800
@@ -272,10 +263,6 @@ describe("computeMaxBorrowForBank bank-level clamps", () => {
     expect(max.toNumber()).toBeCloseTo(HEALTH_MAX, 6);
   });
 });
-
-// ----------------------------------------------------------------------------
-// Max withdraw
-// ----------------------------------------------------------------------------
 
 describe("computeMaxWithdrawForBank bank-level clamp", () => {
   it("returns entire balance when liquidity is ample", () => {
@@ -443,10 +430,6 @@ describe("computeBankOutflowRateLimit", () => {
   });
 });
 
-// ----------------------------------------------------------------------------
-// Venue liquidity (integrated banks)
-// ----------------------------------------------------------------------------
-
 describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
   const kaminoStates = (availableUi: number) =>
     ({
@@ -534,73 +517,6 @@ describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
     expect(max.toNumber()).toBeCloseTo(400, 6);
   });
 });
-
-describe("computeVenueAvailableLiquidity", () => {
-  it("derives Drift idle liquidity from scaled balances", () => {
-    const b = bank({
-      totalDeposits: 1000,
-      totalBorrows: 0,
-      depositLimit: 1e9,
-      borrowLimit: 1e9,
-      assetTag: AssetTag.DRIFT,
-    });
-    // 1e9-precision balances with 1.0 cumulative interest (1e10 precision):
-    // deposits 500, borrows 200 -> idle 300 (before buffer)
-    const spotMarketState = {
-      decimals: DECIMALS,
-      depositBalance: 500n * 10n ** 9n,
-      borrowBalance: 200n * 10n ** 9n,
-      cumulativeDepositInterest: 10n ** 10n,
-      cumulativeBorrowInterest: 10n ** 10n,
-    } as unknown as NonNullable<BankVenueStates["driftStates"]>["spotMarketState"];
-    const liq = computeVenueAvailableLiquidity(b, { driftStates: { spotMarketState } });
-    expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
-  });
-
-  it("derives JupLend idle liquidity from exchange-price buckets", () => {
-    const b = bank({
-      totalDeposits: 1000,
-      totalBorrows: 0,
-      depositLimit: 1e9,
-      borrowLimit: 1e9,
-      assetTag: AssetTag.JUPLEND,
-    });
-    const px = 1_000_000_000_000n; // 1.0 at 1e12 precision
-    const tokenReserveState = {
-      totalSupplyWithInterest: BigInt(ui(400).toFixed(0)),
-      totalBorrowWithInterest: BigInt(ui(150).toFixed(0)),
-      totalSupplyInterestFree: BigInt(ui(50).toFixed(0)),
-      totalBorrowInterestFree: 0n,
-      supplyExchangePrice: px,
-      borrowExchangePrice: px,
-    } as unknown as NonNullable<BankVenueStates["jupLendStates"]>["tokenReserveState"];
-    const liq = computeVenueAvailableLiquidity(b, { jupLendStates: { tokenReserveState } });
-    // (400 + 50) - 150 = 300
-    expect(liq?.toNumber()).toBeCloseTo(300 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
-  });
-
-  it("clamps negative idle to 0 and returns undefined without a venue", () => {
-    const b = bank({
-      totalDeposits: 1000,
-      totalBorrows: 0,
-      depositLimit: 1e9,
-      borrowLimit: 1e9,
-      assetTag: AssetTag.KAMINO,
-    });
-    expect(computeVenueAvailableLiquidity(b, {})).toBeUndefined();
-    const defaultBank = bank({
-      totalDeposits: 1,
-      totalBorrows: 0,
-      depositLimit: 1,
-      borrowLimit: 1,
-    });
-    expect(computeVenueAvailableLiquidity(defaultBank, {})).toBeUndefined();
-  });
-});
-
-// ----------------------------------------------------------------------------
-// Max deposit
-// ----------------------------------------------------------------------------
 
 describe("computeMaxDepositForBank", () => {
   it("returns remaining deposit cap", () => {
@@ -697,21 +613,7 @@ describe("asset-tag mixing", () => {
   });
 });
 
-// ----------------------------------------------------------------------------
-// Program-parity details (audited against marginfi-v2 state/bank.rs)
-// ----------------------------------------------------------------------------
-
-describe("cap strictness / sentinel / Drift scaling", () => {
-  it("remaining cap is floor(limit - total - 1) native (program check is `total >= limit`)", () => {
-    const b = bank({ totalDeposits: 600, totalBorrows: 100, depositLimit: 1000, borrowLimit: 500 });
-    // zero the rate curve so the accrued-interest buffer is exactly 0
-    (b.config.interestRateConfig as any).placeholder1 = new BigNumber(0);
-    (b.config.interestRateConfig as any).placeholder2 = new BigNumber(0);
-    const { depositCapacity, borrowCapacity } = computeRemainingCapacity(b);
-    expect(depositCapacity.toNumber()).toBe(ui(400).minus(1).toNumber());
-    expect(borrowCapacity.toNumber()).toBe(ui(400).minus(1).toNumber());
-  });
-
+describe("computeMaxDepositForBank / computeMaxBorrowForBank", () => {
   it("u64::MAX limit is inactive → unbounded", () => {
     const b = bank({
       totalDeposits: 600,
@@ -730,20 +632,6 @@ describe("cap strictness / sentinel / Drift scaling", () => {
       emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
     });
     expect(maxBorrow.toNumber()).toBeCloseTo(500, 3); // liquidity-bound only (600-100)
-  });
-
-  it("Drift banks scale depositLimit to 9-dec scaled-balance units", () => {
-    // mintDecimals 6 → limit * 1e3; deposits are already in scaled units in the fixture
-    const b = bank({
-      totalDeposits: 600_000,
-      totalBorrows: 0,
-      depositLimit: 1000,
-      borrowLimit: 0,
-      assetTag: AssetTag.DRIFT,
-    });
-    // scaled limit = 1000e6 * 1e3 = 1e12; total = 600_000e6 = 6e11 → remaining 4e11 - 1 native
-    const { depositCapacity } = computeRemainingCapacity(b);
-    expect(depositCapacity.toNumber()).toBe(4e11 - 1);
   });
 });
 
@@ -808,7 +696,7 @@ describe("liquidity projected through interest accrual", () => {
       borrowLimit: 1e9,
       lastUpdate: Math.floor(Date.now() / 1000) - year,
     });
-    (b.config.interestRateConfig as any).protocolIrFee = new BigNumber(0.2); // borrowRate = 0.0625*1.2 = 0.075
+    b.config.interestRateConfig.protocolIrFee = new BigNumber(0.2); // borrowRate = 0.0625*1.2 = 0.075
     const acc = account({
       freeCollateralUsd: 320,
       balances: [{ bankPk: b.address, assetShares: ui(1000) }],

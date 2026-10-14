@@ -1,10 +1,14 @@
 import { address, createNoopSigner, isSignerRole, type Address } from "@solana/kit";
 import { describe, expect, it, vi } from "vitest";
 
+import { depositParams, toWire, v283Cases } from "../../../helpers/parity";
+
 import { MAX_BALANCES } from "~/constants";
 import { TransactionBuildingErrorCode } from "~/errors";
 import {
+  makeCloseAccountIx,
   makeCloseAccountTx,
+  makeCreateAccountIx,
   makeCreateAccountTxWithProjection,
   makeTransferAccountIx,
   makeTransferAccountTx,
@@ -182,5 +186,27 @@ describe("makeTransferAccountTx", () => {
         newAuthority: address("11111111111111111111111111111113"),
       })
     ).rejects.toThrow(`Account ${marginfiAccount.address} is disabled`);
+  });
+});
+
+describe("makeCreateAccountIx", () => {
+  it("matches the v2.8.3 instructions for an account at a given index and third-party id", async () => {
+    const { programAddress, authority, marginfiAccount } = depositParams;
+    const ix = await makeCreateAccountIx({
+      programAddress,
+      authority,
+      group: marginfiAccount.group,
+      accountIndex: 4,
+      thirdPartyId: 7,
+    });
+    expect(toWire([ix])).toEqual(v283Cases.createAccount);
+  });
+});
+
+describe("makeCloseAccountIx", () => {
+  it("matches the v2.8.3 instructions for closing an account", async () => {
+    const { programAddress, marginfiAccount, authority } = depositParams;
+    const ix = await makeCloseAccountIx({ programAddress, marginfiAccount, authority });
+    expect(toWire([ix])).toEqual(v283Cases.closeAccount);
   });
 });

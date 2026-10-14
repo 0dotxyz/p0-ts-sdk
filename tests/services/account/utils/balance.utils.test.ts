@@ -1,12 +1,16 @@
+import type { Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
-import { addr } from "../../../helpers/addresses";
+import { addr, key } from "../../../helpers/addresses";
 
 import {
   BalanceType,
   computeClosePositionTokenAmount,
   exceedsCostlyPositionLimit,
   isWholePosition,
+  MarginfiAccountType,
+  resolveOrderLegs,
 } from "~/services/account";
 import { AssetTag, BankType } from "~/services/bank";
 
@@ -62,5 +66,56 @@ describe("isWholePosition", () => {
     // 1.001 * 10 ** 6 is 1000999.9999999999 in floating point
     expect(computeClosePositionTokenAmount({ amount: 1.001, isLending: true }, 6)).toBe(1.001);
     expect(isWholePosition({ amount: 1.001, isLending: true }, 1.000999, 6)).toBe(false);
+  });
+});
+
+describe("resolveOrderLegs", () => {
+  const bankA = key(1);
+  const bankB = key(2);
+  const balance = (
+    bankPk: Address,
+    tag: number,
+    side: { assets?: number; liabilities?: number }
+  ): BalanceType => ({
+    active: true,
+    bankPk,
+    tag,
+    assetShares: new BigNumber(side.assets ?? 0),
+    liabilityShares: new BigNumber(side.liabilities ?? 0),
+    premiumRate: new BigNumber(0),
+    premiumOutstanding: new BigNumber(0),
+    lastUpdate: 0,
+  });
+  const accountWith = (balances: BalanceType[]): MarginfiAccountType =>
+    ({ address: key(3), balances, activeOrders: 1 }) as unknown as MarginfiAccountType;
+
+  it("maps the tagged balances to collateral and debt", () => {
+    const account = accountWith([
+      balance(bankA, 3, { assets: 10 }),
+      balance(bankB, 4, { liabilities: 5 }),
+    ]);
+    expect(resolveOrderLegs(account, { tags: [4, 3] })).toEqual({
+      collateralBank: bankA,
+      debtBank: bankB,
+    });
+  });
+
+  it("ignores dust liability shares left on the collateral balance", () => {
+    const account = accountWith([
+      balance(bankA, 3, { assets: 10, liabilities: 0.5 }),
+      balance(bankB, 4, { liabilities: 5 }),
+    ]);
+    expect(resolveOrderLegs(account, { tags: [3, 4] })).toEqual({
+      collateralBank: bankA,
+      debtBank: bankB,
+    });
+  });
+
+  it("returns null for a closed leg", () => {
+    const account = accountWith([balance(bankA, 3, { assets: 10 })]);
+    expect(resolveOrderLegs(account, { tags: [3, 4] })).toEqual({
+      collateralBank: bankA,
+      debtBank: null,
+    });
   });
 });

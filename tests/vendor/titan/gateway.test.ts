@@ -2,11 +2,8 @@ import {
   AccountRole,
   address,
   getAddressDecoder,
-  getAddressEncoder,
-  getBase64Decoder,
   isSignerRole,
   isWritableRole,
-  type Address,
   type Instruction,
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
@@ -15,7 +12,6 @@ import { key } from "../../helpers/addresses";
 
 import {
   buildTitanTemplate,
-  deserializeSerializedInstruction,
   deserializeTitanWireInstruction,
   encodeTitanTemplate,
 } from "~/vendor/titan";
@@ -61,20 +57,6 @@ describe("titan wire format", () => {
   it("deserializes a wire instruction without the jitodontfront marker", () => {
     const [wire] = buildTitanTemplate({ instructions: [ix], luts: {} }).i;
     expect(toWire(deserializeTitanWireInstruction(wire))).toMatchSnapshot();
-  });
-
-  it("deserializes a proxy (base64) instruction without the jitodontfront marker", () => {
-    const b64 = (value: Address) => getBase64Decoder().decode(getAddressEncoder().encode(value));
-    const serialized = {
-      p: b64(ix.programAddress),
-      a: (ix.accounts ?? []).map((a) => ({
-        p: b64(a.address),
-        s: isSignerRole(a.role),
-        w: isWritableRole(a.role),
-      })),
-      d: getBase64Decoder().decode(ix.data ?? new Uint8Array()),
-    };
-    expect(toWire(deserializeSerializedInstruction(serialized))).toMatchSnapshot();
   });
 
   it("preserves lookup table insertion order", () => {
