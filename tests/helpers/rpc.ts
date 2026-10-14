@@ -18,9 +18,9 @@ export function fakeRpc({ accountsExist }: { accountsExist: boolean }): BuilderR
   const account = accountsExist ? { data: ["", "base64"] } : null;
   return {
     getLatestBlockhash: () => ({ send: async () => ({ value: LATEST_BLOCKHASH }) }),
-    getAccountInfo: () => ({ send: async () => ({ value: account }) }),
+    getAccountInfo: () => ({ send: async () => ({ context: { slot: 1n }, value: account }) }),
     getMultipleAccounts: (addresses: Address[]) => ({
-      send: async () => ({ value: addresses.map(() => account) }),
+      send: async () => ({ context: { slot: 1n }, value: addresses.map(() => account) }),
     }),
   } as unknown as BuilderRpc;
 }

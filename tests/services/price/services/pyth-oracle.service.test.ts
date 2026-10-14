@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { addr } from "../../../helpers/addresses";
 import { makeBank } from "../../../helpers/factories";
+import { fakeRpc } from "../../../helpers/rpc";
 
 import { OracleSetup } from "~/services/bank";
 import { fetchPythOracleData } from "~/services/price";
@@ -103,5 +104,18 @@ describe("fetchPythOracleData", () => {
 
     expect(fetch).not.toHaveBeenCalled();
     expect(bankOraclePriceMap.size).toBe(0);
+  });
+
+  it("prices a bank whose feed account is missing on chain at zero, stamped in unix seconds", async () => {
+    const bank = pythBank(OracleSetup.PythPushOracle);
+
+    const { bankOraclePriceMap } = await fetchPythOracleData([bank], {
+      mode: "on-chain",
+      rpc: fakeRpc({ accountsExist: false }),
+    });
+
+    const price = bankOraclePriceMap.get(bank.address);
+    expect(price?.priceRealtime.price.toNumber()).toBe(0);
+    expect(price?.timestamp.toNumber()).toBe(NOW_SECONDS);
   });
 });

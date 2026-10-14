@@ -205,7 +205,7 @@ export const fetchPythOraclePricesFromChain = async (
           lowestPrice: new BigNumber(0),
           highestPrice: new BigNumber(0),
         },
-        timestamp: new BigNumber(Date.now()),
+        timestamp: new BigNumber(Math.floor(Date.now() / 1000)),
       };
     }
 
