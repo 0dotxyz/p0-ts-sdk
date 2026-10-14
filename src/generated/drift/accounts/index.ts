@@ -6,30 +6,6 @@
  * @see https://github.com/codama-idl/codama
  */
 
-export * from "./ammCache";
-export * from "./ammConstituentMapping";
-export * from "./constituent";
-export * from "./constituentCorrelations";
-export * from "./constituentTargetBase";
-export * from "./fuelOverflow";
-export * from "./highLeverageModeConfig";
-export * from "./ifRebalanceConfig";
-export * from "./insuranceFundStake";
-export * from "./lPPool";
-export * from "./openbookV2FulfillmentConfig";
-export * from "./perpMarket";
-export * from "./phoenixV1FulfillmentConfig";
-export * from "./prelaunchOracle";
-export * from "./protectedMakerModeConfig";
-export * from "./protocolIfSharesTransferConfig";
-export * from "./pythLazerOracle";
-export * from "./referrerName";
-export * from "./revenueShare";
-export * from "./revenueShareEscrow";
-export * from "./serumV3FulfillmentConfig";
-export * from "./signedMsgUserOrders";
-export * from "./signedMsgWsDelegates";
 export * from "./spotMarket";
-export * from "./state";
 export * from "./user";
 export * from "./userStats";
