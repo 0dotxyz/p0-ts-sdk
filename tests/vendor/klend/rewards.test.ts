@@ -1,4 +1,4 @@
-import { address } from "@solana/kit";
+import { address, type Address } from "@solana/kit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,7 +18,7 @@ const NULL_MINT = address("11111111111111111111111111111111");
 function reward(
   points: [tsStart: number, rewardPerTimeUnit: number][],
   decimals: { token?: number; rewardsPerSecond?: number } = {},
-  mint = REWARD_MINT
+  mint: Address = REWARD_MINT
 ): KaminoFarmRewardInfo {
   return {
     token: {
