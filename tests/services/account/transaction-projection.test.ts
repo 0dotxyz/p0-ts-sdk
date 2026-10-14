@@ -13,12 +13,12 @@ import bankFixtures from "../bank/fixtures/mainnet-banks.json";
 import accountFixtures from "./fixtures/mainnet-accounts.json";
 
 import instructions from "~/instructions";
+import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
+import { balanceToDto } from "~/services/account/utils/serialize.utils";
 import {
   computeProjectedActiveBalancesNoCpi,
   computeProjectedActiveBanksNoCpi,
 } from "~/services/account/utils/transaction-projection.utils";
-import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
-import { balanceToDto } from "~/services/account/utils/serialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
 const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));

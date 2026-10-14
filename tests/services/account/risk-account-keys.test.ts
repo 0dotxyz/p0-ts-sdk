@@ -64,7 +64,10 @@ describe("bank risk account keys", () => {
   });
 
   it("always passes the staked on-ramp slot, empty when the bank isn't backfilled", () => {
-    const backfilled = bank({ oracleSetup: OracleSetup.StakedWithPythPush, assetTag: AssetTag.STAKED });
+    const backfilled = bank({
+      oracleSetup: OracleSetup.StakedWithPythPush,
+      assetTag: AssetTag.STAKED,
+    });
     expect(riskAccountKeys(backfilled)).toEqual([
       backfilled.address,
       KEYS[0],

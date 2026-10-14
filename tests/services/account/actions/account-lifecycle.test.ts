@@ -28,7 +28,10 @@ const takenAccount = {
 const mockRpc = (freePositions: number[]) => ({
   getLatestBlockhash: () => ({
     send: async () => ({
-      value: { blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N", lastValidBlockHeight: 1n },
+      value: {
+        blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N",
+        lastValidBlockHeight: 1n,
+      },
     }),
   }),
   getMultipleAccounts: vi.fn((addresses: Address[]) => ({

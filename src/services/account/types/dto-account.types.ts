@@ -1,8 +1,4 @@
-import {
-  AccountFlags,
-  HealthCacheFlags,
-  HealthCacheStatus,
-} from "./account.types";
+import { AccountFlags, HealthCacheFlags, HealthCacheStatus } from "./account.types";
 
 export interface BalanceTypeDto {
   active: boolean;

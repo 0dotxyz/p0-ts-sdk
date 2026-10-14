@@ -50,7 +50,11 @@ export async function fetchKaminoStates(
       const farm = farmByBank.get(bankAddress);
       return [
         bankAddress,
-        { reserveState, obligationState, farmState: farm ? decodeKaminoFarmState(farm.data) : undefined },
+        {
+          reserveState,
+          obligationState,
+          farmState: farm ? decodeKaminoFarmState(farm.data) : undefined,
+        },
       ];
     })
   );

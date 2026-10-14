@@ -1,9 +1,6 @@
 interface TokenPriceResponse {
   success: boolean;
-  data: Record<
-    string,
-    { value: number; updateUnixTime: number; updateHumanTime: string }
-  >;
+  data: Record<string, { value: number; updateUnixTime: number; updateHumanTime: string }>;
 }
 
 /**
@@ -63,11 +60,7 @@ export const getFallbackPricesByFeedId = async (
   opts?: { queryKey?: string }
 ): Promise<Record<string, number>> => {
   const mintAddresses = feedMint.map((feedMint) => feedMint.mintAddress);
-  const prices = await getFallbackPricesForMints(
-    mintAddresses,
-    apiEndpoint,
-    opts
-  );
+  const prices = await getFallbackPricesForMints(mintAddresses, apiEndpoint, opts);
 
   const priceByFeedId: Record<string, number> = {};
   feedMint.forEach((feedMint) => {

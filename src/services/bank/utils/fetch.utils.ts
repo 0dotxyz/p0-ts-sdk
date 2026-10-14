@@ -33,7 +33,7 @@ export async function fetchBank(
   }
 
   return decodeBank(bankAddress, account.data);
-};
+}
 
 export async function fetchMultipleBanks(
   rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
@@ -77,7 +77,7 @@ export async function fetchMultipleBanks(
   }
 
   return banks;
-};
+}
 
 /**
  * Fetches the venue state of every Kamino, Drift and JupLend bank in `banks`, keyed by bank

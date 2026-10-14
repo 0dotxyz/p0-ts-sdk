@@ -9,7 +9,6 @@ import {
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-
 // ---- Shared capture store (hoisted so the mock factories can see it) ----------------
 const store = vi.hoisted(() => ({
   flashloanIxs: [] as Instruction[],

@@ -170,4 +170,3 @@ export interface BankTypeDto {
     validatorVoteAccount: string;
   };
 }
-

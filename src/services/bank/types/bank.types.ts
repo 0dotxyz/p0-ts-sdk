@@ -394,4 +394,3 @@ export interface ActionEmodeImpact {
   repayAllImpact?: EmodeImpact;
   withdrawAllImpact?: EmodeImpact;
 }
-

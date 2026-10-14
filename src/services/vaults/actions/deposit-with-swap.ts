@@ -96,7 +96,8 @@ export async function makeVaultDepositWithSwapTx(
   };
   // The engine builds swaps without wrapping, so native SOL is wrapped up front (and counted in the
   // footprint the engine fits its route around).
-  const wrapIxs = inputMint === WSOL_MINT ? await makeWrapSolIxs(authority, new BigNumber(inputAmount)) : [];
+  const wrapIxs =
+    inputMint === WSOL_MINT ? await makeWrapSolIxs(authority, new BigNumber(inputAmount)) : [];
 
   const runEngine = swapEngineRunner ?? runSwapEngine;
   const engineResult = await runEngine({

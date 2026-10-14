@@ -8,11 +8,12 @@ import {
 } from "@solana-program/token";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { WSOL_MINT } from "~/constants";
+import { runSwapEngine } from "~/services/account/services/swap-engine/swap-engine.service";
 import type {
   ProviderSwapRoute,
   SwapEngineRequest,
 } from "~/services/account/services/swap-engine/types";
-import { WSOL_MINT } from "~/constants";
 import { SwapProvider } from "~/services/account/types";
 
 // Shared store the mocked registry reads from. `vi.hoisted` runs before the
@@ -47,7 +48,6 @@ vi.mock("~/services/account/services/swap-engine/adapters/registry", () => ({
 const DEFAULT = getAddressDecoder().decode(new Uint8Array(32));
 
 // Imported after the mocks are declared.
-import { runSwapEngine } from "~/services/account/services/swap-engine/swap-engine.service";
 
 function makeRoute(
   provider: SwapProvider,

@@ -281,7 +281,9 @@ export function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
   };
 }
 
-export function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): InterestRateConfigDto {
+export function toInterestRateConfigDto(
+  interestRateConfig: InterestRateConfig
+): InterestRateConfigDto {
   return {
     placeholder0: interestRateConfig.placeholder0.toString(),
     placeholder1: interestRateConfig.placeholder1.toString(),

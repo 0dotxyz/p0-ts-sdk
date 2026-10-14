@@ -1,6 +1,7 @@
 import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { titanAdapter } from "~/services/account/services/swap-engine/adapters/titan.adapter";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine/types";
 import { SwapProvider } from "~/services/account/types";
 
@@ -43,8 +44,6 @@ vi.mock("~/vendor/titan", async (importOriginal) => {
   }
   return { ...actual, V1Client: MockV1Client };
 });
-
-import { titanAdapter } from "~/services/account/services/swap-engine/adapters/titan.adapter";
 
 function route(outAmount: number) {
   return {
