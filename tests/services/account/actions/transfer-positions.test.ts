@@ -23,10 +23,6 @@ import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { BankIntegrationMetadataMap } from "~/types";
 import { KaminoReserve } from "~/vendor/klend";
 
-// --------------------------------------------------------------------------------------
-// Hard cap on positions per transfer
-// --------------------------------------------------------------------------------------
-
 describe("classifyAndValidate (position cap)", () => {
   // The cap check fires before any balance/oracle lookup, so minimal params suffice.
   const capParams = (bankCount: number, maxPositions?: number): MakeTransferPositionsTxParams =>
@@ -122,10 +118,6 @@ describe("classifyAndValidate (costly position limit)", () => {
     ).not.toThrow();
   });
 });
-
-// --------------------------------------------------------------------------------------
-// Integration collateral-leg dispatch
-// --------------------------------------------------------------------------------------
 
 const KAMINO_BANK_PK = key(20);
 const PROGRAM_PK = key(99);
