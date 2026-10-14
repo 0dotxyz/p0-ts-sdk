@@ -1,12 +1,19 @@
-import { address, getBase64Encoder, type Address } from "@solana/kit";
-import { describe, expect, it } from "vitest";
+import { address, getAddressEncoder, getBase64Encoder, type Address } from "@solana/kit";
+import { describe, expect, it, vi } from "vitest";
 
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 import fixture from "../../../fixtures/mainnet-integration.json";
+import { addr } from "../../../helpers/addresses";
+import { fakeRpc } from "../../../helpers/rpc";
 
-import { DEFAULT_ADDRESS } from "~/constants";
+import { DEFAULT_ADDRESS, MARGINFI_PROGRAM } from "~/constants";
 import { AssetTag } from "~/services/bank";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
-import { fetchBankIntegrationMetadata } from "~/services/bank/utils/fetch.utils";
+import {
+  fetchBank,
+  fetchBankIntegrationMetadata,
+  fetchMultipleBanks,
+} from "~/services/bank/utils/fetch.utils";
 import { fetchDriftStatesDto, getDriftCTokenMultiplier } from "~/vendor/drift";
 import { fetchJupLendStatesDto, getJupLendFTokenMultiplier } from "~/vendor/jup-lend";
 import { fetchKaminoStatesDto, getKaminoCTokenMultiplier } from "~/vendor/klend";
@@ -118,5 +125,78 @@ describe("bank integration metadata", () => {
 
     expect(states).toEqual({});
     expect(requested).toEqual([]);
+  });
+});
+
+// The recorded mainnet banks, served by getProgramAccounts when the scan's group filter matches
+// their data, and by getMultipleAccounts when they're asked for
+function bankRpc() {
+  const recorded = bankFixtures.map(({ address: bankAddress, data }) => ({
+    pubkey: address(bankAddress),
+    account: {
+      data: [data, "base64"],
+      executable: false,
+      lamports: 1n,
+      owner: MARGINFI_PROGRAM,
+      space: BigInt(getBase64Encoder().encode(data).length),
+    },
+  }));
+  const scans: { offset: bigint; bytes: string }[][] = [];
+  const rpc = {
+    getProgramAccounts: (
+      _: Address,
+      config: { filters: { memcmp: { offset: bigint; bytes: string } }[] }
+    ) => ({
+      send: async () => {
+        scans.push(config.filters.map(({ memcmp }) => memcmp));
+        const groupFilter = config.filters[1]?.memcmp;
+        return recorded.filter(({ account }) => {
+          if (!groupFilter) return true;
+          const bytes = getBase64Encoder().encode(account.data[0]);
+          const group = getAddressEncoder().encode(groupFilter.bytes as Address);
+          return group.every((byte, i) => bytes[Number(groupFilter.offset) + i] === byte);
+        });
+      },
+    }),
+    getMultipleAccounts: (addresses: Address[]) => ({
+      send: async () => ({
+        context: { slot: 1n },
+        value: addresses.map((a) => recorded.find(({ pubkey }) => pubkey === a)?.account ?? null),
+      }),
+    }),
+  };
+  return { rpc: rpc as never, scans };
+}
+
+describe("fetchBank", () => {
+  it("throws when the bank doesn't exist", async () => {
+    const missing = addr();
+    await expect(fetchBank(fakeRpc({ accountsExist: false }), missing)).rejects.toThrow(
+      `Bank ${missing} not found`
+    );
+  });
+});
+
+describe("fetchMultipleBanks", () => {
+  it("scans for the group's banks, filtering at the group's offset in the bank data", async () => {
+    const { rpc, scans } = bankRpc();
+    const { group } = banks[0];
+
+    const fetched = await fetchMultipleBanks(rpc, MARGINFI_PROGRAM, { groupAddress: group });
+
+    expect(scans[0][1]).toEqual({ offset: 41n, bytes: group, encoding: "base58" });
+    expect(fetched.map((bank) => bank.address)).toEqual(bankFixtures.map((b) => b.address));
+  });
+
+  it("fetches the given banks, leaving out those that don't exist", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rpc } = bankRpc();
+    const [first] = bankFixtures;
+
+    const fetched = await fetchMultipleBanks(rpc, MARGINFI_PROGRAM, {
+      bankAddresses: [address(first.address), addr()],
+    });
+
+    expect(fetched.map((bank) => bank.address)).toEqual([first.address]);
   });
 });
