@@ -191,12 +191,11 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
 
   if (bank.config.assetTag === AssetTag.STAKED) {
     keys.push(bank.config.oracleKeys[1], bank.config.oracleKeys[2]);
-    // 0.1.9 SVSP transition: the 1.9 program requires the pool's on-ramp as a 4th staked
-    // risk account. The canonical source is oracle_keys[3], written by the permissionless
-    // backfill (and by add_pool_permissionless for new banks) — nothing writes it on 1.8,
-    // so a non-default key implies 1.9 is live. If the on-ramp pricing flag (bank flags
-    // bit 10) is set before the key is backfilled, the program derives the on-ramp from
-    // the validator vote account, so we do the same as a fallback.
+    // The program always takes the pool's on-ramp as a 4th staked account but reads it only
+    // with on-ramp pricing (bank flags bit 10). The canonical source is oracle_keys[3], written
+    // by the permissionless backfill; until then the program derives the on-ramp from the
+    // validator vote account, so we do the same. Without on-ramp pricing an empty slot is a
+    // placeholder.
     const onrampKey = bank.config.oracleKeys[3];
     if (onrampKey && !onrampKey.equals(PublicKey.default)) {
       keys.push(onrampKey);
@@ -207,6 +206,8 @@ function computeBankRiskAccountKeys(bank: BankType): PublicKey[] {
     ) {
       const pool = findPoolAddress(bank.stakedIntegrationAccounts.validatorVoteAccount);
       keys.push(findPoolOnRampAddress(pool));
+    } else {
+      keys.push(PublicKey.default);
     }
   }
 

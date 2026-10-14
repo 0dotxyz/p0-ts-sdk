@@ -3,6 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import { computeHealthAccountMetas } from "~/services/account/utils/compute/transaction-projection.utils";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
+import { findPoolAddress, findPoolOnRampAddress } from "~/vendor/single-spl-pool";
 
 const KEYS = Array.from({ length: 5 }, () => PublicKey.unique());
 
@@ -10,11 +11,17 @@ function bank(opts: {
   oracleSetup: OracleSetup;
   assetTag: AssetTag;
   oracleKeys?: PublicKey[];
+  stakedOracleUsesOnramp?: boolean;
+  validatorVoteAccount?: PublicKey;
 }): BankType {
   const oracleKeys = opts.oracleKeys ?? KEYS;
   return {
     address: PublicKey.unique(),
     oracleKey: oracleKeys[0],
+    stakedOracleUsesOnramp: opts.stakedOracleUsesOnramp,
+    stakedIntegrationAccounts: opts.validatorVoteAccount && {
+      validatorVoteAccount: opts.validatorVoteAccount,
+    },
     config: {
       oracleSetup: opts.oracleSetup,
       assetTag: opts.assetTag,
@@ -57,6 +64,51 @@ describe("bank risk account keys", () => {
       const b = bank({ oracleSetup, assetTag });
       expect(riskAccountKeys(b)).toEqual([b.address, KEYS[0], KEYS[1], KEYS[2]]);
     }
+  });
+
+  it("always passes the staked on-ramp slot, empty when the bank isn't backfilled", () => {
+    const backfilled = bank({
+      oracleSetup: OracleSetup.StakedWithPythPush,
+      assetTag: AssetTag.STAKED,
+    });
+    expect(riskAccountKeys(backfilled)).toEqual([
+      backfilled.address,
+      KEYS[0],
+      KEYS[1],
+      KEYS[2],
+      KEYS[3],
+    ]);
+
+    const notBackfilled = bank({
+      oracleSetup: OracleSetup.StakedWithPythPush,
+      assetTag: AssetTag.STAKED,
+      oracleKeys: [KEYS[0], KEYS[1], KEYS[2], PublicKey.default, PublicKey.default],
+    });
+    expect(riskAccountKeys(notBackfilled)).toEqual([
+      notBackfilled.address,
+      KEYS[0],
+      KEYS[1],
+      KEYS[2],
+      PublicKey.default,
+    ]);
+  });
+
+  it("derives the on-ramp from the vote account under on-ramp pricing until it's backfilled", () => {
+    const voteAccount = PublicKey.unique();
+    const b = bank({
+      oracleSetup: OracleSetup.StakedWithPythPush,
+      assetTag: AssetTag.STAKED,
+      oracleKeys: [KEYS[0], KEYS[1], KEYS[2], PublicKey.default, PublicKey.default],
+      stakedOracleUsesOnramp: true,
+      validatorVoteAccount: voteAccount,
+    });
+    expect(riskAccountKeys(b)).toEqual([
+      b.address,
+      KEYS[0],
+      KEYS[1],
+      KEYS[2],
+      findPoolOnRampAddress(findPoolAddress(voteAccount)),
+    ]);
   });
 
   it("needs no extra accounts for Scope and PTFixed", () => {
