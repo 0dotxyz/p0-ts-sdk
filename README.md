@@ -330,12 +330,7 @@ pnpm test
 pnpm test:coverage
 ```
 
-**Testing Strategy:**
-
-- **Unit tests**: Pure calculations, conversions, validations
-- **Integration tests**: Real chain data, transaction building, simulations
-
-See [TESTING.md](./TESTING.md) for details.
+Tests mirror `src/` under `tests/` and run against recorded mainnet accounts and stubbed RPCs. See [CONTRIBUTING.md](./CONTRIBUTING.md#testing) for the conventions.
 
 ## 🛠️ Development
 
