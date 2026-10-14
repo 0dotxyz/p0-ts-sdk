@@ -1,5 +1,7 @@
-import { getAddressDecoder, isSignerRole, isWritableRole } from "@solana/kit";
+import { isSignerRole, isWritableRole } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   deriveDriftUser,
@@ -10,8 +12,6 @@ import {
 } from "~/vendor/drift";
 
 // Recorded from the web3.js implementation this replaced; never update with `-u`.
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 describe("drift wire format", () => {
   it.each([0, 7])("derived accounts (market %i)", async (marketIndex) => {

@@ -1,11 +1,4 @@
-import {
-  address,
-  createNoopSigner,
-  createSolanaRpc,
-  getAddressDecoder,
-  getBase64Encoder,
-  unwrapOption,
-} from "@solana/kit";
+import { address, createNoopSigner, unwrapOption } from "@solana/kit";
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   getSetComputeUnitLimitInstruction,
@@ -15,59 +8,29 @@ import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import accountFixtures from "../../../fixtures/mainnet-accounts.json";
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { key } from "../../../helpers/addresses";
+import { mainnetAccount, mainnetBankMap, mainnetBanks } from "../../../helpers/mainnet";
+import { stubRpcFetch, stubbedRpc } from "../../../helpers/rpc";
 
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { makeLoopTx } from "~/services/account/actions/loop";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine";
 import { SwapProvider } from "~/services/account/types";
-import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { TransactionFormat, TransactionType } from "~/services/transaction";
 
-const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const swapProgram = address("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
-const routeMint = getAddressDecoder().decode(new Uint8Array(32).fill(9));
-const rpcEndpoint = "http://loop.test";
+const routeMint = key(9);
 
-// Mainnet account with an asset in the default (mSOL) bank fixture and a liability in the SOL
-// bank fixture; its other positions are dropped so every active bank is loaded.
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), base64.encode(data)),
-  ])
-);
-const bankMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));
-const parsed = decodeMarginfiAccount(
-  address(accountFixtures[1].address),
-  base64.encode(accountFixtures[1].data)
-);
-const marginfiAccount = {
-  ...parsed,
-  balances: parsed.balances.filter((balance) => bankMap.has(balance.bankPk)),
-};
+const bankMap = mainnetBankMap;
+const marginfiAccount = mainnetAccount();
 const authority = createNoopSigner(marginfiAccount.authority);
 
 describe("makeLoopTx", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
-      const { id, method, params } = JSON.parse(init.body);
-      const value =
-        method === "getLatestBlockhash"
-          ? { blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N", lastValidBlockHeight: 100 }
-          : params[0].map(() => null); // getMultipleAccounts: no ATA exists yet
-      return new Response(
-        JSON.stringify({ jsonrpc: "2.0", id, result: { context: { slot: 1 }, value } })
-      );
-    });
-  });
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(stubRpcFetch);
 
   it("splices the swap between borrow and deposit and patches the deposit to min-out + principal", async () => {
     const requests: SwapEngineRequest[] = [];
@@ -77,18 +40,23 @@ describe("makeLoopTx", () => {
       programAddress,
       marginfiAccount,
       authority,
-      rpc: createSolanaRpc(rpcEndpoint),
+      rpc: stubbedRpc,
       bankMap,
       bankMetadataMap: {},
       assetShareValueMultiplierByBank: new Map(),
       depositOpts: {
-        depositBank: banks.default,
+        depositBank: mainnetBanks.default,
         tokenProgram,
         inputDepositAmount: 1,
         loopMode: "DEPOSIT",
         marketPrice: 190,
       },
-      borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
+      borrowOpts: {
+        borrowBank: mainnetBanks.sol,
+        tokenProgram,
+        borrowAmount: 0.5,
+        marketPrice: 150,
+      },
       swapOpts: {},
       txFormat: { version: 0, luts: {} },
       swapEngineRunner: async (request) => {
@@ -100,7 +68,7 @@ describe("makeLoopTx", () => {
           tokenProgram,
         });
         const [depositAta] = await findAssociatedTokenPda({
-          mint: banks.default.mint,
+          mint: mainnetBanks.default.mint,
           owner: request.taker,
           tokenProgram,
         });
@@ -114,7 +82,7 @@ describe("makeLoopTx", () => {
               payer,
               ata: depositAta,
               owner: request.taker,
-              mint: banks.default.mint,
+              mint: mainnetBanks.default.mint,
             }),
             getCreateAssociatedTokenIdempotentInstruction({
               payer,
@@ -138,13 +106,13 @@ describe("makeLoopTx", () => {
 
     const [request] = requests;
     const [depositAta] = await findAssociatedTokenPda({
-      mint: banks.default.mint,
+      mint: mainnetBanks.default.mint,
       owner: authority.address,
       tokenProgram,
     });
     expect(request).toMatchObject({
-      inputMint: banks.sol.mint,
-      outputMint: banks.default.mint,
+      inputMint: mainnetBanks.sol.mint,
+      outputMint: mainnetBanks.default.mint,
       amountNative: 500_000_000,
       taker: authority.address,
       destinationTokenAccount: depositAta,
@@ -163,7 +131,7 @@ describe("makeLoopTx", () => {
       setupIxs
         .filter((ix) => ix.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS)
         .map((ix) => ix.accounts?.[3]?.address)
-    ).toEqual([banks.sol.mint, banks.default.mint, routeMint]);
+    ).toEqual([mainnetBanks.sol.mint, mainnetBanks.default.mint, routeMint]);
 
     // [begin, cu limit, cu price, borrow, swap, deposit, end]
     const flashloanIxs = result.transactions[1].message.instructions;
@@ -200,18 +168,23 @@ describe("makeLoopTx", () => {
         programAddress,
         marginfiAccount,
         authority,
-        rpc: createSolanaRpc(rpcEndpoint),
+        rpc: stubbedRpc,
         bankMap,
         bankMetadataMap: {},
         assetShareValueMultiplierByBank: new Map(),
         depositOpts: {
-          depositBank: banks.sol,
+          depositBank: mainnetBanks.sol,
           tokenProgram,
           inputDepositAmount: 2,
           loopMode,
           marketPrice: 150,
         },
-        borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
+        borrowOpts: {
+          borrowBank: mainnetBanks.sol,
+          tokenProgram,
+          borrowAmount: 0.5,
+          marketPrice: 150,
+        },
         swapOpts: {},
         txFormat: { version: 0, luts: {} },
       });
@@ -234,18 +207,23 @@ describe("makeLoopTx", () => {
         programAddress,
         marginfiAccount,
         authority,
-        rpc: createSolanaRpc(rpcEndpoint),
+        rpc: stubbedRpc,
         bankMap,
         bankMetadataMap: {},
         assetShareValueMultiplierByBank: new Map(),
         depositOpts: {
-          depositBank: banks.default,
+          depositBank: mainnetBanks.default,
           tokenProgram,
           inputDepositAmount: 1,
           loopMode: "DEPOSIT",
           marketPrice: 190,
         },
-        borrowOpts: { borrowBank: banks.sol, tokenProgram, borrowAmount: 0.5, marketPrice: 150 },
+        borrowOpts: {
+          borrowBank: mainnetBanks.sol,
+          tokenProgram,
+          borrowAmount: 0.5,
+          marketPrice: 150,
+        },
         swapOpts: {},
         txFormat,
         swapEngineRunner: async (request) => {

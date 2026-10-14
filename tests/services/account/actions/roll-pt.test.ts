@@ -1,7 +1,6 @@
 import {
   address,
   createNoopSigner,
-  getAddressDecoder,
   getAddressEncoder,
   getBase64Decoder,
   type Instruction,
@@ -100,20 +99,16 @@ vi.mock("~/services/account/actions/flash-loan", async () => {
   };
 });
 
+import { key } from "../../../helpers/addresses";
+
 import { TransactionBuildingErrorCode } from "~/errors";
 import { makeRollPtTx } from "~/services/account/actions/roll-pt";
 import type { MakeRollPtTxParams, RollPtOpts } from "~/services/account/types";
 import { TransactionType } from "~/services/transaction";
 import { EXPONENT_CLMM_PROGRAM_ADDRESS, EXPONENT_CORE_PROGRAM_ADDRESS } from "~/vendor/exponent";
 
-function pk(seed: number) {
-  const bytes = new Uint8Array(32);
-  bytes[31] = seed;
-  return getAddressDecoder().decode(bytes);
-}
-
-const VAULT_LUT = pk(50);
-const CLMM_LUT = pk(51);
+const VAULT_LUT = key(50);
+const CLMM_LUT = key(51);
 // A stand-in for the ATA-create setup ixs (kept out of the flashloan, run in the setup tx).
 const SETUP_ATA: Instruction = {
   programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -130,57 +125,57 @@ function tradeReturnB64(amountOut: bigint): string {
 
 function makeMergeCtx() {
   return {
-    vaultAddress: pk(12),
-    vault: { mintYt: pk(16) },
+    vaultAddress: key(12),
+    vault: { mintYt: key(16) },
     mergeInput: {
-      authority: pk(11),
-      vault: pk(12),
-      syDst: pk(70),
-      escrowSy: pk(13),
-      ytSrc: pk(14),
-      ptSrc: pk(15),
-      mintYt: pk(16),
-      mintPt: pk(17),
+      authority: key(11),
+      vault: key(12),
+      syDst: key(70),
+      escrowSy: key(13),
+      ytSrc: key(14),
+      ptSrc: key(15),
+      mintYt: key(16),
+      mintPt: key(17),
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
-      syProgram: pk(18),
-      addressLookupTable: pk(19),
-      yieldPosition: pk(20),
+      syProgram: key(18),
+      addressLookupTable: key(19),
+      yieldPosition: key(20),
     },
     remainingAccounts: [],
     lookupTable: { address: VAULT_LUT, addresses: [] },
-    underlying: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ADDRESS },
+    underlying: { mint: key(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ADDRESS },
     computeRedeemedAmountNative: () => SY_EXACT,
   };
 }
 
 function makeClmmCtx() {
   return {
-    marketAddress: pk(60),
+    marketAddress: key(60),
     pool: {},
     tradePtInput: {
-      market: pk(60),
-      ticks: pk(61),
-      tokenSyTrader: pk(70),
-      tokenPtTrader: pk(71),
-      tokenSyEscrow: pk(62),
-      tokenPtEscrow: pk(63),
-      addressLookupTable: pk(64),
+      market: key(60),
+      ticks: key(61),
+      tokenSyTrader: key(70),
+      tokenPtTrader: key(71),
+      tokenSyEscrow: key(62),
+      tokenPtEscrow: key(63),
+      addressLookupTable: key(64),
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
-      syProgram: pk(18),
-      tokenFeeTreasurySy: pk(65),
-      tokenFeeTreasuryPt: pk(66),
+      syProgram: key(18),
+      tokenFeeTreasurySy: key(65),
+      tokenFeeTreasuryPt: key(66),
     },
     remainingAccounts: [],
     lookupTable: { address: CLMM_LUT, addresses: [] },
-    sy: { mint: pk(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ADDRESS },
-    pt: { mint: pk(31), decimals: 6, tokenProgram: TOKEN_PROGRAM_ADDRESS },
+    sy: { mint: key(41), decimals: 9, tokenProgram: TOKEN_PROGRAM_ADDRESS },
+    pt: { mint: key(31), decimals: 6, tokenProgram: TOKEN_PROGRAM_ADDRESS },
   };
 }
 
-// The quote's SY holder token account: an initialized SPL token account owned by pk(81).
+// The quote's SY holder token account: an initialized SPL token account owned by key(81).
 function holderTokenAccount(): string {
   const data = new Uint8Array(165);
-  data.set(getAddressEncoder().encode(pk(81)), 32);
+  data.set(getAddressEncoder().encode(key(81)), 32);
   data[108] = 1; // AccountState::Initialized
   return getBase64Decoder().decode(data);
 }
@@ -188,14 +183,19 @@ function holderTokenAccount(): string {
 function makeParams(
   overrides: Partial<Omit<MakeRollPtTxParams, "rollOpts">> & { rollOpts?: Partial<RollPtOpts> } = {}
 ): MakeRollPtTxParams {
-  const authority = createNoopSigner(pk(1));
+  const authority = createNoopSigner(key(1));
   const { rollOpts: rollOverrides, ...rest } = overrides;
-  const withdrawBank = { address: pk(32), mint: pk(30), mintDecimals: 9, config: { assetTag: 0 } };
-  const depositBank = { address: pk(33), mint: pk(31), mintDecimals: 6, config: { assetTag: 0 } };
+  const withdrawBank = {
+    address: key(32),
+    mint: key(30),
+    mintDecimals: 9,
+    config: { assetTag: 0 },
+  };
+  const depositBank = { address: key(33), mint: key(31), mintDecimals: 6, config: { assetTag: 0 } };
   const send = (value: unknown) => ({ send: async () => value });
   const base: MakeRollPtTxParams = {
     programAddress: address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"),
-    marginfiAccount: { authority: pk(1), address: pk(2), group: pk(3), balances: [] } as any,
+    marginfiAccount: { authority: key(1), address: key(2), group: key(3), balances: [] } as any,
     authority,
     rpc: {
       getLatestBlockhash: () =>
@@ -217,7 +217,7 @@ function makeParams(
         }),
       // The trade quote runs against the largest SY holder (trader-independent pool quote).
       getTokenLargestAccounts: () =>
-        send({ value: [{ address: pk(80), amount: SY_EXACT.toString() }] }),
+        send({ value: [{ address: key(80), amount: SY_EXACT.toString() }] }),
       getAccountInfo: () =>
         send({
           value: {
@@ -237,7 +237,7 @@ function makeParams(
                 parsed: {
                   info: {
                     addresses: [],
-                    authority: pk(1),
+                    authority: key(1),
                     deactivationSlot: "18446744073709551615",
                     lastExtendedSlot: "0",
                     lastExtendedSlotStartIndex: 0,
@@ -266,7 +266,7 @@ function makeParams(
       depositBank: depositBank as any,
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
     },
-    rollOpts: { maturedMarket: pk(60), successorMarket: pk(67), slippageBps: 50 },
+    rollOpts: { maturedMarket: key(60), successorMarket: key(67), slippageBps: 50 },
     txFormat: { version: 0, luts: {} },
   };
   return { ...base, ...rest, rollOpts: { ...base.rollOpts, ...rollOverrides } };
@@ -318,10 +318,10 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
 
   it("refreshes the account's Kamino collateral in the prelude and requires an atomic bundle", async () => {
     const kaminoBank = {
-      address: pk(34),
-      mint: pk(35),
+      address: key(34),
+      mint: key(35),
       config: { assetTag: 3 },
-      kaminoIntegrationAccounts: { kaminoReserve: pk(36), kaminoObligation: pk(37) },
+      kaminoIntegrationAccounts: { kaminoReserve: key(36), kaminoObligation: key(37) },
     };
     const base = makeParams();
     const params = makeParams({
@@ -331,7 +331,7 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
       } as any,
       bankMap: new Map([...base.bankMap, [kaminoBank.address, kaminoBank as any]]),
       bankMetadataMap: {
-        [kaminoBank.address]: { kaminoStates: { reserveState: { lendingMarket: pk(38) } } },
+        [kaminoBank.address]: { kaminoStates: { reserveState: { lendingMarket: key(38) } } },
       } as any,
     });
 
@@ -342,7 +342,7 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
       .filter((tx) => tx.type === TransactionType.CRANK)
       .flatMap((tx) => tx.message.instructions)
       .flatMap((ix) => (ix.accounts ?? []).map((meta) => meta.address));
-    expect(crankAccounts).toContain(pk(36));
+    expect(crankAccounts).toContain(key(36));
     expect(store.flashloanIxs).toHaveLength(6);
   });
 
@@ -395,8 +395,8 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
       err: null,
       logs: ["Log truncated"],
       returnData: null,
-      preTokenBalances: [{ mint: pk(31), owner: pk(81), amount: "0" }],
-      postTokenBalances: [{ mint: pk(31), owner: pk(81), amount: PT_OUT.toString() }],
+      preTokenBalances: [{ mint: key(31), owner: key(81), amount: "0" }],
+      postTokenBalances: [{ mint: key(31), owner: key(81), amount: PT_OUT.toString() }],
     });
     const res = await makeRollPtTx(params);
     expect(res.quoteResponse?.outAmount).toBe(PT_OUT.toString());
@@ -409,8 +409,8 @@ describe("makeRollPtTx (merge → CLMM trade_pt)", () => {
   });
 
   it("fetches and carries the dedicated PT-roll lookupTable when provided", async () => {
-    await makeRollPtTx(makeParams({ rollOpts: { lookupTable: pk(99) } }));
-    expect(Object.keys(store.flashloanLuts)).toContain(pk(99));
+    await makeRollPtTx(makeParams({ rollOpts: { lookupTable: key(99) } }));
+    expect(Object.keys(store.flashloanLuts)).toContain(key(99));
   });
 
   it("keeps ATA creates out of the flashloan", async () => {

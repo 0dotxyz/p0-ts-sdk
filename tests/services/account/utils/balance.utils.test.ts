@@ -1,5 +1,6 @@
-import { getAddressDecoder, type Address } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import {
   BalanceType,
@@ -9,15 +10,8 @@ import {
 } from "~/services/account";
 import { AssetTag, BankType } from "~/services/bank";
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-
 const bank = (assetTag: AssetTag) =>
-  ({ address: uniqueAddress(), config: { assetTag } }) as unknown as BankType;
+  ({ address: addr(), config: { assetTag } }) as unknown as BankType;
 
 const holding = (held: AssetTag[]) => {
   const banks = held.map(bank);

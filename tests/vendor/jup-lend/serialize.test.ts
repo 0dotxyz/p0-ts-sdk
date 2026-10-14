@@ -1,5 +1,6 @@
-import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   JupLendingRewardsRateModel,
@@ -13,11 +14,8 @@ import {
   jupTokenReserveRawToDto,
 } from "~/vendor/jup-lend";
 
-const pk = (seed: number) =>
-  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
-
 const tokenReserve: JupTokenReserve = {
-  pubkey: pk(1),
+  pubkey: key(1),
   borrowRate: 550,
   feeOnInterest: 1000,
   lastUtilization: 7500,
@@ -64,12 +62,12 @@ describe("jup-lend curated type round-trips", () => {
   it("trims extra raw fields at the DTO boundary via structural typing", () => {
     const rawLike = {
       ...tokenReserve,
-      mint: pk(2),
-      vault: pk(3),
+      mint: key(2),
+      vault: key(3),
       lastUpdateTimestamp: 1n,
       maxUtilization: 10000,
       totalClaimAmount: 0n,
-      interactingProtocol: pk(4),
+      interactingProtocol: key(4),
       interactingTimestamp: 0n,
       interactingBalance: 0n,
     };

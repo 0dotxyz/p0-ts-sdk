@@ -1,5 +1,7 @@
-import { AccountRole, address, getAddressDecoder } from "@solana/kit";
+import { AccountRole, address } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   KAMINO_LENDING_PROGRAM_ADDRESS,
@@ -9,8 +11,6 @@ import {
   makeRefreshReserveIx,
   makeRefreshReservesBatchIx,
 } from "~/vendor/klend";
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 const reserve: KaminoReserve = {
   lendingMarket: key(1),

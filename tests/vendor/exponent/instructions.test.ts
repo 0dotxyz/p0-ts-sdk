@@ -1,6 +1,5 @@
 import {
   createNoopSigner,
-  getAddressDecoder,
   isSignerRole,
   isWritableRole,
   type Address,
@@ -10,7 +9,6 @@ import { describe, expect, it, vi } from "vitest";
 
 // Wire format recorded from the web3.js resolvers + builders these replaced; never update with `-u`.
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const cpi = (altIndex: number, isWritable: boolean) => ({ altIndex, isSigner: false, isWritable });
 
 const vault = {
@@ -69,6 +67,8 @@ vi.mock("@solana/kit", async (importActual) => ({
     data: new Uint8Array(82).fill(9),
   }),
 }));
+
+import { key } from "../../helpers/addresses";
 
 import {
   makeExponentClmmTradePtIx,

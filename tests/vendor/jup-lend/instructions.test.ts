@@ -1,11 +1,11 @@
-import { address, getAddressDecoder, isSignerRole, isWritableRole } from "@solana/kit";
+import { address, isSignerRole, isWritableRole } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import { getAllDerivedJupLendAccounts, makeUpdateJupLendRateIx } from "~/vendor/jup-lend";
 
 // Recorded from the web3.js builders and derivations these replaced; never update with `-u`.
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 describe("jup-lend instruction wire format", () => {
   it("update_rate", () => {

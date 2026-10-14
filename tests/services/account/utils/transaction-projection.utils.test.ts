@@ -1,7 +1,6 @@
 import {
   address,
   createNoopSigner,
-  getAddressDecoder,
   getBase64Encoder,
   type Address,
   type Instruction,
@@ -10,7 +9,8 @@ import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import accountFixtures from "../../../fixtures/mainnet-accounts.json";
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { addr, key } from "../../../helpers/addresses";
+import { mainnetBankMap, mainnetBanks } from "../../../helpers/mainnet";
 
 import { DEFAULT_ADDRESS } from "~/constants";
 import instructions from "~/instructions";
@@ -22,9 +22,7 @@ import {
   computeProjectedActiveBanksNoCpi,
 } from "~/services/account/utils/transaction-projection.utils";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 
@@ -35,13 +33,7 @@ const account = decodeMarginfiAccount(
   address(accountFixture.address),
   base64.encode(accountFixture.data)
 );
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), base64.encode(data)),
-  ])
-);
-const banksMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));
+const banksMap = mainnetBankMap;
 
 const group = account.group;
 const marginfiAccount = account.address;
@@ -50,7 +42,7 @@ const tokenAccounts = { liquidityVault: key(6), mint: key(9), tokenProgram: key(
 const venue = { group, marginfiAccount, authority, mint: key(9), integrationAcc1: key(10) };
 const kamino = {
   ...venue,
-  bank: banks.kamino.address,
+  bank: mainnetBanks.kamino.address,
   integrationAcc2: key(11),
   lendingMarket: key(30),
   lendingMarketAuthority: key(31),
@@ -63,7 +55,7 @@ const kamino = {
 };
 const juplend = {
   ...venue,
-  bank: banks.juplend.address,
+  bank: mainnetBanks.juplend.address,
   fTokenMint: key(28),
   integrationAcc2: key(11),
   lendingAdmin: key(20),
@@ -85,7 +77,7 @@ async function buildInstructions(): Promise<Instruction[]> {
       group,
       marginfiAccount,
       authority,
-      bank: banks.default.address,
+      bank: mainnetBanks.default.address,
       signerTokenAccount: key(5),
       amount: 1_000_000n,
       depositUpToLimit: null,
@@ -95,7 +87,7 @@ async function buildInstructions(): Promise<Instruction[]> {
       group,
       marginfiAccount,
       authority,
-      bank: banks.sol.address,
+      bank: mainnetBanks.sol.address,
       signerTokenAccount: key(5),
       amount: 100_000n,
       repayAll: null,
@@ -106,7 +98,7 @@ async function buildInstructions(): Promise<Instruction[]> {
       group,
       marginfiAccount: key(99),
       authority,
-      bank: banks.drift.address,
+      bank: mainnetBanks.drift.address,
       signerTokenAccount: key(5),
       amount: 7n,
       depositUpToLimit: null,
@@ -153,7 +145,7 @@ async function buildInstructions(): Promise<Instruction[]> {
         group,
         marginfiAccount,
         authority,
-        bank: banks.default.address,
+        bank: mainnetBanks.default.address,
         destinationTokenAccount: key(5),
         amount: 500_000n,
         withdrawAll: null,
@@ -172,9 +164,9 @@ describe("transaction projection", () => {
       programAddress,
     });
 
-    expect(projected).toContain(banks.juplend.address);
-    expect(projected).not.toContain(banks.kamino.address);
-    expect(projected).not.toContain(banks.drift.address);
+    expect(projected).toContain(mainnetBanks.juplend.address);
+    expect(projected).not.toContain(mainnetBanks.kamino.address);
+    expect(projected).not.toContain(mainnetBanks.drift.address);
     expect(projected).toMatchSnapshot();
   });
 
@@ -185,15 +177,15 @@ describe("transaction projection", () => {
       programAddress,
       banksMap,
       assetShareValueMultiplierByBank: new Map([
-        [banks.kamino.address, new BigNumber(1.2345)],
-        [banks.juplend.address, new BigNumber(1.011)],
+        [mainnetBanks.kamino.address, new BigNumber(1.2345)],
+        [mainnetBanks.juplend.address, new BigNumber(1.011)],
       ]),
     });
 
     expect(result.withdrawnBanks).toEqual([
-      banks.juplend.address,
-      banks.kamino.address,
-      banks.default.address,
+      mainnetBanks.juplend.address,
+      mainnetBanks.kamino.address,
+      mainnetBanks.default.address,
     ]);
     expect({
       ...result,
@@ -208,7 +200,7 @@ describe("transaction projection", () => {
         group,
         marginfiAccount,
         authority,
-        bank: banks.sol.address,
+        bank: mainnetBanks.sol.address,
         signerTokenAccount: key(5),
         amount,
         repayAll,
@@ -220,10 +212,10 @@ describe("transaction projection", () => {
         programAddress,
         banksMap,
         assetShareValueMultiplierByBank: new Map(),
-      }).projectedBalances.find((balance) => balance.bankPk === banks.sol.address);
+      }).projectedBalances.find((balance) => balance.bankPk === mainnetBanks.sol.address);
 
     const withAssetDust = account.balances.map((balance) =>
-      balance.bankPk === banks.sol.address
+      balance.bankPk === mainnetBanks.sol.address
         ? { ...balance, assetShares: new BigNumber(0.000001) }
         : balance
     );
@@ -233,10 +225,7 @@ describe("transaction projection", () => {
 });
 
 describe("computeHealthAccounts", () => {
-  let nextKey = 1;
-  const uniqueAddress = () => getAddressDecoder().decode(new Uint8Array(32).fill(nextKey++));
-
-  const KEYS = Array.from({ length: 5 }, uniqueAddress);
+  const KEYS = Array.from({ length: 5 }, addr);
 
   function bank(opts: {
     oracleSetup: OracleSetup;
@@ -245,7 +234,7 @@ describe("computeHealthAccounts", () => {
   }): BankType {
     const oracleKeys = opts.oracleKeys ?? KEYS;
     return {
-      address: uniqueAddress(),
+      address: addr(),
       oracleKey: oracleKeys[0],
       config: {
         oracleSetup: opts.oracleSetup,

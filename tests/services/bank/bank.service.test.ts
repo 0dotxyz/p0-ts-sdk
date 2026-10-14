@@ -9,6 +9,8 @@ import {
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
+import { key } from "../../helpers/addresses";
+
 import {
   addOracleToBanksIx,
   configureScopeOracleIx,
@@ -16,8 +18,6 @@ import {
   setOraclePriceIx,
 } from "~/services/bank/bank.service";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank/types";
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 const programAddress = key(1);
 const groupAddress = key(2);

@@ -1,5 +1,6 @@
-import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   KaminoFarmState,
@@ -14,15 +15,12 @@ import {
   kaminoReserveToDto,
 } from "~/vendor/klend";
 
-const pk = (seed: number) =>
-  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
-
 const reserve: KaminoReserve = {
-  lendingMarket: pk(1),
-  farmCollateral: pk(2),
+  lendingMarket: key(1),
+  farmCollateral: key(2),
   liquidity: {
-    mintPubkey: pk(3),
-    supplyVault: pk(4),
+    mintPubkey: key(3),
+    supplyVault: key(4),
     mintDecimals: 9n,
     totalAvailableAmount: 123456789n,
     borrowedAmountSf: 987654321000000000n,
@@ -31,9 +29,9 @@ const reserve: KaminoReserve = {
     pendingReferrerFeesSf: 333n,
   },
   collateral: {
-    mintPubkey: pk(5),
+    mintPubkey: key(5),
     mintTotalSupply: 55555555n,
-    supplyVault: pk(6),
+    supplyVault: key(6),
   },
   withdrawQueue: { queuedCollateralAmount: 1234n },
   config: {
@@ -51,25 +49,25 @@ const reserve: KaminoReserve = {
       ],
     },
     tokenInfo: {
-      scopeConfiguration: { priceFeed: pk(7) },
-      switchboardConfiguration: { priceAggregator: pk(8), twapAggregator: pk(9) },
-      pythConfiguration: { price: pk(10) },
+      scopeConfiguration: { priceFeed: key(7) },
+      switchboardConfiguration: { priceAggregator: key(8), twapAggregator: key(9) },
+      pythConfiguration: { price: key(10) },
     },
   },
 };
 
 const obligation: KaminoObligation = {
-  lendingMarket: pk(1),
-  owner: pk(11),
-  deposits: [{ depositReserve: pk(12), depositedAmount: 777n, marketValueSf: 888n }],
-  borrows: [{ borrowReserve: pk(13), borrowedAmountSf: 999n, marketValueSf: 1010n }],
+  lendingMarket: key(1),
+  owner: key(11),
+  deposits: [{ depositReserve: key(12), depositedAmount: 777n, marketValueSf: 888n }],
+  borrows: [{ borrowReserve: key(13), borrowedAmountSf: 999n, marketValueSf: 1010n }],
 };
 
 const farmState: KaminoFarmState = {
-  token: { mint: pk(14), decimals: 6n },
+  token: { mint: key(14), decimals: 6n },
   rewardInfos: [
     {
-      token: { mint: pk(15), decimals: 9n },
+      token: { mint: key(15), decimals: 9n },
       rewardsAvailable: 123456n,
       rewardsPerSecondDecimals: 8,
       rewardScheduleCurve: {
@@ -120,7 +118,7 @@ describe("klend curated type round-trips", () => {
     const rawLike = {
       ...reserve,
       version: 1n,
-      farmDebt: pk(20),
+      farmDebt: key(20),
       padding: [0n],
     };
     const dto = kaminoReserveToDto(rawLike);

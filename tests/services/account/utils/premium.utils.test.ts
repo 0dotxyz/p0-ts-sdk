@@ -1,7 +1,9 @@
-import { createNoopSigner, getAddressDecoder, type Address } from "@solana/kit";
+import { createNoopSigner, type Address } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import instructions from "~/instructions";
 import {
@@ -22,13 +24,7 @@ import { BankType, OperationalState, RiskTier } from "~/services/bank";
 import { PremiumEntry } from "~/services/group";
 import { OraclePrice } from "~/services/price";
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-const PROGRAM = uniqueAddress();
+const PROGRAM = addr();
 
 const YEAR = 31_536_000;
 const NOW = 1_800_000_000;
@@ -38,8 +34,8 @@ function bank(
   opts: { premiumActive?: boolean; activatedAt?: number; liabilityShareValue?: number } = {}
 ): BankType {
   return {
-    address: uniqueAddress(),
-    mint: uniqueAddress(),
+    address: addr(),
+    mint: addr(),
     mintDecimals: 6,
     assetShareValue: new BigNumber(1),
     liabilityShareValue: new BigNumber(opts.liabilityShareValue ?? 1),
@@ -275,16 +271,16 @@ describe("repay projection", () => {
 
   async function project(balance: BalanceType, b: BankType, amount: number, repayAll = false) {
     const account = {
-      address: uniqueAddress(),
+      address: addr(),
       balances: [balance],
     } as unknown as MarginfiAccountType;
     const ix = await instructions.makeRepayIx(PROGRAM, {
-      group: uniqueAddress(),
+      group: addr(),
       marginfiAccount: account.address,
-      authority: createNoopSigner(uniqueAddress()),
-      signerTokenAccount: uniqueAddress(),
+      authority: createNoopSigner(addr()),
+      signerTokenAccount: addr(),
       bank: b.address,
-      liquidityVault: uniqueAddress(),
+      liquidityVault: addr(),
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
       mint: b.mint,
       amount: BigInt(usdc(amount).toFixed()),

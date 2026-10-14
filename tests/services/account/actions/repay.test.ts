@@ -1,66 +1,45 @@
-import {
-  address,
-  createNoopSigner,
-  createSolanaRpc,
-  getAddressDecoder,
-  getBase64Encoder,
-  unwrapOption,
-} from "@solana/kit";
+import { address, createNoopSigner, unwrapOption } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import accountFixtures from "../../../fixtures/mainnet-accounts.json";
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { key } from "../../../helpers/addresses";
+import { findMarginfiIxs } from "../../../helpers/ix";
+import { mainnetAccount, mainnetBanks } from "../../../helpers/mainnet";
+import { stubRpcFetch, stubbedRpc } from "../../../helpers/rpc";
 
-import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
+import { MarginfiInstruction } from "~/instructions";
 import { makeRepayWithCollatTx } from "~/services/account/actions/repay";
 import { SwapProvider, type MarginfiAccountType } from "~/services/account/types";
-import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { BankType } from "~/services/bank";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
-const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const swapProgram = address("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
 
-// Mainnet account with a liability in the SOL bank fixture, given a deposit in a copy of that bank
-// to repay it from; its other positions are dropped so every active bank is loaded
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), base64.encode(data)),
-  ])
-);
+// The account's SOL debt is repaid from a deposit in a copy of the SOL bank
 const copyOfSol = (fill: number, mint: BankType["mint"]): BankType => ({
-  ...banks.sol,
-  address: getAddressDecoder().decode(new Uint8Array(32).fill(fill)),
+  ...mainnetBanks.sol,
+  address: key(fill),
   mint,
 });
-const solCollateralBank = copyOfSol(7, banks.sol.mint);
+const solCollateralBank = copyOfSol(7, mainnetBanks.sol.mint);
 const usdcCollateralBank = {
-  ...copyOfSol(8, getAddressDecoder().decode(new Uint8Array(32).fill(9))),
+  ...copyOfSol(8, key(9)),
   mintDecimals: 6,
 };
 const bankMap = new Map(
-  [...Object.values(banks), solCollateralBank, usdcCollateralBank].map((bank) => [
+  [...Object.values(mainnetBanks), solCollateralBank, usdcCollateralBank].map((bank) => [
     bank.address,
     bank,
   ])
 );
 
-const parsed = decodeMarginfiAccount(
-  address(accountFixtures[1].address),
-  base64.encode(accountFixtures[1].data)
-);
 function withDepositIn(bank: BankType): MarginfiAccountType {
-  const balances = parsed.balances.filter(
-    (balance) => !balance.active || bankMap.has(balance.bankPk)
-  );
-  const firstFree = balances.findIndex((balance) => !balance.active);
+  const account = mainnetAccount(bankMap);
+  const firstFree = account.balances.findIndex((balance) => !balance.active);
   return {
-    ...parsed,
-    balances: balances.map((balance, index) =>
+    ...account,
+    balances: account.balances.map((balance, index) =>
       index === firstFree
         ? {
             ...balance,
@@ -92,12 +71,12 @@ function repayWithCollat(opts: {
     programAddress,
     marginfiAccount,
     authority: createNoopSigner(marginfiAccount.authority),
-    rpc: createSolanaRpc("http://repay.test"),
+    rpc: stubbedRpc,
     bankMap,
     bankMetadataMap: {},
     assetShareValueMultiplierByBank: new Map(),
     withdrawOpts: { withdrawBank, tokenProgram, withdrawAmount, totalPositionAmount: 10 },
-    repayOpts: { repayBank: banks.sol, tokenProgram, totalPositionAmount: DEBT },
+    repayOpts: { repayBank: mainnetBanks.sol, tokenProgram, totalPositionAmount: DEBT },
     swapOpts: {},
     txFormat: { version: 0, luts: {} },
     swapEngineRunner: async () => ({
@@ -111,38 +90,20 @@ function repayWithCollat(opts: {
   });
 }
 
-async function repayIxOf(result: Awaited<ReturnType<typeof makeRepayWithCollatTx>>) {
-  const repay = result.transactions
-    .flatMap((tx) => tx.message.instructions)
-    .map(parseMarginfiIx)
-    .find((ix) => ix?.instructionType === MarginfiInstruction.LendingAccountRepay);
-  if (repay?.instructionType !== MarginfiInstruction.LendingAccountRepay) {
-    throw new Error("no repay ix");
-  }
+function repayIxOf(result: Awaited<ReturnType<typeof makeRepayWithCollatTx>>) {
+  const [repay] = findMarginfiIxs(MarginfiInstruction.LendingAccountRepay, ...result.transactions);
   return { repayAll: unwrapOption(repay.data.repayAll), amount: repay.data.amount };
 }
 
 describe("makeRepayWithCollatTx", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
-      const { id, method, params } = JSON.parse(init.body);
-      const value =
-        method === "getLatestBlockhash"
-          ? { blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N", lastValidBlockHeight: 100 }
-          : params[0].map(() => null);
-      return new Response(
-        JSON.stringify({ jsonrpc: "2.0", id, result: { context: { slot: 1 }, value } })
-      );
-    });
-  });
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(stubRpcFetch);
 
   it("repays all of the debt when the withdrawal covers it in whole native units", async () => {
     const result = await repayWithCollat({
       withdrawBank: solCollateralBank,
       withdrawAmount: 0.12345679,
     });
-    expect((await repayIxOf(result)).repayAll).toBe(true);
+    expect(repayIxOf(result).repayAll).toBe(true);
   });
 
   it("doesn't repay all when the withdrawal is the debt rounded down", async () => {
@@ -150,7 +111,7 @@ describe("makeRepayWithCollatTx", () => {
       withdrawBank: solCollateralBank,
       withdrawAmount: 0.123456789,
     });
-    expect((await repayIxOf(result)).repayAll).toBe(false);
+    expect(repayIxOf(result).repayAll).toBe(false);
   });
 
   it("repays all of the debt when the quoted output exceeds it", async () => {
@@ -159,7 +120,7 @@ describe("makeRepayWithCollatTx", () => {
       withdrawAmount: 20,
       quote: { outAmount: "124000000", otherAmountThreshold: "123400000" },
     });
-    expect((await repayIxOf(result)).repayAll).toBe(true);
+    expect(repayIxOf(result).repayAll).toBe(true);
   });
 
   it("repays the minimum output, not all, when the quote falls short of the debt", async () => {
@@ -168,7 +129,7 @@ describe("makeRepayWithCollatTx", () => {
       withdrawAmount: 20,
       quote: { outAmount: "123456789", otherAmountThreshold: "123456789" },
     });
-    const repay = await repayIxOf(result);
+    const repay = repayIxOf(result);
     expect(repay.repayAll).toBe(false);
     expect(repay.amount).toBe(123_456_789n);
   });

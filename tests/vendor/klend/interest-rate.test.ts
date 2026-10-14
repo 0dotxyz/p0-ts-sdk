@@ -1,5 +1,6 @@
-import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   DEFAULT_RECENT_SLOT_DURATION_MS,
@@ -20,9 +21,6 @@ import {
   getProtocolTakeRatePct,
 } from "~/vendor/klend";
 
-const pk = (seed: number) =>
-  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
-
 // Scaled-fraction amounts are Q60 (value * 2^60).
 const sf = (amount: number) => BigInt(amount) << 60n;
 
@@ -31,11 +29,11 @@ const sf = (amount: number) => BigInt(amount) << 60n;
  * 10% borrow rate curve, so curve rate = 0.10 at every utilization.
  */
 const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReserve => ({
-  lendingMarket: pk(1),
-  farmCollateral: pk(2),
+  lendingMarket: key(1),
+  farmCollateral: key(2),
   liquidity: {
-    mintPubkey: pk(3),
-    supplyVault: pk(4),
+    mintPubkey: key(3),
+    supplyVault: key(4),
     mintDecimals: 6n,
     totalAvailableAmount: 50n,
     borrowedAmountSf: sf(50),
@@ -44,9 +42,9 @@ const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReser
     pendingReferrerFeesSf: 0n,
   },
   collateral: {
-    mintPubkey: pk(5),
+    mintPubkey: key(5),
     mintTotalSupply: 100n,
-    supplyVault: pk(6),
+    supplyVault: key(6),
   },
   withdrawQueue: { queuedCollateralAmount: 0n },
   config: {
@@ -63,9 +61,9 @@ const makeReserve = (config: Partial<KaminoReserve["config"]> = {}): KaminoReser
       ],
     },
     tokenInfo: {
-      scopeConfiguration: { priceFeed: pk(7) },
-      switchboardConfiguration: { priceAggregator: pk(8), twapAggregator: pk(9) },
-      pythConfiguration: { price: pk(10) },
+      scopeConfiguration: { priceFeed: key(7) },
+      switchboardConfiguration: { priceAggregator: key(8), twapAggregator: key(9) },
+      pythConfiguration: { price: key(10) },
     },
     ...config,
   },

@@ -1,7 +1,6 @@
 import {
   address,
   createNoopSigner,
-  getAddressDecoder,
   getAddressEncoder,
   getProgramDerivedAddress,
   isSignerRole,
@@ -9,6 +8,8 @@ import {
   type Instruction,
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import { deriveGammaWithdrawEscrow } from "~/vendor/gamma";
 import {
@@ -19,7 +20,6 @@ import {
 
 // Wire format recorded from the hand-written web3.js builders these replaced; never update with `-u`.
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const toWire = (ix: Instruction) => ({
   programId: ix.programAddress,
   keys: (ix.accounts ?? []).map((a) => [a.address, isSignerRole(a.role), isWritableRole(a.role)]),

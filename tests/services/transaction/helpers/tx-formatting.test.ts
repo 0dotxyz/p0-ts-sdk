@@ -5,7 +5,6 @@ import {
   compileTransaction,
   compileTransactionMessage,
   createNoopSigner,
-  getAddressDecoder,
   getBase64Encoder,
   getTransactionEncoder,
   type Instruction,
@@ -13,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { key } from "../../../helpers/addresses";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import instructions from "~/instructions";
@@ -27,7 +27,6 @@ import {
 import { getTotalAccountKeys, getTxSize } from "~/services/transaction/helpers/tx-size";
 import { TransactionFormat, TransactionType } from "~/services/transaction/types";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const feePayer = createNoopSigner(key(1));
 const latestBlockhash = {
   blockhash: blockhash("EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k"),

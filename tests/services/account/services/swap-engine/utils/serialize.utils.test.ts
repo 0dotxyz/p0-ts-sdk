@@ -1,5 +1,7 @@
-import { AccountRole, getAddressDecoder, type Instruction } from "@solana/kit";
+import { AccountRole, type Instruction } from "@solana/kit";
 import { describe, it, expect } from "vitest";
+
+import { addr } from "../../../../../helpers/addresses";
 
 import type {
   SwapEngineRequest,
@@ -13,13 +15,11 @@ import {
 } from "~/services/account/services/swap-engine/utils/serialize.utils";
 import { SwapProvider } from "~/services/account/types";
 
-const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
-
 const ix = (): Instruction => ({
-  programAddress: uniqueAddress(),
+  programAddress: addr(),
   accounts: [
-    { address: uniqueAddress(), role: AccountRole.WRITABLE },
-    { address: uniqueAddress(), role: AccountRole.READONLY_SIGNER },
+    { address: addr(), role: AccountRole.WRITABLE },
+    { address: addr(), role: AccountRole.READONLY_SIGNER },
   ],
   data: new Uint8Array([1, 2, 3, 4, 5]),
 });
@@ -27,16 +27,16 @@ const ix = (): Instruction => ({
 const dummyRpc = {} as SwapEngineRequest["rpc"];
 
 describe("swap engine request serialization", () => {
-  const taker = uniqueAddress();
-  const dest = uniqueAddress();
-  const payer = uniqueAddress();
+  const taker = addr();
+  const dest = addr();
+  const payer = addr();
   const footprintIx = ix();
-  const lutAddress = uniqueAddress();
-  const lutEntries = [uniqueAddress(), uniqueAddress()];
+  const lutAddress = addr();
+  const lutEntries = [addr(), addr()];
 
   const req: SwapEngineRequest = {
-    inputMint: uniqueAddress(),
-    outputMint: uniqueAddress(),
+    inputMint: addr(),
+    outputMint: addr(),
     amountNative: 123456,
     inputDecimals: 6,
     outputDecimals: 9,
@@ -113,7 +113,7 @@ describe("swap engine result serialization", () => {
     const result: SwapEngineResult = {
       swapInstructions: [ix()],
       setupInstructions: [ix()],
-      swapLuts: { [uniqueAddress()]: [uniqueAddress(), uniqueAddress()] },
+      swapLuts: { [addr()]: [addr(), addr()] },
       quoteResponse: {
         inAmount: "1000",
         outAmount: "2000",

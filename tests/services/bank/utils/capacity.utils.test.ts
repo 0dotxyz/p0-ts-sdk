@@ -1,6 +1,7 @@
-import { getAddressDecoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import {
   isStandardBorrowable,
@@ -10,16 +11,14 @@ import {
   BankType,
 } from "~/services/bank";
 
-const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
-
 function bank(opts: {
   assetTag: AssetTag;
   operationalState: OperationalState;
   borrowLimit: number;
 }): BankType {
   return {
-    address: uniqueAddress(),
-    mint: uniqueAddress(),
+    address: addr(),
+    mint: addr(),
     config: {
       assetTag: opts.assetTag,
       operationalState: opts.operationalState,

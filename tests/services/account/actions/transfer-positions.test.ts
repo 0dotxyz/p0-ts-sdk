@@ -1,16 +1,11 @@
-import {
-  address,
-  createNoopSigner,
-  getAddressDecoder,
-  getBase64Encoder,
-  type Address,
-} from "@solana/kit";
+import { address, createNoopSigner, getBase64Encoder, type Address } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
 
 import accountFixtures from "../../../fixtures/mainnet-accounts.json";
 import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { key } from "../../../helpers/addresses";
 
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import {
@@ -28,9 +23,6 @@ import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import { BankIntegrationMetadataMap } from "~/types";
 import { KaminoReserve } from "~/vendor/klend";
 
-const pk = (seed: number) =>
-  getAddressDecoder().decode(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256));
-
 // --------------------------------------------------------------------------------------
 // Hard cap on positions per transfer
 // --------------------------------------------------------------------------------------
@@ -39,16 +31,16 @@ describe("classifyAndValidate (position cap)", () => {
   // The cap check fires before any balance/oracle lookup, so minimal params suffice.
   const capParams = (bankCount: number, maxPositions?: number): MakeTransferPositionsTxParams =>
     ({
-      programAddress: pk(99),
-      authority: createNoopSigner(pk(31)),
+      programAddress: key(99),
+      authority: createNoopSigner(key(31)),
       rpc: {} as never,
       marginfiAccount: {
-        address: pk(30),
-        authority: pk(31),
-        group: pk(32),
+        address: key(30),
+        authority: key(31),
+        group: key(32),
         balances: [],
       } as unknown as MarginfiAccountType,
-      bankAddresses: Array.from({ length: bankCount }, (_, i) => pk(100 + i)),
+      bankAddresses: Array.from({ length: bankCount }, (_, i) => key(100 + i)),
       bankMap: new Map(),
       bankMetadataMap: {} as BankIntegrationMetadataMap,
       assetShareValueMultiplierByBank: new Map(),
@@ -86,12 +78,12 @@ describe("classifyAndValidate (position cap)", () => {
 });
 
 describe("classifyAndValidate (costly position limit)", () => {
-  const authority = pk(31);
-  const group = pk(32);
+  const authority = key(31);
+  const group = key(32);
   const makeBank = (seed: number, assetTag: AssetTag) =>
     ({
-      address: pk(seed),
-      mint: pk(seed + 50),
+      address: key(seed),
+      mint: key(seed + 50),
       mintDecimals: 9,
       assetShareValue: new BigNumber(1),
       liabilityShareValue: new BigNumber(1),
@@ -109,11 +101,11 @@ describe("classifyAndValidate (costly position limit)", () => {
     const staked = [makeBank(150, AssetTag.STAKED), makeBank(151, AssetTag.STAKED)];
     const kamino = [150, 151, 152].map((seed) => makeBank(seed + 10, AssetTag.KAMINO));
     const params = {
-      programAddress: pk(99),
+      programAddress: key(99),
       authority: createNoopSigner(authority),
       rpc: {} as never,
-      marginfiAccount: { address: pk(30), authority, group, balances: staked.map(balanceIn) },
-      destinationAccount: { address: pk(33), authority, group, balances: kamino.map(balanceIn) },
+      marginfiAccount: { address: key(30), authority, group, balances: staked.map(balanceIn) },
+      destinationAccount: { address: key(33), authority, group, balances: kamino.map(balanceIn) },
       bankAddresses: staked.map((b) => b.address),
       bankMap: new Map([...staked, ...kamino].map((b) => [b.address, b])),
       bankMetadataMap: {} as BankIntegrationMetadataMap,
@@ -135,17 +127,17 @@ describe("classifyAndValidate (costly position limit)", () => {
 // Integration collateral-leg dispatch
 // --------------------------------------------------------------------------------------
 
-const KAMINO_BANK_PK = pk(20);
-const PROGRAM_PK = pk(99);
-const ACCOUNT_B_PK = pk(40);
+const KAMINO_BANK_PK = key(20);
+const PROGRAM_PK = key(99);
+const ACCOUNT_B_PK = key(40);
 
 /** A minimal on-chain-shaped Kamino reserve (same shape the metadata map carries). */
 const reserve: KaminoReserve = {
-  lendingMarket: pk(1),
-  farmCollateral: pk(2),
+  lendingMarket: key(1),
+  farmCollateral: key(2),
   liquidity: {
-    mintPubkey: pk(3),
-    supplyVault: pk(4),
+    mintPubkey: key(3),
+    supplyVault: key(4),
     mintDecimals: 6n,
     totalAvailableAmount: 123456789n,
     borrowedAmountSf: 987654321000000000n,
@@ -153,7 +145,7 @@ const reserve: KaminoReserve = {
     accumulatedReferrerFeesSf: 222n,
     pendingReferrerFeesSf: 333n,
   },
-  collateral: { mintPubkey: pk(5), mintTotalSupply: 55555555n, supplyVault: pk(6) },
+  collateral: { mintPubkey: key(5), mintTotalSupply: 55555555n, supplyVault: key(6) },
   withdrawQueue: { queuedCollateralAmount: 0n },
   config: {
     protocolTakeRatePct: 15,
@@ -162,34 +154,34 @@ const reserve: KaminoReserve = {
     borrowLimit: 9000000000000000n,
     borrowRateCurve: { points: [{ utilizationRateBps: 0, borrowRateBps: 100 }] },
     tokenInfo: {
-      scopeConfiguration: { priceFeed: pk(7) },
-      switchboardConfiguration: { priceAggregator: pk(8), twapAggregator: pk(9) },
-      pythConfiguration: { price: pk(10) },
+      scopeConfiguration: { priceFeed: key(7) },
+      switchboardConfiguration: { priceAggregator: key(8), twapAggregator: key(9) },
+      pythConfiguration: { price: key(10) },
     },
   },
 } as unknown as KaminoReserve;
 
 const kaminoBank = {
   address: KAMINO_BANK_PK,
-  mint: pk(21),
-  liquidityVault: pk(24),
+  mint: key(21),
+  liquidityVault: key(24),
   mintDecimals: 6,
   tokenSymbol: "kTKN",
   config: { assetTag: AssetTag.KAMINO },
-  kaminoIntegrationAccounts: { kaminoReserve: pk(22), kaminoObligation: pk(23) },
+  kaminoIntegrationAccounts: { kaminoReserve: key(22), kaminoObligation: key(23) },
 } as unknown as BankType;
 
 function baseCtx(overrides: Partial<BuildContext> = {}): BuildContext {
   return {
     programAddress: PROGRAM_PK,
-    authority: createNoopSigner(pk(31)),
+    authority: createNoopSigner(key(31)),
     accountA: {
-      address: pk(30),
-      authority: pk(31),
-      group: pk(32),
+      address: key(30),
+      authority: key(31),
+      group: key(32),
       balances: [],
     } as unknown as MarginfiAccountType,
-    accountB: { address: ACCOUNT_B_PK, group: pk(32) } as unknown as MarginfiAccountType,
+    accountB: { address: ACCOUNT_B_PK, group: key(32) } as unknown as MarginfiAccountType,
     bankMap: new Map(),
     bankMetadataMap: {
       [KAMINO_BANK_PK]: { kaminoStates: { reserveState: reserve } },
@@ -230,7 +222,7 @@ describe("buildCollateralLegIxs (integration dispatch)", () => {
     expect(keys).toContain(reserve.lendingMarket);
     expect(keys).toContain(reserve.liquidity.supplyVault);
     expect(keys).toContain(reserve.collateral.supplyVault);
-    expect(keys).toContain(pk(23)); // kaminoObligation
+    expect(keys).toContain(key(23)); // kaminoObligation
 
     // The deposit leg targets the destination account B.
     const depositKeys = depositIxs.flatMap((ix) => (ix.accounts ?? []).map((meta) => meta.address));
@@ -249,9 +241,9 @@ describe("buildCollateralLegIxs (integration dispatch)", () => {
       ...kaminoBank,
       config: { assetTag: AssetTag.JUPLEND },
       jupLendIntegrationAccounts: {
-        jupLendingState: pk(50),
-        jupFTokenVault: pk(51),
-        jupFTokenAta: pk(52),
+        jupLendingState: key(50),
+        jupFTokenVault: key(51),
+        jupFTokenAta: key(52),
       },
     } as unknown as BankType;
     const jupPosition: ClassifiedPosition = { ...kaminoPosition, bank: jupBank };

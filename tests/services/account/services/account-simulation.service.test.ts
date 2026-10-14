@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import accountFixtures from "../../../fixtures/mainnet-accounts.json";
 import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { makeOraclePrice } from "../../../helpers/factories";
 
 import { decodeMarginfiAccountRaw } from "~/accounts";
 import {
@@ -20,7 +21,6 @@ import { HealthCacheSimulationError, HealthCacheStatus } from "~/services/accoun
 import type { HealthCacheRaw } from "~/services/account/types/raw-account.types";
 import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";
-import type { OraclePrice } from "~/services/price";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
 // The simulated post-execution account is the fixture itself, with `post.healthCache` applied.
@@ -153,16 +153,6 @@ describe("simulateAccountHealthCache", () => {
 });
 
 describe("simulateAccountHealthCacheWithFallback", () => {
-  const price = (value: number): OraclePrice => {
-    const p = {
-      price: new BigNumber(value),
-      confidence: new BigNumber(0),
-      lowestPrice: new BigNumber(value),
-      highestPrice: new BigNumber(value),
-    };
-    return { priceRealtime: p, priceWeighted: p, timestamp: new BigNumber(0) };
-  };
-
   it("computes the health cache on a failed simulation, leaving the caller's account as is", async () => {
     post.healthCache = { mrgnErr: 6010, internalErr: 3 };
     const healthCache = marginfiAccount.healthCache;
@@ -172,7 +162,7 @@ describe("simulateAccountHealthCacheWithFallback", () => {
       rpcEndpoint,
       programAddress,
       banksMap,
-      oraclePricesByBank: new Map([...banksMap.keys()].map((bank) => [bank, price(1)])),
+      oraclePricesByBank: new Map([...banksMap.keys()].map((bank) => [bank, makeOraclePrice(1)])),
       marginfiAccount,
       bankIntegrationMap: {},
       assetShareValueMultiplierByBank: new Map(),

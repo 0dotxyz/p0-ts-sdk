@@ -1,5 +1,6 @@
-import { getAddressDecoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../helpers/addresses";
 
 import {
   calculateDriftBorrowAPR,
@@ -14,8 +15,6 @@ import {
 
 // Values match the pre-Kit BN implementation (checked on mainnet spot markets 0–5 and 1000 random
 // markets during the migration).
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 const market: DriftSpotMarket = {
   pubkey: key(1),

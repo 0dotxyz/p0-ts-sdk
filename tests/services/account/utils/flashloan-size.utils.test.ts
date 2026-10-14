@@ -1,11 +1,12 @@
-import { AccountRole, getAddressDecoder, type Instruction } from "@solana/kit";
+import { AccountRole, type Instruction } from "@solana/kit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { key } from "../../../helpers/addresses";
 
 import { MAX_ACCOUNT_LOCKS, MAX_TX_SIZE } from "~/constants";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
 import { TransactionFormat } from "~/services/transaction";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const payer = key(1);
 const programAddress = key(200);
 const V1_SIZE_LIMIT = 4096;

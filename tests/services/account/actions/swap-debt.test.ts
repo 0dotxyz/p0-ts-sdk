@@ -1,85 +1,51 @@
-import {
-  address,
-  createNoopSigner,
-  createSolanaRpc,
-  getAddressDecoder,
-  getBase64Encoder,
-  unwrapOption,
-} from "@solana/kit";
+import { address, createNoopSigner, unwrapOption } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import accountFixtures from "../../../fixtures/mainnet-accounts.json";
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { key } from "../../../helpers/addresses";
+import { findMarginfiIxs } from "../../../helpers/ix";
+import { mainnetAccount, mainnetBanks } from "../../../helpers/mainnet";
+import { stubRpcFetch, stubbedRpc } from "../../../helpers/rpc";
 
 import { TransactionBuildingError } from "~/errors";
-import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
+import { MarginfiInstruction } from "~/instructions";
 import { makeBridgedSwapDebtTx, makeSwapDebtTx } from "~/services/account/actions/swap-debt";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine";
 import { SwapProvider } from "~/services/account/types";
-import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 
-const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const swapProgram = address("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
 
-// Mainnet account with a liability in the SOL bank fixture, swapped into debt on a copy of that
-// bank under another address and mint; its other positions are dropped so every active bank is
-// loaded
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), base64.encode(data)),
-  ])
-);
+// The account's SOL debt is swapped into debt on a copy of the SOL bank under another address and
+// mint
 const copyOfSol = (fill: number) => ({
-  ...banks.sol,
-  address: getAddressDecoder().decode(new Uint8Array(32).fill(fill)),
-  mint: getAddressDecoder().decode(new Uint8Array(32).fill(fill + 1)),
+  ...mainnetBanks.sol,
+  address: key(fill),
+  mint: key(fill + 1),
   mintDecimals: 6,
 });
 const borrowBank = copyOfSol(7);
 const otherDebtBank = copyOfSol(10);
 const bankMap = new Map(
-  [...Object.values(banks), borrowBank, otherDebtBank].map((bank) => [bank.address, bank])
+  [...Object.values(mainnetBanks), borrowBank, otherDebtBank].map((bank) => [bank.address, bank])
 );
-const parsed = decodeMarginfiAccount(
-  address(accountFixtures[1].address),
-  base64.encode(accountFixtures[1].data)
-);
-const marginfiAccount = {
-  ...parsed,
-  balances: parsed.balances.filter((balance) => !balance.active || bankMap.has(balance.bankPk)),
-};
+const marginfiAccount = mainnetAccount(bankMap);
 
 describe("makeSwapDebtTx", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
-      const { id, method, params } = JSON.parse(init.body);
-      const value =
-        method === "getLatestBlockhash"
-          ? { blockhash: "EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N", lastValidBlockHeight: 100 }
-          : params[0].map(() => null);
-      return new Response(
-        JSON.stringify({ jsonrpc: "2.0", id, result: { context: { slot: 1 }, value } })
-      );
-    });
-  });
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(stubRpcFetch);
 
   it("repays all of a debt that isn't a whole number of native units", async () => {
     const result = await makeSwapDebtTx({
       programAddress,
       marginfiAccount,
       authority: createNoopSigner(marginfiAccount.authority),
-      rpc: createSolanaRpc("http://swap-debt.test"),
+      rpc: stubbedRpc,
       bankMap,
       bankMetadataMap: {},
       assetShareValueMultiplierByBank: new Map(),
       repayOpts: {
-        repayBank: banks.sol,
+        repayBank: mainnetBanks.sol,
         tokenProgram,
         totalPositionAmount: 0.123456789123,
         marketPrice: 150,
@@ -104,12 +70,10 @@ describe("makeSwapDebtTx", () => {
       }),
     });
 
-    const repay = result.transactions[result.actionTxIndex].message.instructions
-      .map(parseMarginfiIx)
-      .find((ix) => ix?.instructionType === MarginfiInstruction.LendingAccountRepay);
-    if (repay?.instructionType !== MarginfiInstruction.LendingAccountRepay) {
-      throw new Error("no repay ix");
-    }
+    const [repay] = findMarginfiIxs(
+      MarginfiInstruction.LendingAccountRepay,
+      result.transactions[result.actionTxIndex]
+    );
     expect(unwrapOption(repay.data.repayAll)).toBe(true);
   });
 
@@ -141,7 +105,7 @@ describe("makeSwapDebtTx", () => {
       programAddress,
       marginfiAccount: { ...marginfiAccount, balances },
       authority: createNoopSigner(marginfiAccount.authority),
-      rpc: createSolanaRpc("http://swap-debt.test"),
+      rpc: stubbedRpc,
       bankMap,
       bankMetadataMap: {},
       assetShareValueMultiplierByBank: new Map(),
@@ -155,12 +119,12 @@ describe("makeSwapDebtTx", () => {
       swapOpts: {},
       txFormat: { version: 0, luts: {} },
       bridgeOpts: {
-        bridgeCandidateMints: [banks.sol.mint],
-        tokenProgramByMint: new Map([[banks.sol.mint, tokenProgram]]),
+        bridgeCandidateMints: [mainnetBanks.sol.mint],
+        tokenProgramByMint: new Map([[mainnetBanks.sol.mint, tokenProgram]]),
       },
       oraclePrices: new Map([
         [otherDebtBank.address, price(1)],
-        [banks.sol.address, price(150)],
+        [mainnetBanks.sol.address, price(150)],
         [borrowBank.address, price(1)],
       ]) as never,
       swapEngineRunner: async (request: SwapEngineRequest) => {
@@ -175,17 +139,11 @@ describe("makeSwapDebtTx", () => {
       },
     });
 
-    expect(result.bridgeMint).toBe(banks.sol.mint);
-    const solRepay = result.transactions[result.actionTxIndex].message.instructions
-      .map(parseMarginfiIx)
-      .find(
-        (ix) =>
-          ix?.instructionType === MarginfiInstruction.LendingAccountRepay &&
-          ix.accounts.bank.address === banks.sol.address
-      );
-    if (solRepay?.instructionType !== MarginfiInstruction.LendingAccountRepay) {
-      throw new Error("no SOL repay ix");
-    }
+    expect(result.bridgeMint).toBe(mainnetBanks.sol.mint);
+    const [solRepay] = findMarginfiIxs(
+      MarginfiInstruction.LendingAccountRepay,
+      result.transactions[result.actionTxIndex]
+    ).filter((ix) => ix.accounts.bank.address === mainnetBanks.sol.address);
     expect(unwrapOption(solRepay.data.repayAll)).toBe(false);
   });
 });

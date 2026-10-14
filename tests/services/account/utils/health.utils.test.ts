@@ -1,12 +1,12 @@
-import { getAddressDecoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../../helpers/addresses";
 
 import { BalanceType, MarginRequirementType } from "~/services/account/types";
 import { computeHealthComponentsFromBalances } from "~/services/account/utils/health.utils";
 import { BankType } from "~/services/bank/types";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const bank = { address: key(1) } as unknown as BankType;
 const balance = (side: "asset" | "liability"): BalanceType =>
   ({

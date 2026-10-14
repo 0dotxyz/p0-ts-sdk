@@ -1,6 +1,7 @@
-import { getAddressDecoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../helpers/addresses";
 
 import {
   bigNumberToWrappedI80F48,
@@ -15,8 +16,6 @@ import {
 
 // Values match the pre-Kit web3.js / BN implementations (checked on random inputs during the
 // migration); never update the snapshot with `-u`.
-
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 
 describe("I80F48 conversion", () => {
   it.each(["0", "1", "-1", "0.5", "123.456", "-98765.4321"])("encodes %s", (value) => {

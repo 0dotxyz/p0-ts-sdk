@@ -3,12 +3,13 @@ import {
   address,
   blockhash,
   createNoopSigner,
-  getAddressDecoder,
   type Address,
   type Instruction,
 } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import instructions from "~/instructions";
@@ -48,23 +49,16 @@ const CLOSE_ORDER_DISCRIMINATOR = [212, 223, 79, 182, 172, 183, 205, 237];
 const PLACE_ORDER_DISCRIMINATOR = [244, 112, 75, 138, 143, 108, 7, 186];
 const PULSE_DISCRIMINATOR = [186, 52, 117, 97, 34, 74, 39, 253];
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-
 function bank(opts: { mint?: Address } = {}): BankType {
-  const oracle = uniqueAddress();
+  const oracle = addr();
   return {
-    address: uniqueAddress(),
-    mint: opts.mint ?? uniqueAddress(),
+    address: addr(),
+    mint: opts.mint ?? addr(),
     mintDecimals: 6,
     assetShareValue: new BigNumber(1),
     liabilityShareValue: new BigNumber(1),
-    group: uniqueAddress(),
-    liquidityVault: uniqueAddress(),
+    group: addr(),
+    liquidityVault: addr(),
     oracleKey: oracle,
     premiumTag: 1,
     premiumActive: true,
@@ -91,9 +85,9 @@ function account(active: BalanceType[]): MarginfiAccountType {
     createEmptyBalance(DEFAULT_ADDRESS)
   );
   return {
-    address: uniqueAddress(),
-    group: uniqueAddress(),
-    authority: uniqueAddress(),
+    address: addr(),
+    group: addr(),
+    authority: addr(),
     balances: [...active, ...empty],
     accountFlags: [],
     emissionsDestinationAccount: DEFAULT_ADDRESS,
@@ -101,7 +95,7 @@ function account(active: BalanceType[]): MarginfiAccountType {
   } as unknown as MarginfiAccountType;
 }
 
-const orders = (count: number) => Array.from({ length: count }, uniqueAddress);
+const orders = (count: number) => Array.from({ length: count }, addr);
 
 const ixsOf = (tx: SolanaTransaction | undefined): readonly Instruction[] =>
   tx?.message.instructions ?? [];
@@ -114,9 +108,9 @@ const isPulse = startsWith(PULSE_DISCRIMINATOR);
 
 // Another program's instruction, so the flashloan projection skips it
 const foreignIx = (keyCount = 0): Instruction => ({
-  programAddress: uniqueAddress(),
+  programAddress: addr(),
   accounts: Array.from({ length: keyCount }, () => ({
-    address: uniqueAddress(),
+    address: addr(),
     role: AccountRole.WRITABLE,
   })),
   data: new Uint8Array(8),
@@ -318,7 +312,7 @@ describe("makeOrderChangesTx", () => {
   const placeOrder = {
     ...pair,
     trigger: { stopLossUsd: new BigNumber(50), maxSlippagePercent: 1 },
-    globalFeeWallet: uniqueAddress(),
+    globalFeeWallet: addr(),
   };
   const changes = (params: { ordersToClose?: Address[]; place?: boolean }) =>
     makeOrderChangesTx({
@@ -351,7 +345,7 @@ describe("makeOrderChangesTx", () => {
       pair.collateralBank,
       pair.debtBank,
     ]);
-    const tx = await changes({ ordersToClose: [uniqueAddress(), pairOrder], place: true });
+    const tx = await changes({ ordersToClose: [addr(), pairOrder], place: true });
     const ixs = ixsOf(tx);
 
     expect(tx?.type).toBe(TransactionType.UPDATE_ORDER);
@@ -360,8 +354,8 @@ describe("makeOrderChangesTx", () => {
   });
 
   it("tags a placement on a new pair and closes alone by what they do", async () => {
-    const placed = await changes({ ordersToClose: [uniqueAddress()], place: true });
-    const closed = await changes({ ordersToClose: [uniqueAddress()] });
+    const placed = await changes({ ordersToClose: [addr()], place: true });
+    const closed = await changes({ ordersToClose: [addr()] });
 
     expect(placed?.type).toBe(TransactionType.PLACE_ORDER);
     expect(closed?.type).toBe(TransactionType.CLOSE_ORDER);

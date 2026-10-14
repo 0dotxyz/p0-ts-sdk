@@ -11,6 +11,8 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
+import { key } from "../../helpers/addresses";
+
 import {
   buildTitanTemplate,
   deserializeSerializedInstruction,
@@ -20,7 +22,6 @@ import {
 
 // Recorded from the web3.js implementation this replaced; never update with `-u`.
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const jito = address("jitodontfronttitanspzero1111111111111111111");
 const toWire = (built: Instruction) => ({
   programId: built.programAddress,

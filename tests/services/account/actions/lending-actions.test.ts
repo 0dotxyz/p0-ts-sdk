@@ -10,8 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import expected from "../../../fixtures/lending-actions-v2.8.3.json";
-import accountFixtures from "../../../fixtures/mainnet-accounts.json";
-import bankFixtures from "../../../fixtures/mainnet-banks.json";
+import { mainnetAccount, mainnetBankMap, mainnetBanks } from "../../../helpers/mainnet";
 
 import {
   makeCloseAccountIx,
@@ -22,8 +21,6 @@ import { makeDepositIx } from "~/services/account/actions/deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "~/services/account/actions/flash-loan";
 import { makeRepayIx } from "~/services/account/actions/repay";
 import { makeWithdrawIx } from "~/services/account/actions/withdraw";
-import { decodeMarginfiAccount } from "~/services/account/utils/deserialize.utils";
-import { decodeBank } from "~/services/bank/utils/deserialize.utils";
 import type { BankIntegrationMetadataMap } from "~/types";
 import { decodeDriftSpotMarket, SpotBalanceType } from "~/vendor/drift";
 import { decodeJupLendingState } from "~/vendor/jup-lend";
@@ -32,23 +29,7 @@ const base64 = getBase64Encoder();
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
-// Mainnet account with an asset in the default bank fixture and a liability in the SOL bank
-// fixture; its other positions are dropped so every active bank is loaded.
-const banks = Object.fromEntries(
-  bankFixtures.map(({ label, address: bankAddress, data }) => [
-    label.split(" ")[0],
-    decodeBank(address(bankAddress), base64.encode(data)),
-  ])
-);
-const banksMap = new Map(Object.values(banks).map((bank) => [bank.address, bank]));
-const parsed = decodeMarginfiAccount(
-  address(accountFixtures[1].address),
-  base64.encode(accountFixtures[1].data)
-);
-const marginfiAccount = {
-  ...parsed,
-  balances: parsed.balances.filter((balance) => banksMap.has(balance.bankPk)),
-};
+const marginfiAccount = mainnetAccount();
 const authority = createNoopSigner(marginfiAccount.authority);
 const group = marginfiAccount.group;
 const driftSpotMarket = decodeDriftSpotMarket(base64.encode(expected.venues.driftSpotMarket));
@@ -58,7 +39,7 @@ const jupLendingState = decodeJupLendingState(
 );
 
 const bankMetadataMap = {
-  [banks.drift.address]: {
+  [mainnetBanks.drift.address]: {
     driftStates: {
       spotMarketState: driftSpotMarket,
       userRewards: [
@@ -81,11 +62,11 @@ const bankMetadataMap = {
       ],
     },
   },
-  [banks.juplend.address]: { jupLendStates: { lendingState: jupLendingState } },
+  [mainnetBanks.juplend.address]: { jupLendStates: { lendingState: jupLendingState } },
 } as BankIntegrationMetadataMap;
 
 const deposit = { programAddress, tokenProgram, marginfiAccount, authority, bankMetadataMap };
-const withdraw = { ...deposit, bankMap: banksMap };
+const withdraw = { ...deposit, bankMap: mainnetBankMap };
 
 // The official token client adds SysvarRent to SyncNative; the v2.8.3 builder didn't.
 const toWire = (ixs: Instruction[]) =>
@@ -106,18 +87,24 @@ const toWire = (ixs: Instruction[]) =>
 // Expected instructions were built by the v2.8.3 (Anchor) builders from the same inputs.
 describe("lending action instructions", () => {
   const cases: Record<keyof typeof expected.cases, () => Promise<Instruction | Instruction[]>> = {
-    deposit: () => makeDepositIx({ ...deposit, bank: banks.default, amount: 12.345678 }),
+    deposit: () => makeDepositIx({ ...deposit, bank: mainnetBanks.default, amount: 12.345678 }),
     depositSolWrap: () =>
-      makeDepositIx({ ...deposit, bank: banks.sol, amount: 1.5, opts: { wSolBalanceUi: 0.25 } }),
-    repaySolAll: () => makeRepayIx({ ...deposit, bank: banks.sol, amount: 0.75, repayAll: true }),
+      makeDepositIx({
+        ...deposit,
+        bank: mainnetBanks.sol,
+        amount: 1.5,
+        opts: { wSolBalanceUi: 0.25 },
+      }),
+    repaySolAll: () =>
+      makeRepayIx({ ...deposit, bank: mainnetBanks.sol, amount: 0.75, repayAll: true }),
     withdrawAll: () =>
-      makeWithdrawIx({ ...withdraw, bank: banks.default, amount: 5, withdrawAll: true }),
-    borrowSol: () => makeBorrowIx({ ...withdraw, bank: banks.sol, amount: 0.1 }),
-    driftDeposit: () => makeDepositIx({ ...deposit, bank: banks.drift, amount: 3 }),
+      makeWithdrawIx({ ...withdraw, bank: mainnetBanks.default, amount: 5, withdrawAll: true }),
+    borrowSol: () => makeBorrowIx({ ...withdraw, bank: mainnetBanks.sol, amount: 0.1 }),
+    driftDeposit: () => makeDepositIx({ ...deposit, bank: mainnetBanks.drift, amount: 3 }),
     driftWithdrawAll: () =>
-      makeWithdrawIx({ ...withdraw, bank: banks.drift, amount: 1, withdrawAll: true }),
-    juplendDeposit: () => makeDepositIx({ ...deposit, bank: banks.juplend, amount: 9 }),
-    juplendWithdraw: () => makeWithdrawIx({ ...withdraw, bank: banks.juplend, amount: 2 }),
+      makeWithdrawIx({ ...withdraw, bank: mainnetBanks.drift, amount: 1, withdrawAll: true }),
+    juplendDeposit: () => makeDepositIx({ ...deposit, bank: mainnetBanks.juplend, amount: 9 }),
+    juplendWithdraw: () => makeWithdrawIx({ ...withdraw, bank: mainnetBanks.juplend, amount: 2 }),
     createAccount: () =>
       makeCreateAccountIx({
         programAddress,
@@ -134,8 +121,8 @@ describe("lending action instructions", () => {
         programAddress,
         marginfiAccount,
         authority,
-        bankMap: banksMap,
-        activeBanks: [banks.default.address, banks.sol.address],
+        bankMap: mainnetBankMap,
+        activeBanks: [mainnetBanks.default.address, mainnetBanks.sol.address],
       }),
   };
 

@@ -1,6 +1,8 @@
-import { getAddressDecoder, type Address } from "@solana/kit";
+import { type Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import { MarginfiAccount } from "~/models/account";
 import { createEmptyBalance, MarginfiAccountType } from "~/services/account";
@@ -11,17 +13,10 @@ import {
 } from "~/services/account/utils/emode.utils";
 import { BankType, EmodeImpactStatus, EmodeTag } from "~/services/bank";
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-
 // `entries` maps a collateral tag to the initial weight it gets while this bank is borrowed
 const bank = (emodeTag: EmodeTag, entries: [EmodeTag, number][] = []): BankType =>
   ({
-    address: uniqueAddress(),
+    address: addr(),
     emode: {
       emodeTag,
       emodeEntries: entries.map(([collateralBankEmodeTag, weight]) => ({
@@ -74,9 +69,9 @@ describe("emode reconciliation", () => {
     });
     // Supplying SOL, borrowing USDC, with dust left in USDT (no SOL entry)
     const account = MarginfiAccount.fromAccountType({
-      address: uniqueAddress(),
-      group: uniqueAddress(),
-      authority: uniqueAddress(),
+      address: addr(),
+      group: addr(),
+      authority: addr(),
       balances: [
         balance(sol.address, "assetShares", 10),
         balance(usdc.address, "liabilityShares", 100),

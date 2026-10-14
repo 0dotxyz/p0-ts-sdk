@@ -3,12 +3,13 @@ import {
   address,
   blockhash,
   createNoopSigner,
-  getAddressDecoder,
   type Address,
   type Instruction,
 } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
 
 import { MAX_ACCOUNT_LOCKS } from "~/constants";
 import instructions from "~/instructions";
@@ -40,23 +41,16 @@ const rpc = { getLatestBlockhash: () => ({ send: async () => ({ value: latestBlo
 const noLuts: TransactionFormat = { version: 0, luts: {} };
 const PULSE_DISCRIMINATOR = [186, 52, 117, 97, 34, 74, 39, 253];
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-
 function bank(opts: { premiumActive?: boolean; assetTag?: AssetTag } = {}): BankType {
-  const oracle = uniqueAddress();
+  const oracle = addr();
   return {
-    address: uniqueAddress(),
-    mint: uniqueAddress(),
+    address: addr(),
+    mint: addr(),
     mintDecimals: 6,
     assetShareValue: new BigNumber(1),
     liabilityShareValue: new BigNumber(1),
-    group: uniqueAddress(),
-    liquidityVault: uniqueAddress(),
+    group: addr(),
+    liquidityVault: addr(),
     oracleKey: oracle,
     premiumTag: 1,
     premiumActive: opts.premiumActive ?? true,
@@ -83,9 +77,9 @@ function account(active: BalanceType[]): MarginfiAccountType {
     createEmptyBalance(DEFAULT_ADDRESS)
   );
   return {
-    address: uniqueAddress(),
-    group: uniqueAddress(),
-    authority: uniqueAddress(),
+    address: addr(),
+    group: addr(),
+    authority: addr(),
     balances: [...active, ...empty],
     accountFlags: [],
     emissionsDestinationAccount: DEFAULT_ADDRESS,
@@ -243,7 +237,7 @@ describe("repays", () => {
     vi.spyOn(instructions, "makeRepayIx").mockImplementation(async () => ({
       programAddress,
       accounts: Array.from({ length: 16 }, () => ({
-        address: uniqueAddress(),
+        address: addr(),
         role: AccountRole.WRITABLE,
       })),
       data: new Uint8Array(8),
@@ -289,20 +283,20 @@ describe("account wrapper", () => {
 });
 
 describe("large accounts", () => {
-  const lendingMarket = uniqueAddress();
+  const lendingMarket = addr();
   const reserves = new Map<string, KaminoReserve>();
   // Every fixture key goes in the lookup table, so account locks bind before bytes do
   const lutAddresses: Address[] = [lendingMarket];
 
   function kaminoBank(): BankType {
     const base = bank({ assetTag: AssetTag.KAMINO });
-    const reserve = uniqueAddress();
-    const obligation = uniqueAddress();
+    const reserve = addr();
+    const obligation = addr();
     const reserveState = {
       lendingMarket,
-      farmCollateral: uniqueAddress(),
-      liquidity: { supplyVault: uniqueAddress() },
-      collateral: { mintPubkey: uniqueAddress(), supplyVault: uniqueAddress() },
+      farmCollateral: addr(),
+      liquidity: { supplyVault: addr() },
+      collateral: { mintPubkey: addr(), supplyVault: addr() },
       config: {
         tokenInfo: {
           pythConfiguration: { price: base.oracleKey },
@@ -340,7 +334,7 @@ describe("large accounts", () => {
       config: {
         ...base.config,
         oracleSetup: OracleSetup.PythLST,
-        oracleKeys: [base.oracleKey, uniqueAddress()],
+        oracleKeys: [base.oracleKey, addr()],
       },
     } as BankType;
   }
@@ -362,7 +356,7 @@ describe("large accounts", () => {
     const txFormat: TransactionFormat = {
       version: 0,
       luts: {
-        [uniqueAddress()]: [
+        [addr()]: [
           ...lutAddresses,
           marginfiAccount.address,
           marginfiAccount.group,

@@ -3,13 +3,14 @@ import {
   blockhash,
   compileTransactionMessage,
   createNoopSigner,
-  getAddressDecoder,
   type Address,
   type Instruction,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it, vi } from "vitest";
+
+import { key } from "../../../helpers/addresses";
 
 import { USDC_MINT, USDT_MINT, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
@@ -23,7 +24,6 @@ import { AssetTag, BankType, OperationalState } from "~/services/bank/types";
 import { makeTransactionMessage } from "~/services/transaction/helpers/tx-formatting";
 import { TransactionType } from "~/services/transaction/types";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const authority = createNoopSigner(key(1));
 const latestBlockhash = {
   blockhash: blockhash("EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k"),

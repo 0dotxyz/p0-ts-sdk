@@ -1,87 +1,35 @@
-import {
-  address,
-  blockhash,
-  createNoopSigner,
-  getAddressDecoder,
-  type Address,
-  type Instruction,
-} from "@solana/kit";
-import { BigNumber } from "bignumber.js";
+import { address, createNoopSigner, type Address, type Instruction } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
+import { addr, LATEST_BLOCKHASH } from "../../../helpers/addresses";
+import { makeAccount, makeBalance, makeBank } from "../../../helpers/factories";
+
 import { TransactionBuildingErrorCode } from "~/errors";
-import {
-  BalanceType,
-  createEmptyBalance,
-  makeBorrowIx,
-  makeBorrowTx,
-  MarginfiAccountType,
-} from "~/services/account";
+import { makeBorrowIx, makeBorrowTx } from "~/services/account";
 import { AssetTag, BankType, OracleSetup } from "~/services/bank";
 import type { BankIntegrationMetadataMap } from "~/types";
 
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 const tokenProgram = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-const DEFAULT_ADDRESS = address("11111111111111111111111111111111");
-const latestBlockhash = {
-  blockhash: blockhash("EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N"),
-  lastValidBlockHeight: 1n,
-};
 
-let addressCount = 0;
-const uniqueAddress = (): Address => {
-  const bytes = new Uint8Array(32);
-  new DataView(bytes.buffer).setUint32(0, ++addressCount);
-  return getAddressDecoder().decode(bytes);
-};
-
-function bank(): BankType {
-  const oracle = uniqueAddress();
-  return {
-    address: uniqueAddress(),
-    mint: uniqueAddress(),
-    mintDecimals: 6,
-    group: uniqueAddress(),
-    liquidityVault: uniqueAddress(),
-    oracleKey: oracle,
-    config: {
-      oracleSetup: OracleSetup.PythPushOracle,
-      assetTag: AssetTag.DEFAULT,
-      oracleKeys: [oracle],
-    },
-  } as unknown as BankType;
-}
-
-const reserve = uniqueAddress();
-const obligation = uniqueAddress();
-const kamino = {
-  ...bank(),
+const reserve = addr();
+const obligation = addr();
+const kamino = makeBank({
   kaminoIntegrationAccounts: { kaminoReserve: reserve, kaminoObligation: obligation },
   config: {
     oracleSetup: OracleSetup.KaminoPythPush,
     assetTag: AssetTag.KAMINO,
-    oracleKeys: [uniqueAddress(), reserve],
+    oracleKeys: [addr(), reserve],
   },
-} as unknown as BankType;
-const collateral = bank();
-const debt = bank();
+});
+const collateral = makeBank();
+const debt = makeBank();
 const bankMap = new Map<string, BankType>([kamino, collateral, debt].map((b) => [b.address, b]));
 const bankMetadataMap = {
-  [kamino.address]: { kaminoStates: { reserveState: { lendingMarket: uniqueAddress() } } },
+  [kamino.address]: { kaminoStates: { reserveState: { lendingMarket: addr() } } },
 } as unknown as BankIntegrationMetadataMap;
 
-const deposit: BalanceType = {
-  ...createEmptyBalance(collateral.address),
-  active: true,
-  assetShares: new BigNumber(1_000e6),
-};
-const marginfiAccount = {
-  address: uniqueAddress(),
-  group: uniqueAddress(),
-  authority: uniqueAddress(),
-  balances: [deposit, ...Array.from({ length: 15 }, () => createEmptyBalance(DEFAULT_ADDRESS))],
-  accountFlags: [],
-} as unknown as MarginfiAccountType;
+const marginfiAccount = makeAccount([makeBalance(collateral, "asset", 1_000e6)]);
 
 const borrow = (activeBanks?: Address[]) =>
   makeBorrowTx({
@@ -94,7 +42,7 @@ const borrow = (activeBanks?: Address[]) =>
     authority: createNoopSigner(marginfiAccount.authority),
     rpc: {} as never,
     txFormat: { version: 0, luts: {} },
-    latestBlockhash,
+    latestBlockhash: LATEST_BLOCKHASH,
     bankMetadataMap,
     opts: { activeBanks },
   });

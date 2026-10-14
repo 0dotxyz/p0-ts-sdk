@@ -1,7 +1,6 @@
 import {
   address,
   createNoopSigner,
-  getAddressDecoder,
   isSignerRole,
   isWritableRole,
   type Instruction,
@@ -9,13 +8,14 @@ import {
 import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
+import { key } from "../../helpers/addresses";
+
 import { OperationalState, RiskTier } from "~/services/bank/types";
 import {
   makeAddPermissionlessStakedBankIx,
   makePoolAddBankIx,
 } from "~/services/group/group.service";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const programAddress = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 
 const serialize = (ix: Instruction) => ({

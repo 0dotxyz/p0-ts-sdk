@@ -1,6 +1,8 @@
 import { address, getAddressDecoder, getAddressEncoder } from "@solana/kit";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { addr } from "../../../../../helpers/addresses";
+
 import { titanAdapter } from "~/services/account/services/swap-engine/adapters/titan.adapter";
 import type { SwapEngineRequest } from "~/services/account/services/swap-engine/types";
 import { SwapProvider } from "~/services/account/types";
@@ -61,7 +63,7 @@ function route(outAmount: number) {
 // Titan V3 router returns over the WebSocket.
 const GUARD = "jitodontfronttitanspzero1111111111111111111";
 // An arbitrary non-marker account that must survive the filter (control).
-const NORMAL_ACCOUNT = getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
+const NORMAL_ACCOUNT = addr();
 const bytes = (value: string) => Uint8Array.from(getAddressEncoder().encode(address(value)));
 const DEFAULT = getAddressDecoder().decode(new Uint8Array(32));
 function routeWithGuard(outAmount: number) {

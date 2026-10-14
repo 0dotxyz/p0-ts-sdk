@@ -1,10 +1,11 @@
-import { createNoopSigner, getAddressDecoder } from "@solana/kit";
+import { createNoopSigner } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "../../../helpers/addresses";
 
 import instructions, { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { isDepositIx, patchDepositAmount } from "~/services/account/utils/ix-patch.utils";
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const programAddress = key(200);
 const accounts = {
   group: key(1),

@@ -1,18 +1,13 @@
-import {
-  createNoopSigner,
-  getAddressDecoder,
-  isSignerRole,
-  isWritableRole,
-  type Instruction,
-} from "@solana/kit";
+import { createNoopSigner, isSignerRole, isWritableRole, type Instruction } from "@solana/kit";
 import { describe, expect, it } from "vitest";
+
+import { key } from "./helpers/addresses";
 
 import { TOKEN_2022_PROGRAM_ID } from "~/constants";
 import instructions from "~/instructions";
 
 // Wire format recorded from the Anchor 0.30 builders these replaced; never update with `-u`.
 
-const key = (fill: number) => getAddressDecoder().decode(new Uint8Array(32).fill(fill));
 const signer = (fill: number) => createNoopSigner(key(fill));
 const wrapped = (fill: number) => ({ value: new Uint8Array(16).fill(fill) });
 

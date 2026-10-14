@@ -1,6 +1,9 @@
-import { getAddressDecoder, type Address } from "@solana/kit";
+import { type Address } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
+import { makeOraclePrice } from "../../../helpers/factories";
 
 import { HealthCacheStatus, MarginfiAccountType } from "~/services/account/types";
 import {
@@ -23,9 +26,6 @@ import {
   computeVenueAvailableLiquidity,
   VENUE_AVAILABLE_LIQUIDITY_BUFFER,
 } from "~/services/bank/utils/venue-liquidity.utils";
-import { OraclePrice } from "~/services/price/types";
-
-const uniqueAddress = () => getAddressDecoder().decode(crypto.getRandomValues(new Uint8Array(32)));
 
 // ----------------------------------------------------------------------------
 // Fixtures
@@ -51,8 +51,8 @@ function bank(opts: {
 }): BankType {
   const rate = (n: number) => new BigNumber(n);
   return {
-    address: opts.address ?? uniqueAddress(),
-    mint: uniqueAddress(),
+    address: opts.address ?? addr(),
+    mint: addr(),
     mintDecimals: DECIMALS,
     assetShareValue: new BigNumber(1),
     liabilityShareValue: new BigNumber(1),
@@ -106,16 +106,6 @@ function bank(opts: {
   } as unknown as BankType;
 }
 
-function oraclePrice(price: number): OraclePrice {
-  const p = {
-    price: new BigNumber(price),
-    confidence: new BigNumber(0),
-    lowestPrice: new BigNumber(price),
-    highestPrice: new BigNumber(price),
-  };
-  return { priceRealtime: p, priceWeighted: p, timestamp: new BigNumber(0) } as OraclePrice;
-}
-
 function account(opts: {
   freeCollateralUsd: number;
   liabilitiesUsd?: number;
@@ -124,7 +114,7 @@ function account(opts: {
   const liabilities = new BigNumber(opts.liabilitiesUsd ?? 0);
   const assets = new BigNumber(opts.freeCollateralUsd).plus(liabilities);
   return {
-    address: uniqueAddress(),
+    address: addr(),
     balances: (opts.balances ?? []).map((b) => ({
       active: true,
       bankPk: b.bankPk,
@@ -149,7 +139,7 @@ function account(opts: {
 function ctx(b: BankType) {
   return {
     banksMap: new Map([[b.address, b]]),
-    oraclePricesByBank: new Map([[b.address, oraclePrice(1)]]),
+    oraclePricesByBank: new Map([[b.address, makeOraclePrice(1)]]),
     bankAddress: b.address,
   };
 }
@@ -261,7 +251,7 @@ describe("computeMaxBorrowForBank bank-level clamps", () => {
       },
     };
     const c = ctx(b);
-    c.oraclePricesByBank.set(b.address, oraclePrice(2)); // $2 → 250 USD left = 125 tokens
+    c.oraclePricesByBank.set(b.address, makeOraclePrice(2)); // $2 → 250 USD left = 125 tokens
     const max = computeMaxBorrowForBank({
       account: acc,
       ...c,
@@ -646,9 +636,9 @@ describe("computeMaxDepositForBank", () => {
   });
 
   it("throws for unknown bank", () => {
-    expect(() =>
-      computeMaxDepositForBank({ banksMap: new Map(), bankAddress: uniqueAddress() })
-    ).toThrow(/not found/);
+    expect(() => computeMaxDepositForBank({ banksMap: new Map(), bankAddress: addr() })).toThrow(
+      /not found/
+    );
   });
 });
 
@@ -684,7 +674,7 @@ describe("asset-tag mixing", () => {
       computeMaxBorrowForBank({
         account: stakedOnly,
         banksMap,
-        oraclePricesByBank: new Map([[b.address, oraclePrice(1)]]),
+        oraclePricesByBank: new Map([[b.address, makeOraclePrice(1)]]),
         bankAddress: b.address,
         emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
       }).toNumber();
