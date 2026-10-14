@@ -2,8 +2,15 @@ import { BigNumber } from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import { MarginRequirementType } from "~/services/account";
-import { BankType, getAssetWeight, OperationalState, RiskTier } from "~/services/bank";
+import {
+  BankType,
+  getAssetWeight,
+  OperationalState,
+  RiskTier,
+  withKaminoReserveEmergency,
+} from "~/services/bank";
 import { OraclePrice } from "~/services/price";
+import { KaminoReserve } from "~/vendor/klend";
 
 const bank = (kaminoEmergency: boolean, operationalState = OperationalState.Operational) =>
   ({
@@ -16,6 +23,9 @@ const bank = (kaminoEmergency: boolean, operationalState = OperationalState.Oper
       totalAssetValueInitLimit: new BigNumber(0),
     },
   }) as unknown as BankType;
+
+const reserve = (emergencyMode: number) =>
+  ({ config: { emergencyMode } }) as unknown as KaminoReserve;
 
 const oraclePrice = {} as OraclePrice;
 
@@ -50,5 +60,19 @@ describe("getAssetWeight", () => {
         marginRequirement: MarginRequirementType.Initial,
       })
     ).toEqual(new BigNumber(0.8));
+  });
+});
+
+describe("withKaminoReserveEmergency", () => {
+  it("sets kaminoEmergency when the reserve is in emergency mode", () => {
+    expect(withKaminoReserveEmergency(bank(false), reserve(1)).kaminoEmergency).toBe(true);
+  });
+
+  it("keeps the market's emergency when the reserve is normal", () => {
+    expect(withKaminoReserveEmergency(bank(true), reserve(0)).kaminoEmergency).toBe(true);
+  });
+
+  it("leaves kaminoEmergency unset when neither is in emergency", () => {
+    expect(withKaminoReserveEmergency(bank(false), reserve(0)).kaminoEmergency).toBe(false);
   });
 });

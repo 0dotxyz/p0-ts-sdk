@@ -1,7 +1,7 @@
 import { getBase64Encoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import accounts from "./fixtures/mainnet-oracle-accounts.json";
+import accounts from "../../fixtures/mainnet-oracle-accounts.json";
 
 import { decodeMultiplierAccount } from "~/services/price/utils/multiplier-data.utils";
 import { parseRpcPythPriceData } from "~/services/price/utils/pyth-data.utils";

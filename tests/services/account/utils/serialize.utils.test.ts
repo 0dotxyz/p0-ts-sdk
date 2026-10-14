@@ -1,7 +1,7 @@
 import { address, getBase64Encoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import accounts from "./fixtures/mainnet-accounts.json";
+import accounts from "../../../fixtures/mainnet-accounts.json";
 
 import {
   dtoToMarginfiAccount,

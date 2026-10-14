@@ -9,8 +9,8 @@ import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 import { describe, it, expect } from "vitest";
 
-import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
-import accountFixtures from "../fixtures/mainnet-accounts.json";
+import accountFixtures from "../../../fixtures/mainnet-accounts.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import { TransactionBuildingError, TransactionBuildingErrorCode } from "~/errors";
 import {

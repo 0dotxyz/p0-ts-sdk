@@ -1,7 +1,7 @@
 import { address, getBase64Encoder, type Address } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import fixture from "./fixtures/mainnet-integration.json";
+import fixture from "../../../fixtures/mainnet-integration.json";
 
 import { DEFAULT_ADDRESS } from "~/constants";
 import { AssetTag } from "~/services/bank";

@@ -17,8 +17,8 @@ import {
 } from "@solana-program/token";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
-import accountFixtures from "../fixtures/mainnet-accounts.json";
+import accountFixtures from "../../../fixtures/mainnet-accounts.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 import { makeLoopTx } from "~/services/account/actions/loop";

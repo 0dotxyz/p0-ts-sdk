@@ -9,7 +9,7 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import fixture from "./fixtures/mainnet-vaults.json";
+import fixture from "../../fixtures/mainnet-vaults.json";
 
 import {
   fetchGammaWithdrawReceipt,

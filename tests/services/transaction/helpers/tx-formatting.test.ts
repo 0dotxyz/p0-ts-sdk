@@ -12,7 +12,7 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import bankFixtures from "../bank/fixtures/mainnet-banks.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import { ADDRESS_LOOKUP_TABLE_FOR_GROUP_NATIVE_STAKE } from "~/constants";
 import instructions from "~/instructions";

@@ -9,9 +9,9 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
-import expected from "../fixtures/lending-actions-v2.8.3.json";
-import accountFixtures from "../fixtures/mainnet-accounts.json";
+import expected from "../../../fixtures/lending-actions-v2.8.3.json";
+import accountFixtures from "../../../fixtures/mainnet-accounts.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import {
   makeCloseAccountIx,

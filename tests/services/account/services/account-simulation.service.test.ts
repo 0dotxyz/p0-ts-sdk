@@ -8,9 +8,8 @@ import {
 import { BigNumber } from "bignumber.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import bankFixtures from "../bank/fixtures/mainnet-banks.json";
-
-import accountFixtures from "./fixtures/mainnet-accounts.json";
+import accountFixtures from "../../../fixtures/mainnet-accounts.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import { decodeMarginfiAccountRaw } from "~/accounts";
 import {

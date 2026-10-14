@@ -9,9 +9,9 @@ import {
 } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import expected from "../services/account/fixtures/lending-actions-v2.8.3.json";
-import accountFixtures from "../services/account/fixtures/mainnet-accounts.json";
-import bankFixtures from "../services/bank/fixtures/mainnet-banks.json";
+import expected from "../fixtures/lending-actions-v2.8.3.json";
+import accountFixtures from "../fixtures/mainnet-accounts.json";
+import bankFixtures from "../fixtures/mainnet-banks.json";
 
 import { MarginfiAccount } from "~/models/account";
 import { MarginfiAccountWrapper } from "~/models/account-wrapper";

@@ -1,7 +1,7 @@
 import { address, getBase64Encoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import banks from "./fixtures/mainnet-banks.json";
+import banks from "../../../fixtures/mainnet-banks.json";
 
 import { decodeBank, dtoToBank } from "~/services/bank/utils/deserialize.utils";
 import { toBankDto } from "~/services/bank/utils/serialize.utils";

@@ -1,7 +1,7 @@
 import { address, getAddressDecoder, getBase64Encoder, type Address } from "@solana/kit";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import banks from "../bank/fixtures/mainnet-banks.json";
+import banks from "../../../fixtures/mainnet-banks.json";
 
 import { BankType, OracleSetup } from "~/services/bank/types";
 import { decodeBank } from "~/services/bank/utils/deserialize.utils";

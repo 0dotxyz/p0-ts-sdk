@@ -2,7 +2,7 @@ import { address, getAddressDecoder, getBase64Encoder } from "@solana/kit";
 import { BigNumber } from "bignumber.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import bankFixtures from "../../bank/fixtures/mainnet-banks.json";
+import bankFixtures from "../../../fixtures/mainnet-banks.json";
 
 import { ZERO_ORACLE_KEY } from "~/constants";
 import { BankType, OracleSetup } from "~/services/bank";

@@ -1,7 +1,7 @@
 import { address, getBase64Encoder } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import bankFixtures from "../services/bank/fixtures/mainnet-banks.json";
+import bankFixtures from "../fixtures/mainnet-banks.json";
 
 import { Bank } from "~/models/bank";
 import {
