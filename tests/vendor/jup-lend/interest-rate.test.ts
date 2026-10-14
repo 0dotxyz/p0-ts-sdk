@@ -91,6 +91,10 @@ describe("calculateJupLendRewardsRate", () => {
       calculateJupLendRewardsRate(rewards(), 1_000n, START + JUP_SECONDS_PER_YEAR + 1n)
     ).toMatchObject({ rewardsRate: 0n, rewardsEnded: true });
   });
+
+  it("pays nothing on an empty market", () => {
+    expect(calculateJupLendRewardsRate(rewards(), 0n, during).rewardsRate).toBe(0n);
+  });
 });
 
 describe("calculateJupLendRewardsRateForExchangePrice", () => {
@@ -107,6 +111,10 @@ describe("calculateJupLendRewardsRateForExchangePrice", () => {
     expect(calculateJupLendRewardsRateForExchangePrice(generous, 1n, during).rate).toBe(
       JUP_MAX_REWARDS_RATE
     );
+  });
+
+  it("pays nothing on an empty market", () => {
+    expect(calculateJupLendRewardsRateForExchangePrice(rewards(), 0n, during).rate).toBe(0n);
   });
 });
 

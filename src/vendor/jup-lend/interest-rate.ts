@@ -85,7 +85,7 @@ export function calculateJupLendRewardsRate(
     return { ...defaultResult, rewardsEnded: true };
   }
 
-  if (totalAssets < rewardsModel.startTvl) {
+  if (totalAssets === 0n || totalAssets < rewardsModel.startTvl) {
     return defaultResult;
   }
 
@@ -132,7 +132,7 @@ export function calculateJupLendRewardsRateForExchangePrice(
     return defaultResult;
   }
 
-  if (totalAssets < rewardsModel.startTvl) {
+  if (totalAssets === 0n || totalAssets < rewardsModel.startTvl) {
     return defaultResult;
   }
 
