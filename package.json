@@ -10,19 +10,34 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./vendor": {
-      "types": "./dist/vendor.d.ts",
-      "import": "./dist/vendor.js",
-      "require": "./dist/vendor.cjs"
+      "import": {
+        "types": "./dist/vendor.d.ts",
+        "default": "./dist/vendor.js"
+      },
+      "require": {
+        "types": "./dist/vendor.d.cts",
+        "default": "./dist/vendor.cjs"
+      }
     },
     "./jupiter": {
-      "types": "./dist/jupiter.d.ts",
-      "import": "./dist/jupiter.js",
-      "require": "./dist/jupiter.cjs"
+      "import": {
+        "types": "./dist/jupiter.d.ts",
+        "default": "./dist/jupiter.js"
+      },
+      "require": {
+        "types": "./dist/jupiter.d.cts",
+        "default": "./dist/jupiter.cjs"
+      }
     }
   },
   "files": [
