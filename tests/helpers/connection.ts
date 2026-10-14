@@ -13,6 +13,7 @@ export interface StubAccount {
 export function stubConnection(accounts: Map<string, StubAccount>, epoch = 900): Connection {
   return {
     getEpochInfo: async () => ({ epoch }),
+    getMinimumBalanceForRentExemption: async (size: number) => (size + 128) * 6_960,
     _buildArgs: ([pubkeys]: [string[]]) => pubkeys,
     _rpcBatchRequest: async (requests: { args: string[] }[]) =>
       requests.map(({ args }) => ({
@@ -41,5 +42,12 @@ export function stakeAccountData(delegatedLamports: bigint, activationEpoch = 0n
   data.writeBigUInt64LE(delegatedLamports, 156);
   data.writeBigUInt64LE(activationEpoch, 164);
   data.writeBigUInt64LE(0xffffffffffffffffn, 172);
+  return data;
+}
+
+/** An SPL token mint with `supply`. */
+export function mintData(supply: bigint): Buffer {
+  const data = Buffer.alloc(82);
+  data.writeBigUInt64LE(supply, 36);
   return data;
 }
