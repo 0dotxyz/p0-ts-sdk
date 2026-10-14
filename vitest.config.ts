@@ -21,7 +21,7 @@ export default defineConfig({
       exclude: ["src/generated/**"],
       reporter: ["text-summary", "json-summary", "html"],
       // Ratchet: raise these to the new floor whenever coverage goes up, never lower them
-      thresholds: { lines: 69, branches: 59, functions: 65, statements: 69 },
+      thresholds: { lines: 80, branches: 69, functions: 73, statements: 79 },
     },
   },
 });
