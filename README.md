@@ -347,7 +347,7 @@ See [TESTING.md](./TESTING.md) for details.
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 20.18.0
 - pnpm (recommended)
 
 ### Setup

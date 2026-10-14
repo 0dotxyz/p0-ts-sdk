@@ -89,7 +89,7 @@
   },
   "homepage": "https://github.com/0dotxyz/p0-ts-sdk#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.18.0"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.3",
