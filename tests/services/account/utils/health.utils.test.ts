@@ -71,18 +71,9 @@ describe("computeHealthComponentsFromBalances", () => {
   });
 
   it("values assets at the low end and liabilities at the high end of the confidence band", () => {
-    const banded = (price: number, spread: number): OraclePrice => {
-      const component = {
-        price: new BigNumber(price),
-        confidence: new BigNumber(spread),
-        lowestPrice: new BigNumber(price - spread),
-        highestPrice: new BigNumber(price + spread),
-      };
-      return { priceRealtime: component, priceWeighted: component, timestamp: new BigNumber(0) };
-    };
     const oraclePricesByBank = new Map([
-      [collateral.address, banded(10, 1)],
-      [debt.address, banded(10, 1)],
+      [collateral.address, makeOraclePrice(10, 1)],
+      [debt.address, makeOraclePrice(10, 1)],
     ]);
 
     expect(componentsAt(MarginRequirementType.Equity, { oraclePricesByBank })).toEqual({
