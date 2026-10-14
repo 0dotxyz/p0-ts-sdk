@@ -251,6 +251,13 @@ async function buildRepayWithCollatFlashloanTx({
   // deferred until after the withdraw ixs exist (they form part of the footprint).
   const swapNeeded = repayOpts.repayBank.mint !== withdrawOpts.withdrawBank.mint;
   let amountToRepay = swapNeeded ? 0 : withdrawOpts.withdrawAmount;
+  let repayAll =
+    !swapNeeded &&
+    isWholePosition(
+      { amount: repayOpts.totalPositionAmount, isLending: false },
+      withdrawOpts.withdrawAmount,
+      repayOpts.repayBank.mintDecimals
+    );
   let swapInstructions: Instruction[] = [];
   let setupInstructions: Instruction[] = [];
   let swapLookupTables: AddressesByLookupTableAddress = {};
@@ -367,28 +374,15 @@ async function buildRepayWithCollatFlashloanTx({
       engineResult.quoteResponse.otherAmountThreshold,
       repayOpts.repayBank.mintDecimals
     );
-    amountToRepay =
-      outAmount > repayOpts.totalPositionAmount
-        ? repayOpts.totalPositionAmount
-        : outAmountThreshold;
+    repayAll = outAmount > repayOpts.totalPositionAmount;
+    amountToRepay = repayAll ? repayOpts.totalPositionAmount : outAmountThreshold;
     swapInstructions = engineResult.swapInstructions;
     setupInstructions = engineResult.setupInstructions;
     swapLookupTables = engineResult.swapLuts;
     swapQuote = engineResult.quoteResponse;
   }
 
-  const repayIxs = await makeRepayIx({
-    ...repayParams,
-    amount: amountToRepay,
-    repayAll: isWholePosition(
-      {
-        amount: repayOpts.totalPositionAmount,
-        isLending: true,
-      },
-      amountToRepay,
-      repayOpts.repayBank.mintDecimals
-    ),
-  });
+  const repayIxs = await makeRepayIx({ ...repayParams, amount: amountToRepay, repayAll });
 
   const flashloanFormat = withLookupTables(txFormat, swapLookupTables);
 
