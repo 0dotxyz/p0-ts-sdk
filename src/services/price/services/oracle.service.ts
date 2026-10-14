@@ -140,7 +140,7 @@ function handleFixedOracleBanks(
         lowestPrice: fixedPrice,
         highestPrice: fixedPrice,
       },
-      timestamp: BigNumber(Date.now()),
+      timestamp: BigNumber(Math.floor(Date.now() / 1000)),
     };
 
     oracleMap.set(bank.address, fixedOraclePrice);
@@ -171,7 +171,7 @@ function handleZeroOracleBanks(banks: BankType[]): Map<string, OraclePrice> {
         lowestPrice: BigNumber(0),
         highestPrice: BigNumber(0),
       },
-      timestamp: BigNumber(Date.now()),
+      timestamp: BigNumber(Math.floor(Date.now() / 1000)),
     };
 
     oracleMap.set(bank.address, zeroOraclePrice);
@@ -208,7 +208,7 @@ function handleIsolatedAssetBanks(
         lowestPrice: BigNumber(price),
         highestPrice: BigNumber(price),
       },
-      timestamp: BigNumber(Date.now()),
+      timestamp: BigNumber(Math.floor(Date.now() / 1000)),
     };
 
     oracleMap.set(bank.address, oraclePrice);
@@ -270,7 +270,7 @@ async function handleAssetBanks(
           lowestPrice: BigNumber(0),
           highestPrice: BigNumber(0),
         },
-        timestamp: BigNumber(Date.now()),
+        timestamp: BigNumber(Math.floor(Date.now() / 1000)),
       });
     }
   });
