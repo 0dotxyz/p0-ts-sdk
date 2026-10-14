@@ -1,0 +1,125 @@
+name: Release
+
+# Pending changesets on main / main-v2 open or update a "chore: release" PR. Merging it leaves no
+# changesets, so the publish job runs: it waits for approval on the `npm` environment, then
+# publishes through npm trusted publishing (no token) and tags the release. See RELEASING.md.
+on:
+  push:
+    branches: [main, main-v2]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      has-changesets: ${{ steps.changesets.outputs.hasChangesets }}
+      version: ${{ steps.version.outputs.version }}
+      published: ${{ steps.version.outputs.published }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Before the changesets step, which may switch branches
+      - name: Read the version
+        id: version
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$(npm view "$name@$version" version 2>/dev/null)" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update the release PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          title: "chore: release"
+          commit: "chore: release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish to npm
+    needs: version
+    # Only an unpublished version reaches the approval gate
+    if: needs.version.outputs.has-changesets == 'false' && needs.version.outputs.published == 'false'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write # push the release tag
+      id-token: write # npm trusted publishing and provenance
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm 11.5.1 or later
+      - name: Update npm
+        run: npm install -g npm@11.20.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      # prepublishOnly builds. A prerelease goes out under its identifier (3.0.0-next.1 → next),
+      # a stable release under publishConfig.tag, or latest.
+      - name: Publish
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          case "$VERSION" in
+            *-*)
+              prerelease="${VERSION#*-}"
+              npm publish --provenance --tag "${prerelease%%.*}"
+              ;;
+            *)
+              npm publish --provenance
+              ;;
+          esac
+
+      - name: Tag the release
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
