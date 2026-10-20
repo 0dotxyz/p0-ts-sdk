@@ -1,8 +1,9 @@
 name: Release
 
 # Pending changesets on main-v2 open or update a "chore: release" PR. Merging it leaves no
-# changesets, so the publish job runs: it waits for approval on the `npm` environment, then
-# publishes through npm trusted publishing (no token) and tags the release. See RELEASING.md.
+# changesets, so the publish job runs: it stages the version on npm through trusted publishing
+# (no token) and tags the release. It goes live once a maintainer approves the staged version on
+# npm with 2FA. See RELEASING.md.
 on:
   push:
     branches: [main-v2]
@@ -42,14 +43,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Before the changesets step, which may switch branches
+      # Before the changesets step, which may switch branches. A staged version isn't on npm until
+      # it's approved, so its tag also counts as released (delete the tag to stage it again).
       - name: Read the version
         id: version
         run: |
           name=$(node -p 'require("./package.json").name')
           version=$(node -p 'require("./package.json").version')
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [ -n "$(npm view "$name@$version" version 2>/dev/null)" ]; then
+          if [ -n "$(npm view "$name@$version" version 2>/dev/null)" ] ||
+            git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
             echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
@@ -65,9 +68,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    name: Publish to npm
+    name: Stage on npm
     needs: version
-    # Only an unpublished version reaches the approval gate
+    # Only a version that isn't on npm or staged yet
     if: needs.version.outputs.has-changesets == 'false' && needs.version.outputs.published == 'false'
     runs-on: ubuntu-latest
     environment: npm
@@ -89,7 +92,7 @@ jobs:
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
-      # Trusted publishing needs npm 11.5.1 or later
+      # Staged publishing needs npm 11.15.0 or later
       - name: Update npm
         run: npm install -g npm@11.20.0
 
@@ -102,18 +105,19 @@ jobs:
           pnpm test
 
       # prepublishOnly builds. A prerelease goes out under its identifier (3.0.0-next.1 → next),
-      # a stable release under publishConfig.tag, or latest.
-      - name: Publish
+      # a stable release under publishConfig.tag, or latest. The trusted publisher may only stage:
+      # the version goes live when a maintainer approves it on npm with 2FA.
+      - name: Stage
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           case "$VERSION" in
             *-*)
               prerelease="${VERSION#*-}"
-              npm publish --provenance --tag "${prerelease%%.*}"
+              npm stage publish --provenance --tag "${prerelease%%.*}"
               ;;
             *)
-              npm publish --provenance
+              npm stage publish --provenance
               ;;
           esac
 
