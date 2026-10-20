@@ -171,43 +171,45 @@ export async function fetchAccount(
 
 ## Testing
 
-### Writing Tests
+Tests use [vitest](https://vitest.dev) and never touch the network: RPCs, `fetch` and the swap engine are stubbed.
 
-- Write tests for all new features
-- Update tests when changing functionality
-- Use descriptive test names
-- Group related tests with `describe` blocks
+### Layout and naming
 
-Example:
-```typescript
-describe("MarginfiAccount", () => {
-  describe("deposit", () => {
-    it("should deposit tokens successfully", async () => {
-      // Test implementation
-    });
+- One test file per module, at the mirrored path: `src/services/account/utils/health.utils.ts` → `tests/services/account/utils/health.utils.test.ts`.
+- `describe` names the exported function, `it` states the behaviour: `describe("computeFreeCollateralFromBalances")`, `it("clamps a shortfall to zero unless asked for the signed value")`.
+- Recorded mainnet accounts live in `tests/fixtures/`.
 
-    it("should throw error for invalid amount", async () => {
-      // Test implementation
-    });
-  });
-});
-```
+### Helpers (`tests/helpers/`)
 
-### Running Tests
+Build test data with the shared helpers instead of a local copy:
+
+| Helper | For |
+| ------ | --- |
+| `addresses.ts` | `addr()` (a new deterministic address per call), `key(n)` (the same address every time), `LATEST_BLOCKHASH` |
+| `factories.ts` | `makeBank`, `makeBalance`, `makeAccount`, `makeOraclePrice` |
+| `mainnet.ts` | the recorded mainnet banks (`mainnetBanks.sol`, …) and account (`mainnetAccount()`) |
+| `rpc.ts` | `fakeRpc({ accountsExist })`, and `stubRpcFetch` + `stubbedRpc` for code that serializes real RPC requests |
+| `ix.ts` | `findMarginfiIxs(type, ...transactions)`, `isMarginfiIx(type)` |
+| `parity.ts` | inputs and the expected instructions recorded from the v2.8.3 builders |
+| `premium.ts`, `vaults.ts`, `scope.ts` | premium-bearing banks and debts, the recorded Gamma vaults, Scope `OraclePrices` accounts |
+
+Mocks, spies and stubbed globals are restored after every test (`vitest.config.ts`), so tests don't clean up after themselves. Use fake timers for anything that reads the clock.
+
+### Assertions
+
+- Assert a failure by its error: `rejects.toMatchObject({ code: TransactionBuildingErrorCode.X })`, or `toThrow("message")` for plain errors, never a bare `toThrow()`.
+- Snapshots are golden files recorded from older implementations. Never update them with `-u`; a changed snapshot means changed output.
+
+### Running tests
 
 ```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test
-
-# Run with coverage
-npm run test:coverage
-
-# Run specific test file
-npm test src/models/account.test.ts
+pnpm test             # all tests
+pnpm test:watch       # watch mode
+pnpm test:coverage    # with coverage; fails below the thresholds in vitest.config.ts
+pnpm exec vitest run tests/services/account/utils/health.utils.test.ts   # one file
 ```
+
+CI fails if coverage drops below the thresholds in `vitest.config.ts`. When your change raises coverage, raise them to the new floor.
 
 ## Project Structure
 
@@ -230,13 +232,7 @@ p0-ts-sdk/
 
 ## Release Process
 
-Releases are handled by maintainers:
-
-1. Update version in `package.json`
-2. Update `CHANGELOG.md`
-3. Create a git tag
-4. Push tag to trigger CI/CD
-5. CI automatically publishes to npm
+Add a changeset to your PR with `pnpm changeset` when it changes what consumers get. Maintainers ship releases through the release PR the workflow opens; see [RELEASING.md](RELEASING.md).
 
 ## Questions?
 

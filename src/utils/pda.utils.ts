@@ -1,33 +1,39 @@
-import { sha256 } from "@noble/hashes/sha2";
-import { PublicKey } from "@solana/web3.js";
+import {
+  getAddressEncoder,
+  getProgramDerivedAddress,
+  getU16Encoder,
+  type Address,
+  type ProgramDerivedAddress,
+} from "@solana/kit";
 
-export const PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED = Buffer.from("liquidity_vault_auth");
-export const PDA_BANK_INSURANCE_VAULT_AUTH_SEED = Buffer.from("insurance_vault_auth");
-export const PDA_BANK_FEE_VAULT_AUTH_SEED = Buffer.from("fee_vault_auth");
+import { compareAddressBytes } from "./conversion.utils";
 
-export const PDA_BANK_LIQUIDITY_VAULT_SEED = Buffer.from("liquidity_vault");
-export const PDA_BANK_INSURANCE_VAULT_SEED = Buffer.from("insurance_vault");
-export const PDA_BANK_FEE_VAULT_SEED = Buffer.from("fee_vault");
-export const PDA_BANK_FEE_STATE_SEED = Buffer.from("feestate");
-export const PDA_BANK_EMISSIONS_AUTH_SEED = Buffer.from("emissions_auth_seed");
-export const PDA_BANK_EMISSIONS_VAULT_SEED = Buffer.from("emissions_vault");
+export const PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED = "liquidity_vault_auth";
+export const PDA_BANK_INSURANCE_VAULT_AUTH_SEED = "insurance_vault_auth";
+export const PDA_BANK_FEE_VAULT_AUTH_SEED = "fee_vault_auth";
 
-export const PDA_MARGINFI_ACCOUNT_SEED = Buffer.from("marginfi_account");
-export const PDA_ORDER_SEED = Buffer.from("order");
-export const PDA_REBALANCE_FEE_POOL_SEED = Buffer.from("rebalance_fee_pool");
+export const PDA_BANK_LIQUIDITY_VAULT_SEED = "liquidity_vault";
+export const PDA_BANK_INSURANCE_VAULT_SEED = "insurance_vault";
+export const PDA_BANK_FEE_VAULT_SEED = "fee_vault";
+export const PDA_BANK_FEE_STATE_SEED = "feestate";
+export const PDA_BANK_EMISSIONS_AUTH_SEED = "emissions_auth_seed";
+export const PDA_BANK_EMISSIONS_VAULT_SEED = "emissions_vault";
+
+export const PDA_MARGINFI_ACCOUNT_SEED = "marginfi_account";
+export const PDA_ORDER_SEED = "order";
 
 /**
  * Derives the liquidity vault authority PDA for a bank
  * Seeds: ["liquidity_vault_auth", bank]
  */
 export function deriveBankLiquidityVaultAuthority(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
@@ -35,13 +41,13 @@ export function deriveBankLiquidityVaultAuthority(
  * Seeds: ["liquidity_vault", bank]
  */
 export function deriveBankLiquidityVault(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_LIQUIDITY_VAULT_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_LIQUIDITY_VAULT_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
@@ -49,13 +55,13 @@ export function deriveBankLiquidityVault(
  * Seeds: ["insurance_vault_auth", bank]
  */
 export function deriveBankInsuranceVaultAuthority(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_INSURANCE_VAULT_AUTH_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_INSURANCE_VAULT_AUTH_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
@@ -63,13 +69,13 @@ export function deriveBankInsuranceVaultAuthority(
  * Seeds: ["insurance_vault", bank]
  */
 export function deriveBankInsuranceVault(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_INSURANCE_VAULT_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_INSURANCE_VAULT_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
@@ -77,29 +83,35 @@ export function deriveBankInsuranceVault(
  * Seeds: ["fee_vault_auth", bank]
  */
 export function deriveBankFeeVaultAuthority(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_FEE_VAULT_AUTH_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_FEE_VAULT_AUTH_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
  * Derives the fee vault PDA for a bank
  * Seeds: ["fee_vault", bank]
  */
-export function deriveBankFeeVault(programId: PublicKey, bank: PublicKey): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync([PDA_BANK_FEE_VAULT_SEED, bank.toBuffer()], programId);
+export function deriveBankFeeVault(
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_FEE_VAULT_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
  * Derives the fee state PDA
  * Seeds: ["feestate"]
  */
-export function deriveFeeState(programId: PublicKey): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync([PDA_BANK_FEE_STATE_SEED], programId);
+export function deriveFeeState(programId: Address): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({ programAddress: programId, seeds: [PDA_BANK_FEE_STATE_SEED] });
 }
 
 /**
@@ -107,13 +119,13 @@ export function deriveFeeState(programId: PublicKey): [PublicKey, number] {
  * Seeds: ["emissions_auth_seed", bank]
  */
 export function deriveBankEmissionsAuth(
-  programId: PublicKey,
-  bank: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_EMISSIONS_AUTH_SEED, bank.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_BANK_EMISSIONS_AUTH_SEED, getAddressEncoder().encode(bank)],
+  });
 }
 
 /**
@@ -121,14 +133,18 @@ export function deriveBankEmissionsAuth(
  * Seeds: ["emissions_vault", bank, emissionsMint]
  */
 export function deriveBankEmissionsVault(
-  programId: PublicKey,
-  bank: PublicKey,
-  emissionsMint: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_BANK_EMISSIONS_VAULT_SEED, bank.toBuffer(), emissionsMint.toBuffer()],
-    programId
-  );
+  programId: Address,
+  bank: Address,
+  emissionsMint: Address
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [
+      PDA_BANK_EMISSIONS_VAULT_SEED,
+      getAddressEncoder().encode(bank),
+      getAddressEncoder().encode(emissionsMint),
+    ],
+  });
 }
 
 /**
@@ -136,28 +152,22 @@ export function deriveBankEmissionsVault(
  * Seeds: ["marginfi_account", group, authority, accountIndex, thirdPartyId]
  */
 export function deriveMarginfiAccount(
-  programId: PublicKey,
-  group: PublicKey,
-  authority: PublicKey,
+  programId: Address,
+  group: Address,
+  authority: Address,
   accountIndex: number,
   thirdPartyId: number = 0
-): [PublicKey, number] {
-  const accountIndexBuf = Buffer.alloc(2);
-  accountIndexBuf.writeUInt16LE(accountIndex);
-
-  const thirdPartyIdBuf = Buffer.alloc(2);
-  thirdPartyIdBuf.writeUInt16LE(thirdPartyId);
-
-  return PublicKey.findProgramAddressSync(
-    [
+): Promise<ProgramDerivedAddress> {
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [
       PDA_MARGINFI_ACCOUNT_SEED,
-      group.toBuffer(),
-      authority.toBuffer(),
-      accountIndexBuf,
-      thirdPartyIdBuf,
+      getAddressEncoder().encode(group),
+      getAddressEncoder().encode(authority),
+      getU16Encoder().encode(accountIndex),
+      getU16Encoder().encode(thirdPartyId),
     ],
-    programId
-  );
+  });
 }
 
 /**
@@ -167,30 +177,19 @@ export function deriveMarginfiAccount(
  * Matches the on-chain `keys_sha256_hash`: the bank keys are sorted in ascending byte-wise
  * lexicographical order before hashing, so the caller may pass them in any order.
  */
-export function deriveOrderPda(
-  programId: PublicKey,
-  marginfiAccount: PublicKey,
-  bankKeys: PublicKey[]
-): [PublicKey, number] {
-  const sortedBankKeys = bankKeys.map((key) => key.toBuffer()).sort(Buffer.compare);
-  const bankKeysHash = Buffer.from(sha256(Buffer.concat(sortedBankKeys)));
+export async function deriveOrderPda(
+  programId: Address,
+  marginfiAccount: Address,
+  bankKeys: Address[]
+): Promise<ProgramDerivedAddress> {
+  const addressEncoder = getAddressEncoder();
+  const sortedBankKeys = [...bankKeys].sort(compareAddressBytes);
+  const concatenated = new Uint8Array(sortedBankKeys.length * 32);
+  sortedBankKeys.forEach((key, i) => concatenated.set(addressEncoder.encode(key), i * 32));
+  const bankKeysHash = new Uint8Array(await crypto.subtle.digest("SHA-256", concatenated));
 
-  return PublicKey.findProgramAddressSync(
-    [PDA_ORDER_SEED, marginfiAccount.toBuffer(), bankKeysHash],
-    programId
-  );
-}
-
-/**
- * Derives the auto-rebalance fee pool PDA of a marginfi account (required by account close since 0.1.12)
- * Seeds: ["rebalance_fee_pool", marginfiAccount]
- */
-export function deriveRebalanceFeePool(
-  programId: PublicKey,
-  marginfiAccount: PublicKey
-): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [PDA_REBALANCE_FEE_POOL_SEED, marginfiAccount.toBuffer()],
-    programId
-  );
+  return getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [PDA_ORDER_SEED, addressEncoder.encode(marginfiAccount), bankKeysHash],
+  });
 }

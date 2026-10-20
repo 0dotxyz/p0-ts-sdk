@@ -1,0 +1,709 @@
+import { type Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect } from "vitest";
+
+import { addr } from "../../../helpers/addresses";
+import { makeOraclePrice } from "../../../helpers/factories";
+
+import { HealthCacheStatus, MarginfiAccountType } from "~/services/account/types";
+import {
+  computeBankOutflowRateLimit,
+  computeMaxBorrowForBank,
+  computeMaxDepositForBank,
+  computeMaxWithdrawForBank,
+} from "~/services/account/utils/max-amounts.utils";
+import {
+  AssetTag,
+  BankType,
+  EmodeImpactStatus,
+  OperationalState,
+  RiskTier,
+} from "~/services/bank/types";
+import { computeBankDepositCapRemaining } from "~/services/bank/utils/bank-metrics.utils";
+import { U64_MAX } from "~/services/bank/utils/capacity.utils";
+import {
+  BankVenueStates,
+  VENUE_AVAILABLE_LIQUIDITY_BUFFER,
+} from "~/services/bank/utils/venue-liquidity.utils";
+
+const DECIMALS = 6;
+const ui = (n: number) => new BigNumber(n).times(10 ** DECIMALS);
+
+function bank(opts: {
+  address?: Address;
+  totalDeposits: number; // UI
+  totalBorrows: number; // UI
+  depositLimit: number; // UI
+  borrowLimit: number; // UI
+  // hourly net-outflow cap in UI units with `used` already flowed out this window
+  rateLimit?: { max: number; used: number };
+  originationFee?: number;
+  assetTag?: AssetTag;
+  // raw native override for depositLimit (e.g. U64_MAX sentinel)
+  depositLimitRaw?: BigNumber;
+  borrowLimitRaw?: BigNumber;
+  lastUpdate?: number;
+}): BankType {
+  const rate = (n: number) => new BigNumber(n);
+  return {
+    address: opts.address ?? addr(),
+    mint: addr(),
+    mintDecimals: DECIMALS,
+    assetShareValue: new BigNumber(1),
+    liabilityShareValue: new BigNumber(1),
+    totalAssetShares: ui(opts.totalDeposits),
+    totalLiabilityShares: ui(opts.totalBorrows),
+    lastUpdate: opts.lastUpdate ?? Math.floor(Date.now() / 1000), // no accrued-interest buffer
+    rateLimiter: opts.rateLimit
+      ? {
+          hourly: {
+            maxOutflow: ui(opts.rateLimit.max),
+            windowDuration: 3600,
+            windowStart: Math.floor(Date.now() / 1000) - 60,
+            prevWindowOutflow: new BigNumber(0),
+            curWindowOutflow: ui(opts.rateLimit.used),
+          },
+          daily: {
+            maxOutflow: new BigNumber(0),
+            windowDuration: 86400,
+            windowStart: 0,
+            prevWindowOutflow: new BigNumber(0),
+            curWindowOutflow: new BigNumber(0),
+          },
+        }
+      : undefined,
+    config: {
+      riskTier: RiskTier.Collateral,
+      operationalState: OperationalState.Operational,
+      assetTag: opts.assetTag ?? AssetTag.DEFAULT,
+      assetWeightInit: new BigNumber(0.8),
+      assetWeightMaint: new BigNumber(0.9),
+      liabilityWeightInit: new BigNumber(1.25),
+      liabilityWeightMaint: new BigNumber(1.1),
+      depositLimit: opts.depositLimitRaw ?? ui(opts.depositLimit),
+      borrowLimit: opts.borrowLimitRaw ?? ui(opts.borrowLimit),
+      totalAssetValueInitLimit: new BigNumber(0),
+      interestRateConfig: {
+        placeholder0: rate(0.8),
+        placeholder1: rate(0.1),
+        placeholder2: rate(1),
+        insuranceFeeFixedApr: rate(0),
+        insuranceIrFee: rate(0),
+        protocolFixedFeeApr: rate(0),
+        protocolIrFee: rate(0),
+        protocolOriginationFee: rate(opts.originationFee ?? 0),
+        zeroUtilRate: 0,
+        hundredUtilRate: 0,
+        points: [],
+        curveType: 0,
+      },
+    },
+  } as unknown as BankType;
+}
+
+function account(opts: {
+  freeCollateralUsd: number;
+  liabilitiesUsd?: number;
+  balances?: Array<{ bankPk: Address; assetShares: BigNumber; liabilityShares?: BigNumber }>;
+}): MarginfiAccountType {
+  const liabilities = new BigNumber(opts.liabilitiesUsd ?? 0);
+  const assets = new BigNumber(opts.freeCollateralUsd).plus(liabilities);
+  return {
+    address: addr(),
+    balances: (opts.balances ?? []).map((b) => ({
+      active: true,
+      bankPk: b.bankPk,
+      assetShares: b.assetShares,
+      liabilityShares: b.liabilityShares ?? new BigNumber(0),
+    })),
+    healthCache: {
+      assetValue: assets,
+      liabilityValue: liabilities,
+      assetValueMaint: assets,
+      liabilityValueMaint: liabilities,
+      assetValueEquity: assets,
+      liabilityValueEquity: liabilities,
+      timestamp: new BigNumber(0),
+      flags: [],
+      prices: [],
+      simulationStatus: HealthCacheStatus.COMPUTED,
+    },
+  } as unknown as MarginfiAccountType;
+}
+
+function ctx(b: BankType) {
+  return {
+    banksMap: new Map([[b.address, b]]),
+    oraclePricesByBank: new Map([[b.address, makeOraclePrice(1)]]),
+    bankAddress: b.address,
+  };
+}
+
+describe("computeMaxBorrowForBank bank-level clamps", () => {
+  // $1000 free collateral, price 1, liab weight 1.25 → health-based max = 800
+  const HEALTH_MAX = 800;
+  const acc = account({ freeCollateralUsd: 1000 });
+
+  it("returns health-based max when bank cap and liquidity are ample", () => {
+    const b = bank({ totalDeposits: 10_000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBeCloseTo(HEALTH_MAX, 6);
+  });
+
+  it("returns 0 for a bank the account deposits in", () => {
+    const b = bank({ totalDeposits: 10_000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const max = computeMaxBorrowForBank({
+      account: account({
+        freeCollateralUsd: 1000,
+        balances: [{ bankPk: b.address, assetShares: ui(400) }],
+      }),
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBe(0);
+  });
+
+  it("clamps to remaining borrow cap", () => {
+    const b = bank({
+      totalDeposits: 10_000,
+      totalBorrows: 100,
+      depositLimit: 1e9,
+      borrowLimit: 500,
+    });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBeCloseTo(400, 3);
+  });
+
+  it("clamps to available liquidity", () => {
+    const b = bank({ totalDeposits: 300, totalBorrows: 50, depositLimit: 1e9, borrowLimit: 1e9 });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBeCloseTo(250, 3);
+  });
+
+  it("returns 0 when the borrow cap is exhausted", () => {
+    const b = bank({
+      totalDeposits: 10_000,
+      totalBorrows: 600,
+      depositLimit: 1e9,
+      borrowLimit: 500,
+    });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBe(0);
+  });
+
+  it("clamps to the bank rate limiter's remaining outflow", () => {
+    const b = bank({
+      totalDeposits: 10_000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 500, used: 200 },
+    });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(max.toNumber()).toBeCloseTo(300, 6);
+  });
+
+  it("clamps to the group USD rate limiter converted at realtime price", () => {
+    const b = bank({ totalDeposits: 10_000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const groupRateLimiter = {
+      hourly: {
+        maxOutflow: new BigNumber(0),
+        windowDuration: 3600,
+        windowStart: 0,
+        prevWindowOutflow: new BigNumber(0),
+        curWindowOutflow: new BigNumber(0),
+      },
+      daily: {
+        maxOutflow: new BigNumber(1_000),
+        windowDuration: 86400,
+        windowStart: Math.floor(Date.now() / 1000) - 60,
+        prevWindowOutflow: new BigNumber(0),
+        curWindowOutflow: new BigNumber(750),
+      },
+    };
+    const c = ctx(b);
+    c.oraclePricesByBank.set(b.address, makeOraclePrice(2)); // $2 → 250 USD left = 125 tokens
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...c,
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+      groupRateLimiter,
+    });
+    expect(max.toNumber()).toBeCloseTo(125, 6);
+  });
+
+  it("ignoreBankLimits bypasses the clamps", () => {
+    const b = bank({ totalDeposits: 300, totalBorrows: 50, depositLimit: 1e9, borrowLimit: 100 });
+    const max = computeMaxBorrowForBank({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+      ignoreBankLimits: true,
+    });
+    expect(max.toNumber()).toBeCloseTo(HEALTH_MAX, 6);
+  });
+});
+
+describe("computeMaxWithdrawForBank bank-level clamp", () => {
+  it("returns entire balance when liquidity is ample", () => {
+    const b = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+
+  it("returns entire balance of init-weight-0 collateral while the account is healthy", () => {
+    const b = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 });
+    b.config.assetWeightInit = new BigNumber(0);
+    const acc = account({
+      freeCollateralUsd: 1000,
+      liabilitiesUsd: 500,
+      balances: [{ bankPk: b.address, assetShares: ui(10) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    expect(max.toNumber()).toBeCloseTo(10, 6);
+  });
+
+  it("clamps to available liquidity", () => {
+    const b = bank({ totalDeposits: 400, totalBorrows: 250, depositLimit: 1e9, borrowLimit: 1e9 });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    expect(max.toNumber()).toBeCloseTo(150, 6);
+  });
+
+  it("clamps to the bank rate limiter's remaining outflow", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    expect(max.toNumber()).toBeCloseTo(70, 6);
+  });
+
+  // Since 0.1.10 the program's Kamino withdraw records the redeemed liquidity
+  // (`expected_liquidity_amount`) on the bank limiter, not the cToken amount.
+  it("leaves a KAMINO bank's rate-limit remaining in underlying units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const multiplier = new BigNumber(1.5);
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address, multiplier]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(70, 6);
+  });
+
+  // Staked-bank limiters record LST amounts (the bank mint); the SDK's unit
+  // space is SOL-equivalent, so the LST→SOL rate applies.
+  it("converts a STAKED bank's rate-limit remaining from LST to SOL-equivalent units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.STAKED,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const multiplier = new BigNumber(1.2);
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address, multiplier]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(84, 6);
+  });
+
+  // Drift/JupLend withdraws record the underlying token amount on-chain
+  // (`token_amount` / `native_outflow`), so their limiter remaining must NOT
+  // be scaled by the multiplier.
+  it("leaves a DRIFT bank's rate-limit remaining in underlying units", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      rateLimit: { max: 100, used: 30 },
+      assetTag: AssetTag.DRIFT,
+    });
+    const acc = account({
+      freeCollateralUsd: 1e9,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      assetShareValueMultiplierByBank: new Map([[b.address, new BigNumber(1.5)]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(70, 6);
+  });
+
+  it("ignoreBankLimits bypasses the clamp", () => {
+    const b = bank({ totalDeposits: 400, totalBorrows: 250, depositLimit: 1e9, borrowLimit: 1e9 });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b), ignoreBankLimits: true });
+    expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+});
+
+describe("computeBankOutflowRateLimit", () => {
+  const limits = { totalDeposits: 1e6, totalBorrows: 0, depositLimit: 1e9, borrowLimit: 1e9 };
+
+  it("returns null when the bank has no limiter", () => {
+    expect(computeBankOutflowRateLimit(bank(limits))).toBeNull();
+  });
+
+  it("returns the hourly window when it is the only one enabled", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 30 } });
+    const limit = computeBankOutflowRateLimit(b);
+    expect(limit?.window).toBe("hourly");
+    expect(limit?.remaining.toNumber()).toBeCloseTo(70, 6);
+  });
+
+  it("returns the daily window when it is tighter than the hourly one", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 30 } });
+    b.rateLimiter!.daily = {
+      maxOutflow: ui(500),
+      windowDuration: 86400,
+      windowStart: Math.floor(Date.now() / 1000) - 60,
+      prevWindowOutflow: new BigNumber(0),
+      curWindowOutflow: ui(460),
+    };
+    const limit = computeBankOutflowRateLimit(b);
+    expect(limit?.window).toBe("daily");
+    expect(limit?.remaining.toNumber()).toBeCloseTo(40, 6);
+  });
+
+  it("clamps an overdrawn window at 0", () => {
+    const b = bank({ ...limits, rateLimit: { max: 100, used: 130 } });
+    expect(computeBankOutflowRateLimit(b)?.remaining.toNumber()).toBe(0);
+  });
+});
+
+describe("computeMaxWithdrawForBank venue-liquidity clamp", () => {
+  const kaminoStates = (availableUi: number) =>
+    ({
+      reserveState: {
+        liquidity: { totalAvailableAmount: BigInt(ui(availableUi).toFixed(0)) },
+        withdrawQueue: { queuedCollateralAmount: 0n },
+      },
+    }) as unknown as BankVenueStates["kaminoStates"];
+
+  it("clamps to the Kamino reserve's idle liquidity (with buffer)", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      venueStates: { kaminoStates: kaminoStates(100) },
+    });
+    expect(max.toNumber()).toBeCloseTo(100 * VENUE_AVAILABLE_LIQUIDITY_BUFFER, 6);
+  });
+
+  it("does not clamp when venue states are missing or the bank has no venue", () => {
+    const kaminoBank = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: kaminoBank.address, assetShares: ui(400) }],
+    });
+    // metadata absent entirely
+    expect(computeMaxWithdrawForBank({ account: acc, ...ctx(kaminoBank) }).toNumber()).toBeCloseTo(
+      400,
+      6
+    );
+    // metadata present but venue liquidity is not the binding constraint for a DEFAULT bank
+    const defaultBank = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+    });
+    const acc2 = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: defaultBank.address, assetShares: ui(400) }],
+    });
+    expect(
+      computeMaxWithdrawForBank({
+        account: acc2,
+        ...ctx(defaultBank),
+        venueStates: { kaminoStates: kaminoStates(1) },
+      }).toNumber()
+    ).toBeCloseTo(400, 6);
+  });
+
+  it("ignoreBankLimits bypasses the venue clamp", () => {
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      assetTag: AssetTag.KAMINO,
+    });
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(400) }],
+    });
+    const max = computeMaxWithdrawForBank({
+      account: acc,
+      ...ctx(b),
+      venueStates: { kaminoStates: kaminoStates(100) },
+      ignoreBankLimits: true,
+    });
+    expect(max.toNumber()).toBeCloseTo(400, 6);
+  });
+});
+
+describe("computeMaxDepositForBank", () => {
+  it("returns remaining deposit cap", () => {
+    const b = bank({ totalDeposits: 600, totalBorrows: 0, depositLimit: 1000, borrowLimit: 1e9 });
+    const max = computeMaxDepositForBank({ banksMap: ctx(b).banksMap, bankAddress: b.address });
+    expect(max.toNumber()).toBeCloseTo(400, 3);
+  });
+
+  it("is capped by wallet balance when provided", () => {
+    const b = bank({ totalDeposits: 600, totalBorrows: 0, depositLimit: 1000, borrowLimit: 1e9 });
+    const max = computeMaxDepositForBank({
+      banksMap: ctx(b).banksMap,
+      bankAddress: b.address,
+      walletBalance: 100,
+    });
+    expect(max.toNumber()).toBe(100);
+  });
+
+  it("returns 0 when the deposit cap is exhausted", () => {
+    const b = bank({ totalDeposits: 1000, totalBorrows: 0, depositLimit: 1000, borrowLimit: 1e9 });
+    const max = computeMaxDepositForBank({ banksMap: ctx(b).banksMap, bankAddress: b.address });
+    expect(max.toNumber()).toBe(0);
+  });
+
+  it("applies the asset share value multiplier (integrated banks)", () => {
+    const b = bank({ totalDeposits: 600, totalBorrows: 0, depositLimit: 1000, borrowLimit: 1e9 });
+    const max = computeMaxDepositForBank({
+      banksMap: ctx(b).banksMap,
+      bankAddress: b.address,
+      assetShareValueMultiplierByBank: new Map([[b.address, new BigNumber(1.5)]]),
+    });
+    expect(max.toNumber()).toBeCloseTo(600, 3);
+  });
+
+  it("throws for unknown bank", () => {
+    expect(() => computeMaxDepositForBank({ banksMap: new Map(), bankAddress: addr() })).toThrow(
+      /not found/
+    );
+  });
+});
+
+describe("asset-tag mixing", () => {
+  const staked = bank({
+    totalDeposits: 0,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+    assetTag: AssetTag.STAKED,
+  });
+  const sol = bank({
+    totalDeposits: 10_000,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+    assetTag: AssetTag.SOL,
+  });
+  const usdc = bank({
+    totalDeposits: 10_000,
+    totalBorrows: 0,
+    depositLimit: 1e9,
+    borrowLimit: 1e9,
+  });
+  const banksMap = new Map([staked, sol, usdc].map((b) => [b.address, b]));
+  const stakedOnly = account({
+    freeCollateralUsd: 1000,
+    balances: [{ bankPk: staked.address, assetShares: ui(10) }],
+  });
+
+  it("returns 0 for a default-like borrow from a staked-collateral account, not for SOL", () => {
+    const maxBorrow = (b: BankType) =>
+      computeMaxBorrowForBank({
+        account: stakedOnly,
+        banksMap,
+        oraclePricesByBank: new Map([[b.address, makeOraclePrice(1)]]),
+        bankAddress: b.address,
+        emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+      }).toNumber();
+    expect(maxBorrow(usdc)).toBe(0);
+    expect(maxBorrow(sol)).toBeCloseTo(800, 6);
+  });
+
+  it("returns 0 for a staked deposit into an account holding default-like collateral", () => {
+    const usdcOnly = account({
+      freeCollateralUsd: 1000,
+      balances: [{ bankPk: usdc.address, assetShares: ui(10) }],
+    });
+    expect(
+      computeMaxDepositForBank({
+        account: usdcOnly,
+        banksMap,
+        bankAddress: staked.address,
+      }).toNumber()
+    ).toBe(0);
+  });
+});
+
+describe("computeMaxDepositForBank / computeMaxBorrowForBank", () => {
+  it("u64::MAX limit is inactive → unbounded", () => {
+    const b = bank({
+      totalDeposits: 600,
+      totalBorrows: 100,
+      depositLimit: 0,
+      borrowLimit: 0,
+      depositLimitRaw: U64_MAX,
+      borrowLimitRaw: U64_MAX,
+    });
+    expect(computeBankDepositCapRemaining(b)).toBe(Infinity);
+    const maxDep = computeMaxDepositForBank({ banksMap: ctx(b).banksMap, bankAddress: b.address });
+    expect(maxDep.isFinite()).toBe(false);
+    const maxBorrow = computeMaxBorrowForBank({
+      account: account({ freeCollateralUsd: 1000 }),
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+    expect(maxBorrow.toNumber()).toBeCloseTo(500, 3); // liquidity-bound only (600-100)
+  });
+});
+
+describe("origination fee on borrow", () => {
+  // $1000 free collateral, price 1, liab weight 1.25, fee 1% → health max = 800 / 1.01
+  it("divides health-based, cap and liquidity bounds by (1 + fee), not the rate limiter", () => {
+    const acc = account({ freeCollateralUsd: 1000 });
+    const c = (b: BankType) => ({
+      account: acc,
+      ...ctx(b),
+      emodeImpactStatus: EmodeImpactStatus.InactiveEmode,
+    });
+
+    const bHealth = bank({
+      totalDeposits: 1e6,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      originationFee: 0.01,
+    });
+    expect(computeMaxBorrowForBank(c(bHealth)).toNumber()).toBeCloseTo(800 / 1.01, 6);
+
+    const bCap = bank({
+      totalDeposits: 1e6,
+      totalBorrows: 100,
+      depositLimit: 1e9,
+      borrowLimit: 500,
+      originationFee: 0.01,
+    });
+    expect(computeMaxBorrowForBank(c(bCap)).toNumber()).toBeCloseTo(400 / 1.01, 3);
+
+    const bLiq = bank({
+      totalDeposits: 300,
+      totalBorrows: 50,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      originationFee: 0.01,
+    });
+    expect(computeMaxBorrowForBank(c(bLiq)).toNumber()).toBeCloseTo(250 / 1.01, 6);
+
+    const bRl = bank({
+      totalDeposits: 1e6,
+      totalBorrows: 0,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      originationFee: 0.01,
+      rateLimit: { max: 500, used: 200 },
+    });
+    expect(computeMaxBorrowForBank(c(bRl)).toNumber()).toBeCloseTo(300, 6);
+  });
+});
+
+describe("liquidity projected through interest accrual", () => {
+  it("shrinks available liquidity by (borrows*borrowRate - deposits*lendRate) over the projection window", () => {
+    // legacy curve: util 0.5 / optimal 0.8 → base = 0.5*0.1/0.8 = 0.0625; lending = base*util = 0.03125
+    // one year stale: drain = 500*0.0625 - 1000*0.03125 = 0 → symmetric; use fees to create drain
+    const year = 365 * 24 * 3600;
+    const b = bank({
+      totalDeposits: 1000,
+      totalBorrows: 500,
+      depositLimit: 1e9,
+      borrowLimit: 1e9,
+      lastUpdate: Math.floor(Date.now() / 1000) - year,
+    });
+    b.config.interestRateConfig.protocolIrFee = new BigNumber(0.2); // borrowRate = 0.0625*1.2 = 0.075
+    const acc = account({
+      freeCollateralUsd: 320,
+      balances: [{ bankPk: b.address, assetShares: ui(1000) }],
+    });
+    const max = computeMaxWithdrawForBank({ account: acc, ...ctx(b) });
+    // drain/yr = 500*0.075 - 1000*0.03125 = 6.25; projection = max(2*age, age+120s) = 2 years
+    // liquidity 500 - 12.5 = 487.5
+    expect(max.toNumber()).toBeCloseTo(487.5, 2);
+  });
+});

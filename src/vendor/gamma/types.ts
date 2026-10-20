@@ -1,43 +1,26 @@
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Address } from "@solana/kit";
 
-/**
- * Decoded Gamma `LpVault` account (raw on-chain representation).
- * Pubkeys as {@link PublicKey}, u64/i64 numeric fields as {@link BN}.
- */
-export interface GammaLpVaultRaw {
-  pubkey: PublicKey;
-  assetsAccount: PublicKey;
-  pendingSharesAccount: PublicKey;
-  sharesMint: PublicKey;
-  assetsMint: PublicKey;
-  fundAuthority: PublicKey;
-  nav: BN;
-  totalShares: BN;
-  navUpdatedAt: BN;
-  navMaxStaleness: BN;
-  bump: number;
-  vaultName: string;
-  pendingWithdrawalValue: BN;
-  feeRecipient: PublicKey;
-  performanceFeeBps: number;
-  assessmentIntervalSecs: BN;
-  lastAssessmentTimestamp: BN;
-  pricePerShareAtLastAssessment: BN;
-  keeperAuthority: PublicKey;
+/** Curated Gamma `LpVault`: the fields the SDK reads. A decoded `LpVault` satisfies it structurally. */
+export interface GammaLpVault {
+  /** Token account holding the vault's deposited assets. */
+  assetsAccount: Address;
+  sharesMint: Address;
+  assetsMint: Address;
+  /** Share token account receiving fee shares; the default address when fees are off. */
+  feeRecipient: Address;
 }
 
 /**
- * Decoded Gamma `WithdrawReceipt` account — tracks a user's queued withdrawal
- * against a vault (pending → claimable).
+ * Curated Gamma `WithdrawReceipt`: a user's queued withdrawal (pending until a keeper fulfills it)
+ * and what is claimable once it is.
  */
-export interface GammaWithdrawReceiptRaw {
-  pubkey: PublicKey;
-  user: PublicKey;
-  lpVault: PublicKey;
-  pendingShares: BN;
-  claimableShares: BN;
-  claimableAssets: BN;
-  oldestPendingAt: BN;
-  bump: number;
+export interface GammaWithdrawReceipt {
+  user: Address;
+  lpVault: Address;
+  /** Share mint base units awaiting a keeper. */
+  pendingShares: bigint;
+  /** Share mint base units fulfilled and ready to claim. */
+  claimableShares: bigint;
+  /** Asset mint base units ready to claim. */
+  claimableAssets: bigint;
 }

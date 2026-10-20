@@ -1,56 +1,15 @@
-import { Program as AnchorProgram, AnchorProvider, Idl } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
-import { MarginfiIdlType } from "./idl";
 import { Bank } from "./models/bank";
 import { OraclePrice } from "./services";
-import {
-  DriftRewards,
-  DriftRewardsJSON,
-  DriftSpotMarket,
-  DriftSpotMarketJSON,
-  DriftUser,
-  DriftUserJSON,
-  DriftUserStats,
-  DriftUserStatsJSON,
-  KaminoFarmState,
-  KaminoFarmStateJSON,
-  KaminoObligation,
-  KaminoObligationJSON,
-  KaminoReserve,
-  KaminoReserveJSON,
-  JupLendingRewardsRateModel,
-  JupLendingRewardsRateModelJSON,
-  JupLendingState,
-  JupLendingStateJSON,
-  JupRateModel,
-  JupRateModelJSON,
-  JupTokenReserve,
-  JupTokenReserveJSON,
-} from "./vendor";
+import { DriftStates, JupLendStates, KaminoStates } from "./vendor";
 
 // Define MintData here to break circular dependencies
 export type MintData = {
-  mint: PublicKey;
-  tokenProgram: PublicKey;
+  mint: Address;
+  tokenProgram: Address;
   // deprecated
-  emissionTokenProgram?: PublicKey | null;
-};
-
-export type Program<T extends Idl> = Omit<AnchorProgram<T>, "provider"> & {
-  provider: AnchorProvider;
-};
-
-export type MarginfiProgram = Program<MarginfiIdlType>;
-
-export type Wallet = {
-  publicKey: PublicKey;
-  signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T>;
-  signAllTransactions<T extends Transaction | VersionedTransaction>(
-    transactions: T[]
-  ): Promise<T[]>;
-  signMessage?: (message: Uint8Array) => Promise<Uint8Array>;
+  emissionTokenProgram?: Address | null;
 };
 
 export interface BankMetadata {
@@ -67,13 +26,13 @@ export type Environment = "production" | "staging" | "staging-mainnet-clone" | "
 
 export interface Project0Config {
   environment: Environment;
-  programId: PublicKey;
-  groupPk: PublicKey;
+  programId: Address;
+  groupPk: Address;
 }
 
 export interface BankAddress {
   label: string;
-  address: PublicKey;
+  address: Address;
 }
 
 // --- On-chain account structs
@@ -84,72 +43,32 @@ export enum AccountType {
   Bank = "bank",
 }
 
-export type KaminoStates = {
-  reserveState: KaminoReserve;
-  obligationState: KaminoObligation;
-  farmState?: KaminoFarmState;
-};
-
 export type BankIntegrationMetadata = {
-  kaminoStates?: {
-    reserveState: KaminoReserve;
-    obligationState: KaminoObligation;
-    farmState?: KaminoFarmState;
-  };
-  driftStates?: {
-    spotMarketState: DriftSpotMarket;
-    userState: DriftUser;
-    userRewards: DriftRewards[];
-    userStatsState?: DriftUserStats;
-  };
-  jupLendStates?: {
-    jupLendingState: JupLendingState;
-    jupTokenReserveState: JupTokenReserve;
-    jupRewardsRateModel: JupLendingRewardsRateModel | null;
-    jupRateModel: JupRateModel | null;
-    fTokenTotalSupply: BN;
-  };
-};
-
-export type BankIntegrationMetadataDto = {
-  kaminoStates?: {
-    reserveState: KaminoReserveJSON;
-    obligationState: KaminoObligationJSON;
-    farmState?: KaminoFarmStateJSON;
-  };
-  driftStates?: {
-    spotMarketState: DriftSpotMarketJSON;
-    userState: DriftUserJSON;
-    userRewards: DriftRewardsJSON[];
-    userStatsState?: DriftUserStatsJSON;
-  };
-  jupLendStates?: {
-    jupLendingState: JupLendingStateJSON;
-    jupTokenReserveState: JupTokenReserveJSON;
-    jupRewardsRateModel: JupLendingRewardsRateModelJSON | null;
-    jupRateModel: JupRateModelJSON | null;
-    fTokenTotalSupply: string;
-  };
+  kaminoStates?: KaminoStates;
+  driftStates?: DriftStates;
+  jupLendStates?: JupLendStates;
 };
 
 export type BankIntegrationMetadataMap = {
   [address: string]: BankIntegrationMetadata;
-};
-export type BankIntegrationMetadataMapDto = {
-  [address: string]: BankIntegrationMetadataDto;
 };
 export type BankMap = Map<string, Bank>;
 export type OraclePriceMap = Map<string, OraclePrice>;
 export type MintDataMap = Map<string, MintData>;
 
 export interface WrappedI80F48 {
-  value: number[];
+  /** 16 little-endian bytes of an I80F48 fixed-point number */
+  value: ReadonlyUint8Array;
 }
 
+/**
+ * The on-chain take-profit / stop-loss trigger: thresholds are the pair's net equity in USD,
+ * `maxSlippage` a fraction of `u32::MAX` (see `percentToMaxSlippageU32`).
+ */
 export type OrderTrigger =
-  | { stopLoss: { threshold: WrappedI80F48; maxSlippage: number } }
-  | { takeProfit: { threshold: WrappedI80F48; maxSlippage: number } }
-  | { both: { stopLoss: WrappedI80F48; takeProfit: WrappedI80F48; maxSlippage: number } };
+  | { __kind: "StopLoss"; threshold: WrappedI80F48; maxSlippage: number }
+  | { __kind: "TakeProfit"; threshold: WrappedI80F48; maxSlippage: number }
+  | { __kind: "Both"; stopLoss: WrappedI80F48; takeProfit: WrappedI80F48; maxSlippage: number };
 
 export type Amount = BigNumber | number | string;
 

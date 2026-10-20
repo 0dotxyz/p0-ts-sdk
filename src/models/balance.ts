@@ -1,10 +1,8 @@
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import type { Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import {
   BalanceType,
-  BalanceRaw,
-  parseBalanceRaw,
   createEmptyBalance,
   OraclePrice,
   MarginRequirementType,
@@ -23,43 +21,29 @@ import { Bank } from "./bank";
 class Balance implements BalanceType {
   constructor(
     public active: boolean,
-    public bankPk: PublicKey,
+    public bankPk: Address,
+    public tag: number,
     public assetShares: BigNumber,
     public liabilityShares: BigNumber,
     public premiumRate: BigNumber,
     public premiumOutstanding: BigNumber,
-    public lastUpdate: number,
-    public tag: number
+    public lastUpdate: number
   ) {}
-
-  static from(balanceRaw: BalanceRaw): Balance {
-    const props = parseBalanceRaw(balanceRaw);
-    return new Balance(
-      props.active,
-      props.bankPk,
-      props.assetShares,
-      props.liabilityShares,
-      props.premiumRate,
-      props.premiumOutstanding,
-      props.lastUpdate,
-      props.tag
-    );
-  }
 
   static fromBalanceType(balance: BalanceType): Balance {
     return new Balance(
       balance.active,
       balance.bankPk,
+      balance.tag,
       balance.assetShares,
       balance.liabilityShares,
       balance.premiumRate,
       balance.premiumOutstanding,
-      balance.lastUpdate,
-      balance.tag
+      balance.lastUpdate
     );
   }
 
-  static createEmpty(bankPk: PublicKey): Balance {
+  static createEmpty(bankPk: Address): Balance {
     const balance = createEmptyBalance(bankPk);
     return this.fromBalanceType(balance);
   }

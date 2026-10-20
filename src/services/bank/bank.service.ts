@@ -1,76 +1,63 @@
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
-
-import { InstructionsWrapper } from "../transaction";
+import type { Address, Instruction, TransactionSigner } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import { AssetTag, BankType, OracleSetup } from "./types";
-import { serializeOracleSetupToIndex } from "./utils";
+import { serializeOracleSetup } from "./utils/serialize.utils";
 
 import instructions from "~/instructions";
-import { MarginfiProgram } from "~/types";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-/**
- * Freezes a bank's settings so they can no longer be changed. Signed by the group's governance
- * admin.
- *
- * @param program - The marginfi program
- * @param bankAddress - The bank to freeze
- * @returns The `lending_pool_configure_bank_gov` instruction
- */
-export async function freezeBankConfigIx(
-  program: MarginfiProgram,
-  bankAddress: PublicKey
-): Promise<InstructionsWrapper> {
-  const ix = await instructions.makePoolConfigureBankGovIx(
-    program,
-    { bank: bankAddress },
-    {
-      bankConfigOpt: {
-        assetWeightInit: null,
-        assetWeightMaint: null,
-        liabilityWeightInit: null,
-        liabilityWeightMaint: null,
-        operationalState: null,
-        riskTier: null,
-        assetTag: null,
-        oracleMaxConfidence: null,
-        oracleMaxAge: null,
-        tokenlessRepaymentsAllowed: null,
-        freezeSettings: true,
-      },
-    }
-  );
+type BankAdminIxArgs = {
+  programAddress: Address;
+  bankAddress: Address;
+  groupAddress: Address;
+  governanceAdmin: TransactionSigner;
+};
 
-  return {
-    instructions: [ix],
-    keys: [],
-  };
+/** Freeze a bank's settings against further changes, signed by the group's governance admin. */
+export async function freezeBankConfigIx({
+  programAddress,
+  bankAddress,
+  groupAddress,
+  governanceAdmin,
+}: BankAdminIxArgs): Promise<Instruction> {
+  return instructions.makePoolConfigureBankGovIx(programAddress, {
+    group: groupAddress,
+    governanceAdmin,
+    bank: bankAddress,
+    assetWeightInit: null,
+    assetWeightMaint: null,
+    liabilityWeightInit: null,
+    liabilityWeightMaint: null,
+    operationalState: null,
+    riskTier: null,
+    assetTag: null,
+    oracleMaxConfidence: null,
+    oracleMaxAge: null,
+    tokenlessRepaymentsAllowed: null,
+    freezeSettings: true,
+  });
 }
 
-type AddOracleToBanksIxArgs = {
-  program: MarginfiProgram;
-  bankAddress: PublicKey;
-  feedId: PublicKey;
+type AddOracleToBanksIxArgs = BankAdminIxArgs & {
+  feedId: Address;
   /** @deprecated Use oracleAccounts when the setup needs on-chain validation accounts. */
-  oracleKey?: PublicKey;
+  oracleKey?: Address;
   /** Ordered exactly as the program's oracle accounts for the selected setup. */
-  oracleAccounts?: PublicKey[];
+  oracleAccounts?: Address[];
   setup: OracleSetup;
-  groupAddress?: PublicKey;
-  governanceAdminAddress?: PublicKey;
 };
 
 export async function addOracleToBanksIx({
-  program,
+  programAddress,
   bankAddress,
+  groupAddress,
+  governanceAdmin,
   feedId,
   oracleKey,
   oracleAccounts,
   setup,
-  groupAddress,
-  governanceAdminAddress,
-}: AddOracleToBanksIxArgs): Promise<InstructionsWrapper> {
+}: AddOracleToBanksIxArgs): Promise<Instruction> {
   const isScope =
     setup === OracleSetup.Scope ||
     setup === OracleSetup.ScopeKamino ||
@@ -106,90 +93,63 @@ export async function addOracleToBanksIx({
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
   }
   // The program reads the primary feed from remaining[0] and requires it to match `oracle`
-  if (expectedAccountCount !== undefined && !resolvedOracleAccounts[0].equals(feedId)) {
-    throw new Error(
-      `${setup} requires oracleAccounts[0] to be the primary feed ${feedId.toBase58()}`
-    );
+  if (expectedAccountCount !== undefined && resolvedOracleAccounts[0] !== feedId) {
+    throw new Error(`${setup} requires oracleAccounts[0] to be the primary feed ${feedId}`);
   }
 
-  const ix = await instructions.makeLendingPoolConfigureBankOracleIx(
-    program,
+  return instructions.makeLendingPoolConfigureBankOracleIx(
+    programAddress,
     {
-      bank: bankAddress,
       group: groupAddress,
-      governanceAdmin: governanceAdminAddress,
+      governanceAdmin,
+      bank: bankAddress,
+      setup: serializeOracleSetup(setup),
+      oracle: feedId,
     },
-    {
-      setup: serializeOracleSetupToIndex(setup),
-      feedId,
-    },
-    resolvedOracleAccounts.map((pubkey) => ({
-      isSigner: false,
-      isWritable: false,
-      pubkey,
-    }))
+    resolvedOracleAccounts
   );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
 }
 
-type SetOraclePriceIxArgs = {
-  program: MarginfiProgram;
-  bankAddress: PublicKey;
+type SetOraclePriceIxArgs = BankAdminIxArgs & {
   price: BigNumber;
   setup: OracleSetup.Fixed | OracleSetup.PTPyth | OracleSetup.PTFixed;
   /** Fixed venue account, [Pyth, Exponent vault], or [Exponent vault], depending on setup. */
-  oracleAccounts?: PublicKey[];
-  groupAddress?: PublicKey;
-  governanceAdminAddress?: PublicKey;
+  oracleAccounts?: Address[];
 };
 
 /** Configure a flat fixed price or an Exponent PT price, signed by the group's governance admin. */
 export async function setOraclePriceIx({
-  program,
+  programAddress,
   bankAddress,
+  groupAddress,
+  governanceAdmin,
   price,
   setup,
   oracleAccounts = [],
-  groupAddress,
-  governanceAdminAddress,
-}: SetOraclePriceIxArgs): Promise<InstructionsWrapper> {
+}: SetOraclePriceIxArgs): Promise<Instruction> {
   const expectedAccountCount =
     setup === OracleSetup.PTPyth ? 2 : setup === OracleSetup.PTFixed ? 1 : undefined;
   if (expectedAccountCount !== undefined && oracleAccounts.length !== expectedAccountCount) {
     throw new Error(`${setup} requires ${expectedAccountCount} ordered oracle accounts`);
   }
 
-  const ix = await instructions.makeLendingPoolSetOraclePriceIx(
-    program,
+  return instructions.makeLendingPoolSetOraclePriceIx(
+    programAddress,
     {
-      bank: bankAddress,
       group: groupAddress,
-      governanceAdmin: governanceAdminAddress,
-    },
-    {
+      governanceAdmin,
+      bank: bankAddress,
       price: bigNumberToWrappedI80F48(price),
-      setup: serializeOracleSetupToIndex(setup),
+      setup: serializeOracleSetup(setup),
     },
-    oracleAccounts.map((pubkey) => ({ isSigner: false, isWritable: false, pubkey }))
+    oracleAccounts
   );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
 }
 
-type ConfigureScopeOracleIxArgs = {
-  program: MarginfiProgram;
+type ConfigureScopeOracleIxArgs = Omit<BankAdminIxArgs, "bankAddress"> & {
   bank: BankType;
-  oracle: PublicKey;
+  oracle: Address;
   entryIndex: number;
-  groupAddress?: PublicKey;
-  governanceAdminAddress?: PublicKey;
 };
 
 /**
@@ -198,33 +158,18 @@ type ConfigureScopeOracleIxArgs = {
  * JupLend banks the reserve / lending account it validates is taken from `bank.config.oracleKeys[1]`.
  */
 export async function configureScopeOracleIx({
-  program,
+  programAddress,
   bank,
+  groupAddress,
+  governanceAdmin,
   oracle,
   entryIndex,
-  groupAddress,
-  governanceAdminAddress,
-}: ConfigureScopeOracleIxArgs): Promise<InstructionsWrapper> {
-  const ix = await instructions.makeLendingPoolConfigureBankOracleScopeIx(
-    program,
-    {
-      bank: bank.address,
-      group: groupAddress,
-      governanceAdmin: governanceAdminAddress,
-    },
-    {
-      oracle,
-      entryIndex,
-      // ScopeKamino / ScopeJuplend validate the Kamino reserve or JupLend lending account after the feed
-      integrationAccount:
-        bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.JUPLEND
-          ? bank.config.oracleKeys[1]
-          : undefined,
-    }
+}: ConfigureScopeOracleIxArgs): Promise<Instruction> {
+  return instructions.makeLendingPoolConfigureBankOracleScopeIx(
+    programAddress,
+    { group: groupAddress, governanceAdmin, bank: bank.address, oracle, entryIndex },
+    bank.config.assetTag === AssetTag.KAMINO || bank.config.assetTag === AssetTag.JUPLEND
+      ? bank.config.oracleKeys[1]
+      : undefined
   );
-
-  return {
-    instructions: [ix],
-    keys: [],
-  };
 }

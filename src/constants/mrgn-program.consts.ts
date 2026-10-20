@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { address } from "@solana/kit";
 
 export const DISABLED_FLAG: number = 1 << 0;
 export const FLASHLOAN_ENABLED_FLAG: number = 1 << 2;
@@ -15,12 +15,12 @@ export const PREMIUM_ACTIVE_FLAG: number = 1 << 13;
 export const KAMINO_MARKET_EMERGENCY_FLAG: number = 1 << 14;
 /** Max integration (Kamino, Drift, Solend, JupLend) + staked positions one account can open (0.1.12) */
 export const MAX_COSTLY_POSITIONS = 4;
+/** Fixed balance slots per marginfi account (`LendingAccount.balances: [Balance; 16]`) */
+export const MAX_BALANCES = 16;
+/** Shares below which the program treats a balance side as empty (`Balance::is_empty`) */
+export const EMPTY_BALANCE_THRESHOLD = 1;
 
 // Program keys
-export const MARGINFI_PROGRAM = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-export const MARGINFI_PROGRAM_STAGING = new PublicKey(
-  "stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct"
-);
-export const MARGINFI_PROGRAM_STAGING_ALT = new PublicKey(
-  "5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY"
-);
+export const MARGINFI_PROGRAM = address("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+export const MARGINFI_PROGRAM_STAGING = address("stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct");
+export const MARGINFI_PROGRAM_STAGING_ALT = address("5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY");

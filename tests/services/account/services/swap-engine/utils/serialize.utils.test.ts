@@ -1,0 +1,134 @@
+import { AccountRole, type Instruction } from "@solana/kit";
+import { describe, it, expect } from "vitest";
+
+import { addr } from "../../../../../helpers/addresses";
+
+import type {
+  SwapEngineRequest,
+  SwapEngineResult,
+} from "~/services/account/services/swap-engine/types";
+import {
+  serializeSwapEngineRequest,
+  deserializeSwapEngineRequest,
+  serializeSwapEngineResult,
+  deserializeSwapEngineResult,
+} from "~/services/account/services/swap-engine/utils/serialize.utils";
+import { SwapProvider } from "~/services/account/types";
+
+const ix = (): Instruction => ({
+  programAddress: addr(),
+  accounts: [
+    { address: addr(), role: AccountRole.WRITABLE },
+    { address: addr(), role: AccountRole.READONLY_SIGNER },
+  ],
+  data: new Uint8Array([1, 2, 3, 4, 5]),
+});
+
+const dummyRpc = {} as SwapEngineRequest["rpc"];
+
+describe("swap engine request serialization", () => {
+  const taker = addr();
+  const dest = addr();
+  const payer = addr();
+  const footprintIx = ix();
+  const lutAddress = addr();
+  const lutEntries = [addr(), addr()];
+
+  const req: SwapEngineRequest = {
+    inputMint: addr(),
+    outputMint: addr(),
+    amountNative: 123456,
+    inputDecimals: 6,
+    outputDecimals: 9,
+    slippageBps: 50,
+    slippageMode: "DYNAMIC",
+    platformFeeBps: 10,
+    directRoutesOnly: false,
+    taker,
+    destinationTokenAccount: dest,
+    rpc: dummyRpc,
+    footprint: {
+      instructions: [footprintIx],
+      txFormat: { version: 0, luts: { [lutAddress]: lutEntries } },
+      payer,
+      sizeConstraint: 800,
+      maxSwapTotalAccounts: 30,
+    },
+    providers: [{ provider: SwapProvider.TITAN, apiConfig: { basePath: "x", apiKey: "secret" } }],
+  };
+
+  it("drops the rpc and per-provider apiConfig (keeps provider names)", () => {
+    const s = serializeSwapEngineRequest(req);
+    expect(s).not.toHaveProperty("rpc");
+    expect(s.providers).toEqual([SwapProvider.TITAN]);
+    expect(JSON.stringify(s)).not.toContain("secret");
+  });
+
+  it("round-trips the footprint ixs/luts and re-attaches server-side rpc + apiConfig", () => {
+    const s = serializeSwapEngineRequest(req);
+    const back = deserializeSwapEngineRequest(JSON.parse(JSON.stringify(s)), {
+      rpc: dummyRpc,
+      providerApiConfigs: { [SwapProvider.TITAN]: { basePath: "gateway", apiKey: "server-key" } },
+    });
+
+    expect(back.amountNative).toBe(req.amountNative);
+    expect(back.taker).toBe(taker);
+    expect(back.destinationTokenAccount).toBe(dest);
+    expect(back.footprint?.payer).toBe(payer);
+    expect(back.footprint?.sizeConstraint).toBe(800);
+    expect(back.footprint?.instructions).toEqual([footprintIx]);
+    expect(back.footprint?.txFormat).toEqual({ version: 0, luts: { [lutAddress]: lutEntries } });
+    expect(back.rpc).toBe(dummyRpc);
+    expect(back.providers[0].apiConfig?.apiKey).toBe("server-key");
+  });
+
+  it("round-trips a version 1 footprint as version 1 without lookup tables", () => {
+    const v1Req: SwapEngineRequest = {
+      ...req,
+      footprint: req.footprint && { ...req.footprint, txFormat: { version: 1 } },
+    };
+
+    const s = serializeSwapEngineRequest(v1Req);
+    const back = deserializeSwapEngineRequest(JSON.parse(JSON.stringify(s)), { rpc: dummyRpc });
+
+    expect(s.footprint?.version).toBe(1);
+    expect(s.footprint?.luts).toEqual([]);
+    expect(back.footprint?.txFormat).toEqual({ version: 1 });
+    // the rest of the footprint is untouched by the version
+    expect(back.footprint?.instructions).toEqual([footprintIx]);
+    expect(back.footprint?.sizeConstraint).toBe(800);
+  });
+
+  it("reads a footprint without a version as version 0", () => {
+    const wire = JSON.parse(JSON.stringify(serializeSwapEngineRequest(req)));
+    delete wire.footprint.version;
+    const back = deserializeSwapEngineRequest(wire, { rpc: dummyRpc });
+
+    expect(back.footprint?.txFormat).toEqual({ version: 0, luts: { [lutAddress]: lutEntries } });
+  });
+});
+
+describe("swap engine result serialization", () => {
+  it("round-trips instructions, luts, quote and the bigint output amount", () => {
+    const result: SwapEngineResult = {
+      swapInstructions: [ix()],
+      setupInstructions: [ix()],
+      swapLuts: { [addr()]: [addr(), addr()] },
+      quoteResponse: {
+        inAmount: "1000",
+        outAmount: "2000",
+        otherAmountThreshold: "1990",
+        slippageBps: 50,
+        provider: SwapProvider.JUPITER,
+      },
+      outputAmountNative: 1990n,
+      provider: SwapProvider.JUPITER,
+    };
+
+    const back = deserializeSwapEngineResult(
+      JSON.parse(JSON.stringify(serializeSwapEngineResult(result)))
+    );
+
+    expect(back).toEqual(result);
+  });
+});

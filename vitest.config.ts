@@ -13,5 +13,15 @@ export default defineConfig({
     // shippable-clean). They import source via the `~` alias above.
     include: ["tests/**/*.test.ts"],
     environment: "node",
+    restoreMocks: true,
+    unstubGlobals: true,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/generated/**"],
+      reporter: ["text-summary", "json-summary", "html"],
+      // Ratchet: raise these to the new floor whenever coverage goes up, never lower them
+      thresholds: { lines: 80, branches: 69, functions: 73, statements: 79 },
+    },
   },
 });

@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { address } from "@solana/kit";
 import { array, assert, enums, object, string } from "superstruct";
 import type { Infer } from "superstruct";
 
@@ -18,8 +18,8 @@ export type ConfigRaw = Infer<typeof ConfigRaw>;
 function parseConfig(configRaw: Project0ConfigRaw): Project0Config {
   return {
     environment: configRaw.label,
-    programId: new PublicKey(configRaw.program),
-    groupPk: new PublicKey(configRaw.group),
+    programId: address(configRaw.program),
+    groupPk: address(configRaw.group),
   };
 }
 

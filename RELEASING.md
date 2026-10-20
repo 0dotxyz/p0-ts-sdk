@@ -1,218 +1,71 @@
 # Release Process
 
-This project uses [Changesets](https://github.com/changesets/changesets) for version management and publishing to npm as `@0dotxyz/p0-ts-sdk`.
+`@0dotxyz/p0-ts-sdk` is versioned with [Changesets](https://github.com/changesets/changesets) and published to npm by GitHub Actions ([`release.yml`](.github/workflows/release.yml)), through npm trusted publishing: no npm token exists anywhere, and every version carries a provenance attestation. The workflow can only stage a version; it goes live when a maintainer approves it on npm with 2FA.
 
-## Prerequisites
+## Branches and dist-tags
 
-- npm account with publish access to `@0dotxyz/p0-ts-sdk`
-- Node >= 18, pnpm installed
+| Branch    | Line                      | Versions       | npm dist-tag                                     |
+| --------- | ------------------------- | -------------- | ------------------------------------------------ |
+| `main`    | v3 (Solana Kit)           | `3.0.0-next.N` | `next` while in pre mode, `latest` from 3.0.0 on |
+| `main-v2` | v2 (web3.js), maintenance | `2.x`          | `latest` until 3.0.0, then `v2`                  |
 
-## Release Steps
+The two lines are never merged into each other; a fix needed on both is made on each.
 
-### 1. Prepare your branch
+## Releasing
 
-Push all changes to a separate branch. Make sure the working tree is clean — nothing uncommitted.
+1. **Add a changeset in your PR.** Run `pnpm changeset`, pick the bump, and write the summary consumers will read in the changelog:
 
-```bash
-git checkout -b release/vX.X.X
-git status  # should be clean
-```
+   | Bump    | When                                 |
+   | ------- | ------------------------------------ |
+   | `patch` | Bug fixes, docs, internal refactors  |
+   | `minor` | New features, backwards compatible   |
+   | `major` | Breaking API changes                 |
 
-### 2. Build, test, and verify locally
+2. **Merge the PR.** On `main` or `main-v2`, the release workflow opens (or updates) a `chore: release` PR that applies the pending changesets: the `package.json` version, `CHANGELOG.md`, and the consumed changeset files.
 
-Build the SDK and make sure examples still run:
+3. **Merge the `chore: release` PR** when you want to ship. The release job runs typecheck and tests, stages the version on npm (the build runs in `prepublishOnly`), and pushes the `vX.Y.Z` tag.
 
-```bash
-pnpm build
-pnpm test:run
-cd examples && npx tsx 01-deposit.ts
-```
+4. **Approve the staged version** on npmjs.com (the package's **Staged Packages** tab → **Approve**), or from a terminal with `npm stage list` and `npm stage approve <stage-id>`. Both ask for 2FA. Until then nobody can install it.
 
-**Local link test with the app** — in the app's `package.json`, temporarily point the SDK dependency to your local build:
+5. **Check the dist-tags:** `npm dist-tag ls @0dotxyz/p0-ts-sdk`.
 
-```json
-"@repo/marginfi-client-v2": "file:../../../p0-ts-sdk"
-```
+To drop a staged version instead, run `npm stage reject <stage-id>` and delete its tag (`git push origin :refs/tags/vX.Y.Z`); the next push to the branch stages it again.
 
-Adjust the relative path if the app lives elsewhere. Run the app and verify things work end-to-end. **Revert this change before committing.**
+A prerelease (`3.0.0-next.1`) is staged under its identifier (`next`); a stable version under `publishConfig.tag` if `package.json` sets one, otherwise `latest`.
 
-### 3. Create a changeset
+## Pre mode
 
-```bash
-pnpm changeset
-```
-
-Select the bump type:
-
-| Type    | When to use                          | Example            |
-|---------|--------------------------------------|--------------------|
-| `patch` | Bug fixes, docs, internal refactors  | 2.1.1 → 2.1.2     |
-| `minor` | New features, backwards compatible   | 2.1.1 → 2.2.0     |
-| `major` | Breaking API changes                 | 2.1.1 → 3.0.0     |
-
-Write a descriptive summary when prompted, or edit the generated `.changeset/<random-name>.md` file afterwards to improve the description.
-
-### 4. Apply version changes
+`main` is in Changesets pre mode with the `next` tag (`.changeset/pre.json`), so release PRs produce `3.0.0-next.N`. To ship 3.0.0:
 
 ```bash
-pnpm changeset version
+pnpm changeset pre exit   # commit; the next release PR versions 3.0.0
 ```
 
-This updates `package.json` version, writes to `CHANGELOG.md`, and deletes consumed changeset files. Review the diff to make sure it looks correct.
+At the same time, set `"publishConfig": { "access": "public", "tag": "v2" }` on `main-v2`, so v2 releases stop taking `latest`.
 
-### 5. Commit the release
+To start a new prerelease line later: `pnpm changeset pre enter <tag>` (e.g. `alpha`).
+
+## One-time setup
+
+- **npm:** on the package's settings page, add a trusted publisher: GitHub Actions, repository `0dotxyz/p0-ts-sdk`, workflow `release.yml`, environment `npm`. Leave "Allow npm publish" and "Allow npm dist-tag" unchecked, so the workflow can only stage. Keep "Require two-factor authentication and disallow tokens" on.
+- **GitHub environment:** Settings → Environments → `npm`, with deployments limited to `main` and `main-v2`. Required reviewers are optional: the approval on npm already gates every release.
+- **GitHub Actions:** Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests", so the workflow can open the release PR.
+- **Branch protection** for `main` and `main-v2`, requiring the CI checks. The release PR is opened with the workflow token, and GitHub doesn't run workflows for PRs opened that way: merge it as an admin, or have the workflow use a GitHub App token instead of `GITHUB_TOKEN`.
+
+## Manual fallback
+
+If the workflow can't publish (e.g. npm is down), a maintainer with publish rights can, from a clean checkout of the release commit:
 
 ```bash
-git add .
-git commit -m "chore: release v2.2.0"
+pnpm install --frozen-lockfile
+pnpm typecheck && pnpm test
+npm publish --tag <next|latest|v2>   # 2FA prompt; prepublishOnly builds
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
-
-Use format: `chore: release vX.X.X` (or `chore: release vX.X.X-alpha.X — short description` for pre-releases).
-
-### 6. Tag the release
-
-```bash
-git tag v2.2.0
-```
-
-Use the same version string: `vX.X.X` (or `vX.X.X-alpha.X` for pre-releases).
-
-### 7. Log in to npm
-
-```bash
-npm login
-npm whoami  # verify you're the right user
-```
-
-### 8. Publish
-
-```bash
-pnpm build
-npm publish
-```
-
-For **stable releases**, this automatically tags as `latest` on npm.
-For **alpha/pre-releases**, use `--tag alpha` (see [Alpha Releases](#alpha--pre-releases) below).
-
-### 9. Verify dist-tags
-
-```bash
-npm dist-tag ls @0dotxyz/p0-ts-sdk
-```
-
-Confirm `latest` (or `alpha`) points to the version you just published.
-
-### 10. Review on npm
-
-Check the package page: https://www.npmjs.com/package/@0dotxyz/p0-ts-sdk
-
-Verify: correct version, correct files in the tarball, README renders properly.
-
-### 11. Push to remote
-
-```bash
-git push origin release/vX.X.X --follow-tags
-```
-
-Open a PR to merge into `main` if your workflow requires it.
-
-### 12. Optional: integrity hash check
-
-Generate a local tarball and compare its hash with what npm received:
-
-```bash
-# Generate local tarball
-npm pack
-
-# Hash it
-shasum -a 256 0dotxyz-p0-ts-sdk-*.tgz
-
-# Compare with npm's reported hash
-npm view @0dotxyz/p0-ts-sdk dist.integrity
-```
-
-The hashes should match (npm uses base64-encoded sha512 by default — use `shasum -a 512` and compare manually, or just verify the tarball contents look right with `tar -tzf *.tgz`).
-
----
-
-## Alpha / Pre-releases
-
-Use alpha releases to test breaking changes or new features before promoting to stable.
-
-### How it differs from a stable release
-
-1. **Version format**: `X.X.X-alpha.N` (e.g. `2.2.0-alpha.0`, `2.2.0-alpha.1`)
-2. **Publish with `--tag alpha`** so it does NOT become `latest`
-3. **Consumers install with**: `npm install @0dotxyz/p0-ts-sdk@alpha`
-
-### Alpha release walkthrough
-
-```bash
-# 1. Create changeset as usual
-pnpm changeset  # select minor/major/patch as appropriate
-
-# 2. Enter pre-release mode (changesets feature)
-pnpm changeset pre enter alpha
-
-# 3. Apply version — this produces e.g. 2.2.0-alpha.0
-pnpm changeset version
-
-# 4. Commit and tag
-git add .
-git commit -m "chore: release v2.2.0-alpha.0 — new oracle integration"
-git tag v2.2.0-alpha.0
-
-# 5. Publish with alpha tag (IMPORTANT: --tag alpha)
-pnpm build
-npm publish --tag alpha
-
-# 6. Verify
-npm dist-tag ls @0dotxyz/p0-ts-sdk
-# Should show:  alpha: 2.2.0-alpha.0
-#               latest: 2.1.1  (unchanged)
-
-# 7. Push
-git push origin <branch> --follow-tags
-```
-
-### Iterating on alpha
-
-Repeat steps 1-7 — changesets will auto-increment the pre-release number (`alpha.0` → `alpha.1` → ...).
-
-### Promoting alpha to stable
-
-```bash
-# Exit pre-release mode
-pnpm changeset pre exit
-
-# Version as stable
-pnpm changeset version
-
-# Commit, tag, publish as a normal stable release (steps 5-11 above)
-git add .
-git commit -m "chore: release v2.2.0"
-git tag v2.2.0
-pnpm build
-npm publish
-git push origin <branch> --follow-tags
-```
-
-You can also manually move the `latest` tag if needed:
-
-```bash
-npm dist-tag add @0dotxyz/p0-ts-sdk@2.2.0 latest
-```
-
----
 
 ## Troubleshooting
 
-**"You need to be logged in to publish"** — Run `npm login`.
-
-**"You do not have permission to publish"** — Ensure your npm account has access to the `@0dotxyz` org.
-
-**"Version already exists"** — You already published this version. Bump again with `pnpm changeset version` or manually edit `package.json`.
-
-**Accidental publish** — You can unpublish within 72 hours: `npm unpublish @0dotxyz/p0-ts-sdk@X.X.X` (discouraged — prefer publishing a fix version instead).
-
-**Wrong dist-tag** — Fix with: `npm dist-tag add @0dotxyz/p0-ts-sdk@X.X.X <correct-tag>`
+- **Release job didn't start:** it only runs once no changesets are pending and the `package.json` version is neither on npm nor tagged yet.
+- **`ENEEDAUTH` / 404 on staging:** the trusted publisher on npm doesn't match the repository, workflow file name or environment.
+- **Wrong dist-tag:** `npm dist-tag add @0dotxyz/p0-ts-sdk@X.Y.Z <tag>`.
+- **Bad release:** publish a fixed version rather than unpublishing; `npm deprecate @0dotxyz/p0-ts-sdk@X.Y.Z "<reason>"` warns anyone installing it.

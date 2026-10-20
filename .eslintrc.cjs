@@ -49,6 +49,31 @@ module.exports = {
     'import/no-unresolved': 'off',
     'import/named': 'off',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
+    // code_rules.md §2: generated clients are only used through their wrapper module.
+    '@typescript-eslint/no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['~/generated/*', '**/generated/*'],
+            allowTypeImports: true,
+            message:
+              'Use the wrapper in src/instructions.ts, src/accounts.ts or src/vendor/<program> instead of the generated client.',
+          },
+        ],
+      },
+    ],
   },
-  ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.ts', '*.config.js'],
+  overrides: [
+    {
+      files: ['src/instructions.ts', 'src/accounts.ts', 'src/vendor/**/*.ts'],
+      rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+    },
+    {
+      // Tests build raw account fixtures with the generated encoders and sizes.
+      files: ['tests/**/*.ts'],
+      rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+    },
+  ],
+  ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.ts', '*.config.js', 'src/generated'],
 };

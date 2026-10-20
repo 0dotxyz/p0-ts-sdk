@@ -1,12 +1,11 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
-import { nativeToUi } from "../../../utils/conversion.utils";
 import { AssetTag, BankType } from "../types";
 
-import { DriftSpotBalanceType, DriftSpotMarket, getDriftTokenAmount } from "~/vendor/drift";
-import { JupTokenReserve } from "~/vendor/jup-lend";
-import { JUP_EXCHANGE_PRICES_PRECISION } from "~/vendor/jup-lend/utils/interest-rate.utils";
-import { KaminoReserve } from "~/vendor/klend";
+import { nativeToUi } from "~/utils";
+import { DriftSpotMarket, getDriftTokenAmount, SpotBalanceType } from "~/vendor/drift";
+import { JUP_EXCHANGE_PRICES_PRECISION, JupTokenReserve } from "~/vendor/jup-lend";
+import { getKaminoTotalSupply, KaminoReserve } from "~/vendor/klend";
 
 /**
  * The venue-side account states needed to derive an integrated bank's true liquidity.
@@ -17,7 +16,7 @@ import { KaminoReserve } from "~/vendor/klend";
 export interface BankVenueStates {
   kaminoStates?: { reserveState: KaminoReserve };
   driftStates?: { spotMarketState: DriftSpotMarket };
-  jupLendStates?: { jupTokenReserveState: JupTokenReserve };
+  jupLendStates?: { tokenReserveState: JupTokenReserve };
 }
 
 /**
@@ -48,11 +47,24 @@ export function computeVenueAvailableLiquidity(
     case AssetTag.KAMINO: {
       const reserveState = venueStates?.kaminoStates?.reserveState;
       if (!reserveState) return undefined;
-      // `reserve.liquidity.availableAmount` is the actual liquid vault balance and therefore the
-      // real cap on withdrawals.
-      return new BigNumber(
-        nativeToUi(reserveState.liquidity.availableAmount.toString(), decimals)
-      ).times(VENUE_AVAILABLE_LIQUIDITY_BUFFER);
+      // marginfi withdraws through klend's regular redeem, which can only draw on
+      // `freely_available_liquidity_amount`: the vault balance minus the liquidity reserved for
+      // the withdraw queue (queued cTokens at the current exchange rate, floored).
+      const queuedCollateral = new BigNumber(
+        reserveState.withdrawQueue.queuedCollateralAmount.toString()
+      );
+      const queuedLiquidity = queuedCollateral.isZero()
+        ? queuedCollateral
+        : queuedCollateral
+            .times(getKaminoTotalSupply(reserveState).toFixed())
+            .idiv(reserveState.collateral.mintTotalSupply.toString());
+      const freelyAvailable = BigNumber.max(
+        0,
+        new BigNumber(reserveState.liquidity.totalAvailableAmount.toString()).minus(queuedLiquidity)
+      );
+      return new BigNumber(nativeToUi(freelyAvailable, decimals)).times(
+        VENUE_AVAILABLE_LIQUIDITY_BUFFER
+      );
     }
     case AssetTag.DRIFT: {
       const spotMarketState = venueStates?.driftStates?.spotMarketState;
@@ -60,34 +72,34 @@ export function computeVenueAvailableLiquidity(
       const deposits = getDriftTokenAmount(
         spotMarketState.depositBalance,
         spotMarketState,
-        DriftSpotBalanceType.DEPOSIT
+        SpotBalanceType.Deposit
       );
       const borrows = getDriftTokenAmount(
         spotMarketState.borrowBalance,
         spotMarketState,
-        DriftSpotBalanceType.BORROW
+        SpotBalanceType.Borrow
       );
-      const idle = deposits.sub(borrows);
-      return new BigNumber(nativeToUi(idle.isNeg() ? "0" : idle.toString(), decimals)).times(
+      const idle = deposits - borrows;
+      return new BigNumber(nativeToUi(idle < 0n ? 0n : idle, decimals)).times(
         VENUE_AVAILABLE_LIQUIDITY_BUFFER
       );
     }
     case AssetTag.JUPLEND: {
-      const reserveState = venueStates?.jupLendStates?.jupTokenReserveState;
+      const reserveState = venueStates?.jupLendStates?.tokenReserveState;
       if (!reserveState) return undefined;
       // The `WithInterest` buckets are denominated in internal share units and must be multiplied
       // by the respective exchange price to get the underlying token amount. The `InterestFree`
       // buckets are already in native token units.
-      const supplyWithInterestNative = reserveState.totalSupplyWithInterest
-        .mul(reserveState.supplyExchangePrice)
-        .div(JUP_EXCHANGE_PRICES_PRECISION);
-      const borrowWithInterestNative = reserveState.totalBorrowWithInterest
-        .mul(reserveState.borrowExchangePrice)
-        .div(JUP_EXCHANGE_PRICES_PRECISION);
-      const totalSupply = supplyWithInterestNative.add(reserveState.totalSupplyInterestFree);
-      const totalBorrow = borrowWithInterestNative.add(reserveState.totalBorrowInterestFree);
-      const idle = totalSupply.sub(totalBorrow);
-      return new BigNumber(nativeToUi(idle.isNeg() ? "0" : idle.toString(), decimals)).times(
+      const supplyWithInterestNative =
+        (reserveState.totalSupplyWithInterest * reserveState.supplyExchangePrice) /
+        JUP_EXCHANGE_PRICES_PRECISION;
+      const borrowWithInterestNative =
+        (reserveState.totalBorrowWithInterest * reserveState.borrowExchangePrice) /
+        JUP_EXCHANGE_PRICES_PRECISION;
+      const totalSupply = supplyWithInterestNative + reserveState.totalSupplyInterestFree;
+      const totalBorrow = borrowWithInterestNative + reserveState.totalBorrowInterestFree;
+      const idle = totalSupply - totalBorrow;
+      return new BigNumber(nativeToUi(idle < 0n ? 0n : idle, decimals)).times(
         VENUE_AVAILABLE_LIQUIDITY_BUFFER
       );
     }

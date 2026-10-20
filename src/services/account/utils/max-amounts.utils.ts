@@ -1,16 +1,15 @@
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import type { Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
-import { MarginfiAccountType, MarginRequirementType } from "../types";
+import { BalanceType, MarginfiAccountType, MarginRequirementType } from "../types";
 
+import { getActiveBalances, getBalance } from "./balance.utils";
 import {
   computeFreeCollateralFromCache,
   computeFreeCollateralFromBalances,
   computeHealthComponentsFromCache,
-  computeQuantityUi,
-  getActiveBalances,
-  getBalance,
-} from "./compute";
+} from "./health.utils";
+import { computeQuantity, computeQuantityUi } from "./value.utils";
 
 import {
   ActiveEmodePair,
@@ -28,10 +27,15 @@ import {
   EmodeImpactStatus,
   getAssetWeight,
   getLiabilityWeight,
+  requireBank,
   RiskTier,
 } from "~/services/bank";
 import { getPrice, OraclePrice, PriceBias } from "~/services/price";
 import { nativeToUi } from "~/utils";
+
+// The program's `ZERO_AMOUNT_THRESHOLD` (native units): `BorrowOnly` tolerates drawing down
+// asset dust up to it
+const ZERO_AMOUNT_THRESHOLD = 0.0001;
 
 /**
  * Configuration for computing maximum borrow amount for a bank
@@ -44,7 +48,7 @@ export interface ComputeMaxBorrowForBankParams {
   /** Map of oracle prices by bank address */
   oraclePricesByBank: Map<string, OraclePrice>;
   /** The bank address to compute max borrow for */
-  bankAddress: PublicKey;
+  bankAddress: Address;
   /** Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift) */
   assetShareValueMultiplierByBank?: Map<string, BigNumber>;
   /** E-mode impact status (determines whether to use cache or compute from balances) */
@@ -71,6 +75,9 @@ export interface ComputeMaxBorrowForBankParams {
  * This function computes the borrowing capacity based on:
  * - **Free collateral**: Available collateral not backing existing liabilities
  * - **Isolated tier constraints**: Isolated assets cannot be borrowed with active debt
+ * - **Existing deposit**: A bank the account deposits in can't be borrowed from (the program's
+ *   `BorrowOnly` rejects drawing the deposit down)
+ * - **Asset tags**: Staked and default-like positions can't share an account
  * - **E-mode weights**: Enhanced weights for assets in the same e-mode category
  * - **Oracle prices**: Conservative pricing (lowest for assets, highest for liabilities)
  * - **Bank limits**: Remaining borrow cap (`borrowLimit - totalBorrows`, interest-buffered),
@@ -83,19 +90,13 @@ export interface ComputeMaxBorrowForBankParams {
  *
  * **Calculation Formula:**
  * ```
- * If assetWeight > 0:
- *   maxBorrow = (min(fc, ucb) / (price_lowest * asset_weight)) +
- *               ((fc - min(fc, ucb)) / (price_highest * liab_weight))
- * Else:
- *   maxBorrow = existingAssets + ((fc - ucb) / (price_highest * liab_weight))
- *
+ * maxBorrow = fc / (price_highest * liab_weight)
  * maxBorrow = min(maxBorrow, remainingBorrowCap, availableLiquidity, rateLimitRemaining)
  * ```
  * All liability-denominated terms are divided by `(1 + protocolOriginationFee)` because the
  * program books the origination fee as additional borrowed liability.
  * Where:
  * - `fc` = free collateral (with volatility factor)
- * - `ucb` = untied collateral for bank (existing deposits)
  *
  * @param params - Configuration object for max borrow computation
  * @returns Maximum amount that can be borrowed (in UI units)
@@ -126,16 +127,16 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     groupRateLimiter,
     ignoreBankLimits,
   } = params;
-  const bank = banksMap.get(bankAddress.toBase58());
+  const bank = banksMap.get(bankAddress);
 
-  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+  if (!bank) throw Error(`Bank ${bankAddress} not found`);
 
   // Build Map of e-mode collateral banks if activePair exists
   const activeEmodeWeightsByBank =
     activePair?.collateralBanks.reduce((map, bankPk) => {
-      const bank = banksMap.get(bankPk.toBase58());
+      const bank = banksMap.get(bankPk);
       if (bank) {
-        map.set(bankPk.toBase58(), {
+        map.set(bankPk, {
           assetWeightMaint: activePair.assetWeightMaint,
           assetWeightInit: activePair.assetWeightInit,
         });
@@ -144,31 +145,36 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     }, new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>()) ??
     new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>();
 
-  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress.toBase58());
-  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
 
-  const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
-  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress.toBase58()} not found`);
+  const oraclePrice = oraclePricesByBank.get(bankAddress);
+  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress} not found`);
 
   const activeBalances = getActiveBalances(account.balances);
+
+  // The program's `BorrowOnly` rejects a borrow that draws down a deposit in the same bank (6021)
+  if (
+    computeQuantity(getBalance(bankAddress, activeBalances), bank).assets.gt(ZERO_AMOUNT_THRESHOLD)
+  ) {
+    return new BigNumber(0);
+  }
 
   // -------------------------- //
   // isolated asset constraints //
   // -------------------------- //
 
   const hasLiabilitiesAlready =
-    activeBalances.filter((b) => b.liabilityShares.gt(0) && !b.bankPk.equals(bankAddress)).length >
-    0;
+    activeBalances.filter((b) => b.liabilityShares.gt(0) && b.bankPk !== bankAddress).length > 0;
 
   const attemptingToBorrowIsolatedAssetWithActiveDebt =
     bank.config.riskTier === RiskTier.Isolated && hasLiabilitiesAlready;
 
   const existingLiabilityBanks = activeBalances
     .filter((b) => b.liabilityShares.gt(0))
-    .map((b) => banksMap.get(b.bankPk.toBase58())!);
+    .map((b) => requireBank(banksMap, b.bankPk));
 
   const attemptingToBorrowNewAssetWithExistingIsolatedDebt = existingLiabilityBanks.some(
-    (b) => b.config.riskTier === RiskTier.Isolated && !b.address.equals(bankAddress)
+    (b) => b.config.riskTier === RiskTier.Isolated && b.address !== bankAddress
   );
 
   if (
@@ -179,13 +185,13 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
     return new BigNumber(0);
   }
 
+  if (mixesAssetTags(bank, activeBalances, banksMap)) return new BigNumber(0);
+
   // ------------- //
   // FC-based calc //
   // ------------- //
 
   const _volatilityFactor = volatilityFactor ?? 1;
-
-  const balance = getBalance(bankAddress, activeBalances);
 
   const useCache =
     emodeImpactStatus === EmodeImpactStatus.InactiveEmode ||
@@ -201,28 +207,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
         assetShareValueMultiplierByBank,
       }).times(_volatilityFactor);
 
-  const untiedCollateralForBank = BigNumber.min(
-    computeAssetUsdValue({
-      bank,
-      oraclePrice,
-      assetShares: balance.assetShares,
-      marginRequirement: MarginRequirementType.Initial,
-      priceBias: PriceBias.Lowest,
-      activeEmodeWeights: activeEmodeWeightsForBank,
-      assetShareValueMultiplier,
-    }),
-    freeCollateral
-  );
-
-  const priceLowestBias = getPrice(oraclePrice, PriceBias.Lowest, true);
   const priceHighestBias = getPrice(oraclePrice, PriceBias.Highest, true);
-  const assetWeight = getAssetWeight({
-    bank,
-    marginRequirement: MarginRequirementType.Initial,
-    oraclePrice,
-    activeEmodeWeights: activeEmodeWeightsForBank,
-    assetShareValueMultiplier,
-  });
   const liabWeight = getLiabilityWeight(bank.config, MarginRequirementType.Initial);
 
   // The program books `amount * (1 + protocol_origination_fee)` as the new liability (the fee is
@@ -232,13 +217,7 @@ export function computeMaxBorrowForBank(params: ComputeMaxBorrowForBankParams): 
   );
   const liabPriceWeighted = priceHighestBias.times(liabWeight).times(originationFeeFactor);
 
-  const healthMaxBorrow = assetWeight.eq(0)
-    ? computeQuantityUi(balance, bank, assetShareValueMultiplier).assets.plus(
-        freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted)
-      )
-    : untiedCollateralForBank
-        .div(priceLowestBias.times(assetWeight))
-        .plus(freeCollateral.minus(untiedCollateralForBank).div(liabPriceWeighted));
+  const healthMaxBorrow = freeCollateral.div(liabPriceWeighted);
 
   if (ignoreBankLimits) return healthMaxBorrow;
 
@@ -316,6 +295,24 @@ export function computeBankOutflowRateLimit(
   return tightest;
 }
 
+// The program's `validate_asset_tags`: staked positions can't share an account with default-like
+// ones (DEFAULT and the integrations); SOL mixes with either
+function mixesAssetTags(
+  bank: BankType,
+  balances: BalanceType[],
+  banksMap: Map<string, BankType>
+): boolean {
+  const isStaked = (b: BankType) => b.config.assetTag === AssetTag.STAKED;
+  return (
+    bank.config.assetTag !== AssetTag.SOL &&
+    balances.some((balance) => {
+      if (!balance.active) return false;
+      const held = requireBank(banksMap, balance.bankPk);
+      return held.config.assetTag !== AssetTag.SOL && isStaked(held) !== isStaked(bank);
+    })
+  );
+}
+
 function computeOutflowRateLimitRemaining(
   bank: BankType,
   oraclePrice: OraclePrice,
@@ -350,7 +347,7 @@ export interface ComputeMaxWithdrawForBankParams {
   /** Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift) */
   assetShareValueMultiplierByBank?: Map<string, BigNumber>;
   /** The bank address to compute max withdraw for */
-  bankAddress: PublicKey;
+  bankAddress: Address;
   /** Volatility factor to apply to free collateral (default: 1) */
   volatilityFactor?: number;
   /** Active e-mode pair for applying e-mode weights */
@@ -422,8 +419,8 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
     venueStates,
     ignoreBankLimits,
   } = params;
-  const bank = banksMap.get(bankAddress.toBase58());
-  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+  const bank = banksMap.get(bankAddress);
+  if (!bank) throw Error(`Bank ${bankAddress} not found`);
 
   const healthMaxWithdraw = computeHealthMaxWithdrawForBank(params);
   if (ignoreBankLimits) return healthMaxWithdraw;
@@ -432,10 +429,10 @@ export function computeMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParam
   // bank-level clamps //
   // ----------------- //
 
-  const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
-  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress.toBase58()} not found`);
+  const oraclePrice = oraclePricesByBank.get(bankAddress);
+  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress} not found`);
 
-  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
   // utilization: total_assets - amount >= total_liabilities (after interest accrual)
   const availableLiquidity = computeBankProjectedAvailableLiquidity(
     bank,
@@ -470,15 +467,15 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
   } = params;
   const opts = { volatilityFactor, activePair };
 
-  const bank = banksMap.get(bankAddress.toBase58());
-  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+  const bank = banksMap.get(bankAddress);
+  if (!bank) throw Error(`Bank ${bankAddress} not found`);
 
   // Build Map of e-mode collateral banks if activePair exists
   const activeEmodeWeightsByBank =
     activePair?.collateralBanks.reduce((map, bankPk) => {
-      const bank = banksMap.get(bankPk.toBase58());
+      const bank = banksMap.get(bankPk);
       if (bank) {
-        map.set(bankPk.toBase58(), {
+        map.set(bankPk, {
           assetWeightMaint: activePair.assetWeightMaint,
           assetWeightInit: activePair.assetWeightInit,
         });
@@ -487,11 +484,11 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
     }, new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>()) ??
     new Map<string, { assetWeightMaint: BigNumber; assetWeightInit: BigNumber }>();
 
-  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress.toBase58());
-  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  const activeEmodeWeightsForBank = activeEmodeWeightsByBank.get(bankAddress);
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
 
-  const oraclePrice = oraclePricesByBank.get(bankAddress.toBase58());
-  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress.toBase58()} not found`);
+  const oraclePrice = oraclePricesByBank.get(bankAddress);
+  if (!oraclePrice) throw Error(`Oracle price for ${bankAddress} not found`);
 
   const _volatilityFactor = opts?.volatilityFactor ?? 1;
 
@@ -499,14 +496,6 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
   const initAssetWeight = getAssetWeight({
     bank,
     marginRequirement: MarginRequirementType.Initial,
-    oraclePrice,
-    activeEmodeWeights: activeEmodeWeightsForBank,
-    assetShareValueMultiplier,
-    ignoreSoftLimits: false,
-  });
-  const maintAssetWeight = getAssetWeight({
-    bank,
-    marginRequirement: MarginRequirementType.Maintenance,
     oraclePrice,
     activeEmodeWeights: activeEmodeWeightsForBank,
     assetShareValueMultiplier,
@@ -543,43 +532,19 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
     MarginRequirementType.Initial
   );
 
-  // -------------------------------------------------- //
-  // isolated bank (=> init weight = maint weight = 0)  //
-  // or collateral bank with 0-weights (does not happen //
-  // in practice)                                       //
-  // -------------------------------------------------- //
+  // ---------------------------------------------- //
+  // isolated bank or collateral with init weight 0 //
+  // ---------------------------------------------- //
 
-  if (
-    bank.config.riskTier === RiskTier.Isolated ||
-    (initAssetWeight.isZero() && maintAssetWeight.isZero())
-  ) {
+  // Withdraws only check initial health, which this collateral (retired, paused, reduce-only,
+  // Kamino emergency) adds nothing to
+  if (bank.config.riskTier === RiskTier.Isolated || initAssetWeight.isZero()) {
     if (freeCollateral.isZero() && !liabilitiesInit.isZero()) {
       // if account is already below init requirements and has active debt, prevent any withdrawal even if those don't count as collateral
       // inefficient, but reflective of contract which does not look at action delta, but only end state atm
       return new BigNumber(0);
     } else {
       return entireBalance;
-    }
-  }
-
-  // ----------------------------- //
-  // collateral bank being retired //
-  // ----------------------------- //
-
-  if (initAssetWeight.isZero() && !maintAssetWeight.isZero()) {
-    if (liabilitiesInit.eq(0)) {
-      return entireBalance;
-    } else if (freeCollateral.isZero()) {
-      return new BigNumber(0); // inefficient, but reflective of contract which does not look at action delta, but only end state
-    } else {
-      const { liabilities: maintLiabilities, assets: maintAssets } =
-        computeHealthComponentsFromCache(account, MarginRequirementType.Maintenance);
-      const maintUntiedCollateral = maintAssets.minus(maintLiabilities);
-
-      const priceLowestBias = getPrice(oraclePrice, PriceBias.Lowest, true);
-      const maintWeightedPrice = priceLowestBias.times(maintAssetWeight);
-
-      return maintUntiedCollateral.div(maintWeightedPrice);
     }
   }
 
@@ -605,10 +570,12 @@ function computeHealthMaxWithdrawForBank(params: ComputeMaxWithdrawForBankParams
  * Configuration for computing maximum deposit amount for a bank
  */
 export interface ComputeMaxDepositForBankParams {
-  /** Map of banks by their address */
+  /** The account deposited into; omit for an account that doesn't exist yet */
+  account?: MarginfiAccountType;
+  /** Map of banks by their address, including every bank `account` has a position in */
   banksMap: Map<string, BankType>;
   /** The bank address to compute max deposit for */
-  bankAddress: PublicKey;
+  bankAddress: Address;
   /**
    * Asset share value multipliers by bank address (for integrated protocols like Kamino/Drift and
    * staked-collateral banks). The bank's `depositLimit` is denominated in its native share units;
@@ -624,7 +591,8 @@ export interface ComputeMaxDepositForBankParams {
  *
  * Deposits are not constrained by account health, only by the bank's deposit cap
  * (`depositLimit - totalDeposits`, buffered for interest accrued since the last update)
- * and, optionally, the caller's wallet balance.
+ * and, optionally, the caller's wallet balance. It's 0 when `account` holds a position whose
+ * asset tag can't mix with the bank's (staked vs default-like).
  *
  * @param params - Configuration object for max deposit computation
  * @returns Maximum amount that can be deposited (in UI units)
@@ -640,11 +608,13 @@ export interface ComputeMaxDepositForBankParams {
  * ```
  */
 export function computeMaxDepositForBank(params: ComputeMaxDepositForBankParams): BigNumber {
-  const { banksMap, bankAddress, assetShareValueMultiplierByBank, walletBalance } = params;
-  const bank = banksMap.get(bankAddress.toBase58());
-  if (!bank) throw Error(`Bank ${bankAddress.toBase58()} not found`);
+  const { account, banksMap, bankAddress, assetShareValueMultiplierByBank, walletBalance } = params;
+  const bank = banksMap.get(bankAddress);
+  if (!bank) throw Error(`Bank ${bankAddress} not found`);
 
-  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress.toBase58());
+  if (account && mixesAssetTags(bank, account.balances, banksMap)) return new BigNumber(0);
+
+  const assetShareValueMultiplier = assetShareValueMultiplierByBank?.get(bankAddress);
   const depositCapRemaining = new BigNumber(computeBankDepositCapRemaining(bank)).times(
     assetShareValueMultiplier ?? 1
   );

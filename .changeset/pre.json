@@ -1,12 +1,8 @@
 {
   "mode": "pre",
-  "tag": "alpha",
+  "tag": "next",
   "initialVersions": {
     "@0dotxyz/p0-ts-sdk": "2.10.0"
   },
-  "changesets": [
-    "hot-dots-nail",
-    "order-changes-in-builders",
-    "slimy-feet-switch"
-  ]
+  "changesets": []
 }

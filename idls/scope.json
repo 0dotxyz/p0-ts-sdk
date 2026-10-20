@@ -1,0 +1,2304 @@
+{
+  "version": "0.40.0",
+  "name": "scope",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "configuration",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMetadatas",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "refreshPriceList",
+      "accounts": [
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "instructionSysvarAccountInfo",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "tokens",
+          "type": {
+            "vec": "u16"
+          }
+        }
+      ]
+    },
+    {
+      "name": "refreshChainlinkPrice",
+      "accounts": [
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "verifierAccount",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "accessController",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "configAccount",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "verifierProgramId",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "u16"
+        },
+        {
+          "name": "serializedChainlinkReport",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "refreshPythLazerPrice",
+      "accounts": [
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pythProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "pythStorage",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "pythTreasury",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "instructionsSysvar",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "tokens",
+          "type": {
+            "vec": "u16"
+          }
+        },
+        {
+          "name": "serializedPythMessage",
+          "type": "bytes"
+        },
+        {
+          "name": "ed25519InstructionIndex",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "updateMappingAndMetadata",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokensMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "feedName",
+          "type": "string"
+        },
+        {
+          "name": "updates",
+          "type": {
+            "vec": {
+              "defined": "UpdateOracleMappingAndMetadataEntriesWithId"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "resetTwap",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleTwaps",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "instructionSysvarAccountInfo",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "u64"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "setAdminCached",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "newAdmin",
+          "type": "publicKey"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "approveAdminCached",
+      "accounts": [
+        {
+          "name": "adminCached",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "createMintMap",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mappings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "seedPk",
+          "type": "publicKey"
+        },
+        {
+          "name": "seedId",
+          "type": "u64"
+        },
+        {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
+          "name": "scopeChains",
+          "type": {
+            "vec": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "closeMintMap",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mappings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resumeChainlinkxPrice",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oraclePrices",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokensMetadata",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "u16"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "freezePrice",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oracleMappings",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "u16"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        },
+        {
+          "name": "freeze",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "setEmergencyCouncil",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "newEmergencyCouncil",
+          "type": "publicKey"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "setResumeAuthority",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "configuration",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "newResumeAuthority",
+          "type": "publicKey"
+        },
+        {
+          "name": "feedName",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Configuration",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "publicKey"
+          },
+          {
+            "name": "oracleMappings",
+            "type": "publicKey"
+          },
+          {
+            "name": "oraclePrices",
+            "type": "publicKey"
+          },
+          {
+            "name": "tokensMetadata",
+            "type": "publicKey"
+          },
+          {
+            "name": "oracleTwaps",
+            "type": "publicKey"
+          },
+          {
+            "name": "adminCached",
+            "type": "publicKey"
+          },
+          {
+            "name": "emergencyCouncil",
+            "type": "publicKey"
+          },
+          {
+            "name": "resumeAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u64",
+                1247
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintsToScopeChains",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oraclePrices",
+            "type": "publicKey"
+          },
+          {
+            "name": "seedPk",
+            "type": "publicKey"
+          },
+          {
+            "name": "seedId",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mapping",
+            "type": {
+              "vec": {
+                "defined": "MintToScopeChain"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleMappings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "priceInfoAccounts",
+            "type": {
+              "array": [
+                "publicKey",
+                512
+              ]
+            }
+          },
+          {
+            "name": "priceTypes",
+            "type": {
+              "array": [
+                "u8",
+                512
+              ]
+            }
+          },
+          {
+            "name": "twapSourceOrRefPriceToleranceBps",
+            "type": {
+              "array": [
+                "u16",
+                512
+              ]
+            }
+          },
+          {
+            "name": "twapEnabledBitmask",
+            "type": {
+              "array": [
+                {
+                  "defined": "TwapEnabledBitmask"
+                },
+                512
+              ]
+            }
+          },
+          {
+            "name": "refPrice",
+            "type": {
+              "array": [
+                "u16",
+                512
+              ]
+            }
+          },
+          {
+            "name": "generic",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    20
+                  ]
+                },
+                512
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OraclePrices",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracleMappings",
+            "type": "publicKey"
+          },
+          {
+            "name": "prices",
+            "type": {
+              "array": [
+                {
+                  "defined": "DatedPrice"
+                },
+                512
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleTwaps",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oraclePrices",
+            "type": "publicKey"
+          },
+          {
+            "name": "oracleMappings",
+            "type": "publicKey"
+          },
+          {
+            "name": "twaps",
+            "type": {
+              "array": [
+                {
+                  "defined": "EmaTwap"
+                },
+                512
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenMetadatas",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "metadatasArray",
+            "type": {
+              "array": [
+                {
+                  "defined": "TokenMetadata"
+                },
+                512
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "UpdateOracleMappingAndMetadataEntriesWithId",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entryId",
+            "type": "u16"
+          },
+          {
+            "name": "updates",
+            "type": {
+              "vec": {
+                "defined": "UpdateOracleMappingAndMetadataEntry"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CappedFlooredData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceEntry",
+            "type": "u16"
+          },
+          {
+            "name": "capEntry",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "floorEntry",
+            "type": {
+              "option": "u16"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CappedMostRecentOfData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceEntries",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
+          },
+          {
+            "name": "maxDivergenceBps",
+            "type": "u16"
+          },
+          {
+            "name": "sourcesMaxAgeS",
+            "type": "u64"
+          },
+          {
+            "name": "capEntry",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "V3",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "confidenceFactor",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "V8V10",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "marketStatusBehavior",
+            "type": {
+              "defined": "MarketStatusBehavior"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChainlinkStandardPriceData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "observationsTimestamp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChainlinkXPriceData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "observationsTimestamp",
+            "type": "u64"
+          },
+          {
+            "name": "suspended",
+            "type": "bool"
+          },
+          {
+            "name": "activationDateTime",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConditionalData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "condition",
+            "type": "u8"
+          },
+          {
+            "name": "toleranceBps",
+            "type": "u16"
+          },
+          {
+            "name": "sources",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "DiscountToMaturityData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discountPerYearBps",
+            "type": "u16"
+          },
+          {
+            "name": "maturityTimestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MostRecentOfData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceEntries",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
+          },
+          {
+            "name": "maxDivergenceBps",
+            "type": "u16"
+          },
+          {
+            "name": "sourcesMaxAgeS",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fee",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "basisPoints",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LiqPool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lpMint",
+            "type": "publicKey"
+          },
+          {
+            "name": "lpMintAuthorityBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "solLegBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "msolLegAuthorityBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "msolLeg",
+            "type": "publicKey"
+          },
+          {
+            "name": "lpLiquidityTarget",
+            "type": "u64"
+          },
+          {
+            "name": "lpMaxFee",
+            "type": {
+              "defined": "Fee"
+            }
+          },
+          {
+            "name": "lpMinFee",
+            "type": {
+              "defined": "Fee"
+            }
+          },
+          {
+            "name": "treasuryCut",
+            "type": {
+              "defined": "Fee"
+            }
+          },
+          {
+            "name": "lpSupply",
+            "type": "u64"
+          },
+          {
+            "name": "lentFromSolLeg",
+            "type": "u64"
+          },
+          {
+            "name": "liquiditySolCap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "List",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "account",
+            "type": "publicKey"
+          },
+          {
+            "name": "itemSize",
+            "type": "u32"
+          },
+          {
+            "name": "count",
+            "type": "u32"
+          },
+          {
+            "name": "newAccount",
+            "type": "publicKey"
+          },
+          {
+            "name": "copiedCount",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakeSystem",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stakeList",
+            "type": {
+              "defined": "List"
+            }
+          },
+          {
+            "name": "delayedUnstakeCoolingDown",
+            "type": "u64"
+          },
+          {
+            "name": "stakeDepositBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "stakeWithdrawBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "slotsForStakeDelta",
+            "type": "u64"
+          },
+          {
+            "name": "lastStakeDeltaEpoch",
+            "type": "u64"
+          },
+          {
+            "name": "minStake",
+            "type": "u64"
+          },
+          {
+            "name": "extraStakeDeltaRuns",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorSystem",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validatorList",
+            "type": {
+              "defined": "List"
+            }
+          },
+          {
+            "name": "managerAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "totalValidatorScore",
+            "type": "u32"
+          },
+          {
+            "name": "totalActiveBalance",
+            "type": "u64"
+          },
+          {
+            "name": "autoAddValidatorEnabled",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "State",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "msolMint",
+            "type": "publicKey"
+          },
+          {
+            "name": "adminAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "operationalSolAccount",
+            "type": "publicKey"
+          },
+          {
+            "name": "treasuryMsolAccount",
+            "type": "publicKey"
+          },
+          {
+            "name": "reserveBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "msolMintAuthorityBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "rentExemptForTokenAcc",
+            "type": "u64"
+          },
+          {
+            "name": "rewardFee",
+            "type": {
+              "defined": "Fee"
+            }
+          },
+          {
+            "name": "stakeSystem",
+            "type": {
+              "defined": "StakeSystem"
+            }
+          },
+          {
+            "name": "validatorSystem",
+            "type": {
+              "defined": "ValidatorSystem"
+            }
+          },
+          {
+            "name": "liqPool",
+            "type": {
+              "defined": "LiqPool"
+            }
+          },
+          {
+            "name": "availableReserveBalance",
+            "type": "u64"
+          },
+          {
+            "name": "msolSupply",
+            "type": "u64"
+          },
+          {
+            "name": "msolPrice",
+            "type": "u64"
+          },
+          {
+            "name": "circulatingTicketCount",
+            "type": "u64"
+          },
+          {
+            "name": "circulatingTicketBalance",
+            "type": "u64"
+          },
+          {
+            "name": "lentFromReserve",
+            "type": "u64"
+          },
+          {
+            "name": "minDeposit",
+            "type": "u64"
+          },
+          {
+            "name": "minWithdraw",
+            "type": "u64"
+          },
+          {
+            "name": "stakingSolCap",
+            "type": "u64"
+          },
+          {
+            "name": "emergencyCoolingDown",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MultiplicationChainData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceEntries",
+            "type": {
+              "array": [
+                "u16",
+                6
+              ]
+            }
+          },
+          {
+            "name": "sourcesMaxAgeS",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PythLazerData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feedId",
+            "type": "u16"
+          },
+          {
+            "name": "exponent",
+            "type": "u8"
+          },
+          {
+            "name": "bidAskSpreadFactor",
+            "type": "u32"
+          },
+          {
+            "name": "emaEnabled",
+            "type": "bool"
+          },
+          {
+            "name": "emaConfidenceFactor",
+            "type": "u32"
+          },
+          {
+            "name": "priceConfidenceFactor",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PythLazerEmaRefData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceEntry",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PythLazerStoredData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "spotFeedUpdateTimestampUs",
+            "type": "u64"
+          },
+          {
+            "name": "emaPriceValue",
+            "type": "u64"
+          },
+          {
+            "name": "emaFeedUpdateTimestampUs",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Price",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": "u64"
+          },
+          {
+            "name": "exp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DatedPrice",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "type": {
+              "defined": "Price"
+            }
+          },
+          {
+            "name": "lastUpdatedSlot",
+            "type": "u64"
+          },
+          {
+            "name": "unixTimestamp",
+            "type": "u64"
+          },
+          {
+            "name": "genericData",
+            "type": {
+              "array": [
+                "u8",
+                24
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintToScopeChain",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "scopeChain",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "EmaTwap",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lastUpdateSlot",
+            "type": "u64"
+          },
+          {
+            "name": "lastUpdateUnixTimestamp",
+            "type": "u64"
+          },
+          {
+            "name": "currentEma1h",
+            "type": "u128"
+          },
+          {
+            "name": "updatesTracker1h",
+            "type": "u64"
+          },
+          {
+            "name": "updatesTracker7d",
+            "type": "u64"
+          },
+          {
+            "name": "currentEma8h",
+            "type": "u128"
+          },
+          {
+            "name": "currentEma24h",
+            "type": "u128"
+          },
+          {
+            "name": "updatesTracker8h",
+            "type": "u64"
+          },
+          {
+            "name": "updatesTracker24h",
+            "type": "u64"
+          },
+          {
+            "name": "currentEma7d",
+            "type": "u128"
+          },
+          {
+            "name": "padding1",
+            "type": {
+              "array": [
+                "u128",
+                35
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TwapEnabledBitmask",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bitmask",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenMetadata",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "maxAgePriceSlots",
+            "type": "u64"
+          },
+          {
+            "name": "groupIdsBitset",
+            "type": "u64"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u64",
+                15
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateOracleMappingAndMetadataEntry",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "RemoveEntry"
+          },
+          {
+            "name": "MappingConfig",
+            "fields": [
+              {
+                "name": "priceType",
+                "type": {
+                  "defined": "OracleType"
+                }
+              },
+              {
+                "name": "genericData",
+                "type": {
+                  "array": [
+                    "u8",
+                    20
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "MappingTwapEntry",
+            "fields": [
+              {
+                "name": "priceType",
+                "type": {
+                  "defined": "OracleType"
+                }
+              },
+              {
+                "name": "twapSource",
+                "type": "u16"
+              }
+            ]
+          },
+          {
+            "name": "MappingTwapEnabledBitmask",
+            "fields": [
+              "u8"
+            ]
+          },
+          {
+            "name": "MappingRefPrice",
+            "fields": [
+              {
+                "name": "refPriceIndex",
+                "type": {
+                  "option": "u16"
+                }
+              },
+              {
+                "name": "refPriceToleranceBps",
+                "type": {
+                  "option": "u16"
+                }
+              }
+            ]
+          },
+          {
+            "name": "MetadataName",
+            "fields": [
+              "string"
+            ]
+          },
+          {
+            "name": "MetadataMaxPriceAgeSlots",
+            "fields": [
+              "u64"
+            ]
+          },
+          {
+            "name": "MetadataGroupIdsBitset",
+            "fields": [
+              "u64"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReportDataMarketStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unknown"
+          },
+          {
+            "name": "Closed"
+          },
+          {
+            "name": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketStatusBehavior",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "AllUpdates"
+          },
+          {
+            "name": "Open"
+          },
+          {
+            "name": "OpenAndPrePost"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReportDataV9RipcordFlag",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Normal"
+          },
+          {
+            "name": "Paused"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceUpdateResult",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Updated"
+          },
+          {
+            "name": "SuspendExistingPrice"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Condition",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Gt"
+          },
+          {
+            "name": "Gte"
+          },
+          {
+            "name": "Lt"
+          },
+          {
+            "name": "Lte"
+          },
+          {
+            "name": "Eq"
+          },
+          {
+            "name": "Neq"
+          },
+          {
+            "name": "WithinRangeAbs"
+          },
+          {
+            "name": "OutsideRangeAbs"
+          },
+          {
+            "name": "WithinRangeBps"
+          },
+          {
+            "name": "OutsideRangeBps"
+          },
+          {
+            "name": "NonZero"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenTypes",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "TokenA"
+          },
+          {
+            "name": "TokenB"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RefPriceToleranceOrTwapSource",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "RefPriceToleranceBps",
+            "fields": [
+              "u16"
+            ]
+          },
+          {
+            "name": "TwapSource",
+            "fields": [
+              "u16"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "EmaType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Ema1h"
+          },
+          {
+            "name": "Ema8h"
+          },
+          {
+            "name": "Ema24h"
+          },
+          {
+            "name": "Ema7d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unused"
+          },
+          {
+            "name": "DeprecatedPlaceholder1"
+          },
+          {
+            "name": "DeprecatedPlaceholder2"
+          },
+          {
+            "name": "DeprecatedPlaceholder3"
+          },
+          {
+            "name": "DeprecatedPlaceholder4"
+          },
+          {
+            "name": "SplStake"
+          },
+          {
+            "name": "KToken"
+          },
+          {
+            "name": "DeprecatedPlaceholder5"
+          },
+          {
+            "name": "MsolStake"
+          },
+          {
+            "name": "KTokenToTokenA"
+          },
+          {
+            "name": "KTokenToTokenB"
+          },
+          {
+            "name": "JupiterLpFetch"
+          },
+          {
+            "name": "ScopeTwap1h"
+          },
+          {
+            "name": "OrcaWhirlpoolAtoB"
+          },
+          {
+            "name": "OrcaWhirlpoolBtoA"
+          },
+          {
+            "name": "RaydiumAmmV3AtoB"
+          },
+          {
+            "name": "RaydiumAmmV3BtoA"
+          },
+          {
+            "name": "DeprecatedPlaceholder6"
+          },
+          {
+            "name": "MeteoraDlmmAtoB"
+          },
+          {
+            "name": "MeteoraDlmmBtoA"
+          },
+          {
+            "name": "DeprecatedPlaceholder7"
+          },
+          {
+            "name": "PythPull"
+          },
+          {
+            "name": "PythPullEMA"
+          },
+          {
+            "name": "FixedPrice"
+          },
+          {
+            "name": "SwitchboardOnDemand"
+          },
+          {
+            "name": "JitoRestaking"
+          },
+          {
+            "name": "Chainlink"
+          },
+          {
+            "name": "DiscountToMaturity"
+          },
+          {
+            "name": "MostRecentOf"
+          },
+          {
+            "name": "PythLazer"
+          },
+          {
+            "name": "RedStone"
+          },
+          {
+            "name": "AdrenaLp"
+          },
+          {
+            "name": "Securitize"
+          },
+          {
+            "name": "CappedFloored"
+          },
+          {
+            "name": "ChainlinkRWA"
+          },
+          {
+            "name": "ChainlinkNAV"
+          },
+          {
+            "name": "FlashtradeLp"
+          },
+          {
+            "name": "ChainlinkX"
+          },
+          {
+            "name": "ChainlinkExchangeRate"
+          },
+          {
+            "name": "CappedMostRecentOf"
+          },
+          {
+            "name": "ScopeTwap8h"
+          },
+          {
+            "name": "ScopeTwap24h"
+          },
+          {
+            "name": "ScopeTwap7d"
+          },
+          {
+            "name": "MultiplicationChain"
+          },
+          {
+            "name": "SplBalance"
+          },
+          {
+            "name": "StakedSolBalance"
+          },
+          {
+            "name": "TotalMintSupply"
+          },
+          {
+            "name": "Conditional"
+          },
+          {
+            "name": "PythLazerEMA"
+          },
+          {
+            "name": "KlendCTokenExchangeRate"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ScopeChainError",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "PriceChainTooLong"
+          },
+          {
+            "name": "PriceChainConversionFailure"
+          },
+          {
+            "name": "NoChainForToken"
+          },
+          {
+            "name": "InvalidPricesInChain"
+          },
+          {
+            "name": "MathOverflow"
+          },
+          {
+            "name": "IntegerConversionOverflow"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "IntegerOverflow",
+      "msg": "Integer overflow"
+    },
+    {
+      "code": 6001,
+      "name": "ConversionFailure",
+      "msg": "Conversion failure"
+    },
+    {
+      "code": 6002,
+      "name": "MathOverflow",
+      "msg": "Mathematical operation with overflow"
+    },
+    {
+      "code": 6003,
+      "name": "OutOfRangeIntegralConversion",
+      "msg": "Out of range integral conversion attempted"
+    },
+    {
+      "code": 6004,
+      "name": "UnexpectedAccount",
+      "msg": "Unexpected account in instruction"
+    },
+    {
+      "code": 6005,
+      "name": "PriceNotValid",
+      "msg": "Price is not valid"
+    },
+    {
+      "code": 6006,
+      "name": "AccountsAndTokenMismatch",
+      "msg": "The number of tokens is different from the number of received accounts"
+    },
+    {
+      "code": 6007,
+      "name": "BadTokenNb",
+      "msg": "The token index received is out of range"
+    },
+    {
+      "code": 6008,
+      "name": "BadTokenType",
+      "msg": "The token type received is invalid"
+    },
+    {
+      "code": 6009,
+      "name": "SwitchboardV2Error",
+      "msg": "There was an error with the Switchboard V2 retrieval"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidAccountDiscriminator",
+      "msg": "Invalid account discriminator"
+    },
+    {
+      "code": 6011,
+      "name": "UnableToDeserializeAccount",
+      "msg": "Unable to deserialize account"
+    },
+    {
+      "code": 6012,
+      "name": "BadScopeChainOrPrices",
+      "msg": "Error while computing price with ScopeChain"
+    },
+    {
+      "code": 6013,
+      "name": "RefreshInCPI",
+      "msg": "Refresh price instruction called in a CPI"
+    },
+    {
+      "code": 6014,
+      "name": "RefreshWithUnexpectedIxs",
+      "msg": "Refresh price instruction preceded by unexpected ixs"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidUpdateSequenceOrAccounts",
+      "msg": "Invalid update sequence or accounts"
+    },
+    {
+      "code": 6016,
+      "name": "UnableToDerivePDA",
+      "msg": "Unable to derive PDA address"
+    },
+    {
+      "code": 6017,
+      "name": "BadTimestamp",
+      "msg": "Invalid timestamp"
+    },
+    {
+      "code": 6018,
+      "name": "BadSlot",
+      "msg": "Invalid slot"
+    },
+    {
+      "code": 6019,
+      "name": "PriceAccountNotExpected",
+      "msg": "Received a price account when none is expected"
+    },
+    {
+      "code": 6020,
+      "name": "TwapSourceIndexOutOfRange",
+      "msg": "TWAP source index out of range"
+    },
+    {
+      "code": 6021,
+      "name": "TwapSampleTooFrequent",
+      "msg": "TWAP sample is too close to the previous one"
+    },
+    {
+      "code": 6022,
+      "name": "UnexpectedJlpConfiguration",
+      "msg": "Unexpected JLP configuration"
+    },
+    {
+      "code": 6023,
+      "name": "TwapNotEnoughSamplesInPeriod",
+      "msg": "Not enough price samples in period to compute TWAP"
+    },
+    {
+      "code": 6024,
+      "name": "EmptyTokenList",
+      "msg": "The provided token list to refresh is empty"
+    },
+    {
+      "code": 6025,
+      "name": "StakeFeeTooHigh",
+      "msg": "The stake pool fee is higher than the maximum allowed"
+    },
+    {
+      "code": 6026,
+      "name": "KTokenUnderlyingPriceNotValid",
+      "msg": "Cannot get a valid price for the tokens composing the Ktoken"
+    },
+    {
+      "code": 6027,
+      "name": "KTokenHoldingsCalculationError",
+      "msg": "Error while computing the Ktoken pool holdings"
+    },
+    {
+      "code": 6028,
+      "name": "CannotResizeAccount",
+      "msg": "Cannot resize the account we only allow it to grow in size"
+    },
+    {
+      "code": 6029,
+      "name": "FixedPriceInvalid",
+      "msg": "The provided fixed price is invalid"
+    },
+    {
+      "code": 6030,
+      "name": "SwitchboardOnDemandError",
+      "msg": "Switchboard On Demand price derive error"
+    },
+    {
+      "code": 6031,
+      "name": "ConfidenceIntervalCheckFailed",
+      "msg": "Confidence interval check failed"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidGenericData",
+      "msg": "Invalid generic data"
+    },
+    {
+      "code": 6033,
+      "name": "NoChainlinkReportData",
+      "msg": "No valid Chainlink report data found"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidChainlinkReportData",
+      "msg": "Invalid Chainlink report data format"
+    },
+    {
+      "code": 6035,
+      "name": "OracleConfigInvalidSourceIndices",
+      "msg": "Oracle config must contain at least one valid source index"
+    },
+    {
+      "code": 6036,
+      "name": "MostRecentOfInvalidMaxDivergence",
+      "msg": "Invalid max divergence (bps) for MostRecentOf oracle"
+    },
+    {
+      "code": 6037,
+      "name": "CompositeOracleInvalidMaxAge",
+      "msg": "Invalid max age (s) for composite oracle"
+    },
+    {
+      "code": 6038,
+      "name": "CompositeOracleMaxAgeViolated",
+      "msg": "Max age constraint violated for composite oracle"
+    },
+    {
+      "code": 6039,
+      "name": "MostRecentOfMaxDivergenceBpsViolated",
+      "msg": "Max divergence bps constraint violated for MostRecentOf oracle"
+    },
+    {
+      "code": 6040,
+      "name": "PythLazerVerifyIxFailed",
+      "msg": "The invoked pyth lazer verify instruction failed"
+    },
+    {
+      "code": 6041,
+      "name": "PythLazerInvalidFeedID",
+      "msg": "Invalid feed id passed in to PythLazer oracle"
+    },
+    {
+      "code": 6042,
+      "name": "PythLazerInvalidExponent",
+      "msg": "Invalid exponent passed in to PythLazer oracle"
+    },
+    {
+      "code": 6043,
+      "name": "PythLazerInvalidConfidenceFactor",
+      "msg": "Invalid confidence factor passed in to PythLazer oracle"
+    },
+    {
+      "code": 6044,
+      "name": "PythLazerInvalidMessagePayload",
+      "msg": "Received an invalid message payload in the PythLazer oracle when refreshing price"
+    },
+    {
+      "code": 6045,
+      "name": "PythLazerInvalidChannel",
+      "msg": "Received an invalid channel in the PythLazer payload when refreshing price"
+    },
+    {
+      "code": 6046,
+      "name": "PythLazerInvalidFeedsLength",
+      "msg": "Payload should have a single feed in the PythLazer payload when refreshing price"
+    },
+    {
+      "code": 6047,
+      "name": "PythLazerInvalidFeedId",
+      "msg": "Invalid feed id in the PythLazer payload when refreshing price"
+    },
+    {
+      "code": 6048,
+      "name": "PythLazerPriceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain a price"
+    },
+    {
+      "code": 6049,
+      "name": "PythLazerBestBidPriceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain a best bid price"
+    },
+    {
+      "code": 6050,
+      "name": "PythLazerBestAskPriceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain a best ask price"
+    },
+    {
+      "code": 6051,
+      "name": "PythLazerInvalidAskBidPrices",
+      "msg": "Invalid ask/bid prices provided in the feed of the PythLazer payload"
+    },
+    {
+      "code": 6052,
+      "name": "ExpectedPriceAccount",
+      "msg": "Price account expected when updating mapping"
+    },
+    {
+      "code": 6053,
+      "name": "WrongAccountOwner",
+      "msg": "Provided account has a different owner than expected"
+    },
+    {
+      "code": 6054,
+      "name": "CompositeOracleInvalidSourceIndex",
+      "msg": "Provided source index is invalid"
+    },
+    {
+      "code": 6055,
+      "name": "CappedFlooredBothCapAndFloorAreNone",
+      "msg": "Can't set both cap and floor to None for CappedFloored oracle"
+    },
+    {
+      "code": 6056,
+      "name": "MissingPriceAccount",
+      "msg": "Missing price account for Oracle Mapping update"
+    },
+    {
+      "code": 6057,
+      "name": "ChainlinkXPriceNotSuspended",
+      "msg": "Cannot resume a ChainlinkX price that was not suspended"
+    },
+    {
+      "code": 6058,
+      "name": "OutsideMarketHours",
+      "msg": "Price update rejected as outside of market hours"
+    },
+    {
+      "code": 6059,
+      "name": "PythLazerExponentNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain an exponent"
+    },
+    {
+      "code": 6060,
+      "name": "PythLazerUnexpectedExponent",
+      "msg": "The exponent provided in the feed of the PythLazer payload is not the expected one"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidConversionToEmaTypeForOracleType",
+      "msg": "Cannot convert oracle type to EMA type"
+    },
+    {
+      "code": 6062,
+      "name": "TwapEnabledBitmaskConversionFailure",
+      "msg": "Invalid TWAP enabled bitmask value"
+    },
+    {
+      "code": 6063,
+      "name": "OperationNotSupported",
+      "msg": "This operation is not supported"
+    },
+    {
+      "code": 6064,
+      "name": "TwapSourceIndexNotSet",
+      "msg": "TWAP source index not set"
+    },
+    {
+      "code": 6065,
+      "name": "PythLazerFeedUpdateTimestampNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain a feed update timestamp"
+    },
+    {
+      "code": 6066,
+      "name": "PriceFrozen",
+      "msg": "Cannot update a frozen price entry"
+    },
+    {
+      "code": 6067,
+      "name": "PriceAlreadyFrozen",
+      "msg": "Price entry is already frozen"
+    },
+    {
+      "code": 6068,
+      "name": "PriceNotFrozen",
+      "msg": "Price entry is not frozen"
+    },
+    {
+      "code": 6069,
+      "name": "UnauthorizedFreeze",
+      "msg": "Signer is not authorized to freeze/unfreeze"
+    },
+    {
+      "code": 6070,
+      "name": "PythLazerEmaPriceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain an EMA price"
+    },
+    {
+      "code": 6071,
+      "name": "PythLazerEmaConfidenceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain an EMA confidence"
+    },
+    {
+      "code": 6072,
+      "name": "PythLazerEmaNotEnabledOnSource",
+      "msg": "PythLazerEMA source entry does not have EMA enabled"
+    },
+    {
+      "code": 6073,
+      "name": "UnauthorizedResume",
+      "msg": "Signer is not authorized to resume"
+    },
+    {
+      "code": 6074,
+      "name": "PythLazerConfidenceNotPresent",
+      "msg": "Property fields in the feed of the PythLazer payload do not contain a confidence"
+    },
+    {
+      "code": 6075,
+      "name": "KlendCTokenExchangeRateCPIError",
+      "msg": "Klend cToken exchange rate CPI call failed"
+    },
+    {
+      "code": 6076,
+      "name": "KlendReserveDeprecated",
+      "msg": "Klend reserve version does not match the expected program version (deprecated reserve)"
+    }
+  ]
+}

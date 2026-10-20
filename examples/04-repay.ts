@@ -15,17 +15,10 @@
  * 3. Run: tsx 04-repay.ts
  */
 
-import {
-  Project0Client,
-  MarginfiAccountWrapper,
-  MarginfiAccount,
-} from "../src";
-import {
-  getConnection,
-  getMarginfiConfig,
-  getAccountAddress,
-  getWalletPubkey,
-} from "./config";
+import { compileTransaction, getBase64EncodedWireTransaction } from "@solana/kit";
+
+import { Project0Client, MarginfiAccountWrapper, MarginfiAccount } from "../src";
+import { getRpc, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ============================================================================
 // Configuration
@@ -44,20 +37,18 @@ async function repayExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -68,10 +59,11 @@ async function repayExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const account = await MarginfiAccount.fetch(accountAddress, rpc);
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Find First Liability Position
@@ -92,19 +84,18 @@ async function repayExample() {
   // Use the first liability position
   const firstLiability = liabilityBalances[0];
   const bankAddress = firstLiability.bankPk;
-  const bank = client.bankMap.get(bankAddress.toBase58());
+  const bank = client.getBank(bankAddress);
 
   if (!bank) {
-    throw new Error(`Bank ${bankAddress.toBase58()} not found`);
+    throw new Error(`Bank ${bankAddress} not found`);
   }
 
-  // Calculate the token amount from liability shares
-  const liabilityAmount = bank.getLiabilityQuantity(firstLiability.liabilityShares);
-  const uiAmount = liabilityAmount.div(Math.pow(10, bank.mintDecimals));
+  // Token amount (UI units) from liability shares
+  const uiAmount = firstLiability.computeQuantityUi(bank).liabilities;
 
   console.log(`\n✅ Selected first liability position:`);
-  console.log(`   Bank: ${bank.address.toBase58()}`);
-  console.log(`   Mint: ${bank.mint.toBase58()}`);
+  console.log(`   Bank: ${bank.address}`);
+  console.log(`   Mint: ${bank.mint}`);
   console.log(`   Liability: ${uiAmount.toFixed(6)} tokens`);
 
   // --------------------------------------------------------------------------
@@ -138,14 +129,16 @@ async function repayExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔄 Simulating transaction...");
 
-  // Prepare transaction for simulation
-  const recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  repayTx.recentBlockhash = recentBlockhash;
-  repayTx.feePayer = walletPubkey;
+  const wireTransaction = getBase64EncodedWireTransaction(compileTransaction(repayTx.message));
 
-  // Run simulation
   try {
-    const simulation = await connection.simulateTransaction(repayTx);
+    const simulation = await rpc
+      .simulateTransaction(wireTransaction, {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+      })
+      .send();
 
     if (simulation.value.err) {
       console.error("\n❌ Simulation failed:", simulation.value.err);

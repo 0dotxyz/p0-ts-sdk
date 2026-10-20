@@ -15,19 +15,10 @@
  * 3. Run: tsx 03-withdraw.ts
  */
 
-import {
-  Project0Client,
-  MarginfiAccountWrapper,
-  MarginfiAccount,
-  simulateBundle,
-} from "../src";
-import {
-  getConnection,
-  getMarginfiConfig,
-  getAccountAddress,
-  getWalletPubkey,
-  MINTS,
-} from "./config";
+import { compileTransaction, getBase64EncodedWireTransaction } from "@solana/kit";
+
+import { Project0Client, AssetTag } from "../src";
+import { getRpc, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ============================================================================
 // Configuration
@@ -46,20 +37,18 @@ async function withdrawExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -70,10 +59,12 @@ async function withdrawExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
-  const wrappedAccount = new MarginfiAccountWrapper(account, client);
+  // Refreshes the health cache by simulation: the max amounts below are computed from it.
+  const wrappedAccount = await client.fetchAccount(accountAddress);
+  const account = wrappedAccount.getUnderlyingAccount();
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Find First Lending Position
@@ -94,19 +85,21 @@ async function withdrawExample() {
   // Use the first lending position
   const firstBalance = lendingBalances[0];
   const bankAddress = firstBalance.bankPk;
-  const bank = client.bankMap.get(bankAddress.toBase58());
+  const bank = client.getBank(bankAddress);
 
   if (!bank) {
-    throw new Error(`Bank ${bankAddress.toBase58()} not found`);
+    throw new Error(`Bank ${bankAddress} not found`);
   }
 
-  // Calculate the token amount from shares
-  const tokenAmount = bank.getAssetQuantity(firstBalance.assetShares);
-  const uiAmount = tokenAmount.div(Math.pow(10, bank.mintDecimals));
+  // Token amount (UI units) from shares; the multiplier converts Kamino/Drift/JupLend shares
+  const uiAmount = firstBalance.computeQuantityUi(
+    bank,
+    client.assetShareValueMultiplierByBank.get(bank.address)
+  ).assets;
 
   console.log(`\n✅ Selected first lending position:`);
-  console.log(`   Bank: ${bank.address.toBase58()}`);
-  console.log(`   Mint: ${bank.mint.toBase58()}`);
+  console.log(`   Bank: ${bank.address}`);
+  console.log(`   Mint: ${bank.mint}`);
   console.log(`   Balance: ${uiAmount.toFixed(6)} tokens`);
 
   // --------------------------------------------------------------------------
@@ -128,84 +121,41 @@ async function withdrawExample() {
   );
 
   // --------------------------------------------------------------------------
-  // Step 6: Build Withdraw Transaction (based on asset tag)
+  // Step 6: Build Withdraw Transaction
   // --------------------------------------------------------------------------
+  // One builder for every bank kind: Kamino, Drift and JupLend banks get their venue withdraw and
+  // refresh instructions from the client's integration state.
   console.log(`\n📝 Building withdraw transaction...`);
-  console.log(`   Asset tag: ${bank.config.assetTag}`);
+  console.log(`   Asset tag: ${AssetTag[bank.config.assetTag]}`);
 
-  const assetTag = bank.config.assetTag;
-  let withdrawResult;
-
-  switch (assetTag) {
-    case 0: // AssetTag.DEFAULT
-    case 1: {
-      // AssetTag.SOL
-      console.log(`   Using standard withdraw for DEFAULT/SOL bank`);
-      withdrawResult = await wrappedAccount.makeWithdrawTx(
-        bank.address,
-        withdrawAmount,
-        WITHDRAW_ALL
-      );
-      break;
-    }
-
-    case 3: {
-      // AssetTag.KAMINO
-      console.log(`   Using Kamino withdraw for KAMINO bank`);
-      const bankAddress = bank.address.toBase58();
-      const kaminoState = client.bankIntegrationMap[bankAddress]?.kaminoStates;
-
-      if (!kaminoState) {
-        throw new Error("Kamino reserve state not available");
-      }
-
-      withdrawResult = await wrappedAccount.makeKaminoWithdrawTx(
-        bank.address,
-        withdrawAmount,
-        kaminoState.reserveState,
-        WITHDRAW_ALL
-      );
-      break;
-    }
-
-    default: {
-      // STAKED (2) or any other asset tags not yet supported
-      throw new Error(
-        `Withdraw not implemented for asset tag ${assetTag}. ` +
-          `Supported tags: 0 (DEFAULT), 1 (SOL), 3 (KAMINO)`
-      );
-    }
-  }
+  const withdrawTx = await wrappedAccount.makeWithdrawTx(bank.address, withdrawAmount, WITHDRAW_ALL);
 
   console.log(`✅ Transaction built successfully`);
-  console.log(`   Total transactions: ${withdrawResult.transactions.length}`);
-  console.log(`   Action transaction index: ${withdrawResult.actionTxIndex}`);
 
   // --------------------------------------------------------------------------
-  // Step 7: Simulate Transaction Bundle
+  // Step 7: Simulate Transaction
   // --------------------------------------------------------------------------
-  console.log("\n🔄 Simulating transaction bundle...");
+  console.log("\n🔄 Simulating transaction...");
+
+  const wireTransaction = getBase64EncodedWireTransaction(compileTransaction(withdrawTx.message));
 
   try {
-    const simulationResults = await simulateBundle(
-      connection.rpcEndpoint,
-      withdrawResult.transactions
-    );
+    const simulation = await rpc
+      .simulateTransaction(wireTransaction, {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+      })
+      .send();
 
-    console.log("\n✅ Bundle simulation successful!");
-    simulationResults.forEach((result, index) => {
-      console.log(`\n   Transaction ${index + 1}:`);
-      if (result.err) {
-        console.log(`   ❌ Error: ${JSON.stringify(result.err)}`);
-        if (result.logs && result.logs.length > 0) {
-          console.log(`   Logs:`);
-          result.logs.forEach((log) => console.log(`     ${log}`));
-        }
-      } else {
-        console.log(`   ✅ Success`);
-        console.log(`   Compute units: ${result.unitsConsumed || "N/A"}`);
-      }
-    });
+    if (simulation.value.err) {
+      console.error("\n❌ Simulation failed:", simulation.value.err);
+      console.error("\nLogs:", simulation.value.logs);
+      return;
+    }
+
+    console.log("\n✅ Simulation successful!");
+    console.log(`   Compute units used: ${simulation.value.unitsConsumed}`);
   } catch (error) {
     console.error("\n❌ Simulation error:", error);
     throw error;

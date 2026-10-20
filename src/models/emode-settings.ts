@@ -1,11 +1,4 @@
-import {
-  EmodeEntry,
-  EmodeFlags,
-  EmodeSettingsRaw,
-  EmodeSettingsType,
-  EmodeTag,
-  parseEmodeSettingsRaw,
-} from "../services";
+import { EmodeEntry, EmodeFlags, EmodeSettingsType, EmodeTag } from "../services";
 
 export class EmodeSettings implements EmodeSettingsType {
   constructor(
@@ -27,10 +20,5 @@ export class EmodeSettings implements EmodeSettingsType {
       emodeSettingsType.flags,
       emodeSettingsType.emodeEntries
     );
-  }
-
-  static from(emodeSettingsRaw: EmodeSettingsRaw): EmodeSettings {
-    const emodeSettingsType = parseEmodeSettingsRaw(emodeSettingsRaw);
-    return EmodeSettings.fromEmodeSettingsType(emodeSettingsType);
   }
 }

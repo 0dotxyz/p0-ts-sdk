@@ -1,4 +1,4 @@
-import BigNumber from "bignumber.js";
+import { BigNumber } from "bignumber.js";
 
 export interface PriceWithConfidence {
   price: BigNumber;
@@ -10,6 +10,7 @@ export interface PriceWithConfidence {
 export interface OraclePrice {
   priceRealtime: PriceWithConfidence;
   priceWeighted: PriceWithConfidence;
+  /** Unix seconds the price was published at; for a price the SDK makes up, when it was made */
   timestamp: BigNumber;
 }
 

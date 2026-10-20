@@ -8,10 +8,11 @@
  * 4. Read health metrics from the simulated cache
  *
  * The simulation approach:
- * - Refreshes Kamino reserve data
+ * - Refreshes Kamino reserves, Drift spot markets and JupLend rates
  * - Calls the PulseHealth instruction to update the health cache
  * - Simulates the transaction and reads the updated account data
  * - Provides the most accurate, up-to-date health information
+ * - Needs an RPC endpoint that supports Jito's `simulateBundle`
  *
  * Setup:
  * 1. Copy .env.example to .env
@@ -24,9 +25,8 @@ import {
   MarginfiAccountWrapper,
   MarginfiAccount,
   MarginRequirementType,
-  simulateAccountHealthCacheWithFallback,
 } from "../src";
-import { getConnection, getMarginfiConfig, getAccountAddress } from "./config";
+import { getRpc, getMarginfiConfig, getAccountAddress } from "./config";
 
 // ============================================================================
 // Main Example
@@ -38,10 +38,10 @@ async function accountHealthSimulatedExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
 
   // --------------------------------------------------------------------------
@@ -49,7 +49,7 @@ async function accountHealthSimulatedExample() {
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -60,35 +60,28 @@ async function accountHealthSimulatedExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const fetchedAccount = await MarginfiAccount.fetch(accountAddress, rpc);
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${fetchedAccount.address}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Simulate Health Cache
   // --------------------------------------------------------------------------
   console.log("\n🔄 Simulating health cache update...");
-  console.log("   This simulates refreshing oracles and calling PulseHealth on-chain");
+  console.log("   This simulates refreshing venue state and calling PulseHealth on-chain");
 
-  const { marginfiAccount: simulatedAccountData, error } =
-    await simulateAccountHealthCacheWithFallback({
-      program: client.program,
-      bankMap: client.bankMap,
-      oraclePrices: client.oraclePriceByBank,
-      marginfiAccount: account,
-      balances: account.balances,
-      bankMetadataMap: client.bankIntegrationMap,
-    });
+  // `client.fetchAccount(address)` does steps 3-4 in one call.
+  const { account, error } = await new MarginfiAccountWrapper(
+    fetchedAccount,
+    client
+  ).simulateHealthCache();
 
   if (error) {
     console.warn(`⚠️  Health cache simulation had issues: ${error.message}`);
-    console.log("   Falling back to legacy calculation");
+    console.log("   Falling back to the computed health cache");
   } else {
     console.log("✅ Health cache simulated successfully");
   }
-
-  // Update the account with simulated health cache
-  account.healthCache = simulatedAccountData.healthCache;
 
   // --------------------------------------------------------------------------
   // Step 5: Display Health Metrics from Simulated Cache
@@ -98,31 +91,43 @@ async function accountHealthSimulatedExample() {
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
 
   // Health components use the simulated cache
-  const initHealth = wrappedAccount.computeHealthComponents(MarginRequirementType.Initial);
-  const maintHealth = wrappedAccount.computeHealthComponents(MarginRequirementType.Maintenance);
-  const equityHealth = wrappedAccount.computeHealthComponents(MarginRequirementType.Equity);
+  const initHealth = wrappedAccount.computeHealthComponentsFromCache(
+    MarginRequirementType.Initial
+  );
+  const maintHealth = wrappedAccount.computeHealthComponentsFromCache(
+    MarginRequirementType.Maintenance
+  );
+  const equityHealth = wrappedAccount.computeHealthComponentsFromCache(
+    MarginRequirementType.Equity
+  );
 
   console.log("💰 Initial Health (for borrowing):");
   console.log(`   Assets: $${initHealth.assets.toFixed(2)}`);
   console.log(`   Liabilities: $${initHealth.liabilities.toFixed(2)}`);
   if (initHealth.liabilities.gt(0)) {
-    console.log(`   Health Factor: ${initHealth.assets.div(initHealth.liabilities).toFixed(4)}`);
+    console.log(
+      `   Health Factor: ${initHealth.assets.div(initHealth.liabilities).toFixed(4)}`
+    );
   }
 
   console.log("\n💰 Maintenance Health (for liquidation):");
   console.log(`   Assets: $${maintHealth.assets.toFixed(2)}`);
   console.log(`   Liabilities: $${maintHealth.liabilities.toFixed(2)}`);
   if (maintHealth.liabilities.gt(0)) {
-    console.log(`   Health Factor: ${maintHealth.assets.div(maintHealth.liabilities).toFixed(4)}`);
+    console.log(
+      `   Health Factor: ${maintHealth.assets.div(maintHealth.liabilities).toFixed(4)}`
+    );
   }
 
   console.log("\n💰 Equity (actual value):");
   console.log(`   Assets: $${equityHealth.assets.toFixed(2)}`);
   console.log(`   Liabilities: $${equityHealth.liabilities.toFixed(2)}`);
-  console.log(`   Net Value: $${equityHealth.assets.minus(equityHealth.liabilities).toFixed(2)}`);
+  console.log(
+    `   Net Value: $${equityHealth.assets.minus(equityHealth.liabilities).toFixed(2)}`
+  );
 
   // Free collateral
-  const freeCollateral = wrappedAccount.computeFreeCollateral();
+  const freeCollateral = wrappedAccount.computeFreeCollateralFromCache();
   console.log(`\n💵 Free Collateral: $${freeCollateral.toFixed(2)}`);
   console.log("   (Additional borrowing power available)");
 
@@ -138,15 +143,27 @@ async function accountHealthSimulatedExample() {
   // Step 6: Display Cache Details
   // --------------------------------------------------------------------------
   console.log("\n🔍 Health Cache Details:");
-  console.log(`   Asset Value (Init): $${account.healthCache.assetValue.toFixed(2)}`);
-  console.log(`   Liability Value (Init): $${account.healthCache.liabilityValue.toFixed(2)}`);
-  console.log(`   Asset Value (Maint): $${account.healthCache.assetValueMaint.toFixed(2)}`);
-  console.log(`   Liability Value (Maint): $${account.healthCache.liabilityValueMaint.toFixed(2)}`);
-  console.log(`   Asset Value (Equity): $${account.healthCache.assetValueEquity.toFixed(2)}`);
+  console.log(
+    `   Asset Value (Init): $${account.healthCache.assetValue.toFixed(2)}`
+  );
+  console.log(
+    `   Liability Value (Init): $${account.healthCache.liabilityValue.toFixed(2)}`
+  );
+  console.log(
+    `   Asset Value (Maint): $${account.healthCache.assetValueMaint.toFixed(2)}`
+  );
+  console.log(
+    `   Liability Value (Maint): $${account.healthCache.liabilityValueMaint.toFixed(2)}`
+  );
+  console.log(
+    `   Asset Value (Equity): $${account.healthCache.assetValueEquity.toFixed(2)}`
+  );
   console.log(
     `   Liability Value (Equity): $${account.healthCache.liabilityValueEquity.toFixed(2)}`
   );
-  console.log(`   Cache Status: ${account.healthCache.simulationStatus || "SIMULATED"}`);
+  console.log(
+    `   Cache Status: ${account.healthCache.simulationStatus || "SIMULATED"}`
+  );
 
   // --------------------------------------------------------------------------
   // Step 7: Show Individual Balances
@@ -159,21 +176,21 @@ async function accountHealthSimulatedExample() {
     console.log("   No active balances");
   } else {
     activeBalances.forEach((balance) => {
-      const bank = client.bankMap.get(balance.bankPk.toBase58());
+      const bank = client.getBank(balance.bankPk);
       if (bank) {
-        console.log(`\n   ${bank.tokenSymbol || bank.mint.toBase58().slice(0, 8)}:`);
+        console.log(`\n   ${bank.tokenSymbol ?? bank.mint.slice(0, 8)}:`);
 
-        const assetQuantity = bank.getAssetQuantity(balance.assetShares);
-        const liabilityQuantity = bank.getLiabilityQuantity(balance.liabilityShares);
+        const { assets, liabilities } = balance.computeQuantityUi(
+          bank,
+          client.assetShareValueMultiplierByBank.get(bank.address)
+        );
 
-        if (!balance.assetShares.isZero()) {
-          const uiAsset = assetQuantity.div(Math.pow(10, bank.mintDecimals));
-          console.log(`      Assets: ${uiAsset.toFixed(6)} tokens`);
+        if (assets.gt(0)) {
+          console.log(`      Assets: ${assets.toFixed(6)} tokens`);
         }
 
-        if (!balance.liabilityShares.isZero()) {
-          const uiLiability = liabilityQuantity.div(Math.pow(10, bank.mintDecimals));
-          console.log(`      Liabilities: ${uiLiability.toFixed(6)} tokens`);
+        if (liabilities.gt(0)) {
+          console.log(`      Liabilities: ${liabilities.toFixed(6)} tokens`);
         }
       }
     });

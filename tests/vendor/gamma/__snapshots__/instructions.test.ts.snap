@@ -1,0 +1,233 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`gamma instruction wire format > completeWithdrawal 1`] = `
+{
+  "data": "6b6286834a78ae79",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      false,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "8ZfjnwxdKftw8Kk9xcDmsR2kdyDJhHSaTo2uWypq4m8g",
+      false,
+      true,
+    ],
+    [
+      "4kcS7jgv3qxkAxnM2macXHHFZqgrzbPEui7QannY7Hew",
+      false,
+      true,
+    ],
+    [
+      "87oSyXCggJuvgTp4MLgp5sfUbQf4PusKovbFwP5qK66F",
+      false,
+      true,
+    ],
+    [
+      "7GxpbpKve44PLbCJPNy4A4k3DJpHLefGa4v4bs1daCcr",
+      false,
+      true,
+    ],
+    [
+      "34yYLAy9FhXVfJ2vJaAuqeCVH6qG4QtN5wh4w4ZhenNz",
+      false,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+  ],
+  "programId": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+}
+`;
+
+exports[`gamma instruction wire format > deposit 1`] = `
+{
+  "data": "f223c68952e1f2b6d204000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      true,
+    ],
+    [
+      "4js2ZtCt8EG4ckr6Rphk3RKQmrV2q4YfXCZeb8F5sCze",
+      false,
+      true,
+    ],
+    [
+      "HM16zYdNdeAckNNd2Cr2VefULwh7PGRtwvSxMvpfoZhk",
+      false,
+      false,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "8ZfjnwxdKftw8Kk9xcDmsR2kdyDJhHSaTo2uWypq4m8g",
+      false,
+      true,
+    ],
+    [
+      "CD1N3UBVk1juZRbrVcK9rxRkWQr1o1rbKqeAZSf2HKNs",
+      false,
+      true,
+    ],
+    [
+      "oubRpkm7RDUh5bcPiq4Z33RnuUFzAby1EqE57pKX9pw",
+      false,
+      true,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+  ],
+  "programId": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+}
+`;
+
+exports[`gamma instruction wire format > withdraw 1`] = `
+{
+  "data": "b712469c946da1222e16000000000000",
+  "keys": [
+    [
+      "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      true,
+      true,
+    ],
+    [
+      "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      false,
+      true,
+    ],
+    [
+      "4js2ZtCt8EG4ckr6Rphk3RKQmrV2q4YfXCZeb8F5sCze",
+      false,
+      true,
+    ],
+    [
+      "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      false,
+      true,
+    ],
+    [
+      "CD1N3UBVk1juZRbrVcK9rxRkWQr1o1rbKqeAZSf2HKNs",
+      false,
+      true,
+    ],
+    [
+      "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      false,
+      false,
+    ],
+    [
+      "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      false,
+      true,
+    ],
+    [
+      "FGBgsmcgiXTsDi92iCUuuBd25gsaF29Fa5cb8CsHhJtt",
+      false,
+      true,
+    ],
+    [
+      "4kcS7jgv3qxkAxnM2macXHHFZqgrzbPEui7QannY7Hew",
+      false,
+      true,
+    ],
+    [
+      "87oSyXCggJuvgTp4MLgp5sfUbQf4PusKovbFwP5qK66F",
+      false,
+      true,
+    ],
+    [
+      "7GxpbpKve44PLbCJPNy4A4k3DJpHLefGa4v4bs1daCcr",
+      false,
+      true,
+    ],
+    [
+      "34yYLAy9FhXVfJ2vJaAuqeCVH6qG4QtN5wh4w4ZhenNz",
+      false,
+      true,
+    ],
+    [
+      "11111111111111111111111111111111",
+      false,
+      false,
+    ],
+    [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      false,
+      false,
+    ],
+    [
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      false,
+      false,
+    ],
+    [
+      "HM16zYdNdeAckNNd2Cr2VefULwh7PGRtwvSxMvpfoZhk",
+      false,
+      false,
+    ],
+  ],
+  "programId": "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV",
+}
+`;

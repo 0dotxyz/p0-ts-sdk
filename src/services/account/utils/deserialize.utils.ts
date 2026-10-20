@@ -1,11 +1,7 @@
-import { BorshCoder } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
-import BN from "bn.js";
+import { address, type Address, type ReadonlyUint8Array } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import {
-  MarginfiAccountRaw,
-  BalanceRaw,
   BalanceType,
   AccountFlags,
   HealthCacheFlags,
@@ -14,76 +10,30 @@ import {
   BalanceTypeDto,
   HealthCacheTypeDto,
   HealthCacheType,
-  HealthCacheRaw,
   HealthCacheStatus,
-  OrderRaw,
-  OrderType,
   OrderTriggerKind,
+  OrderType,
 } from "../types";
+import type {
+  MarginfiAccountRaw,
+  BalanceRaw,
+  HealthCacheRaw,
+  OrderRaw,
+} from "../types/raw-account.types";
 
-import { MarginfiIdlType } from "~/idl";
+import { decodeMarginfiAccountRaw, OrderTriggerTypeRaw } from "~/accounts";
 import { rateFromU32 } from "~/services/bank";
-import { AccountType } from "~/types";
-import {
-  bigNumberToWrappedI80F48,
-  maxSlippageU32ToPercent,
-  toBigNumber,
-  wrappedI80F48toBigNumber,
-} from "~/utils";
-
-export const EMPTY_HEALTH_CACHE: HealthCacheRaw = {
-  assetValue: {
-    value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  },
-  liabilityValue: {
-    value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  },
-  timestamp: new BN(0),
-  flags: 0,
-  prices: [],
-  assetValueMaint: bigNumberToWrappedI80F48(new BigNumber(0)),
-  liabilityValueMaint: bigNumberToWrappedI80F48(new BigNumber(0)),
-  assetValueEquity: bigNumberToWrappedI80F48(new BigNumber(0)),
-  liabilityValueEquity: bigNumberToWrappedI80F48(new BigNumber(0)),
-  errIndex: 0,
-  internalErr: 0,
-  internalBankruptcyErr: 0,
-  internalLiqErr: 0,
-  mrgnErr: 0,
-};
-
-export function decodeAccountRaw(encoded: Buffer, idl: MarginfiIdlType): MarginfiAccountRaw {
-  const coder = new BorshCoder(idl);
-  return coder.accounts.decode(AccountType.MarginfiAccount, encoded);
-}
-
-export function parseOrderRaw(orderAddress: PublicKey, orderRaw: OrderRaw): OrderType {
-  let trigger: OrderTriggerKind = "stopLoss";
-  if ("takeProfit" in orderRaw.trigger) trigger = "takeProfit";
-  if ("both" in orderRaw.trigger) trigger = "both";
-
-  return {
-    address: orderAddress,
-    marginfiAccount: orderRaw.marginfiAccount,
-    trigger,
-    stopLoss: trigger === "takeProfit" ? null : wrappedI80F48toBigNumber(orderRaw.stopLoss),
-    takeProfit: trigger === "stopLoss" ? null : wrappedI80F48toBigNumber(orderRaw.takeProfit),
-    tags: [orderRaw.tags[0], orderRaw.tags[1]],
-    createdAt: orderRaw.createdAt.toNumber(),
-    maxSlippagePercent: maxSlippageU32ToPercent(orderRaw.maxSlippage),
-  };
-}
+import { maxSlippageU32ToPercent, toBigNumber, wrappedI80F48toBigNumber } from "~/utils";
 
 export function parseBalanceRaw(balanceRaw: BalanceRaw): BalanceType {
-  const active =
-    typeof balanceRaw.active === "number" ? balanceRaw.active === 1 : balanceRaw.active;
+  const active = balanceRaw.active === 1;
   const bankPk = balanceRaw.bankPk;
   const tag = balanceRaw.tag;
   const assetShares = wrappedI80F48toBigNumber(balanceRaw.assetShares);
   const liabilityShares = wrappedI80F48toBigNumber(balanceRaw.liabilityShares);
   const premiumRate = rateFromU32(balanceRaw.premiumRateSnapshot);
   const premiumOutstanding = wrappedI80F48toBigNumber(balanceRaw.premiumOutstanding);
-  const lastUpdate = balanceRaw.lastUpdate.toNumber();
+  const lastUpdate = Number(balanceRaw.lastUpdate);
 
   return {
     active,
@@ -106,7 +56,7 @@ export function parseHealthCacheRaw(healthCacheRaw: HealthCacheRaw): HealthCache
   const liabilityValueEquity = wrappedI80F48toBigNumber(healthCacheRaw.liabilityValueEquity);
   const timestamp = toBigNumber(healthCacheRaw.timestamp);
   const flags = getActiveHealthCacheFlags(healthCacheRaw.flags);
-  const prices = healthCacheRaw.prices;
+  const prices = healthCacheRaw.prices.map((price) => Array.from(price));
   const simulationStatus = HealthCacheStatus.UNSET;
 
   const healthCache: HealthCacheType = {
@@ -124,8 +74,19 @@ export function parseHealthCacheRaw(healthCacheRaw: HealthCacheRaw): HealthCache
   return healthCache;
 }
 
+/**
+ * Decodes a marginfi `MarginfiAccount` account's data into a `MarginfiAccountType`.
+ * @throws if the account isn't a marginfi `MarginfiAccount`
+ */
+export function decodeMarginfiAccount(
+  address: Address,
+  data: ReadonlyUint8Array
+): MarginfiAccountType {
+  return parseMarginfiAccountRaw(address, decodeMarginfiAccountRaw(data));
+}
+
 export function parseMarginfiAccountRaw(
-  marginfiAccountPk: PublicKey,
+  marginfiAccountPk: Address,
   accountData: MarginfiAccountRaw
 ): MarginfiAccountType {
   const address = marginfiAccountPk;
@@ -133,7 +94,6 @@ export function parseMarginfiAccountRaw(
   const authority = accountData.authority;
   const balances = accountData.lendingAccount.balances.map(parseBalanceRaw);
   const accountFlags = getActiveAccountFlags(accountData.accountFlags);
-  const emissionsDestinationAccount = accountData.emissionsDestinationAccount;
   const healthCache = parseHealthCacheRaw(accountData.healthCache);
 
   return {
@@ -142,16 +102,35 @@ export function parseMarginfiAccountRaw(
     authority,
     balances,
     accountFlags,
-    emissionsDestinationAccount,
     healthCache,
     activeOrders: accountData.activeOrders,
+  };
+}
+
+export function parseOrderRaw(orderAddress: Address, orderRaw: OrderRaw): OrderType {
+  const trigger: OrderTriggerKind =
+    orderRaw.trigger === OrderTriggerTypeRaw.Both
+      ? "both"
+      : orderRaw.trigger === OrderTriggerTypeRaw.TakeProfit
+        ? "takeProfit"
+        : "stopLoss";
+
+  return {
+    address: orderAddress,
+    marginfiAccount: orderRaw.marginfiAccount,
+    trigger,
+    stopLoss: trigger === "takeProfit" ? null : wrappedI80F48toBigNumber(orderRaw.stopLoss),
+    takeProfit: trigger === "stopLoss" ? null : wrappedI80F48toBigNumber(orderRaw.takeProfit),
+    tags: [orderRaw.tags[0], orderRaw.tags[1]],
+    createdAt: Number(orderRaw.createdAt),
+    maxSlippagePercent: maxSlippageU32ToPercent(orderRaw.maxSlippage),
   };
 }
 
 /**
  * Get all active account flags as an array of flag names
  */
-export function getActiveAccountFlags(flags: BN): AccountFlags[] {
+export function getActiveAccountFlags(flags: bigint): AccountFlags[] {
   const activeFlags: AccountFlags[] = [];
 
   Object.keys(AccountFlags)
@@ -169,12 +148,12 @@ export function getActiveAccountFlags(flags: BN): AccountFlags[] {
 /**
  * Check if an account flag is set
  */
-export function hasAccountFlag(flags: BN, flag: number): boolean {
-  return !flags.and(new BN(flag)).isZero();
+export function hasAccountFlag(flags: bigint, flag: number): boolean {
+  return (flags & BigInt(flag)) !== 0n;
 }
 
 /**
- * Convert on-chain health cache flags (BN) to an array of HealthCacheFlags enum values
+ * Convert on-chain health cache flags to an array of HealthCacheFlags enum values
  *
  * According to the IDL, health cache flags are defined as:
  * - HEALTHY = 1 (bit 0) - If set, the account cannot be liquidated
@@ -239,12 +218,11 @@ export function dtoToMarginfiAccount(
   marginfiAccountDto: MarginfiAccountTypeDto
 ): MarginfiAccountType {
   return {
-    address: new PublicKey(marginfiAccountDto.address),
-    group: new PublicKey(marginfiAccountDto.group),
-    authority: new PublicKey(marginfiAccountDto.authority),
+    address: address(marginfiAccountDto.address),
+    group: address(marginfiAccountDto.group),
+    authority: address(marginfiAccountDto.authority),
     balances: marginfiAccountDto.balances.map(dtoToBalance),
     accountFlags: marginfiAccountDto.accountFlags,
-    emissionsDestinationAccount: new PublicKey(marginfiAccountDto.emissionsDestinationAccount),
     healthCache: dtoToHealthCache(marginfiAccountDto.healthCache),
     activeOrders: marginfiAccountDto.activeOrders ?? 0,
   };
@@ -253,12 +231,12 @@ export function dtoToMarginfiAccount(
 export function dtoToBalance(balanceDto: BalanceTypeDto): BalanceType {
   return {
     active: balanceDto.active,
-    bankPk: new PublicKey(balanceDto.bankPk),
+    bankPk: address(balanceDto.bankPk),
     tag: balanceDto.tag ?? 0,
     assetShares: new BigNumber(balanceDto.assetShares),
     liabilityShares: new BigNumber(balanceDto.liabilityShares),
-    premiumRate: new BigNumber(balanceDto.premiumRate),
-    premiumOutstanding: new BigNumber(balanceDto.premiumOutstanding),
+    premiumRate: new BigNumber(balanceDto.premiumRate ?? 0),
+    premiumOutstanding: new BigNumber(balanceDto.premiumOutstanding ?? 0),
     lastUpdate: balanceDto.lastUpdate,
   };
 }

@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oracle account decoding > decodes the 'exponent vault' multiplier account 1`] = `
+{
+  "allTimeHighSyExchangeRate": "1.076843776429",
+  "duration": 11487599,
+  "kind": "exponentVault",
+  "lastSeenSyExchangeRate": "1.076843776429",
+  "ptSupply": "2138508187641",
+  "startTs": 1764676700,
+  "syForPt": "1985903837168",
+}
+`;
+
+exports[`oracle account decoding > decodes the 'marinade state' multiplier account 1`] = `
+{
+  "kind": "marinade",
+  "msolPrice": "1.40818927066710147838",
+}
+`;
+
+exports[`oracle account decoding > decodes the 'spl stake pool' multiplier account 1`] = `
+{
+  "exchangeRate": "1.04344061181828114041",
+  "kind": "stakePool",
+  "lastUpdateEpoch": 1041,
+}
+`;

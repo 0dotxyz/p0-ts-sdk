@@ -1,23 +1,31 @@
-import { BorshCoder } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
-
-import { MarginfiIdlType } from "../idl";
 import {
-  BankConfigOpt,
-  BankConfigFastRaw,
+  fetchEncodedAccount,
+  type Address,
+  type GetAccountInfoApi,
+  type GetMultipleAccountsApi,
+  type GetProgramAccountsApi,
+  type Instruction,
+  type ReadonlyUint8Array,
+  type Rpc,
+  type TransactionSigner,
+} from "@solana/kit";
+
+import { decodeMarginfiGroupRaw } from "../accounts";
+import {
+  AddBankConfig,
   BankRateLimiterType,
   fetchMultipleBanks,
-  InstructionsWrapper,
   makeAddPermissionlessStakedBankIx,
   makePoolAddBankIx,
   makePoolConfigureBankIx,
-  MarginfiGroupRaw,
+  makePoolConfigureBankGovIx,
+  BankConfigFastOpt,
+  BankConfigGovOpt,
   MarginfiGroupType,
-  parseBankRateLimiterRaw,
   PremiumEntry,
   rateFromU32,
 } from "../services";
-import { AccountType, MarginfiProgram } from "../types";
+import { parseBankRateLimiterRaw } from "../services/bank/utils/deserialize.utils";
 
 import { Bank } from "./bank";
 
@@ -26,18 +34,18 @@ import { Bank } from "./bank";
 // ----------------------------------------------------------------------------
 
 class MarginfiGroup implements MarginfiGroupType {
-  public address: PublicKey;
-  public admin: PublicKey;
+  public address: Address;
+  public admin: Address;
   /** Group-level net-outflow rate limiter (USD windows); see isGroupRateLimiterEnabled */
   public rateLimiter?: BankRateLimiterType;
   /** Live entries of the variable borrow premium table */
   public premiumEntries: PremiumEntry[];
 
   constructor(
-    admin: PublicKey,
-    address: PublicKey,
-    rateLimiter: BankRateLimiterType | undefined,
-    premiumEntries: PremiumEntry[]
+    admin: Address,
+    address: Address,
+    rateLimiter?: BankRateLimiterType,
+    premiumEntries: PremiumEntry[] = []
   ) {
     this.admin = admin;
     this.address = address;
@@ -45,53 +53,53 @@ class MarginfiGroup implements MarginfiGroupType {
     this.premiumEntries = premiumEntries;
   }
 
-  static async fetch(address: PublicKey, program: MarginfiProgram): Promise<MarginfiGroup> {
-    const data: MarginfiGroupRaw = await program.account.marginfiGroup.fetch(address);
-    return MarginfiGroup.fromAccountParsed(address, data);
+  static async fetch(address: Address, rpc: Rpc<GetAccountInfoApi>): Promise<MarginfiGroup> {
+    const account = await fetchEncodedAccount(rpc, address);
+
+    if (!account.exists) {
+      throw new Error(`Group ${address} not found`);
+    }
+
+    return MarginfiGroup.fromBuffer(address, account.data);
   }
 
   /**
    * Fetch all banks belonging to this group
    *
-   * @param program - The Marginfi program instance
-   * @param feedIdMap - Optional Pyth feed ID map for oracle configuration
+   * @param rpc - Solana RPC client
+   * @param programAddress - The marginfi program address
    * @returns Array of Bank instances for this group
    */
-  async fetchBanks(program: MarginfiProgram): Promise<Bank[]> {
-    const bankDatas = await fetchMultipleBanks(program, {
+  async fetchBanks(
+    rpc: Rpc<GetMultipleAccountsApi & GetProgramAccountsApi>,
+    programAddress: Address
+  ): Promise<Bank[]> {
+    const banks = await fetchMultipleBanks(rpc, programAddress, {
       groupAddress: this.address,
     });
 
-    return bankDatas.map((bankData) => Bank.fromAccountParsed(bankData.address, bankData.data));
+    return banks.map((bank) => Bank.fromBankType(bank));
   }
 
   // ----------------------------------------------------------------------------
   // Factories
   // ----------------------------------------------------------------------------
 
-  static fromAccountParsed(address: PublicKey, accountData: MarginfiGroupRaw): MarginfiGroup {
-    const rateLimiter = accountData.rateLimiter
-      ? parseBankRateLimiterRaw(accountData.rateLimiter)
-      : undefined;
+  static fromBuffer(address: Address, rawData: ReadonlyUint8Array): MarginfiGroup {
+    const accountData = decodeMarginfiGroupRaw(rawData);
     const premiumEntries = accountData.premiumEntries
       .slice(0, accountData.premiumSettings.entryCount)
-      .map((entry) => ({ ...entry, rate: rateFromU32(entry.rate) }));
-    return new MarginfiGroup(accountData.admin, address, rateLimiter, premiumEntries);
-  }
-
-  static fromBuffer(address: PublicKey, rawData: Buffer, idl: MarginfiIdlType) {
-    const data = MarginfiGroup.decode(rawData, idl);
-    return MarginfiGroup.fromAccountParsed(address, data);
-  }
-
-  static decode(encoded: Buffer, idl: MarginfiIdlType): MarginfiGroupRaw {
-    const coder = new BorshCoder(idl);
-    return coder.accounts.decode(AccountType.MarginfiGroup, encoded);
-  }
-
-  static async encode(decoded: MarginfiGroupRaw, idl: MarginfiIdlType): Promise<Buffer> {
-    const coder = new BorshCoder(idl);
-    return await coder.accounts.encode(AccountType.MarginfiGroup, decoded);
+      .map((entry) => ({
+        collateralTag: entry.collateralTag,
+        liabilityTag: entry.liabilityTag,
+        rate: rateFromU32(entry.rate),
+      }));
+    return new MarginfiGroup(
+      accountData.admin,
+      address,
+      parseBankRateLimiterRaw(accountData.rateLimiter),
+      premiumEntries
+    );
   }
 
   // ----------------------------------------------------------------------------
@@ -102,43 +110,69 @@ class MarginfiGroup implements MarginfiGroupType {
   // (TODO: move to Bank class)
   // ------------------------------------------------------------------------
   public async makePoolConfigureBankIx(
-    program: MarginfiProgram,
-    bank: PublicKey,
-    args: BankConfigFastRaw
-  ): Promise<InstructionsWrapper> {
-    return makePoolConfigureBankIx(program, bank, args);
+    programAddress: Address,
+    admin: TransactionSigner,
+    bankAddress: Address,
+    bankConfig: BankConfigFastOpt
+  ): Promise<Instruction> {
+    return makePoolConfigureBankIx({
+      programAddress,
+      groupAddress: this.address,
+      admin,
+      bankAddress,
+      bankConfig,
+    });
+  }
+
+  public async makePoolConfigureBankGovIx(
+    programAddress: Address,
+    governanceAdmin: TransactionSigner,
+    bankAddress: Address,
+    bankConfig: BankConfigGovOpt
+  ): Promise<Instruction> {
+    return makePoolConfigureBankGovIx({
+      programAddress,
+      groupAddress: this.address,
+      governanceAdmin,
+      bankAddress,
+      bankConfig,
+    });
   }
 
   public async makeAddPermissionlessStakedBankIx(
-    program: MarginfiProgram,
-    voteAccountAddress: PublicKey,
-    feePayer: PublicKey,
-    pythOracle: PublicKey // wSOL oracle
-  ): Promise<InstructionsWrapper> {
-    return makeAddPermissionlessStakedBankIx(
-      program,
-      this.address,
+    programAddress: Address,
+    voteAccountAddress: Address,
+    feePayer: TransactionSigner,
+    pythOracle: Address // wSOL oracle
+  ): Promise<Instruction> {
+    return makeAddPermissionlessStakedBankIx({
+      programAddress,
+      groupAddress: this.address,
       voteAccountAddress,
       feePayer,
-      pythOracle
-    );
+      pythOracle,
+    });
   }
 
   public async makePoolAddBankIx(
-    program: MarginfiProgram,
-    bankPubkey: PublicKey,
-    bankMint: PublicKey,
-    bankConfig: BankConfigOpt,
-    feePayer?: PublicKey
-  ): Promise<InstructionsWrapper> {
-    return makePoolAddBankIx(
-      program,
-      this.address,
-      bankPubkey,
-      feePayer ?? this.admin,
+    programAddress: Address,
+    governanceAdmin: TransactionSigner,
+    globalFeeWallet: Address,
+    bank: TransactionSigner,
+    bankMint: Address,
+    bankConfig: AddBankConfig,
+    feePayer?: TransactionSigner
+  ): Promise<Instruction> {
+    return makePoolAddBankIx({
+      programAddress,
+      groupAddress: this.address,
+      governanceAdmin,
+      globalFeeWallet,
+      feePayer: feePayer ?? governanceAdmin,
+      bank,
       bankMint,
-      bankConfig
-    );
+      bankConfig,
+    });
   }
 }
 

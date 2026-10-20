@@ -25,44 +25,34 @@ Exponent is resolved internally. The buy is bounded by the successor pool's dept
 > **fixed, compact account set** (single `ticks` account, no Raydium-style per-tick-array
 > accounts), so the cap is now bounded by pool liquidity/slippage, not account locks (a full
 > roll of a previously-too-big, underwater position now fits and heals — measured ~43/64 locks).
-> The `merge` / `strip` / `trade_pt` (MarketTwo) / `wrapper_merge` primitives remain vendored
-> (below) as building blocks, but the roll uses `merge` + CLMM `trade_pt`.
+> Only `merge` + CLMM `trade_pt` are wrapped here. The generated clients (`src/generated/exponent-core`,
+> `src/generated/exponent-clmm`) still expose `strip`, MarketTwo `trade_pt` and `wrapper_merge` if a
+> future route needs them; the earlier hand-written versions were dropped in the Kit migration.
 
-Everything here mirrors Exponent's own source — the core IDL from
-github.com/exponent-finance/exponent-core (`idl/exponent_core.json`) and the CLMM IDL from
-`@exponent-labs/exponent-clmm-idl` (`idl/exponent_clmm.json`):
+Clients are Codama-generated from Exponent's IDLs — core from
+github.com/exponent-finance/exponent-core (`idls/exponent_core.json`) and CLMM from
+`@exponent-labs/exponent-clmm-idl` (`idls/exponent_clmm.json`). The IDLs predate Anchor's event-CPI
+annotations, so `instructions.ts` derives `event_authority` and passes the program account itself.
 
-- **Program ids** (`constants.ts`): mainnet **core** is `ExponentnaRg…` (owns `Vault`/`MarketTwo`;
-  runs `merge`/`strip`/`trade_pt`/`wrapper_merge`). **CLMM** ("MarketThree") is `XPC1MM…` (owns
-  the PT/SY pools; runs the CLMM `trade_pt`). `XPBookg…` is the order book, `XP1BRLn8…` the
-  **generic SY** program (a per-flavor SY program carried as `sy_program`; bulkSOL uses it).
+- **Program ids**: mainnet **core** is `ExponentnaRg…` (owns `Vault`/`MarketTwo`; runs `merge`).
+  **CLMM** ("MarketThree") is `XPC1MM…` (owns the PT/SY pools; runs the CLMM `trade_pt`). The SY
+  program (`XP1BRLn8…` generic flavor for bulkSOL) is carried per vault/pool as `sy_program`.
 
-- **CLMM `trade_pt`** (`instructions.ts` `makeExponentClmmTradePtIx`, the roll's buy leg):
-  discriminator `[3]` + `amount_in: u64` + `swap_direction: u8` (`SyToPt = 1`) +
-  `amount_out_constraint: Option<u64>` (min PT out) + `price_spot_limit: Option<f64>` (unset).
-  **14 fixed accounts** (IDL order: trader, market, ticks, tokenSy/PtTrader, tokenSy/PtEscrow,
-  ALT, tokenProgram, syProgram, tokenFeeTreasurySy/Pt, eventAuthority, program) then remaining
-  `= uniqueRemainingAccounts([getSyState, getPositionState, depositSy, withdrawSy])`. The event
-  authority is a CLMM-program PDA (`deriveExponentClmmEventAuthority`).
-  `resolveExponentClmmTradePtContext({ connection, owner, market })` builds it **dep-free** by
-  decoding the `MarketThree` pool (Borsh + the CLMM IDL) and resolving the SY-CPI accounts from
-  the pool ALT. The buy args are `exponentClmmBuyPtArgs({ amountInSyNative, minPtOutNative })`.
+- **CLMM `trade_pt`** (`makeExponentClmmTradePtIx`, the roll's buy leg): `amount_in: u64` +
+  `swap_direction` (`SyToPt`) + `amount_out_constraint: Option<u64>` (min PT out) +
+  `price_spot_limit: Option<f64>` (unset). 14 fixed accounts, then the deduplicated SY CPI accounts
+  (`get_sy_state ++ get_position_state ++ deposit_sy ++ withdraw_sy`) from
+  `resolveExponentClmmTradePtContext({ rpc, owner, market })`, which reads the `MarketThree` pool and
+  resolves each `CpiInterfaceContext` (an `alt_index`) against the pool's lookup table.
 
-- **`merge`** (`[5]`, the roll's redeem leg): redeem PT → SY only (15 fixed + `get_sy_state ++
-  withdraw_sy`). `resolveExponentMergeContext` exposes `mergeAccounts`, the SY `underlying`, and
-  `computeRedeemedAmountNative` (an *estimate*; the roll instead reads the **exact** SY out from
-  the on-chain `MergeEvent.amount_sy_out`, see below).
+- **`merge`** (`makeExponentMergeIx`, the roll's redeem leg): redeem PT → SY (15 fixed accounts +
+  `get_sy_state ++ withdraw_sy`). `resolveExponentMergeContext` exposes `mergeInput`, the SY
+  `underlying`, and `computeRedeemedAmountNative` (an *estimate*; the roll reads the **exact** SY out
+  from the on-chain `MergeEvent.amount_sy_out`, see below).
 
-- **`wrapper_merge`** (`[39]`): merge PT **and** CPI-redeem the SY into the underlying base token,
-  in one ix (15-ish fixed + flavor redeem + SY-CPI + a required SPL stake-pool refresh pre-ix).
-  Vendored + validated but **no longer used by the roll** (it was the base-round-trip redeem leg).
-- **`strip`** (`[4]`): SY → mint PT + YT, 1:1, unbounded by AMM depth (15 fixed + `deposit_sy`).
-- **`trade_pt`** (MarketTwo, `[17]`): SY ↔ PT AMM swap on a `MarketTwo` (12 fixed + SY-CPI). The
-  matured (older) maturities have a MarketTwo; the successors don't — so this isn't the buy leg.
-- **Decode** (`utils/deserialize.utils.ts`): `BorshAccountsCoder` + the IDLs. `Vault`/`MarketTwo`
-  use the core coder; `MarketThree` (CLMM) uses the CLMM coder. `Number` is a LE U256 scaled by
-  1e12 (`EXPONENT_NUMBER_DENOM`). CPI accounts are `CpiInterfaceContext`s (each an `alt_index`
-  into the vault/market ALT), resolved via `resolveCpiMetas` (is_signer forced false).
+- **`PreciseNumber`** (renamed from the IDL's `Number`): a LE U256 scaled by 1e12
+  (`exponentNumberToBigNumber`). CPI contexts' `is_signer` is dropped when resolving (the inner SY CPI
+  signs via PDA seeds, never the transaction).
 
 ## Sizing the roll (no tick-math port, no aggregator quote)
 `makeRollPtTx` quotes both legs by **simulating** (no tick-math port), then sizes the deposit to
@@ -91,6 +81,6 @@ the guaranteed minimum out:
   (setup + crank + flash loan) on mainnet for a real matured-PT holder — full deposit lands as
   new PT collateral, **no YT byproduct**; ~43/64 account locks, ~1060/1232 bytes (a full roll of
   a previously-underwater position that couldn't fit the Titan route now fits and heals).
-- ✅ **`merge` / `strip` / `trade_pt` (MarketTwo) / `wrapper_merge` encodings** validated
-  byte-for-byte and unit-tested in `tests/vendor/exponent/instructions.test.ts`; the roll bundle
-  (order, deposit byte-patch, two-sim quote, LUTs) in `tests/services/account/actions/roll-pt.test.ts`.
+- ✅ **`merge` / CLMM `trade_pt` wire format** reproduced byte-for-byte from the pre-Kit builders
+  (`tests/vendor/exponent/roll-legs.test.ts`); the roll bundle (order, deposit byte-patch, two-sim
+  quote, LUTs) in `tests/services/account/actions/roll-pt.test.ts`.

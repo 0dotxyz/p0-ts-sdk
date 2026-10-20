@@ -1,0 +1,91 @@
+import { getBase64Encoder } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
+import { describe, it, expect } from "vitest";
+
+import accounts from "../../../fixtures/mainnet-oracle-accounts.json";
+
+import {
+  computePtMultiplier,
+  decodeMultiplierAccount,
+} from "~/services/price/utils/multiplier-data.utils";
+
+const [pythPriceUpdate, ...multiplierAccounts] = accounts.map((account) => ({
+  ...account,
+  data: getBase64Encoder().encode(account.data),
+}));
+
+type PtVault = Parameters<typeof computePtMultiplier>[0];
+
+// Fully-backed vault: `sy_for_pt x rate = pt_supply`, so the redemption cap is exactly 1.0
+function vault(overrides: Partial<PtVault> = {}): PtVault {
+  return {
+    syForPt: 500_000_000_000n,
+    ptSupply: 1_000_000_000_000n,
+    lastSeenSyExchangeRate: new BigNumber(2),
+    allTimeHighSyExchangeRate: new BigNumber(2),
+    startTs: 1_000,
+    duration: 1_000,
+    ...overrides,
+  };
+}
+
+// Mainnet oracle accounts; the outputs match the v2.8.3 (web3/borsh) decoders.
+describe("oracle account decoding", () => {
+  it.each(multiplierAccounts)("decodes the $label multiplier account", ({ data }) => {
+    expect(decodeMultiplierAccount(data)).toMatchSnapshot();
+  });
+});
+
+describe("decodeMultiplierAccount", () => {
+  it("rejects accounts that are not a multiplier source", () => {
+    expect(decodeMultiplierAccount(pythPriceUpdate.data)).toBeUndefined();
+  });
+});
+
+describe("computePtMultiplier", () => {
+  const startPrice = new BigNumber(0.8);
+
+  it("lerps from the start price to par over the vault term, clamped at both ends", () => {
+    expect(computePtMultiplier(vault(), startPrice, 500).toNumber()).toBe(0.8);
+    expect(computePtMultiplier(vault(), startPrice, 1_500).toNumber()).toBeCloseTo(0.9, 9);
+    expect(computePtMultiplier(vault(), startPrice, 2_000).toNumber()).toBe(1);
+    expect(computePtMultiplier(vault(), startPrice, 9_999).toNumber()).toBe(1);
+  });
+
+  it("caps at the redemption backing when the vault is under-backed", () => {
+    // 0.4375 SY per PT x 2.0 = 0.875 cap; binds at maturity, inert at the midpoint (0.65 < 0.875)
+    const underBacked = vault({ syForPt: 437_500_000_000n });
+    const halfStart = new BigNumber(0.5);
+    expect(computePtMultiplier(underBacked, halfStart, 2_000).toNumber()).toBe(0.875);
+    expect(computePtMultiplier(underBacked, halfStart, 1_500).toNumber()).toBe(0.75);
+  });
+
+  it("throws when the vault is in emergency mode (SY rate below its all-time high)", () => {
+    const depegged = vault({ allTimeHighSyExchangeRate: new BigNumber(3) });
+    expect(() => computePtMultiplier(depegged, startPrice, 1_500)).toThrow("emergency mode");
+    expect(computePtMultiplier(vault(), startPrice, 1_500).toNumber()).toBeCloseTo(0.9, 9);
+  });
+
+  it("throws on zero PT supply", () => {
+    expect(() => computePtMultiplier(vault({ ptSupply: 0n }), startPrice, 1_500)).toThrow();
+  });
+
+  it("throws on malformed vaults the program rejects", () => {
+    expect(() => computePtMultiplier(vault({ duration: 0 }), startPrice, 1_500)).toThrow();
+    expect(() =>
+      computePtMultiplier(vault({ lastSeenSyExchangeRate: new BigNumber(0) }), startPrice, 1_500)
+    ).toThrow();
+    // > u64::MAX / 1e12 means the raw rate overflowed a u64
+    expect(() =>
+      computePtMultiplier(vault({ lastSeenSyExchangeRate: new BigNumber(2e7) }), startPrice, 1_500)
+    ).toThrow();
+    // maturity more than ~5 years past `now`
+    expect(() =>
+      computePtMultiplier(
+        vault({ startTs: 1_000, duration: 6 * 365 * 24 * 60 * 60 }),
+        startPrice,
+        1_000
+      )
+    ).toThrow();
+  });
+});

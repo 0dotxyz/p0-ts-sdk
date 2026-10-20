@@ -7,8 +7,9 @@ export interface BalanceTypeDto {
   tag?: number;
   assetShares: string;
   liabilityShares: string;
-  premiumRate: string;
-  premiumOutstanding: string;
+  /** Optional so DTOs cached before the variable borrow premium still parse (defaults to 0). */
+  premiumRate?: string;
+  premiumOutstanding?: string;
   lastUpdate: number;
 }
 
@@ -31,7 +32,6 @@ export interface MarginfiAccountTypeDto {
   authority: string;
   balances: BalanceTypeDto[];
   accountFlags: AccountFlags[];
-  emissionsDestinationAccount: string;
   healthCache: HealthCacheTypeDto;
   /** Optional so DTOs cached before the field existed still parse (defaults to 0). */
   activeOrders?: number;

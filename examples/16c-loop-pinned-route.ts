@@ -41,9 +41,13 @@ import {
   isStandardDepositable,
   type SwapQuoteResult,
 } from "../src";
-import { PublicKey, TransactionInstruction, AddressLookupTableAccount } from "@solana/web3.js";
 import {
-  getConnection,
+  compileTransaction,
+  type AddressesByLookupTableAddress,
+  type Instruction,
+} from "@solana/kit";
+import {
+  getRpc,
   getMarginfiConfig,
   getAccountAddress,
   getSwapConfig,
@@ -56,20 +60,20 @@ const DEPOSIT_AMOUNT = 0.01;
 const LEVERAGE = 2;
 
 async function main() {
-  const connection = getConnection();
-  const client = await Project0Client.initialize(connection, getMarginfiConfig());
-  const account = await MarginfiAccount.fetch(getAccountAddress(), client.program);
+  const { rpc, rpcEndpoint } = getRpc();
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, getMarginfiConfig());
+  const account = await MarginfiAccount.fetch(getAccountAddress(), rpc);
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
   console.log(`✅ Client + account ready (${client.banks.length} banks)`);
 
   const depositBank = client.banks.find(
-    (b) => b.mint.equals(DEPOSIT_MINT) && isStandardDepositable(b)
+    (b) => b.mint === DEPOSIT_MINT && isStandardDepositable(b)
   )!;
   const borrowBank = client.banks.find(
-    (b) => b.mint.equals(BORROW_MINT) && isStandardBorrowable(b)
+    (b) => b.mint === BORROW_MINT && isStandardBorrowable(b)
   )!;
   const priceOf = (bank: typeof depositBank) =>
-    client.oraclePriceByBank.get(bank.address.toBase58())!.priceRealtime.price.toNumber();
+    client.oraclePriceByBank.get(bank.address)!.priceRealtime.price.toNumber();
   const depositPrice = priceOf(depositBank);
   const borrowPrice = priceOf(borrowBank);
   const borrowAmount = (DEPOSIT_AMOUNT * (LEVERAGE - 1) * depositPrice) / borrowPrice;
@@ -77,7 +81,6 @@ async function main() {
   const depositMintData = await wrappedAccount.getMintDataFromBank(depositBank);
   const borrowMintData = await wrappedAccount.getMintDataFromBank(borrowBank);
   const loopParams = {
-    connection,
     depositOpts: {
       inputDepositAmount: DEPOSIT_AMOUNT,
       depositBank,
@@ -92,7 +95,6 @@ async function main() {
       marketPrice: borrowPrice,
     },
     swapOpts: { swapConfig: getSwapConfig() },
-    assetShareValueMultiplierByBank: client.assetShareValueMultiplierByBank,
   };
 
   // --------------------------------------------------------------------------
@@ -101,8 +103,8 @@ async function main() {
   console.log("\n📝 (a) Building with a capturing swapEngineRunner...");
 
   let captured: {
-    instructions: TransactionInstruction[];
-    lookupTables: AddressLookupTableAccount[];
+    instructions: Instruction[];
+    lookupTables: AddressesByLookupTableAddress;
     quoteResponse: SwapQuoteResult;
   } | null = null;
 
@@ -111,7 +113,7 @@ async function main() {
     // ---- REVIEW POINT ----------------------------------------------------
     // The route is in hand before it's spliced into the flashloan. Inspect it,
     // check the programs it invokes against your allowlist, and veto by throwing.
-    const programs = [...new Set(result.swapInstructions.map((ix) => ix.programId.toBase58()))];
+    const programs = [...new Set(result.swapInstructions.map((ix) => ix.programAddress))];
     console.log(`   🔍 route via ${result.provider}, programs: ${programs.join(", ")}`);
     // ----------------------------------------------------------------------
     captured = {
@@ -154,7 +156,10 @@ async function main() {
   // at 2x leverage a zero-collateral deposit would fail init health at EndFlashloan.
   // --------------------------------------------------------------------------
   console.log("\n🔄 Simulating the pinned build...");
-  const sims = await simulateBundle(connection.rpcEndpoint, pinned.transactions);
+  const sims = await simulateBundle(
+    rpcEndpoint,
+    pinned.transactions.map((tx) => compileTransaction(tx.message))
+  );
   sims.forEach((r, i) =>
     console.log(
       `   tx ${i + 1}/${sims.length}: ${r.err ? "❌ " + JSON.stringify(r.err) : `✅ (${r.unitsConsumed} CU)`}`

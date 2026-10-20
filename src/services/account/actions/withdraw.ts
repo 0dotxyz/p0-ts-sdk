@@ -1,849 +1,313 @@
+import type { Instruction } from "@solana/kit";
 import {
-  PublicKey,
-  TransactionInstruction,
-  VersionedTransaction,
-  TransactionMessage,
-} from "@solana/web3.js";
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+} from "@solana-program/token";
 import { BigNumber } from "bignumber.js";
 
-import {
-  MakeKaminoWithdrawIxParams,
-  MakeWithdrawIxParams,
-  MakeWithdrawTxParams,
-  TransactionBuilderResult,
-  MakeKaminoWithdrawTxParams,
-  MakeDriftWithdrawTxParams,
-  MakeDriftWithdrawIxParams,
-  MakeJuplendWithdrawIxParams,
-  MakeJuplendWithdrawTxParams,
-} from "../types";
-import { computeHealthCheckAccounts, computeHealthAccountMetas } from "../utils";
+import { MakeWithdrawIxParams, MakeWithdrawTxParams } from "../types";
+import { computeHealthAccounts, getActiveBalances } from "../utils";
 
 import { prependOrderCloses } from "./orders";
 
+import { DEFAULT_ADDRESS, WSOL_MINT } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
+import { AssetTag } from "~/services/bank";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
-  InstructionsWrapper,
+  makeTransactionMessage,
   makeUnwrapSolIx,
   selectLutsForAccountAction,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
 import { resolveAmount } from "~/types";
 import { uiToNative } from "~/utils";
 import { getAllDerivedDriftAccounts } from "~/vendor/drift";
-import { JUP_LIQUIDITY_PROGRAM_ID, getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
-import { deriveUserState, FARMS_PROGRAM_ID, getAllDerivedKaminoAccounts } from "~/vendor/klend";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
+import { getAllDerivedJupLendAccounts } from "~/vendor/jup-lend";
+import { deriveLendingMarketAuthority, deriveUserState } from "~/vendor/klend";
 
-export async function makeDriftWithdrawIx({
-  program,
-  bank,
-  bankMap,
-  tokenProgram,
-  amount,
-  marginfiAccount,
-  driftSpotMarket,
-  userRewards,
-  authority,
-  withdrawAll = false,
-  isSync = false,
-  opts = {},
-}: MakeDriftWithdrawIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const createAtas = opts.createAtas ?? true;
-  const withdrawIxs: TransactionInstruction[] = [];
-  const remainingAccounts: PublicKey[] = [];
-
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
-
-  if (createAtas) {
-    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
-      authority,
-      userTokenAtaPk,
-      authority,
-      bank.mint,
-      tokenProgram
-    );
-    withdrawIxs.push(createAtaIdempotentIx);
-  }
-
-  const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        excludedBanks: [bank.address],
-      })
-    : computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        mandatoryBanks: [bank.address],
-      });
-
-  const marketIndex = driftSpotMarket.marketIndex;
-  const driftOracle = driftSpotMarket.oracle;
-
-  const { driftState, driftSigner, driftSpotMarketVault } = getAllDerivedDriftAccounts(marketIndex);
-
-  if (!bank.driftIntegrationAccounts) {
-    throw new Error("Bank has no drift integration accounts");
-  }
-
-  if (opts.observationBanksOverride) {
-    remainingAccounts.push(...opts.observationBanksOverride);
-  } else {
-    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
-    // its accounts are appended at the end: the 1.9 program searches the slice for the
-    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
-    // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas({
-      banksToInclude: healthAccounts,
-      trailingBanks: withdrawAll ? [bank] : [],
-    });
-    remainingAccounts.push(...accountMetas);
-  }
-
-  // Extract reward values from userRewards array
-  // Handles 0, 1, 2, or 2+ rewards with proper error handling
-
-  // Validate array length
-  if (userRewards.length > 2) {
-    console.error(
-      `Warning: User has ${userRewards.length} Drift rewards, but only 2 are supported. Using first 2 only.`
-    );
-  }
-
-  // Extract first reward (or null if empty)
-  const driftRewardOracle = userRewards[0]?.oracle ?? null;
-  const driftRewardSpotMarket = userRewards[0]?.spotMarket ?? null;
-  const driftRewardMint = userRewards[0]?.mint ?? null;
-
-  // Extract second reward (or null if not present)
-  const driftRewardOracle2 = userRewards[1]?.oracle ?? null;
-  const driftRewardSpotMarket2 = userRewards[1]?.spotMarket ?? null;
-  const driftRewardMint2 = userRewards[1]?.mint ?? null;
-
-  const withdrawIx = isSync
-    ? syncInstructions.makeDriftWithdrawIx(
-        program.programId,
-        {
-          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
-          marginfiAccount: marginfiAccount.address,
-          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          bank: bank.address,
-          destinationTokenAccount: userTokenAtaPk,
-
-          driftState,
-          integrationAcc2: bank.driftIntegrationAccounts.driftUser,
-          integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
-          integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
-          driftSpotMarketVault,
-          driftSigner,
-          liquidityVault: bank.liquidityVault,
-          mint: bank.mint,
-          tokenProgram,
-
-          driftOracle,
-          driftRewardOracle,
-          driftRewardSpotMarket,
-          driftRewardMint,
-          driftRewardOracle2,
-          driftRewardSpotMarket2,
-          driftRewardMint2,
-        },
-        {
-          amount: uiToNative(amount, bank.mintDecimals),
-          withdrawAll,
-        },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      )
-    : await instructions.makeDriftWithdrawIx(
-        program,
-        {
-          marginfiAccount: marginfiAccount.address,
-          bank: bank.address,
-          destinationTokenAccount: userTokenAtaPk,
-
-          driftState,
-          driftSigner,
-          driftSpotMarketVault,
-          tokenProgram,
-
-          driftOracle,
-          driftRewardOracle,
-          driftRewardSpotMarket,
-          driftRewardMint,
-          driftRewardOracle2,
-          driftRewardSpotMarket2,
-          driftRewardMint2,
-
-          authority: opts.overrideInferAccounts?.authority,
-          group: opts.overrideInferAccounts?.group,
-        },
-        {
-          amount: uiToNative(amount, bank.mintDecimals),
-          withdrawAll,
-        },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      );
-
-  withdrawIxs.push(withdrawIx);
-
-  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
-    withdrawIxs.push(makeUnwrapSolIx(authority));
-  }
-
-  return {
-    instructions: withdrawIxs,
-    keys: [],
-  };
-}
-
-export async function makeDriftWithdrawTx(
-  params: MakeDriftWithdrawTxParams
-): Promise<TransactionBuilderResult> {
-  const { luts, connection, ...withdrawIxParams } = params;
-
-  const selectedLuts = selectLutsForAccountAction(
-    luts,
-    withdrawIxParams.bank,
-    params.marginfiAccount.balances,
-    params.bankMap
-  );
-
-  const withdrawIxs = await makeDriftWithdrawIx(withdrawIxParams);
-
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const ixs = await prependOrderCloses(
-    params,
-    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
-    selectedLuts
-  );
-
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const withdrawTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs,
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
-      addressLookupTables: selectedLuts,
-      type: TransactionType.WITHDRAW,
-    }
-  );
-
-  const transactions = [withdrawTx];
-
-  return { transactions, actionTxIndex: transactions.length - 1 };
-}
-
-export async function makeKaminoWithdrawIx({
-  program,
-  bank,
-  bankMap,
-  tokenProgram,
-  cTokenAmount,
-  marginfiAccount,
-  reserve,
-  authority,
-  withdrawAll = false,
-  isSync = false,
-  opts = {},
-}: MakeKaminoWithdrawIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const createAtas = opts.createAtas ?? true;
-  const withdrawIxs: TransactionInstruction[] = [];
-  const remainingAccounts: PublicKey[] = [];
-
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
-
-  if (createAtas) {
-    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
-      authority,
-      userTokenAtaPk,
-      authority,
-      bank.mint,
-      tokenProgram
-    );
-    withdrawIxs.push(createAtaIdempotentIx);
-  }
-
-  const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        excludedBanks: [bank.address],
-      })
-    : computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        mandatoryBanks: [bank.address],
-      });
-
-  const lendingMarket = reserve.lendingMarket;
-
-  const reserveLiquiditySupply = reserve.liquidity.supplyVault;
-  const reserveCollateralMint = reserve.collateral.mintPubkey;
-  const reserveDestinationDepositCollateral = reserve.collateral.supplyVault;
-
-  const { lendingMarketAuthority } = getAllDerivedKaminoAccounts(reserve.lendingMarket, bank.mint);
-
-  if (!bank.kaminoIntegrationAccounts) {
-    throw new Error("Bank has no kamino integration accounts");
-  }
-
-  const reserveFarm = !reserve.farmCollateral.equals(
-    new PublicKey("11111111111111111111111111111111")
-  )
-    ? reserve.farmCollateral
-    : null;
-
-  const [userFarmState] = reserveFarm
-    ? deriveUserState(
-        FARMS_PROGRAM_ID,
-        reserveFarm,
-        bank.kaminoIntegrationAccounts.kaminoObligation
-      )
-    : [null];
-
-  if (opts.observationBanksOverride) {
-    remainingAccounts.push(...opts.observationBanksOverride);
-  } else {
-    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
-    // its accounts are appended at the end: the 1.9 program searches the slice for the
-    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
-    // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas({
-      banksToInclude: healthAccounts,
-      trailingBanks: withdrawAll ? [bank] : [],
-    });
-    remainingAccounts.push(...accountMetas);
-  }
-
-  const withdrawIx = isSync
-    ? syncInstructions.makeKaminoWithdrawIx(
-        program.programId,
-        {
-          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
-          marginfiAccount: marginfiAccount.address,
-          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          bank: bank.address,
-          destinationTokenAccount: userTokenAtaPk,
-
-          integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
-          lendingMarket,
-          lendingMarketAuthority,
-          integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
-          mint: bank.mint,
-          reserveLiquiditySupply,
-          reserveCollateralMint,
-
-          reserveSourceCollateral: reserveDestinationDepositCollateral,
-          liquidityTokenProgram: tokenProgram,
-
-          obligationFarmUserState: userFarmState,
-          reserveFarmState: reserveFarm,
-        },
-        {
-          amount: uiToNative(cTokenAmount, bank.mintDecimals),
-          isFinalWithdrawal: withdrawAll,
-        },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      )
-    : await instructions.makeKaminoWithdrawIx(
-        program,
-        {
-          marginfiAccount: marginfiAccount.address,
-          bank: bank.address,
-          destinationTokenAccount: userTokenAtaPk,
-          lendingMarket,
-          mint: bank.mint,
-
-          lendingMarketAuthority,
-          reserveLiquiditySupply,
-          reserveCollateralMint,
-
-          reserveSourceCollateral: reserveDestinationDepositCollateral,
-          liquidityTokenProgram: tokenProgram,
-
-          obligationFarmUserState: userFarmState,
-          reserveFarmState: reserveFarm,
-
-          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
-        },
-        {
-          amount: uiToNative(cTokenAmount, bank.mintDecimals),
-          isFinalWithdrawal: withdrawAll,
-        },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      );
-
-  withdrawIxs.push(withdrawIx);
-
-  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
-    withdrawIxs.push(makeUnwrapSolIx(authority));
-  }
-
-  return {
-    instructions: withdrawIxs,
-    keys: [],
-  };
-}
-
+/**
+ * Withdraws `amount` (UI units of the bank's mint) from `bank`, routed to the bank's venue
+ * (marginfi, Kamino, Drift or JupLend); `withdrawAll` closes the balance. A Kamino `amount` may
+ * also be a `cToken` amount; a UI amount is converted with the bank's asset-share multiplier. Creates
+ * the destination ATA and unwraps wSOL unless `opts` disables it.
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if a Kamino, Drift or JupLend bank's venue state or integration
+ * accounts are missing
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if a `cToken` amount is given for a non-Kamino
+ * bank, or a partial Kamino withdraw's UI amount has no multiplier in
+ * `assetShareValueMultiplierByBank`
+ */
 export async function makeWithdrawIx({
-  program,
+  programAddress,
   bank,
   bankMap,
   tokenProgram,
   amount,
   marginfiAccount,
   authority,
+  bankMetadataMap,
+  assetShareValueMultiplierByBank,
   withdrawAll = false,
-  isSync = false,
   opts = {},
-}: MakeWithdrawIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const createAtas = opts.createAtas ?? true;
-
-  const withdrawIxs = [];
-
-  const userAta = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
-
-  if (createAtas) {
-    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
-      authority,
-      userAta,
-      authority,
-      bank.mint,
-      tokenProgram
-    );
-    withdrawIxs.push(createAtaIdempotentIx);
-  }
-
-  const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        excludedBanks: [bank.address],
-      })
-    : computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        mandatoryBanks: [bank.address],
-      });
-
-  // Add withdraw-related instructions
-  const remainingAccounts: PublicKey[] = [];
-  if (tokenProgram.equals(TOKEN_2022_PROGRAM_ID)) {
-    remainingAccounts.push(bank.mint);
-  }
-  if (opts.observationBanksOverride) {
-    remainingAccounts.push(...opts.observationBanksOverride);
-  } else {
-    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
-    // its accounts are appended at the end: the 1.9 program searches the slice for the
-    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
-    // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas({
-      banksToInclude: healthAccounts,
-      trailingBanks: withdrawAll ? [bank] : [],
-    });
-    remainingAccounts.push(...accountMetas);
-  }
-
-  const withdrawIx = isSync
-    ? syncInstructions.makeWithdrawIx(
-        program.programId,
-        {
-          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
-          marginfiAccount: marginfiAccount.address,
-          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          bank: bank.address,
-          destinationTokenAccount: userAta,
-          tokenProgram: tokenProgram,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals), withdrawAll },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      )
-    : await instructions.makeWithdrawIx(
-        program,
-        {
-          marginfiAccount: marginfiAccount.address,
-          bank: bank.address,
-          destinationTokenAccount: userAta,
-          tokenProgram: tokenProgram,
-          authority: opts.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          group: opts.overrideInferAccounts?.group ?? marginfiAccount.group,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals), withdrawAll },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      );
-
-  withdrawIxs.push(withdrawIx);
-
-  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
-    withdrawIxs.push(makeUnwrapSolIx(authority));
-  }
-
-  return {
-    instructions: withdrawIxs,
-    keys: [],
-  };
-}
-
-export async function makeWithdrawTx(
-  params: MakeWithdrawTxParams
-): Promise<TransactionBuilderResult> {
-  const { luts, connection, ...withdrawIxParams } = params;
-
-  // Pick the lean native-stake LUT subset when every involved bank (target + the
-  // account's active positions) is STAKED/SOL.
-  const selectedLuts = selectLutsForAccountAction(
-    luts,
-    withdrawIxParams.bank,
-    params.marginfiAccount.balances,
-    params.bankMap
-  );
-
-  const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
-
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const ixs = await prependOrderCloses(
-    params,
-    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
-    selectedLuts
-  );
-
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const withdrawTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs,
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
-      addressLookupTables: selectedLuts,
-      type: TransactionType.WITHDRAW,
-    }
-  );
-
-  const transactions = [withdrawTx];
-
-  return { transactions, actionTxIndex: transactions.length - 1 };
-}
-
-export async function makeKaminoWithdrawTx(
-  params: MakeKaminoWithdrawTxParams
-): Promise<TransactionBuilderResult> {
-  const { luts, connection, amount, assetShareValueMultiplierByBank, ...withdrawIxParams } = params;
-
-  const selectedLuts = selectLutsForAccountAction(
-    luts,
-    withdrawIxParams.bank,
-    params.marginfiAccount.balances,
-    params.bankMap
-  );
-
-  if (!withdrawIxParams.bank.kaminoIntegrationAccounts) {
-    throw new Error("Bank has no kamino integration accounts");
-  }
-
+}: MakeWithdrawIxParams): Promise<Instruction[]> {
   const { value: amountValue, type: amountType } = resolveAmount(amount);
-  const multiplier =
-    assetShareValueMultiplierByBank.get(withdrawIxParams.bank.address.toBase58()) ??
-    new BigNumber(1);
-  const adjustedAmount =
-    amountType === "cToken"
-      ? new BigNumber(amountValue).toNumber()
-      : new BigNumber(amountValue).div(multiplier).toNumber();
+  if (amountType === "cToken" && bank.config.assetTag !== AssetTag.KAMINO) {
+    throw TransactionBuildingError.invalidAmount(
+      Number(amountValue),
+      "cToken amounts only apply to Kamino banks"
+    );
+  }
 
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
+  const withdrawIxs: Instruction[] = [];
 
-  const withdrawIxs = await makeKaminoWithdrawIx({
-    cTokenAmount: adjustedAmount,
-    ...withdrawIxParams,
+  const [destinationTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
   });
 
-  const ixs = await prependOrderCloses(
-    params,
-    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
-    selectedLuts
-  );
+  if (opts.createAta ?? true) {
+    withdrawIxs.push(
+      getCreateAssociatedTokenIdempotentInstruction({
+        payer: authority,
+        ata: destinationTokenAccount,
+        owner: authority.address,
+        mint: bank.mint,
+        tokenProgram,
+      })
+    );
+  }
 
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
+  const activeBanks =
+    opts.activeBanks ?? getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  // A withdraw-all closes the balance, so the bank leaves the health pack; the group rate limiter
+  // still reads its price, from the accounts appended after the pack.
+  const healthAccounts = withdrawAll
+    ? computeHealthAccounts(
+        bankMap,
+        activeBanks.filter((b) => b !== bank.address),
+        (opts.groupRateLimiterEnabled ?? true) ? [bank.address] : []
+      )
+    : computeHealthAccounts(bankMap, activeBanks);
 
-  const withdrawTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs,
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
-      addressLookupTables: selectedLuts,
-      type: TransactionType.WITHDRAW,
+  const accounts = {
+    group: marginfiAccount.group,
+    marginfiAccount: marginfiAccount.address,
+    authority,
+    bank: bank.address,
+    destinationTokenAccount,
+    liquidityVault: bank.liquidityVault,
+    mint: bank.mint,
+    amount: uiToNative(amountValue, bank.mintDecimals),
+  };
+
+  switch (bank.config.assetTag) {
+    case AssetTag.KAMINO: {
+      const reserve = bankMetadataMap?.[bank.address]?.kaminoStates?.reserveState;
+      if (!reserve || !bank.kaminoIntegrationAccounts) {
+        throw TransactionBuildingError.kaminoReserveNotFound(
+          bank.address,
+          bank.mint,
+          bank.tokenSymbol
+        );
+      }
+      const multiplier = assetShareValueMultiplierByBank?.get(bank.address);
+      if (amountType === "uiToken" && !withdrawAll && !multiplier) {
+        throw TransactionBuildingError.invalidAmount(
+          Number(amountValue),
+          "a Kamino UI amount needs the bank's multiplier in assetShareValueMultiplierByBank"
+        );
+      }
+      // A withdraw-all ignores the amount
+      const cTokenAmount =
+        amountType === "cToken" || !multiplier
+          ? amountValue
+          : new BigNumber(amountValue).div(multiplier);
+      const [lendingMarketAuthority] = await deriveLendingMarketAuthority(reserve.lendingMarket);
+      const reserveFarmState =
+        reserve.farmCollateral === DEFAULT_ADDRESS ? undefined : reserve.farmCollateral;
+      const obligationFarmUserState =
+        reserveFarmState &&
+        (
+          await deriveUserState(reserveFarmState, bank.kaminoIntegrationAccounts.kaminoObligation)
+        )[0];
+
+      withdrawIxs.push(
+        await instructions.makeKaminoWithdrawIx(
+          programAddress,
+          {
+            ...accounts,
+            integrationAcc1: bank.kaminoIntegrationAccounts.kaminoReserve,
+            integrationAcc2: bank.kaminoIntegrationAccounts.kaminoObligation,
+            lendingMarket: reserve.lendingMarket,
+            lendingMarketAuthority,
+            reserveLiquiditySupply: reserve.liquidity.supplyVault,
+            reserveCollateralMint: reserve.collateral.mintPubkey,
+            reserveSourceCollateral: reserve.collateral.supplyVault,
+            obligationFarmUserState,
+            reserveFarmState,
+            liquidityTokenProgram: tokenProgram,
+            amount: uiToNative(cTokenAmount, bank.mintDecimals),
+            isFinalWithdrawal: withdrawAll,
+          },
+          healthAccounts
+        )
+      );
+      break;
     }
-  );
 
-  const transactions = [withdrawTx];
+    case AssetTag.DRIFT: {
+      const driftStates = bankMetadataMap?.[bank.address]?.driftStates;
+      if (!driftStates || !bank.driftIntegrationAccounts) {
+        throw TransactionBuildingError.driftStateNotFound(
+          bank.address,
+          bank.mint,
+          bank.tokenSymbol
+        );
+      }
+      const { spotMarketState, userRewards } = driftStates;
+      const { driftState, driftSigner, driftSpotMarketVault } = await getAllDerivedDriftAccounts(
+        spotMarketState.marketIndex
+      );
 
-  return { transactions, actionTxIndex: transactions.length - 1 };
+      withdrawIxs.push(
+        await instructions.makeDriftWithdrawIx(
+          programAddress,
+          {
+            ...accounts,
+            driftOracle: spotMarketState.oracle,
+            driftState,
+            integrationAcc1: bank.driftIntegrationAccounts.driftSpotMarket,
+            integrationAcc2: bank.driftIntegrationAccounts.driftUser,
+            integrationAcc3: bank.driftIntegrationAccounts.driftUserStats,
+            driftSpotMarketVault,
+            driftRewardOracle: userRewards[0]?.oracle,
+            driftRewardSpotMarket: userRewards[0]?.spotMarket,
+            driftRewardMint: userRewards[0]?.mint,
+            driftRewardOracle2: userRewards[1]?.oracle,
+            driftRewardSpotMarket2: userRewards[1]?.spotMarket,
+            driftRewardMint2: userRewards[1]?.mint,
+            driftSigner,
+            tokenProgram,
+            withdrawAll,
+          },
+          healthAccounts
+        )
+      );
+      break;
+    }
+
+    case AssetTag.JUPLEND: {
+      const jupLendingState = bankMetadataMap?.[bank.address]?.jupLendStates?.lendingState;
+      if (!jupLendingState || !bank.jupLendIntegrationAccounts) {
+        throw TransactionBuildingError.jupLendStateNotFound(
+          bank.address,
+          bank.mint,
+          bank.tokenSymbol
+        );
+      }
+      const { fTokenMint, lendingAdmin, rateModel, vault, liquidity } =
+        await getAllDerivedJupLendAccounts(bank.mint, tokenProgram);
+
+      withdrawIxs.push(
+        await instructions.makeJuplendWithdrawIx(
+          programAddress,
+          {
+            ...accounts,
+            integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
+            fTokenMint,
+            integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
+            integrationAcc3: bank.jupLendIntegrationAccounts.jupFTokenAta,
+            lendingAdmin,
+            supplyTokenReservesLiquidity: jupLendingState.tokenReservesLiquidity,
+            lendingSupplyPositionOnLiquidity: jupLendingState.supplyPositionOnLiquidity,
+            rateModel,
+            vault,
+            claimAccount: bank.jupLendIntegrationAccounts.jupFTokenAta,
+            liquidity,
+            rewardsRateModel: jupLendingState.rewardsRateModel,
+            tokenProgram,
+            withdrawAll,
+          },
+          healthAccounts
+        )
+      );
+      break;
+    }
+
+    default:
+      withdrawIxs.push(
+        await instructions.makeWithdrawIx(
+          programAddress,
+          {
+            ...accounts,
+            tokenProgram,
+            withdrawAll,
+          },
+          healthAccounts
+        )
+      );
+  }
+
+  if (bank.mint === WSOL_MINT && (opts.unwrapSol ?? true)) {
+    withdrawIxs.push(await makeUnwrapSolIx(authority));
+  }
+
+  return withdrawIxs;
 }
 
 /**
- * Creates a JupLend withdraw instruction for withdrawing assets from a JupLend lending pool.
- *
- * This function handles:
- * - Creating the destination ATA if needed (idempotent)
- * - Computing health check accounts for the withdrawal
- * - Deriving JupLend protocol accounts via `getAllDerivedJupLendAccounts` (fTokenMint, rateModel, vault, liquidity, lendingAdmin)
- * - Using on-chain `jupLendingState` values for supplyTokenReservesLiquidity, lendingSupplyPositionOnLiquidity, and rewardsRateModel
- * - Unwrapping wSOL back to native SOL if needed
- *
- * @param params - The parameters for creating the withdraw instruction
- * @param params.program - The Marginfi program instance
- * @param params.bank - The bank to withdraw from (must have JupLend integration configured)
- * @param params.bankMap - Map of all banks for health check computation
- * @param params.tokenProgram - The token program ID (TOKEN_PROGRAM or TOKEN_2022_PROGRAM)
- * @param params.amount - The amount to withdraw in UI units
- * @param params.marginfiAccount - The Marginfi account to withdraw from
- * @param params.authority - The authority/signer public key
- * @param params.jupLendingState - The on-chain JupLend lending state (provides token reserve and rewards accounts)
- * @param params.withdrawAll - Whether to withdraw the full balance (default: false)
- * @param params.opts - Optional configuration
- * @param params.opts.wrapAndUnwrapSol - Whether to unwrap wSOL to native SOL (default: true)
- * @param params.opts.createAtas - Whether to create the destination ATA if missing (default: true)
- * @param params.opts.overrideInferAccounts - Optional account overrides for testing/special cases
- * @param params.opts.observationBanksOverride - Optional override for health check remaining accounts
- *
- * @returns Promise resolving to InstructionsWrapper containing the withdraw instructions
+ * Builds a withdraw transaction around {@link makeWithdrawIx}, preceded by the refreshes of the
+ * account's integration banks, including those `opts.activeBanks` adds. The authority pays and
+ * signs; `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeWithdrawIx}
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
  */
-export async function makeJuplendWithdrawIx({
-  program,
-  bank,
-  bankMap,
-  tokenProgram,
-  amount,
-  marginfiAccount,
-  jupLendingState,
-  authority,
-  withdrawAll = false,
-  opts = {},
-}: MakeJuplendWithdrawIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const createAtas = opts.createAtas ?? true;
-  const withdrawIxs: TransactionInstruction[] = [];
-  const remainingAccounts: PublicKey[] = [];
+export async function makeWithdrawTx(params: MakeWithdrawTxParams): Promise<SolanaTransaction> {
+  const { rpc, txFormat, latestBlockhash, ...withdrawIxParams } = params;
+  const { bank, bankMap, marginfiAccount, bankMetadataMap, opts } = params;
 
-  const userTokenAtaPk = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram);
+  const withdrawIxs = await makeWithdrawIx(withdrawIxParams);
 
-  if (createAtas) {
-    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
-      authority,
-      userTokenAtaPk,
-      authority,
-      bank.mint,
-      tokenProgram
-    );
-    withdrawIxs.push(createAtaIdempotentIx);
-  }
-
-  const healthAccounts = withdrawAll
-    ? computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        excludedBanks: [bank.address],
-      })
-    : computeHealthCheckAccounts({
-        account: marginfiAccount,
-        banksMap: bankMap,
-        mandatoryBanks: [bank.address],
-      });
-
-  if (!bank.jupLendIntegrationAccounts) {
-    throw new Error("Bank has no JupLend integration accounts");
-  }
-  const { fTokenMint, lendingAdmin, rateModel, vault, liquidity } = getAllDerivedJupLendAccounts(
-    bank.mint,
-    tokenProgram
+  // A Kamino bank opened earlier in the bundle still needs its reserve refreshed; Drift and
+  // JupLend deposits update their venue themselves
+  const accountBanks = getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  const openedBanks = (opts?.activeBanks ?? []).filter((b) => !accountBanks.includes(b));
+  const refreshIxs = await makeRefreshIntegrationBanksIxs(
+    marginfiAccount,
+    bankMap,
+    [bank.address],
+    bankMetadataMap,
+    [bank.address, ...openedBanks]
   );
 
-  if (opts.observationBanksOverride) {
-    remainingAccounts.push(...opts.observationBanksOverride);
-  } else {
-    // On withdraw-all the bank is excluded from the health pack (its balance closes), but
-    // its accounts are appended at the end: the 1.9 program searches the slice for the
-    // withdrawn bank's oracle when the group rate limiter is enabled (extra trailing
-    // accounts are ignored by 1.8).
-    const accountMetas = computeHealthAccountMetas({
-      banksToInclude: healthAccounts,
-      trailingBanks: withdrawAll ? [bank] : [],
-    });
-    remainingAccounts.push(...accountMetas);
-  }
-
-  const withdrawIx = await instructions.makeJuplendWithdrawIx(
-    program,
-    {
-      marginfiAccount: marginfiAccount.address,
-      bank: bank.address,
-      destinationTokenAccount: userTokenAtaPk,
-
-      lendingAdmin,
-      supplyTokenReservesLiquidity: jupLendingState.tokenReservesLiquidity,
-      lendingSupplyPositionOnLiquidity: jupLendingState.supplyPositionOnLiquidity,
-      rateModel,
-      vault: vault,
-      claimAccount: bank.jupLendIntegrationAccounts.jupFTokenAta,
-      liquidity,
-      liquidityProgram: JUP_LIQUIDITY_PROGRAM_ID,
-      rewardsRateModel: jupLendingState.rewardsRateModel,
-      tokenProgram,
-
-      authority: opts.overrideInferAccounts?.authority ?? authority,
-      group: opts.overrideInferAccounts?.group,
-      mint: bank.mint,
-      fTokenMint,
-      integrationAcc1: bank.jupLendIntegrationAccounts.jupLendingState,
-      integrationAcc2: bank.jupLendIntegrationAccounts.jupFTokenVault,
-      integrationAcc3: bank.jupLendIntegrationAccounts.jupFTokenAta,
-    },
-    {
-      amount: uiToNative(amount, bank.mintDecimals),
-      withdrawAll,
-    },
-    remainingAccounts.map((account) => ({
-      pubkey: account,
-      isSigner: false,
-      isWritable: false,
-    }))
+  const selectedFormat = selectLutsForAccountAction(
+    txFormat,
+    bank,
+    marginfiAccount.balances,
+    bankMap,
+    opts?.activeBanks
   );
-
-  withdrawIxs.push(withdrawIx);
-
-  if (wrapAndUnwrapSol && bank.mint.equals(NATIVE_MINT)) {
-    withdrawIxs.push(makeUnwrapSolIx(authority));
-  }
+  const ixs = await prependOrderCloses({
+    ...params,
+    actionIxs: [...refreshIxs, ...withdrawIxs],
+    txFormat: selectedFormat,
+  });
 
   return {
-    instructions: withdrawIxs,
-    keys: [],
+    message: makeTransactionMessage({
+      instructions: ixs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      txFormat: selectedFormat,
+    }),
+    type: TransactionType.WITHDRAW,
   };
-}
-
-export async function makeJuplendWithdrawTx(
-  params: MakeJuplendWithdrawTxParams
-): Promise<TransactionBuilderResult> {
-  const { luts, connection, ...withdrawIxParams } = params;
-
-  const selectedLuts = selectLutsForAccountAction(
-    luts,
-    withdrawIxParams.bank,
-    params.marginfiAccount.balances,
-    params.bankMap
-  );
-
-  const withdrawIxs = await makeJuplendWithdrawIx(withdrawIxParams);
-
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [withdrawIxParams.bank.address],
-    params.bankMetadataMap
-  );
-
-  const ixs = await prependOrderCloses(
-    params,
-    [...refreshIntegrationIxs.instructions, ...withdrawIxs.instructions],
-    selectedLuts
-  );
-
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const withdrawTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs,
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: [...refreshIntegrationIxs.keys, ...withdrawIxs.keys],
-      addressLookupTables: selectedLuts,
-      type: TransactionType.WITHDRAW,
-    }
-  );
-
-  const transactions = [withdrawTx];
-
-  return { transactions, actionTxIndex: transactions.length - 1 };
 }

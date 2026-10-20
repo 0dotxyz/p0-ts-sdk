@@ -6,12 +6,14 @@
  */
 
 import { config } from "dotenv";
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { address, createSolanaRpc, type Address } from "@solana/kit";
 import path from "path";
 import { fileURLToPath } from "url";
 
 import {
   SwapProvider,
+  type Environment,
+  type Project0Config,
   type SwapProviderConfig,
   type SwapProviderEntry,
 } from "../src";
@@ -38,82 +40,53 @@ function getEnvVar(key: string, required: boolean = true): string {
 }
 
 /**
- * Solana RPC connection
+ * Solana RPC client and its endpoint. Bundle simulation (`simulateBundle`) and the client's
+ * health-cache simulation need an endpoint that supports Jito's `simulateBundle`.
  */
-export function getConnection(): Connection {
-  const rpcUrl = getEnvVar("SOLANA_RPC_URL");
-  const commitment = getEnvVar("SOLANA_COMMITMENT", false) || "confirmed";
-  return new Connection(rpcUrl, commitment as any);
+export function getRpc() {
+  const rpcEndpoint = getEnvVar("SOLANA_RPC_URL");
+  return { rpc: createSolanaRpc(rpcEndpoint), rpcEndpoint };
 }
 
 /**
  * Marginfi configuration
  */
-export function getMarginfiConfig() {
+export function getMarginfiConfig(): Project0Config {
   return {
-    environment: getEnvVar("MARGINFI_ENVIRONMENT") as any,
-    groupPk: new PublicKey(getEnvVar("MARGINFI_GROUP_ADDRESS")),
-    programId: new PublicKey(getEnvVar("MARGINFI_PROGRAM_ID")),
+    environment: getEnvVar("MARGINFI_ENVIRONMENT") as Environment,
+    groupPk: address(getEnvVar("MARGINFI_GROUP_ADDRESS")),
+    programId: address(getEnvVar("MARGINFI_PROGRAM_ID")),
   };
 }
 
 /**
  * User's marginfi account address
  */
-export function getAccountAddress(): PublicKey {
-  return new PublicKey(getEnvVar("MARGINFI_ACCOUNT_ADDRESS"));
+export function getAccountAddress(): Address {
+  return address(getEnvVar("MARGINFI_ACCOUNT_ADDRESS"));
 }
 
 /**
- * User's wallet public key (for simulation/read-only operations)
+ * User's wallet address (for simulation/read-only operations)
  */
-export function getWalletPubkey(): PublicKey {
-  const pubkeyStr = getEnvVar("WALLET_ADDRESS");
-  try {
-    return new PublicKey(pubkeyStr);
-  } catch (error) {
-    throw new Error("Invalid WALLET_ADDRESS format. Expected base58 public key.");
-  }
-}
-
-/**
- * User's wallet keypair (optional - only needed for actual transaction signing)
- */
-export function getWallet(): Keypair | null {
-  const privateKeyStr = getEnvVar("WALLET_PRIVATE_KEY", false);
-  if (!privateKeyStr) {
-    return null;
-  }
-  try {
-    const privateKey = JSON.parse(privateKeyStr);
-    return Keypair.fromSecretKey(Buffer.from(privateKey));
-  } catch (error) {
-    throw new Error("Invalid WALLET_PRIVATE_KEY format. Expected JSON array: [1,2,3,...]");
-  }
+export function getWalletAddress(): Address {
+  return address(getEnvVar("WALLET_ADDRESS"));
 }
 
 /**
  * Common mint addresses
  */
 export const MINTS = {
-  USDC: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-  USDT: new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
-  SOL: new PublicKey("So11111111111111111111111111111111111111112"),
-  JITOSOL: new PublicKey("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
-  MSOL: new PublicKey("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"),
-  BSOL: new PublicKey("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
+  USDC: address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+  USDT: address("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
+  SOL: address("So11111111111111111111111111111111111111112"),
+  JITOSOL: address("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+  MSOL: address("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"),
+  BSOL: address("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
 };
 
 /** Universal bridge mints for double-hop swaps (mirrors the app's UNIVERSAL_BRIDGES). */
 export const UNIVERSAL_BRIDGE_MINTS = [MINTS.USDC, MINTS.SOL, MINTS.USDT, MINTS.JITOSOL];
-
-/**
- * Priority fee (optional)
- */
-export function getPriorityFee(): number {
-  const fee = getEnvVar("PRIORITY_FEE", false);
-  return fee ? parseFloat(fee) : 0.00001;
-}
 
 /**
  * Builds the multi-provider swap-engine config the SDK swap builders expect (`swapOpts.swapConfig`),

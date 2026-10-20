@@ -1,177 +1,140 @@
+import type { Instruction } from "@solana/kit";
 import {
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+} from "@solana-program/token";
 
-import { MakeBorrowIxParams, MakeBorrowTxParams, TransactionBuilderResult } from "../types";
-import { computeHealthAccountMetas, computeHealthCheckAccounts } from "../utils";
+import { MakeBorrowIxParams, MakeBorrowTxParams } from "../types";
+import { computeHealthAccounts, getActiveBalances } from "../utils";
 
 import { prependOrderCloses } from "./orders";
 
+import { WSOL_MINT } from "~/constants";
 import instructions from "~/instructions";
 import { makeRefreshIntegrationBanksIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
-  InstructionsWrapper,
+  makeTransactionMessage,
   makeUnwrapSolIx,
   selectLutsForAccountAction,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
 import { uiToNative } from "~/utils";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-} from "~/vendor/spl";
 
+/**
+ * Borrows `amount` (UI units of the bank's mint) from `bank` into the authority's ATA. Creates the
+ * ATA and unwraps wSOL unless `opts` disables it; unwrapping closes the wSOL ATA, so wSOL already
+ * in it is unwrapped too.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of the account's
+ * active banks
+ */
 export async function makeBorrowIx({
-  program,
+  programAddress,
   bank,
   bankMap,
   tokenProgram,
   amount,
   marginfiAccount,
   authority,
-  isSync,
   opts = {},
-}: MakeBorrowIxParams): Promise<InstructionsWrapper> {
-  const wrapAndUnwrapSol = opts.wrapAndUnwrapSol ?? true;
-  const createAtas = opts.createAtas ?? true;
+}: MakeBorrowIxParams): Promise<Instruction[]> {
+  const borrowIxs: Instruction[] = [];
 
-  const borrowIxs: TransactionInstruction[] = [];
-
-  const userAta = getAssociatedTokenAddressSync(bank.mint, authority, true, tokenProgram); // We allow off curve addresses here to support Fuse.
-
-  if (createAtas) {
-    const createAtaIdempotentIx = createAssociatedTokenAccountIdempotentInstruction(
-      authority,
-      userAta,
-      authority,
-      bank.mint,
-      tokenProgram
-    );
-    borrowIxs.push(createAtaIdempotentIx);
-  }
-
-  // Combine the borrow bank with any additional health check banks
-  // (e.g., deposit bank in a combined deposit-borrow operation)
-  const mandatoryBanks = [bank.address, ...(opts.additionalHealthCheckBanks ?? [])];
-
-  const healthAccounts = computeHealthCheckAccounts({
-    account: marginfiAccount,
-    banksMap: bankMap,
-    mandatoryBanks,
+  const [destinationTokenAccount] = await findAssociatedTokenPda({
+    mint: bank.mint,
+    owner: authority.address,
+    tokenProgram,
   });
 
-  const remainingAccounts: PublicKey[] = [];
-
-  if (tokenProgram.equals(TOKEN_2022_PROGRAM_ID)) {
-    remainingAccounts.push(bank.mint);
-  }
-  if (opts?.observationBanksOverride) {
-    remainingAccounts.push(...opts.observationBanksOverride);
-  } else {
-    const accountMetas = computeHealthAccountMetas({ banksToInclude: healthAccounts });
-    remainingAccounts.push(...accountMetas);
-  }
-
-  const borrowIx = isSync
-    ? syncInstructions.makeBorrowIx(
-        program.programId,
-        {
-          marginfiAccount: marginfiAccount.address,
-          bank: bank.address,
-          destinationTokenAccount: userAta,
-          tokenProgram: tokenProgram,
-          authority: opts?.overrideInferAccounts?.authority ?? marginfiAccount.authority,
-          group: opts?.overrideInferAccounts?.group ?? marginfiAccount.group,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      )
-    : await instructions.makeBorrowIx(
-        program,
-        {
-          marginfiAccount: marginfiAccount.address,
-          bank: bank.address,
-          destinationTokenAccount: userAta,
-          tokenProgram: tokenProgram,
-          authority: opts?.overrideInferAccounts?.authority,
-          group: opts?.overrideInferAccounts?.group,
-        },
-        { amount: uiToNative(amount, bank.mintDecimals) },
-        remainingAccounts.map((account) => ({
-          pubkey: account,
-          isSigner: false,
-          isWritable: false,
-        }))
-      );
-  borrowIxs.push(borrowIx);
-
-  if (bank.mint.equals(NATIVE_MINT) && wrapAndUnwrapSol) {
-    borrowIxs.push(makeUnwrapSolIx(authority));
+  if (opts.createAta ?? true) {
+    borrowIxs.push(
+      getCreateAssociatedTokenIdempotentInstruction({
+        payer: authority,
+        ata: destinationTokenAccount,
+        owner: authority.address,
+        mint: bank.mint,
+        tokenProgram,
+      })
+    );
   }
 
-  return {
-    instructions: borrowIxs,
-    keys: [],
-  };
+  const activeBanks =
+    opts.activeBanks ?? getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+
+  borrowIxs.push(
+    await instructions.makeBorrowIx(
+      programAddress,
+      {
+        group: marginfiAccount.group,
+        marginfiAccount: marginfiAccount.address,
+        authority,
+        bank: bank.address,
+        destinationTokenAccount,
+        liquidityVault: bank.liquidityVault,
+        mint: bank.mint,
+        tokenProgram,
+        amount: uiToNative(amount, bank.mintDecimals),
+      },
+      computeHealthAccounts(bankMap, [...activeBanks, bank.address])
+    )
+  );
+
+  if (bank.mint === WSOL_MINT && (opts.unwrapSol ?? true)) {
+    borrowIxs.push(await makeUnwrapSolIx(authority));
+  }
+
+  return borrowIxs;
 }
 
-export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<TransactionBuilderResult> {
-  const { luts, connection, ...borrowIxParams } = params;
-
-  // Pick the lean native-stake LUT subset when every involved bank (target + the
-  // account's active positions + any extra health-check banks) is STAKED/SOL.
-  const selectedLuts = selectLutsForAccountAction(
-    luts,
-    borrowIxParams.bank,
-    params.marginfiAccount.balances,
-    params.bankMap,
-    borrowIxParams.opts?.additionalHealthCheckBanks
-  );
-
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
-    params.marginfiAccount,
-    params.bankMap,
-    [borrowIxParams.bank.address],
-    params.bankMetadataMap
-  );
+/**
+ * Builds a borrow transaction around {@link makeBorrowIx}, preceded by the refreshes of the
+ * account's integration banks, including those `opts.activeBanks` adds. The authority pays and
+ * signs; `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makeBorrowIx}
+ * @throws TransactionBuildingError (KAMINO_RESERVE_NOT_FOUND, DRIFT_STATE_NOT_FOUND or
+ * JUPLEND_STATE_NOT_FOUND) if an integration bank's venue state is missing from `bankMetadataMap`
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit next to
+ * the action
+ */
+export async function makeBorrowTx(params: MakeBorrowTxParams): Promise<SolanaTransaction> {
+  const { rpc, txFormat, latestBlockhash, bankMetadataMap, ...borrowIxParams } = params;
+  const { bank, bankMap, marginfiAccount, opts } = params;
 
   const borrowIxs = await makeBorrowIx(borrowIxParams);
-  const ixs = await prependOrderCloses(
-    params,
-    [...refreshIntegrationIxs.instructions, ...borrowIxs.instructions],
-    selectedLuts
+
+  // A Kamino bank opened earlier in the bundle still needs its reserve refreshed; Drift and
+  // JupLend deposits update their venue themselves
+  const accountBanks = getActiveBalances(marginfiAccount.balances).map((b) => b.bankPk);
+  const openedBanks = (opts?.activeBanks ?? []).filter((b) => !accountBanks.includes(b));
+  const refreshIxs = await makeRefreshIntegrationBanksIxs(
+    marginfiAccount,
+    bankMap,
+    [bank.address],
+    bankMetadataMap,
+    [bank.address, ...openedBanks]
   );
 
-  const {
-    value: { blockhash },
-  } = await connection.getLatestBlockhashAndContext("confirmed");
-
-  const borrowTx = addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs,
-        payerKey: params.authority,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(selectedLuts)
-    ),
-    {
-      signers: [...refreshIntegrationIxs.keys, ...borrowIxs.keys],
-      addressLookupTables: selectedLuts,
-      type: TransactionType.BORROW,
-    }
+  const selectedFormat = selectLutsForAccountAction(
+    txFormat,
+    bank,
+    marginfiAccount.balances,
+    bankMap,
+    opts?.activeBanks
   );
+  const ixs = await prependOrderCloses({
+    ...params,
+    actionIxs: [...refreshIxs, ...borrowIxs],
+    txFormat: selectedFormat,
+  });
 
-  const transactions = [borrowTx];
-  return { transactions, actionTxIndex: transactions.length - 1 };
+  return {
+    message: makeTransactionMessage({
+      instructions: ixs,
+      feePayer: params.authority,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      txFormat: selectedFormat,
+    }),
+    type: TransactionType.BORROW,
+  };
 }

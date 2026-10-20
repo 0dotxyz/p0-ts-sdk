@@ -1,14 +1,11 @@
-import BigNumber from "bignumber.js";
-import BN from "bn.js";
+import { BigNumber } from "bignumber.js";
 
 import {
-  BankConfigOptRaw,
-  RiskTierRaw,
-  BankConfigOpt,
+  BankConfigFastOpt,
+  BankConfigGovOpt,
   RiskTier,
   OperationalState,
   OracleSetup,
-  OracleSetupRaw,
   BankTypeDto,
   BankType,
   EmodeSettingsDto,
@@ -17,63 +14,30 @@ import {
   BankConfigDto,
   InterestRateConfigDto,
   InterestRateConfig,
-  BankRaw,
-  BankRawDto,
-  BankConfigRaw,
-  BankConfigRawDto,
-  EmodeSettingsRaw,
-  EmodeSettingsRawDto,
-  InterestRateConfigOptRaw,
-  InterestRateConfigRaw,
+  InterestRateConfigOpt,
   BankRateLimiterType,
   RateLimitWindowType,
   BankRateLimiterDto,
   RateLimitWindowDto,
-  BankRateLimiterRaw,
-  RateLimitWindowRaw,
-  BankRateLimiterRawDto,
-  RateLimitWindowRawDto,
 } from "../types";
+import type { BankConfigFastRaw, BankConfigGovRaw } from "../types/raw-bank.types";
 
+import { OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
+import type { InterestRateConfigCompactArgs } from "~/generated/marginfi";
 import { bigNumberToWrappedI80F48 } from "~/utils";
 
-function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw {
-  const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
-  const toBN = (value: BigNumber | null) => value && new BN(value.toString());
+const toWrappedI80F48 = (value: BigNumber | null) => value && bigNumberToWrappedI80F48(value);
+const toBigInt = (value: BigNumber | null) => value && BigInt(value.toFixed());
 
+export function serializeBankConfigFast(config: BankConfigFastOpt): BankConfigFastRaw {
   return {
-    assetWeightInit: toWrappedI80F48(bankConfigOpt.assetWeightInit),
-    assetWeightMaint: toWrappedI80F48(bankConfigOpt.assetWeightMaint),
-    liabilityWeightInit: toWrappedI80F48(bankConfigOpt.liabilityWeightInit),
-    liabilityWeightMaint: toWrappedI80F48(bankConfigOpt.liabilityWeightMaint),
-    depositLimit: toBN(bankConfigOpt.depositLimit),
-    borrowLimit: toBN(bankConfigOpt.borrowLimit),
-    riskTier: bankConfigOpt.riskTier && serializeRiskTier(bankConfigOpt.riskTier),
-    totalAssetValueInitLimit: toBN(bankConfigOpt.totalAssetValueInitLimit),
-    assetTag: bankConfigOpt.assetTag !== null ? Number(bankConfigOpt.assetTag) : 0,
+    depositLimit: toBigInt(config.depositLimit),
+    borrowLimit: toBigInt(config.borrowLimit),
+    operationalState: config.operationalState && serializeOperationalState(config.operationalState),
     interestRateConfig:
-      bankConfigOpt.interestRateConfig &&
-      ({
-        insuranceFeeFixedApr: toWrappedI80F48(
-          bankConfigOpt.interestRateConfig.insuranceFeeFixedApr
-        ),
-        insuranceIrFee: toWrappedI80F48(bankConfigOpt.interestRateConfig.insuranceIrFee),
-        protocolFixedFeeApr: toWrappedI80F48(bankConfigOpt.interestRateConfig.protocolFixedFeeApr),
-        protocolIrFee: toWrappedI80F48(bankConfigOpt.interestRateConfig.protocolIrFee),
-        protocolOriginationFee: toWrappedI80F48(
-          bankConfigOpt.interestRateConfig.protocolOriginationFee
-        ),
-        zeroUtilRate: bankConfigOpt.interestRateConfig.zeroUtilRate,
-        hundredUtilRate: bankConfigOpt.interestRateConfig.hundredUtilRate,
-        points: bankConfigOpt.interestRateConfig.points,
-      } as InterestRateConfigOptRaw),
-    operationalState:
-      bankConfigOpt.operationalState && serializeOperationalState(bankConfigOpt.operationalState),
-    oracleMaxAge: bankConfigOpt.oracleMaxAge,
-    permissionlessBadDebtSettlement: bankConfigOpt.permissionlessBadDebtSettlement,
-    freezeSettings: bankConfigOpt.freezeSettings,
-    tokenlessRepaymentsAllowed: bankConfigOpt.tokenlessRepaymentsAllowed,
-    oracleMaxConfidence: bankConfigOpt.oracleMaxConfidence,
+      config.interestRateConfig && serializeInterestRateConfig(config.interestRateConfig),
+    totalAssetValueInitLimit: toBigInt(config.totalAssetValueInitLimit),
+    permissionlessBadDebtSettlement: config.permissionlessBadDebtSettlement,
     liquidationLiquidatorFee: null,
     liquidationInsuranceFee: null,
     circuitBreakerEnabled: null,
@@ -87,14 +51,26 @@ function serializeBankConfigOpt(bankConfigOpt: BankConfigOpt): BankConfigOptRaw 
   };
 }
 
-function serializeInterestRateConfig(
-  interestRateConfig: InterestRateConfig
-): InterestRateConfigRaw {
+export function serializeBankConfigGov(config: BankConfigGovOpt): BankConfigGovRaw {
   return {
-    placeholder0: bigNumberToWrappedI80F48(interestRateConfig.placeholder0),
-    placeholder1: bigNumberToWrappedI80F48(interestRateConfig.placeholder1),
-    placeholder2: bigNumberToWrappedI80F48(interestRateConfig.placeholder2),
+    assetWeightInit: toWrappedI80F48(config.assetWeightInit),
+    assetWeightMaint: toWrappedI80F48(config.assetWeightMaint),
+    liabilityWeightInit: toWrappedI80F48(config.liabilityWeightInit),
+    liabilityWeightMaint: toWrappedI80F48(config.liabilityWeightMaint),
+    operationalState: config.operationalState && serializeOperationalState(config.operationalState),
+    riskTier: config.riskTier && serializeRiskTier(config.riskTier),
+    assetTag: config.assetTag,
+    oracleMaxConfidence: config.oracleMaxConfidence,
+    oracleMaxAge: config.oracleMaxAge,
+    tokenlessRepaymentsAllowed: config.tokenlessRepaymentsAllowed,
+    freezeSettings: config.freezeSettings,
+  };
+}
 
+export function serializeInterestRateConfig(
+  interestRateConfig: InterestRateConfigOpt
+): InterestRateConfigCompactArgs {
+  return {
     insuranceFeeFixedApr: bigNumberToWrappedI80F48(interestRateConfig.insuranceFeeFixedApr),
     insuranceIrFee: bigNumberToWrappedI80F48(interestRateConfig.insuranceIrFee),
     protocolFixedFeeApr: bigNumberToWrappedI80F48(interestRateConfig.protocolFixedFeeApr),
@@ -102,186 +78,119 @@ function serializeInterestRateConfig(
     protocolOriginationFee: bigNumberToWrappedI80F48(interestRateConfig.protocolOriginationFee),
     zeroUtilRate: interestRateConfig.zeroUtilRate,
     hundredUtilRate: interestRateConfig.hundredUtilRate,
-    points: interestRateConfig.points,
-    curveType: interestRateConfig.curveType,
+    // The on-chain curve is a fixed [RatePoint; 5]; unused slots are zero
+    points: [
+      ...interestRateConfig.points,
+      ...Array.from({ length: 5 - interestRateConfig.points.length }, () => ({ util: 0, rate: 0 })),
+    ],
   };
 }
 
-function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
+export function serializeRiskTier(riskTier: RiskTier): RiskTierRaw {
   switch (riskTier) {
     case RiskTier.Collateral:
-      return { collateral: {} };
+      return RiskTierRaw.Collateral;
     case RiskTier.Isolated:
-      return { isolated: {} };
+      return RiskTierRaw.Isolated;
     default:
       throw new Error(`Invalid risk tier "${riskTier}"`);
   }
 }
 
-function serializeOperationalState(
-  operationalState: OperationalState
-):
-  | { paused: Record<string, never> }
-  | { operational: Record<string, never> }
-  | { reduceOnly: Record<string, never> } {
+export function serializeOperationalState(operationalState: OperationalState): OperationalStateRaw {
   switch (operationalState) {
     case OperationalState.Paused:
-      return { paused: {} };
+      return OperationalStateRaw.Paused;
     case OperationalState.Operational:
-      return { operational: {} };
+      return OperationalStateRaw.Operational;
     case OperationalState.ReduceOnly:
-      return { reduceOnly: {} };
+      return OperationalStateRaw.ReduceOnly;
     default:
       throw new Error(`Invalid operational state "${operationalState}"`);
   }
 }
 
-function serializeOracleSetupToIndex(oracleSetup: OracleSetup): number {
+export function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
   switch (oracleSetup) {
     case OracleSetup.None:
-      return 0;
+      return OracleSetupRaw.None;
     case OracleSetup.PythLegacy:
-      return 1;
+      return OracleSetupRaw.PythLegacy;
     case OracleSetup.SwitchboardV2:
-      return 2;
+      return OracleSetupRaw.SwitchboardV2;
     case OracleSetup.PythPushOracle:
-      return 3;
+      return OracleSetupRaw.PythPushOracle;
     case OracleSetup.SwitchboardPull:
-      return 4;
+      return OracleSetupRaw.SwitchboardPull;
     case OracleSetup.StakedWithPythPush:
-      return 5;
+      return OracleSetupRaw.StakedWithPythPush;
     case OracleSetup.KaminoPythPush:
-      return 6;
+      return OracleSetupRaw.KaminoPythPush;
     case OracleSetup.KaminoSwitchboardPull:
-      return 7;
+      return OracleSetupRaw.KaminoSwitchboardPull;
     case OracleSetup.Fixed:
-      return 8;
+      return OracleSetupRaw.Fixed;
     case OracleSetup.DriftPythPull:
-      return 9;
+      return OracleSetupRaw.DriftPythPull;
     case OracleSetup.DriftSwitchboardPull:
-      return 10;
+      return OracleSetupRaw.DriftSwitchboardPull;
     case OracleSetup.SolendPythPull:
-      return 11;
+      return OracleSetupRaw.SolendPythPull;
     case OracleSetup.SolendSwitchboardPull:
-      return 12;
+      return OracleSetupRaw.SolendSwitchboardPull;
     case OracleSetup.FixedKamino:
-      return 13;
+      return OracleSetupRaw.FixedKamino;
     case OracleSetup.FixedDrift:
-      return 14;
+      return OracleSetupRaw.FixedDrift;
     case OracleSetup.JuplendPythPull:
-      return 15;
+      return OracleSetupRaw.JuplendPythPull;
     case OracleSetup.JuplendSwitchboardPull:
-      return 16;
+      return OracleSetupRaw.JuplendSwitchboardPull;
     case OracleSetup.FixedJuplend:
-      return 17;
+      return OracleSetupRaw.FixedJuplend;
     case OracleSetup.Scope:
-      return 18;
-    case OracleSetup.PythMSOL:
-      return 19;
-    case OracleSetup.KaminoMSOL:
-      return 20;
-    case OracleSetup.JuplendMSOL:
-      return 21;
-    case OracleSetup.PythLST:
-      return 22;
-    case OracleSetup.KaminoLST:
-      return 23;
-    case OracleSetup.JuplendLST:
-      return 24;
-    case OracleSetup.PTPyth:
-      return 25;
-    case OracleSetup.PTFixed:
-      return 26;
+      return OracleSetupRaw.Scope;
     case OracleSetup.ScopeKamino:
-      return 27;
+      return OracleSetupRaw.ScopeKamino;
     case OracleSetup.ScopeJuplend:
-      return 28;
-    default:
-      throw new Error(`Cannot serialize oracle setup "${oracleSetup}"`);
-  }
-}
-
-function serializeOracleSetup(oracleSetup: OracleSetup): OracleSetupRaw {
-  switch (oracleSetup) {
-    case OracleSetup.None:
-      return { none: {} };
-    case OracleSetup.PythLegacy:
-      return { pythLegacy: {} };
-    case OracleSetup.SwitchboardV2:
-      return { switchboardV2: {} };
-    case OracleSetup.PythPushOracle:
-      return { pythPushOracle: {} };
-    case OracleSetup.SwitchboardPull:
-      return { switchboardPull: {} };
-    case OracleSetup.StakedWithPythPush:
-      return { stakedWithPythPush: {} };
-    case OracleSetup.KaminoPythPush:
-      return { kaminoPythPush: {} };
-    case OracleSetup.KaminoSwitchboardPull:
-      return { kaminoSwitchboardPull: {} };
-    case OracleSetup.Fixed:
-      return { fixed: {} };
-    case OracleSetup.DriftPythPull:
-      return { driftPythPull: {} };
-    case OracleSetup.DriftSwitchboardPull:
-      return { driftSwitchboardPull: {} };
-    case OracleSetup.SolendPythPull:
-      return { solendPythPull: {} };
-    case OracleSetup.SolendSwitchboardPull:
-      return { solendSwitchboardPull: {} };
-    case OracleSetup.FixedKamino:
-      return { fixedKamino: {} };
-    case OracleSetup.FixedDrift:
-      return { fixedDrift: {} };
-    case OracleSetup.JuplendPythPull:
-      return { juplendPythPull: {} };
-    case OracleSetup.JuplendSwitchboardPull:
-      return { juplendSwitchboardPull: {} };
-    case OracleSetup.FixedJuplend:
-      return { fixedJuplend: {} };
-    case OracleSetup.Scope:
-      return { scope: {} };
+      return OracleSetupRaw.ScopeJuplend;
     case OracleSetup.PythMSOL:
-      return { pythMsol: {} };
+      return OracleSetupRaw.PythMSOL;
     case OracleSetup.KaminoMSOL:
-      return { kaminoMsol: {} };
+      return OracleSetupRaw.KaminoMSOL;
     case OracleSetup.JuplendMSOL:
-      return { juplendMsol: {} };
+      return OracleSetupRaw.JuplendMSOL;
     case OracleSetup.PythLST:
-      return { pythLst: {} };
+      return OracleSetupRaw.PythLST;
     case OracleSetup.KaminoLST:
-      return { kaminoLst: {} };
+      return OracleSetupRaw.KaminoLST;
     case OracleSetup.JuplendLST:
-      return { juplendLst: {} };
+      return OracleSetupRaw.JuplendLST;
     case OracleSetup.PTPyth:
-      return { ptPyth: {} };
+      return OracleSetupRaw.PTPyth;
     case OracleSetup.PTFixed:
-      return { ptFixed: {} };
-    case OracleSetup.ScopeKamino:
-      return { scopeKamino: {} };
-    case OracleSetup.ScopeJuplend:
-      return { scopeJuplend: {} };
+      return OracleSetupRaw.PTFixed;
     default:
       throw new Error(`Invalid oracle setup "${oracleSetup}"`);
   }
 }
 
-function toBankDto(bank: BankType): BankTypeDto {
+export function toBankDto(bank: BankType): BankTypeDto {
   return {
-    address: bank.address.toBase58(),
-    group: bank.group.toBase58(),
-    mint: bank.mint.toBase58(),
+    address: bank.address,
+    group: bank.group,
+    mint: bank.mint,
     mintDecimals: bank.mintDecimals,
     assetShareValue: bank.assetShareValue.toString(),
     liabilityShareValue: bank.liabilityShareValue.toString(),
-    liquidityVault: bank.liquidityVault.toBase58(),
+    liquidityVault: bank.liquidityVault,
     liquidityVaultBump: bank.liquidityVaultBump,
     liquidityVaultAuthorityBump: bank.liquidityVaultAuthorityBump,
-    insuranceVault: bank.insuranceVault.toBase58(),
+    insuranceVault: bank.insuranceVault,
     insuranceVaultBump: bank.insuranceVaultBump,
     insuranceVaultAuthorityBump: bank.insuranceVaultAuthorityBump,
     collectedInsuranceFeesOutstanding: bank.collectedInsuranceFeesOutstanding.toString(),
-    feeVault: bank.feeVault.toBase58(),
+    feeVault: bank.feeVault,
     feeVaultBump: bank.feeVaultBump,
     feeVaultAuthorityBump: bank.feeVaultAuthorityBump,
     collectedGroupFeesOutstanding: bank.collectedGroupFeesOutstanding.toString(),
@@ -294,10 +203,10 @@ function toBankDto(bank: BankType): BankTypeDto {
     stakedOracleDisabled: bank.stakedOracleDisabled,
     stakedOracleUsesOnramp: bank.stakedOracleUsesOnramp,
     emissionsRate: bank.emissionsRate,
-    emissionsMint: bank.emissionsMint.toBase58(),
+    emissionsMint: bank.emissionsMint,
     emissionsRemaining: bank.emissionsRemaining.toString(),
     collectedProgramFeesOutstanding: bank.collectedProgramFeesOutstanding.toString(),
-    oracleKey: bank.oracleKey.toBase58(),
+    oracleKey: bank.oracleKey,
     emode: toEmodeSettingsDto(bank.emode),
     premiumTag: bank.premiumTag,
     premiumActive: bank.premiumActive,
@@ -305,40 +214,14 @@ function toBankDto(bank: BankType): BankTypeDto {
     kaminoEmergency: bank.kaminoEmergency,
     rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
-    feesDestinationAccount: bank.feesDestinationAccount?.toBase58(),
+    feesDestinationAccount: bank.feesDestinationAccount,
     lendingPositionCount: bank.lendingPositionCount?.toString(),
     borrowingPositionCount: bank.borrowingPositionCount?.toString(),
-    kaminoIntegrationAccounts: bank.kaminoIntegrationAccounts
-      ? {
-          kaminoReserve: bank.kaminoIntegrationAccounts.kaminoReserve.toBase58(),
-          kaminoObligation: bank.kaminoIntegrationAccounts.kaminoObligation.toBase58(),
-        }
-      : undefined,
-    driftIntegrationAccounts: bank.driftIntegrationAccounts
-      ? {
-          driftSpotMarket: bank.driftIntegrationAccounts.driftSpotMarket.toBase58(),
-          driftUser: bank.driftIntegrationAccounts.driftUser.toBase58(),
-          driftUserStats: bank.driftIntegrationAccounts.driftUserStats.toBase58(),
-        }
-      : undefined,
-    solendIntegrationAccounts: bank.solendIntegrationAccounts
-      ? {
-          solendReserve: bank.solendIntegrationAccounts.solendReserve.toBase58(),
-          solendObligation: bank.solendIntegrationAccounts.solendObligation.toBase58(),
-        }
-      : undefined,
-    jupLendIntegrationAccounts: bank.jupLendIntegrationAccounts
-      ? {
-          jupLendingState: bank.jupLendIntegrationAccounts.jupLendingState.toBase58(),
-          jupFTokenVault: bank.jupLendIntegrationAccounts.jupFTokenVault.toBase58(),
-          jupFTokenAta: bank.jupLendIntegrationAccounts.jupFTokenAta.toBase58(),
-        }
-      : undefined,
-    stakedIntegrationAccounts: bank.stakedIntegrationAccounts
-      ? {
-          validatorVoteAccount: bank.stakedIntegrationAccounts.validatorVoteAccount.toBase58(),
-        }
-      : undefined,
+    kaminoIntegrationAccounts: bank.kaminoIntegrationAccounts,
+    driftIntegrationAccounts: bank.driftIntegrationAccounts,
+    solendIntegrationAccounts: bank.solendIntegrationAccounts,
+    jupLendIntegrationAccounts: bank.jupLendIntegrationAccounts,
+    stakedIntegrationAccounts: bank.stakedIntegrationAccounts,
   };
 }
 
@@ -359,7 +242,7 @@ export function toBankRateLimiterDto(rateLimiter: BankRateLimiterType): BankRate
   };
 }
 
-function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto {
+export function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto {
   return {
     emodeTag: emodeSettings.emodeTag,
     timestamp: emodeSettings.timestamp,
@@ -375,7 +258,7 @@ function toEmodeSettingsDto(emodeSettings: EmodeSettingsType): EmodeSettingsDto 
   };
 }
 
-function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
+export function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
   return {
     assetWeightInit: bankConfig.assetWeightInit.toString(),
     assetWeightMaint: bankConfig.assetWeightMaint.toString(),
@@ -388,7 +271,7 @@ function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
     totalAssetValueInitLimit: bankConfig.totalAssetValueInitLimit.toString(),
     assetTag: bankConfig.assetTag,
     oracleSetup: bankConfig.oracleSetup,
-    oracleKeys: bankConfig.oracleKeys.map((key) => key.toBase58()),
+    oracleKeys: bankConfig.oracleKeys,
     oracleMaxAge: bankConfig.oracleMaxAge,
     interestRateConfig: toInterestRateConfigDto(bankConfig.interestRateConfig),
     configFlags: bankConfig.configFlags,
@@ -398,7 +281,9 @@ function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
   };
 }
 
-function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): InterestRateConfigDto {
+export function toInterestRateConfigDto(
+  interestRateConfig: InterestRateConfig
+): InterestRateConfigDto {
   return {
     placeholder0: interestRateConfig.placeholder0.toString(),
     placeholder1: interestRateConfig.placeholder1.toString(),
@@ -414,147 +299,3 @@ function toInterestRateConfigDto(interestRateConfig: InterestRateConfig): Intere
     curveType: interestRateConfig.curveType,
   };
 }
-
-export function bankRawToDto(bankRaw: BankRaw): BankRawDto {
-  return {
-    group: bankRaw.group.toBase58(),
-    mint: bankRaw.mint.toBase58(),
-    mintDecimals: bankRaw.mintDecimals,
-
-    assetShareValue: bankRaw.assetShareValue,
-    liabilityShareValue: bankRaw.liabilityShareValue,
-
-    liquidityVault: bankRaw.liquidityVault.toBase58(),
-    liquidityVaultBump: bankRaw.liquidityVaultBump,
-    liquidityVaultAuthorityBump: bankRaw.liquidityVaultAuthorityBump,
-
-    insuranceVault: bankRaw.insuranceVault.toBase58(),
-    insuranceVaultBump: bankRaw.insuranceVaultBump,
-    insuranceVaultAuthorityBump: bankRaw.insuranceVaultAuthorityBump,
-    collectedInsuranceFeesOutstanding: bankRaw.collectedInsuranceFeesOutstanding,
-
-    feeVault: bankRaw.feeVault.toBase58(),
-    feeVaultBump: bankRaw.feeVaultBump,
-    feeVaultAuthorityBump: bankRaw.feeVaultAuthorityBump,
-    collectedGroupFeesOutstanding: bankRaw.collectedGroupFeesOutstanding,
-
-    lastUpdate: bankRaw.lastUpdate.toString(),
-
-    config: bankConfigRawToDto(bankRaw.config),
-
-    totalAssetShares: bankRaw.totalAssetShares,
-    totalLiabilityShares: bankRaw.totalLiabilityShares,
-
-    flags: bankRaw.flags.toString(),
-    emissionsRate: bankRaw.emissionsRate.toString(),
-    emissionsRemaining: bankRaw.emissionsRemaining,
-    emissionsMint: bankRaw.emissionsMint.toBase58(),
-    collectedProgramFeesOutstanding: bankRaw.collectedProgramFeesOutstanding,
-    rateLimiter: bankRaw.rateLimiter ? bankRateLimiterRawToDto(bankRaw.rateLimiter) : undefined,
-    feesDestinationAccount: bankRaw?.feesDestinationAccount?.toBase58(),
-    lendingPositionCount: bankRaw?.lendingPositionCount?.toString(),
-    borrowingPositionCount: bankRaw?.borrowingPositionCount?.toString(),
-    premiumTag: bankRaw.premiumTag,
-    premiumActivatedAt: bankRaw.premiumActivatedAt.toString(),
-
-    emode: emodeSettingsRawToDto(bankRaw.emode),
-    integrationAcc1: bankRaw.integrationAcc1.toBase58(),
-    integrationAcc2: bankRaw.integrationAcc2.toBase58(),
-    integrationAcc3: bankRaw.integrationAcc3.toBase58(),
-  };
-}
-
-function rateLimitWindowRawToDto(window: RateLimitWindowRaw): RateLimitWindowRawDto {
-  return {
-    maxOutflow: window.maxOutflow.toString(),
-    windowDuration: window.windowDuration.toString(),
-    windowStart: window.windowStart.toString(),
-    prevWindowOutflow: window.prevWindowOutflow.toString(),
-    curWindowOutflow: window.curWindowOutflow.toString(),
-  };
-}
-
-export function bankRateLimiterRawToDto(rateLimiter: BankRateLimiterRaw): BankRateLimiterRawDto {
-  return {
-    hourly: rateLimitWindowRawToDto(rateLimiter.hourly),
-    daily: rateLimitWindowRawToDto(rateLimiter.daily),
-  };
-}
-
-export function emodeSettingsRawToDto(emodeSettingsRaw: EmodeSettingsRaw): EmodeSettingsRawDto {
-  return {
-    emodeTag: emodeSettingsRaw.emodeTag,
-    timestamp: emodeSettingsRaw.timestamp.toString(),
-    flags: emodeSettingsRaw.flags.toString(),
-    emodeConfig: {
-      entries: emodeSettingsRaw.emodeConfig.entries.map((entry) => {
-        return {
-          collateralBankEmodeTag: entry.collateralBankEmodeTag,
-          flags: entry.flags,
-          assetWeightInit: entry.assetWeightInit,
-          assetWeightMaint: entry.assetWeightMaint,
-        };
-      }),
-    },
-  };
-}
-
-function bankConfigToBankConfigRaw(config: BankConfigType): BankConfigRaw {
-  return {
-    assetWeightInit: bigNumberToWrappedI80F48(config.assetWeightInit),
-    assetWeightMaint: bigNumberToWrappedI80F48(config.assetWeightMaint),
-    liabilityWeightInit: bigNumberToWrappedI80F48(config.liabilityWeightInit),
-    liabilityWeightMaint: bigNumberToWrappedI80F48(config.liabilityWeightMaint),
-    depositLimit: new BN(config.depositLimit.toString()),
-    interestRateConfig: serializeInterestRateConfig(config.interestRateConfig),
-    operationalState: serializeOperationalState(config.operationalState),
-    oracleSetup: serializeOracleSetup(config.oracleSetup),
-    oracleKeys: config.oracleKeys,
-    configFlags: config.configFlags,
-    borrowLimit: new BN(config.borrowLimit.toString()),
-    riskTier: serializeRiskTier(config.riskTier),
-    assetTag: config.assetTag,
-    totalAssetValueInitLimit: new BN(config.totalAssetValueInitLimit.toString()),
-    oracleMaxAge: config.oracleMaxAge,
-    oracleMaxConfidence: config.oracleMaxConfidence,
-    fixedPrice: bigNumberToWrappedI80F48(config.fixedPrice),
-    scopeEntryIndex: config.scopeEntryIndex,
-  };
-}
-
-export function bankConfigRawToDto(bankConfigRaw: BankConfigRaw): BankConfigRawDto {
-  return {
-    assetWeightInit: bankConfigRaw.assetWeightInit,
-    assetWeightMaint: bankConfigRaw.assetWeightMaint,
-    liabilityWeightInit: bankConfigRaw.liabilityWeightInit,
-    liabilityWeightMaint: bankConfigRaw.liabilityWeightMaint,
-    depositLimit: bankConfigRaw.depositLimit.toString(),
-    borrowLimit: bankConfigRaw.borrowLimit.toString(),
-    riskTier: bankConfigRaw.riskTier,
-    operationalState: bankConfigRaw.operationalState,
-    totalAssetValueInitLimit: bankConfigRaw.totalAssetValueInitLimit.toString(),
-    assetTag: bankConfigRaw.assetTag,
-    oracleSetup: bankConfigRaw.oracleSetup,
-    oracleKeys: bankConfigRaw.oracleKeys.map((key) => key.toBase58()),
-    oracleMaxAge: bankConfigRaw.oracleMaxAge,
-    interestRateConfig: bankConfigRaw.interestRateConfig,
-    configFlags: bankConfigRaw.configFlags,
-    oracleMaxConfidence: bankConfigRaw.oracleMaxConfidence,
-    fixedPrice: bankConfigRaw.fixedPrice,
-    scopeEntryIndex: bankConfigRaw.scopeEntryIndex,
-  };
-}
-
-export {
-  serializeInterestRateConfig,
-  serializeOracleSetupToIndex,
-  bankConfigToBankConfigRaw,
-  serializeBankConfigOpt,
-  serializeRiskTier,
-  serializeOperationalState,
-  serializeOracleSetup,
-  toBankDto,
-  toEmodeSettingsDto,
-  toBankConfigDto,
-  toInterestRateConfigDto,
-};

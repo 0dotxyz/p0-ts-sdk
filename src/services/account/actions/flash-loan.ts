@@ -1,142 +1,91 @@
-import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Instruction } from "@solana/kit";
 
-import { MakeFlashLoanTxParams } from "../types";
-import { computeHealthAccountMetas, computeProjectedActiveBanksNoCpi } from "../utils";
+import {
+  MakeBeginFlashLoanIxParams,
+  MakeEndFlashLoanIxParams,
+  MakeFlashLoanTxParams,
+} from "../types";
+import { computeHealthAccounts, computeProjectedActiveBanksNoCpi } from "../utils";
 
 import instructions from "~/instructions";
-import { BankType } from "~/services/bank";
-import {
-  addTransactionMetadata,
-  InstructionsWrapper,
-  TransactionType,
-} from "~/services/transaction";
-import syncInstructions from "~/sync-instructions";
-import { MarginfiProgram } from "~/types";
+import { makeTransactionMessage, SolanaTransaction, TransactionType } from "~/services/transaction";
 
-export async function makeBeginFlashLoanIx(
-  program: MarginfiProgram,
-  marginfiAccountPk: PublicKey,
-  endIndex: number,
-  authority?: PublicKey,
-  isSync?: boolean
-): Promise<InstructionsWrapper> {
-  const ix =
-    isSync && authority
-      ? syncInstructions.makeBeginFlashLoanIx(
-          program.programId,
-          {
-            marginfiAccount: marginfiAccountPk,
-            authority,
-          },
-          { endIndex: new BN(endIndex) }
-        )
-      : await instructions.makeBeginFlashLoanIx(
-          program,
-          {
-            marginfiAccount: marginfiAccountPk,
-            authority,
-          },
-          { endIndex: new BN(endIndex) }
-        );
-  return { instructions: [ix], keys: [] };
-}
-
-export async function makeEndFlashLoanIx(
-  program: MarginfiProgram,
-  marginfiAccountPk: PublicKey,
-  group: PublicKey,
-  projectedActiveBanks: BankType[],
-  authority?: PublicKey,
-  isSync?: boolean
-): Promise<InstructionsWrapper> {
-  const remainingAccounts = computeHealthAccountMetas({ banksToInclude: projectedActiveBanks });
-  const ix =
-    isSync && authority
-      ? syncInstructions.makeEndFlashLoanIx(
-          program.programId,
-          {
-            marginfiAccount: marginfiAccountPk,
-            group,
-            authority,
-          },
-          remainingAccounts.map((account) => ({
-            pubkey: account,
-            isSigner: false,
-            isWritable: false,
-          }))
-        )
-      : await instructions.makeEndFlashLoanIx(
-          program,
-          {
-            marginfiAccount: marginfiAccountPk,
-            group,
-            authority,
-          },
-          remainingAccounts.map((account) => ({
-            pubkey: account,
-            isSigner: false,
-            isWritable: false,
-          }))
-        );
-  return { instructions: [ix], keys: [] };
-}
-
-export async function makeFlashLoanTx({
-  program,
+/**
+ * Starts a flashloan on `marginfiAccount`: its health checks are deferred to the end-flashloan
+ * instruction at transaction index `endIndex`.
+ */
+export async function makeBeginFlashLoanIx({
+  programAddress,
   marginfiAccount,
+  authority,
+  endIndex,
+}: MakeBeginFlashLoanIxParams): Promise<Instruction> {
+  return instructions.makeBeginFlashLoanIx(programAddress, {
+    marginfiAccount: marginfiAccount.address,
+    authority,
+    endIndex,
+  });
+}
+
+/**
+ * Ends a flashloan, health-checking `marginfiAccount` with `activeBanks` active.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses one of `activeBanks`
+ */
+export async function makeEndFlashLoanIx({
+  programAddress,
+  marginfiAccount,
+  authority,
+  bankMap,
+  activeBanks,
+}: MakeEndFlashLoanIxParams): Promise<Instruction> {
+  return instructions.makeEndFlashLoanIx(
+    programAddress,
+    { marginfiAccount: marginfiAccount.address, group: marginfiAccount.group, authority },
+    computeHealthAccounts(bankMap, activeBanks)
+  );
+}
+
+/**
+ * Wraps `ixs` in a flashloan on `marginfiAccount`, health-checked against the banks active after
+ * `ixs`. The end index assumes the begin instruction stays first in the transaction, so put the
+ * compute-budget instructions in `ixs`: a wallet that finds none prepends its own, which shifts
+ * the index and fails the flashloan.
+ * @throws TransactionBuildingError (BANK_NOT_FOUND) if `bankMap` misses a bank active after `ixs`
+ */
+export async function makeFlashLoanTx({
+  programAddress,
+  marginfiAccount,
+  authority,
   ixs,
   bankMap,
-  blockhash,
-  addressLookupTableAccounts,
-  signers,
-  isSync,
-}: MakeFlashLoanTxParams) {
-  const endIndex = ixs.length + 1;
-
-  const projectedActiveBanksKeys: PublicKey[] = computeProjectedActiveBanksNoCpi({
-    account: marginfiAccount,
-    instructions: ixs,
-    program,
+  latestBlockhash,
+  txFormat,
+}: MakeFlashLoanTxParams): Promise<SolanaTransaction> {
+  const beginIx = await makeBeginFlashLoanIx({
+    programAddress,
+    marginfiAccount,
+    authority,
+    endIndex: ixs.length + 1,
+  });
+  const endIx = await makeEndFlashLoanIx({
+    programAddress,
+    marginfiAccount,
+    authority,
+    bankMap,
+    activeBanks: computeProjectedActiveBanksNoCpi({
+      account: marginfiAccount,
+      instructions: ixs,
+      programAddress,
+    }),
   });
 
-  const projectedActiveBanks = projectedActiveBanksKeys.map((account) => {
-    const b = bankMap.get(account.toBase58());
-    if (!b) throw Error(`Bank ${account.toBase58()} not found, in makeFlashLoanTx function`);
-    return b;
-  });
-
-  const beginFlashLoanIx = await makeBeginFlashLoanIx(
-    program,
-    marginfiAccount.address,
-    endIndex,
-    marginfiAccount.authority,
-    isSync
-  );
-  const endFlashLoanIx = await makeEndFlashLoanIx(
-    program,
-    marginfiAccount.address,
-    marginfiAccount.group,
-    projectedActiveBanks,
-    marginfiAccount.authority,
-    isSync
-  );
-
-  const message = new TransactionMessage({
-    payerKey: marginfiAccount.authority,
-    recentBlockhash: blockhash,
-    instructions: [...beginFlashLoanIx.instructions, ...ixs, ...endFlashLoanIx.instructions],
-  }).compileToV0Message(addressLookupTableAccounts);
-
-  const tx = addTransactionMetadata(new VersionedTransaction(message), {
-    addressLookupTables: addressLookupTableAccounts,
+  return {
+    message: makeTransactionMessage({
+      instructions: [beginIx, ...ixs, endIx],
+      feePayer: authority,
+      latestBlockhash,
+      txFormat,
+    }),
     type: TransactionType.FLASHLOAN,
-    signers: signers,
-  });
-
-  if (signers) {
-    tx.sign(signers);
-  }
-
-  return tx;
+  };
 }

@@ -9,26 +9,18 @@
  *
  * Setup:
  * 1. Copy .env.example to .env
- * 2. Fill in your MARGINFI_ACCOUNT_ADDRESS and WALLET_ADDRESS (no private key needed!)
+ * 2. Fill in your MARGINFI_ACCOUNT_ADDRESS (no private key needed!)
  * 3. Run: tsx 01-deposit.ts
  *
- * Note: This runs in SIMULATION mode - no actual transactions are sent.
+ * Note: This runs in SIMULATION mode - no actual transactions are sent. The wrapper signs with a
+ * noop signer for the account authority; pass your wallet's signer as the wrapper's third argument
+ * and use `signTransactionMessageWithSigners` to send for real.
  */
 
-import {
-  Project0Client,
-  MarginfiAccountWrapper,
-  MarginfiAccount,
-  AssetTag,
-} from "../src";
-import { Transaction } from "@solana/web3.js";
-import {
-  getConnection,
-  getMarginfiConfig,
-  getAccountAddress,
-  getWalletPubkey,
-  MINTS,
-} from "./config";
+import { compileTransaction, getBase64EncodedWireTransaction } from "@solana/kit";
+
+import { Project0Client, MarginfiAccountWrapper, MarginfiAccount, AssetTag } from "../src";
+import { getRpc, getMarginfiConfig, getAccountAddress, MINTS } from "./config";
 
 // ============================================================================
 // Configuration
@@ -46,20 +38,18 @@ async function depositExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
 
-  const connection = getConnection();
-  const walletPubkey = getWalletPubkey();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
 
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
   console.log(`   Environment: ${config.environment}`);
-  console.log(`   Wallet: ${walletPubkey.toBase58()}`);
 
   // --------------------------------------------------------------------------
   // Step 2: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n📡 Initializing Project0Client...");
 
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
 
   console.log(`✅ Client initialized`);
   console.log(`📊 Loaded ${client.banks.length} banks`);
@@ -70,10 +60,11 @@ async function depositExample() {
   console.log("\n👤 Loading marginfi account...");
 
   const accountAddress = getAccountAddress();
-  const account = await MarginfiAccount.fetch(accountAddress, client.program);
+  const account = await MarginfiAccount.fetch(accountAddress, rpc);
   const wrappedAccount = new MarginfiAccountWrapper(account, client);
 
-  console.log(`✅ Account loaded: ${account.address.toBase58()}`);
+  console.log(`✅ Account loaded: ${account.address}`);
+  console.log(`   Authority: ${account.authority}`);
 
   // --------------------------------------------------------------------------
   // Step 4: Select Bank
@@ -87,8 +78,8 @@ async function depositExample() {
   }
 
   const solBank = solBanks[0];
-  console.log(`✅ Bank selected: ${solBank.address.toBase58()}`);
-  console.log(`   Mint: ${solBank.mint.toBase58()}`);
+  console.log(`✅ Bank selected: ${solBank.address}`);
+  console.log(`   Mint: ${solBank.mint}`);
 
   // --------------------------------------------------------------------------
   // Step 5: Build Deposit Transaction
@@ -111,14 +102,18 @@ async function depositExample() {
   // --------------------------------------------------------------------------
   console.log("\n🔄 Simulating transaction...");
 
-  // Prepare transaction for simulation
-  const recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  depositTx.recentBlockhash = recentBlockhash;
-  depositTx.feePayer = walletPubkey;
+  // Compile the message (fee payer, blockhash and lookup tables are already set) and simulate it
+  // without signatures.
+  const wireTransaction = getBase64EncodedWireTransaction(compileTransaction(depositTx.message));
 
-  // Run simulation
   try {
-    const simulation = await connection.simulateTransaction(depositTx);
+    const simulation = await rpc
+      .simulateTransaction(wireTransaction, {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+      })
+      .send();
 
     if (simulation.value.err) {
       console.error("\n❌ Simulation failed:", simulation.value.err);

@@ -20,14 +20,21 @@ const apyToApr = (apy: number, compoundingFrequency: number = HOURS_PER_YEAR): n
  * @param compoundingFrequency {Number} Compounding frequency (times a year)
  * @returns {Number} APY (i.e. 0.06 for APR of 0.0582)
  */
-const aprToApy = (apr: number, compoundingFrequency: number = HOURS_PER_YEAR, apyCap: number = 3): number =>
-  Math.min((1 + apr / compoundingFrequency) ** compoundingFrequency - 1, apyCap);
+const aprToApy = (
+  apr: number,
+  compoundingFrequency: number = HOURS_PER_YEAR,
+  apyCap: number = 3
+): number => Math.min((1 + apr / compoundingFrequency) ** compoundingFrequency - 1, apyCap);
 
 function calculateInterestFromApy(principal: number, durationInYears: number, apy: number): number {
   return principal * apy * durationInYears;
 }
 
-function calculateApyFromInterest(principal: number, durationInYears: number, interest: number): number {
+function calculateApyFromInterest(
+  principal: number,
+  durationInYears: number,
+  interest: number
+): number {
   return interest / (principal * durationInYears);
 }
 

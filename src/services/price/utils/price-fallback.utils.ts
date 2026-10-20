@@ -1,9 +1,6 @@
 interface TokenPriceResponse {
   success: boolean;
-  data: Record<
-    string,
-    { value: number; updateUnixTime: number; updateHumanTime: string }
-  >;
+  data: Record<string, { value: number; updateUnixTime: number; updateHumanTime: string }>;
 }
 
 /**
@@ -50,12 +47,6 @@ export async function getFallbackPricesForMints(
 }
 
 /**
- * @deprecated Renamed to {@link getFallbackPricesForMints} — the endpoint is
- * no longer Birdeye-backed.
- */
-export const getBirdeyePricesForMints = getFallbackPricesForMints;
-
-/**
  * Fetches fallback prices and maps them by feed ID
  * @param feedMint - Array of objects containing feedId and mintAddress pairs
  * @returns Promise resolving to record of prices indexed by feed ID
@@ -69,11 +60,7 @@ export const getFallbackPricesByFeedId = async (
   opts?: { queryKey?: string }
 ): Promise<Record<string, number>> => {
   const mintAddresses = feedMint.map((feedMint) => feedMint.mintAddress);
-  const prices = await getFallbackPricesForMints(
-    mintAddresses,
-    apiEndpoint,
-    opts
-  );
+  const prices = await getFallbackPricesForMints(mintAddresses, apiEndpoint, opts);
 
   const priceByFeedId: Record<string, number> = {};
   feedMint.forEach((feedMint) => {
@@ -88,9 +75,3 @@ export const getFallbackPricesByFeedId = async (
 
   return priceByFeedId;
 };
-
-/**
- * @deprecated Renamed to {@link getFallbackPricesByFeedId} — the endpoint is
- * no longer Birdeye-backed.
- */
-export const getBirdeyeFallbackPricesByFeedId = getFallbackPricesByFeedId;

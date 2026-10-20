@@ -1,9 +1,9 @@
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import type { Address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 export interface BalanceType {
   active: boolean;
-  bankPk: PublicKey;
+  bankPk: Address;
   /**
    * Tag used by orders to reference this balance (0 means unused/unassigned).
    * A tag may be non-zero even when no order currently references it.
@@ -61,12 +61,11 @@ export interface HealthCacheType {
 }
 
 export interface MarginfiAccountType {
-  address: PublicKey;
-  group: PublicKey;
-  authority: PublicKey;
+  address: Address;
+  group: Address;
+  authority: Address;
   balances: BalanceType[];
   accountFlags: AccountFlags[];
-  emissionsDestinationAccount: PublicKey;
   healthCache: HealthCacheType;
   /** Orders that point at this account, including orphaned ones. Transfer requires 0. */
   activeOrders: number;
@@ -92,8 +91,8 @@ export enum MarginRequirementType {
 export type OrderTriggerKind = "stopLoss" | "takeProfit" | "both";
 
 export interface OrderType {
-  address: PublicKey;
-  marginfiAccount: PublicKey;
+  address: Address;
+  marginfiAccount: Address;
   /** Which trigger(s) this order fires on. */
   trigger: OrderTriggerKind;
   /** Pair net-equity stop-loss threshold in USD, null when the order has no stop-loss leg. */

@@ -1,68 +1,53 @@
-import { TransactionInstruction } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Instruction } from "@solana/kit";
+
+import { MarginfiInstruction, parseMarginfiIx } from "~/instructions";
 
 /**
- * Byte offset of the u64 `amount` argument within a deposit instruction's data buffer.
+ * Byte offset of the u64 `amount` argument within a deposit instruction's data.
  * Layout for every deposit variant is: 8-byte discriminator followed by an 8-byte
- * little-endian u64 amount (see `sync-instructions.ts` / the marginfi IDL).
+ * little-endian u64 amount (see the marginfi IDL).
  */
 const DEPOSIT_AMOUNT_OFFSET = 8;
 
-/**
- * Discriminators (first 8 bytes) of the deposit instructions we are allowed to patch.
- * Used as a safety guard so we never rewrite the wrong instruction's bytes.
- */
-const DEPOSIT_DISCRIMINATORS: ReadonlyArray<readonly number[]> = [
-  [171, 94, 235, 103, 82, 64, 212, 140], // lending_account_deposit
-  [237, 8, 188, 187, 115, 99, 49, 85], // kamino_deposit
-  [252, 63, 250, 201, 98, 55, 130, 12], // drift_deposit
-  [114, 11, 218, 81, 183, 165, 143, 255], // juplend_deposit
-];
-
-function isKnownDepositIx(data: Buffer): boolean {
-  return DEPOSIT_DISCRIMINATORS.some((disc) =>
-    disc.every((byte, i) => data[i] === byte)
-  );
-}
+/** The deposit instructions we are allowed to patch. */
+const DEPOSIT_INSTRUCTIONS = new Set([
+  MarginfiInstruction.LendingAccountDeposit,
+  MarginfiInstruction.KaminoDeposit,
+  MarginfiInstruction.DriftDeposit,
+  MarginfiInstruction.JuplendDeposit,
+]);
 
 /**
  * Returns true if the instruction is a marginfi deposit instruction (any integration).
  * Used to locate the amount-bearing deposit ix within a flashloan instruction array.
  */
-export function isDepositIx(ix: TransactionInstruction): boolean {
-  return ix.data.length >= 8 && isKnownDepositIx(ix.data);
+export function isDepositIx(ix: Instruction): boolean {
+  const parsed = parseMarginfiIx(ix);
+  return parsed !== undefined && DEPOSIT_INSTRUCTIONS.has(parsed.instructionType);
 }
 
 /**
- * Rewrites the `amount` field of an already-built deposit instruction in place.
+ * Returns a copy of an already-built deposit instruction with its `amount` replaced.
  *
  * The deferred-swap loop flow builds the deposit instruction with a market-price
  * estimate before the swap output is known, then patches the real swap output amount
  * once the swap engine has run. Because the amount is a fixed-offset little-endian u64,
- * this is a pure byte patch — no account/key changes — so it is safe to apply to an
- * instruction that is about to be (re)compiled into a flashloan transaction.
+ * this is a pure byte patch — no account/key changes.
  *
- * @param ix - The deposit instruction to mutate.
+ * @param ix - The deposit instruction.
  * @param amountNative - The new amount in native (base) units.
+ * @throws if `ix` is not a marginfi deposit instruction or the amount is negative
  */
-export function patchDepositAmount(ix: TransactionInstruction, amountNative: BN): void {
-  if (ix.data.length < DEPOSIT_AMOUNT_OFFSET + 8) {
-    throw new Error(
-      `patchDepositAmount: instruction data too short (${ix.data.length} bytes), expected at least ${
-        DEPOSIT_AMOUNT_OFFSET + 8
-      }`
-    );
+export function patchDepositAmount(ix: Instruction, amountNative: bigint): Instruction {
+  if (!isDepositIx(ix)) {
+    throw new Error("patchDepositAmount: instruction is not a known deposit instruction");
   }
 
-  if (!isKnownDepositIx(ix.data)) {
-    throw new Error(
-      "patchDepositAmount: instruction discriminator does not match a known deposit instruction"
-    );
-  }
-
-  if (amountNative.isNeg()) {
+  if (amountNative < 0n) {
     throw new Error("patchDepositAmount: amount must be non-negative");
   }
 
-  amountNative.toArrayLike(Buffer, "le", 8).copy(ix.data, DEPOSIT_AMOUNT_OFFSET);
+  const data = Uint8Array.from(ix.data ?? []);
+  new DataView(data.buffer).setBigUint64(DEPOSIT_AMOUNT_OFFSET, amountNative, true);
+  return { ...ix, data };
 }

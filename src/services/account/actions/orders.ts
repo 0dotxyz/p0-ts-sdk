@@ -1,40 +1,30 @@
-import {
-  AddressLookupTableAccount,
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { type Instruction, type TransactionSigner } from "@solana/kit";
 
 import {
+  ActionTxParams,
   MakeCloseOrderIxParams,
   MakeCloseOrderTxParams,
-  MakeOrderChangesIxParams,
+  MakeOrderChangesIxsParams,
   MakeOrderChangesTxParams,
   MakePlaceOrderIxParams,
   MakePlaceOrderTxParams,
-  MarginfiAccountType,
-  OrderChangesParams,
+  MakeUpdateOrderTxParams,
   OrderTriggerParams,
+  PrependOrderClosesParams,
 } from "../types";
+import { fetchGlobalFeeWallet } from "../utils";
 
-import { BUNDLE_TX_SIZE, MAX_ACCOUNT_LOCKS, PRIORITY_TX_SIZE } from "~/constants";
+import { SEND_PIPELINE_ROOM } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import instructions from "~/instructions";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
   fitsInOneTransaction,
-  InstructionsWrapper,
+  makeTransactionMessage,
+  SolanaTransaction,
   TransactionType,
 } from "~/services/transaction";
-import { MarginfiProgram, OrderTrigger } from "~/types";
-import {
-  bigNumberToWrappedI80F48,
-  deriveFeeState,
-  deriveOrderPda,
-  percentToMaxSlippageU32,
-} from "~/utils";
+import { OrderTrigger } from "~/types";
+import { bigNumberToWrappedI80F48, deriveOrderPda, percentToMaxSlippageU32 } from "~/utils";
 
 /**
  * Converts USD-equity thresholds into the on-chain `OrderTrigger` argument.
@@ -66,18 +56,21 @@ export function buildOrderTrigger(params: OrderTriggerParams): OrderTrigger {
       );
     }
     return {
-      both: {
-        stopLoss: bigNumberToWrappedI80F48(stopLossUsd),
-        takeProfit: bigNumberToWrappedI80F48(takeProfitUsd),
-        maxSlippage,
-      },
+      __kind: "Both",
+      stopLoss: bigNumberToWrappedI80F48(stopLossUsd),
+      takeProfit: bigNumberToWrappedI80F48(takeProfitUsd),
+      maxSlippage,
     };
   }
   if (stopLossUsd) {
-    return { stopLoss: { threshold: bigNumberToWrappedI80F48(stopLossUsd), maxSlippage } };
+    return { __kind: "StopLoss", threshold: bigNumberToWrappedI80F48(stopLossUsd), maxSlippage };
   }
   if (takeProfitUsd) {
-    return { takeProfit: { threshold: bigNumberToWrappedI80F48(takeProfitUsd), maxSlippage } };
+    return {
+      __kind: "TakeProfit",
+      threshold: bigNumberToWrappedI80F48(takeProfitUsd),
+      maxSlippage,
+    };
   }
   throw invalidTrigger("an order needs a stop-loss threshold, a take-profit threshold, or both");
 }
@@ -90,234 +83,235 @@ export function buildOrderTrigger(params: OrderTriggerParams): OrderTrigger {
  * The account must already hold (or, when bundled after a borrow/loop, will hold) an asset
  * balance in `collateralBank` and a liability balance in `debtBank`. The flat anti-spam fee from
  * the program's fee state is charged to `feePayer`.
+ * @throws see {@link buildOrderTrigger}
  */
-export async function makePlaceOrderIx(
-  params: MakePlaceOrderIxParams
-): Promise<InstructionsWrapper> {
-  const { program, marginfiAccount, collateralBank, debtBank, trigger, feePayer } = params;
-
-  const [order] = deriveOrderPda(program.programId, marginfiAccount.address, [
+export async function makePlaceOrderIx({
+  programAddress,
+  marginfiAccount,
+  authority,
+  collateralBank,
+  debtBank,
+  trigger,
+  feePayer = authority,
+  globalFeeWallet,
+}: MakePlaceOrderIxParams): Promise<Instruction> {
+  const [order] = await deriveOrderPda(programAddress, marginfiAccount.address, [
     collateralBank,
     debtBank,
   ]);
-  const globalFeeWallet =
-    params.globalFeeWallet ??
-    (await program.account.feeState.fetch(deriveFeeState(program.programId)[0])).globalFeeWallet;
 
-  const placeOrderIx = await instructions.makePlaceOrderIx(
-    program,
-    {
-      marginfiAccount: marginfiAccount.address,
-      feePayer: feePayer ?? marginfiAccount.authority,
-      authority: marginfiAccount.authority,
-      order,
-      globalFeeWallet,
-      group: marginfiAccount.group,
-    },
-    { bankKeys: [collateralBank, debtBank], trigger: buildOrderTrigger(trigger) }
-  );
-
-  return { instructions: [placeOrderIx], keys: [] };
+  return instructions.makePlaceOrderIx(programAddress, {
+    group: marginfiAccount.group,
+    marginfiAccount: marginfiAccount.address,
+    feePayer,
+    authority,
+    order,
+    globalFeeWallet,
+    bankKeys: [collateralBank, debtBank],
+    trigger: buildOrderTrigger(trigger),
+  });
 }
 
 /**
  * Creates the instruction that closes an order and returns its rent to `feeRecipient`.
  */
-export async function makeCloseOrderIx(
-  params: MakeCloseOrderIxParams
-): Promise<InstructionsWrapper> {
-  const { program, marginfiAccount, order, feeRecipient } = params;
-
-  const closeOrderIx = await instructions.makeCloseOrderIx(program, {
-    marginfiAccount: marginfiAccount.address,
-    authority: marginfiAccount.authority,
-    order,
-    feeRecipient: feeRecipient ?? marginfiAccount.authority,
+export async function makeCloseOrderIx({
+  programAddress,
+  marginfiAccount,
+  authority,
+  order,
+  feeRecipient = authority.address,
+}: MakeCloseOrderIxParams): Promise<Instruction> {
+  return instructions.makeCloseOrderIx(programAddress, {
     group: marginfiAccount.group,
+    marginfiAccount: marginfiAccount.address,
+    authority,
+    order,
+    feeRecipient,
   });
-
-  return { instructions: [closeOrderIx], keys: [] };
 }
 
 async function compileOrderTx(
-  params: Pick<MakePlaceOrderTxParams, "connection" | "luts" | "blockhash">,
-  payerKey: PublicKey,
-  ixs: InstructionsWrapper[],
+  { rpc, txFormat, latestBlockhash }: ActionTxParams,
+  feePayer: TransactionSigner,
+  ixs: Instruction[],
   type: TransactionType
-): Promise<ExtendedV0Transaction> {
-  const blockhash =
-    params.blockhash ??
-    (await params.connection.getLatestBlockhashAndContext("confirmed")).value.blockhash;
-
-  return addTransactionMetadata(
-    new VersionedTransaction(
-      new TransactionMessage({
-        instructions: ixs.flatMap((ix) => ix.instructions),
-        payerKey,
-        recentBlockhash: blockhash,
-      }).compileToV0Message(params.luts)
-    ),
-    { type, signers: ixs.flatMap((ix) => ix.keys), addressLookupTables: params.luts }
-  );
+): Promise<SolanaTransaction> {
+  return {
+    message: makeTransactionMessage({
+      instructions: ixs,
+      feePayer,
+      latestBlockhash:
+        latestBlockhash ?? (await rpc.getLatestBlockhash({ commitment: "confirmed" }).send()).value,
+      txFormat,
+    }),
+    type,
+  };
 }
 
 /**
- * Builds a transaction that places a new order on a collateral/debt pair.
- *
- * @see {@link makePlaceOrderIx}
+ * Builds a place-order transaction around {@link makePlaceOrderIx}, reading the global fee wallet
+ * from the program's fee state when `globalFeeWallet` is omitted. `feePayer` (default the
+ * authority) pays; `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makePlaceOrderIx}
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `globalFeeWallet` is omitted and the
+ * program's fee state account doesn't exist
  */
-export async function makePlaceOrderTx(
-  params: MakePlaceOrderTxParams
-): Promise<ExtendedV0Transaction> {
-  const placeIxs = await makePlaceOrderIx(params);
-  const payerKey = params.feePayer ?? params.marginfiAccount.authority;
-  return compileOrderTx(params, payerKey, [placeIxs], TransactionType.PLACE_ORDER);
-}
-
-/**
- * Builds a transaction that closes an existing order.
- *
- * @see {@link makeCloseOrderIx}
- */
-export async function makeCloseOrderTx(
-  params: MakeCloseOrderTxParams
-): Promise<ExtendedV0Transaction> {
-  const closeIxs = await makeCloseOrderIx(params);
+export async function makePlaceOrderTx(params: MakePlaceOrderTxParams): Promise<SolanaTransaction> {
+  const placeIx = await makePlaceOrderIx({
+    ...params,
+    globalFeeWallet:
+      params.globalFeeWallet ?? (await fetchGlobalFeeWallet(params.rpc, params.programAddress)),
+  });
   return compileOrderTx(
     params,
-    params.marginfiAccount.authority,
-    [closeIxs],
-    TransactionType.CLOSE_ORDER
+    params.feePayer ?? params.authority,
+    [placeIx],
+    TransactionType.PLACE_ORDER
   );
 }
 
 /**
- * Builds a transaction that replaces the pair's existing order with new thresholds.
- *
- * There is no update instruction on-chain: the existing order (same PDA) is closed and re-placed
- * in one transaction. Balance tags are preserved across the close, so other orders sharing a
- * balance are unaffected. The flat anti-spam fee is charged again.
+ * Builds a close-order transaction around {@link makeCloseOrderIx}. The authority pays and signs;
+ * `latestBlockhash` is fetched when omitted.
+ */
+export async function makeCloseOrderTx(params: MakeCloseOrderTxParams): Promise<SolanaTransaction> {
+  const closeIx = await makeCloseOrderIx(params);
+  return compileOrderTx(params, params.authority, [closeIx], TransactionType.CLOSE_ORDER);
+}
+
+/**
+ * Builds a transaction that replaces the pair's existing order with new thresholds. There is no
+ * update instruction on-chain: the order (same PDA) is closed and re-placed in one transaction,
+ * with its rent returned to `feePayer`. Balance tags are preserved across the close, so other
+ * orders sharing a balance are unaffected. The flat anti-spam fee is charged again.
+ * `latestBlockhash` is fetched when omitted.
+ * @throws see {@link makePlaceOrderIx}
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `globalFeeWallet` is omitted and the
+ * program's fee state account doesn't exist
  */
 export async function makeUpdateOrderTx(
-  params: MakePlaceOrderTxParams
-): Promise<ExtendedV0Transaction> {
-  const [order] = deriveOrderPda(params.program.programId, params.marginfiAccount.address, [
+  params: MakeUpdateOrderTxParams
+): Promise<SolanaTransaction> {
+  const feePayer = params.feePayer ?? params.authority;
+  const [order] = await deriveOrderPda(params.programAddress, params.marginfiAccount.address, [
     params.collateralBank,
     params.debtBank,
   ]);
-  const closeIxs = await makeCloseOrderIx({ ...params, order, feeRecipient: params.feePayer });
-  const placeIxs = await makePlaceOrderIx(params);
-  const payerKey = params.feePayer ?? params.marginfiAccount.authority;
-  return compileOrderTx(params, payerKey, [closeIxs, placeIxs], TransactionType.UPDATE_ORDER);
+  const closeIx = await makeCloseOrderIx({ ...params, order, feeRecipient: feePayer.address });
+  const placeIx = await makePlaceOrderIx({
+    ...params,
+    feePayer,
+    globalFeeWallet:
+      params.globalFeeWallet ?? (await fetchGlobalFeeWallet(params.rpc, params.programAddress)),
+  });
+  return compileOrderTx(params, feePayer, [closeIx, placeIx], TransactionType.UPDATE_ORDER);
 }
-
-// Leaves room for what the send pipeline appends: compute-budget and priority-fee ixs, and in
-// bundles a Jito tip, which lock the ComputeBudget program, tip account and System program
-const SEND_PIPELINE_MARGINS = {
-  sizeMargin: PRIORITY_TX_SIZE + BUNDLE_TX_SIZE,
-  maxAccountLocks: MAX_ACCOUNT_LOCKS - 3,
-};
 
 /**
  * Instructions closing `ordersToClose`, then placing `placeOrder`, for composing with an action.
  * The closes return the rent to the authority.
- *
- * @param params - The account, the orders to close and the order to place
- * @returns The closes, then the placement
- * @throws {TransactionBuildingError} `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an
- *   invalid `placeOrder.trigger`
+ * @throws see {@link buildOrderTrigger} for an invalid `placeOrder.trigger`
  */
 export async function makeOrderChangesIxs(
-  params: MakeOrderChangesIxParams
-): Promise<TransactionInstruction[]> {
-  const { program, marginfiAccount, ordersToClose = [], placeOrder } = params;
-  const wrappers = await Promise.all([
-    ...ordersToClose.map((order) => makeCloseOrderIx({ program, marginfiAccount, order })),
-    ...(placeOrder ? [makePlaceOrderIx({ ...placeOrder, program, marginfiAccount })] : []),
+  params: MakeOrderChangesIxsParams
+): Promise<Instruction[]> {
+  const { ordersToClose = [], placeOrder } = params;
+  return Promise.all([
+    ...ordersToClose.map((order) => makeCloseOrderIx({ ...params, order })),
+    ...(placeOrder ? [makePlaceOrderIx({ ...params, ...placeOrder })] : []),
   ]);
-  return wrappers.flatMap((wrapper) => wrapper.instructions);
 }
 
 /**
- * Puts the closes of `ordersToClose` in front of an action that lands in one transaction. Unlike
- * the premium refresh they can't be left out, so builders call this before `appendPremiumRefresh`,
- * which then only adds the refresh if it still fits.
- *
- * @param params - The builder's params: program, account (before the action), orders to close and
- *   authority
- * @param actionIxs - The action's instructions
- * @param luts - The lookup tables the transaction compiles with
+ * Puts the closes of `ordersToClose` in front of an action that lands in one transaction compiled
+ * with `txFormat`. Unlike the premium refresh they can't be left out, so builders call this before
+ * `appendPremiumRefresh`, which then only adds the refresh if it still fits.
  * @returns The closes, then the action's instructions
- * @throws {TransactionBuildingError} `ORDER_CLOSES_DONT_FIT` if the closes don't fit next to the
- *   action
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if the closes don't fit next to the
+ * action
  */
-export async function prependOrderCloses(
-  params: OrderChangesParams & {
-    program: MarginfiProgram;
-    marginfiAccount: MarginfiAccountType;
-    authority: PublicKey;
-  },
-  actionIxs: TransactionInstruction[],
-  luts: AddressLookupTableAccount[]
-): Promise<TransactionInstruction[]> {
-  const { program, marginfiAccount, ordersToClose = [] } = params;
+export async function prependOrderCloses(params: PrependOrderClosesParams): Promise<Instruction[]> {
+  const {
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose = [],
+    actionIxs,
+    txFormat,
+  } = params;
   if (ordersToClose.length === 0) return actionIxs;
 
-  const closeIxs = await makeOrderChangesIxs({ program, marginfiAccount, ordersToClose });
+  const closeIxs = await makeOrderChangesIxs({
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose,
+  });
   const withCloses = [...closeIxs, ...actionIxs];
-  if (
-    !fitsInOneTransaction(withCloses, {
-      payerKey: params.authority,
-      luts,
-      ...SEND_PIPELINE_MARGINS,
-    })
-  ) {
-    throw TransactionBuildingError.orderClosesDontFit(
-      ordersToClose.map((order) => order.toBase58())
-    );
+  if (!fitsInOneTransaction(withCloses, { feePayer: authority, txFormat, ...SEND_PIPELINE_ROOM })) {
+    throw TransactionBuildingError.orderClosesDontFit(ordersToClose);
   }
   return withCloses;
 }
 
 /**
- * Builds the transaction that closes `ordersToClose`, then places `placeOrder`, after a
- * multi-transaction action, to send in the same atomic bundle. Also adds order changes to an
- * action built earlier without rebuilding it, e.g. a loop's take-profit / stop-loss set after its
- * quote.
- *
- * @param params - The account, the orders to close, the order to place and the lookup tables
- * @returns The transaction to run after the action, none when there's nothing to change
- * @throws {TransactionBuildingError} `ORDER_CLOSES_DONT_FIT` if the changes don't fit in one
- *   transaction; `ORDER_INVALID_TRIGGER` / `ORDER_INVALID_SLIPPAGE` for an invalid
- *   `placeOrder.trigger`
+ * Builds an order transaction around {@link makeOrderChangesIxs}, to run after a multi-transaction
+ * action in the same atomic bundle, or to add order changes to an action built earlier without
+ * rebuilding it (e.g. a loop's take-profit / stop-loss set after its quote). The global fee wallet
+ * is read from the program's fee state when `placeOrder.globalFeeWallet` is omitted. The authority
+ * pays; `latestBlockhash` is fetched when omitted.
+ * @returns The transaction, none when there's nothing to change
+ * @throws see {@link makeOrderChangesIxs}
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if the changes don't fit in one
+ * transaction
+ * @throws TransactionBuildingError (FEE_STATE_NOT_FOUND) if `placeOrder.globalFeeWallet` is omitted
+ * and the program's fee state account doesn't exist
  */
 export async function makeOrderChangesTx(
   params: MakeOrderChangesTxParams
-): Promise<ExtendedV0Transaction | undefined> {
-  const { program, marginfiAccount, ordersToClose = [], placeOrder, luts } = params;
-  const ixs = await makeOrderChangesIxs(params);
-  if (ixs.length === 0) return undefined;
+): Promise<SolanaTransaction | undefined> {
+  const {
+    rpc,
+    txFormat,
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose = [],
+    placeOrder,
+  } = params;
+  if (ordersToClose.length === 0 && !placeOrder) return undefined;
+
+  const ixs = await makeOrderChangesIxs({
+    programAddress,
+    marginfiAccount,
+    authority,
+    ordersToClose,
+    placeOrder: placeOrder && {
+      ...placeOrder,
+      globalFeeWallet:
+        placeOrder.globalFeeWallet ?? (await fetchGlobalFeeWallet(rpc, programAddress)),
+    },
+  });
   if (
     !fitsInOneTransaction(ixs, {
-      payerKey: marginfiAccount.authority,
-      luts,
-      ...SEND_PIPELINE_MARGINS,
+      feePayer: authority,
+      txFormat,
+      ...SEND_PIPELINE_ROOM,
     })
   ) {
-    throw TransactionBuildingError.orderClosesDontFit(
-      ordersToClose.map((order) => order.toBase58())
-    );
+    throw TransactionBuildingError.orderClosesDontFit(ordersToClose);
   }
 
   let type = TransactionType.CLOSE_ORDER;
   if (placeOrder) {
-    const [placedOrder] = deriveOrderPda(program.programId, marginfiAccount.address, [
+    const [placedOrder] = await deriveOrderPda(programAddress, marginfiAccount.address, [
       placeOrder.collateralBank,
       placeOrder.debtBank,
     ]);
-    type = ordersToClose.some((order) => order.equals(placedOrder))
+    type = ordersToClose.includes(placedOrder)
       ? TransactionType.UPDATE_ORDER
       : TransactionType.PLACE_ORDER;
   }
-  return compileOrderTx(params, marginfiAccount.authority, [{ instructions: ixs, keys: [] }], type);
+  return compileOrderTx(params, authority, ixs, type);
 }

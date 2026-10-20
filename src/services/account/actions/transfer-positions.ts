@@ -1,11 +1,14 @@
 import {
-  AddressLookupTableAccount,
-  ComputeBudgetProgram,
-  PublicKey,
-  TransactionInstruction,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  getTransactionMessageSizeLimit,
+  type Address,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
+  type TransactionSigner,
+} from "@solana/kit";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
 import { BigNumber } from "bignumber.js";
 
 import {
@@ -14,33 +17,31 @@ import {
   TransferPositionsResult,
 } from "../types";
 import { MarginfiAccountType } from "../types/account.types";
-import { computeHealthAccountMetas, computeQuantityUi, isCostlyBank } from "../utils";
+import { computeQuantityUi, isCostlyBank } from "../utils";
 import { findRandomAvailableAccountIndex } from "../utils/fetch.utils";
 
-import { makeCreateAccountIxWithProjection, makeSetupIx } from "./account-lifecycle";
+import { makeCreateAccountIxWithProjection, makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
-import { makeDepositIx, makeKaminoDepositIx, makeJuplendDepositIx } from "./deposit";
+import { makeDepositIx } from "./deposit";
 import { makeBeginFlashLoanIx, makeEndFlashLoanIx } from "./flash-loan";
 import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
-import { makeWithdrawIx, makeKaminoWithdrawIx, makeJuplendWithdrawIx } from "./withdraw";
+import { makeWithdrawIx } from "./withdraw";
 
-import { MAX_ACCOUNT_LOCKS, MAX_COSTLY_POSITIONS, MAX_TX_SIZE } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, MAX_BALANCES, MAX_COSTLY_POSITIONS } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { AssetTag, BankType, RiskTier, requireBank, requireTokenProgram } from "~/services/bank";
 import { makeRefreshKaminoBanksIxs, makeUpdateJupLendRateIxs } from "~/services/price";
 import {
-  addTransactionMetadata,
-  ExtendedV0Transaction,
   getTotalAccountKeys,
   getTxSize,
-  TransactionType,
   makePreludeTxs,
+  makeTransactionMessage,
+  SolanaTransaction,
+  TransactionFormat,
+  TransactionType,
 } from "~/services/transaction";
-import { MarginfiProgram, BankIntegrationMetadataMap } from "~/types";
-
-/** Fixed marginfi balance slots per account. */
-const MAX_BALANCES = 16;
+import { BankIntegrationMetadataMap } from "~/types";
 
 /** Default hard cap on positions moved in one transfer. Keeps the whole transfer inside one tx. */
 const DEFAULT_MAX_TRANSFER_POSITIONS = 5;
@@ -48,8 +49,8 @@ const DEFAULT_MAX_TRANSFER_POSITIONS = 5;
 const DEFAULT_BORROW_PADDING_BPS = 10;
 
 const CU_IXS = () => [
-  ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
-  ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+  getSetComputeUnitLimitInstruction({ units: 1_400_000 }),
+  getSetComputeUnitPriceInstruction({ microLamports: 1 }),
 ];
 
 // --------------------------------------------------------------------------------------
@@ -57,19 +58,19 @@ const CU_IXS = () => [
 // --------------------------------------------------------------------------------------
 
 export interface ClassifiedPosition {
-  bankAddress: PublicKey;
+  bankAddress: Address;
   side: TransferPositionSide;
   /** UI amount of the position (collateral: withdrawn from A / deposited to B; debt: repaid on A). */
   uiAmount: BigNumber;
   bank: BankType;
-  tokenProgram: PublicKey;
+  tokenProgram: Address;
 }
 
 /** Shared lookups, thrown as INVALID_SELECTION so the copy stays user-facing. */
 const invalidSelection =
-  (address: PublicKey) =>
+  (address: Address) =>
   (message: string): Error =>
-    TransactionBuildingError.transferPositionsInvalidSelection(message, [address.toBase58()]);
+    TransactionBuildingError.transferPositionsInvalidSelection(message, [address]);
 
 /**
  * Validate the selection, infer each position's side, and resolve its UI amount. Correctness of the
@@ -94,7 +95,7 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
   if (bankAddresses.length > maxPositions) {
     throw TransactionBuildingError.transferPositionsInvalidSelection(
       `cannot transfer ${bankAddresses.length} positions in one transaction (max ${maxPositions}); select fewer and transfer in batches`,
-      bankAddresses.map((b) => b.toBase58())
+      bankAddresses
     );
   }
 
@@ -109,16 +110,16 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
       invalidSelection(bankAddress)
     );
 
-    const balance = activeBalancesA.find((b) => b.bankPk.equals(bankAddress));
+    const balance = activeBalancesA.find((b) => b.bankPk === bankAddress);
     if (!balance) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `source account has no active position in bank ${bankAddress.toBase58()}`,
-        [bankAddress.toBase58()]
+        `source account has no active position in bank ${bankAddress}`,
+        [bankAddress]
       );
     }
 
     const side: TransferPositionSide = balance.assetShares.gt(0) ? "collateral" : "debt";
-    const multiplier = assetShareValueMultiplierByBank.get(bankAddress.toBase58());
+    const multiplier = assetShareValueMultiplierByBank.get(bankAddress);
     const qty = computeQuantityUi(balance, bank, multiplier);
 
     positions.push({
@@ -142,39 +143,39 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
     if (isolatedDebts.length > 1 || otherDebts || destHasLiabilities) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         "an isolated-tier debt can only be transferred as the destination account's sole liability",
-        isolatedDebts.map((p) => p.bankAddress.toBase58())
+        isolatedDebts.map((p) => p.bankAddress)
       );
     }
   }
 
   // Destination account validation.
   if (accountB) {
-    if (!accountB.group.equals(accountA.group)) {
+    if (accountB.group !== accountA.group) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         "destination account is in a different group",
-        [accountB.address.toBase58()]
+        [accountB.address]
       );
     }
-    if (!accountB.authority.equals(accountA.authority)) {
+    if (accountB.authority !== accountA.authority) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         "destination account has a different authority",
-        [accountB.address.toBase58()]
+        [accountB.address]
       );
     }
     const overlap = positions.filter((p) =>
-      accountB.balances.some((b) => b.active && b.bankPk.equals(p.bankAddress))
+      accountB.balances.some((b) => b.active && b.bankPk === p.bankAddress)
     );
     if (overlap.length > 0) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         "destination account already holds a position in a transferred bank",
-        overlap.map((p) => p.bankAddress.toBase58())
+        overlap.map((p) => p.bankAddress)
       );
     }
     const activeCountB = accountB.balances.filter((b) => b.active).length;
     if (activeCountB + positions.length > MAX_BALANCES) {
       throw TransactionBuildingError.transferPositionsInvalidSelection(
         `destination account cannot hold ${activeCountB + positions.length} positions (max ${MAX_BALANCES})`,
-        positions.map((p) => p.bankAddress.toBase58())
+        positions.map((p) => p.bankAddress)
       );
     }
   }
@@ -185,7 +186,7 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
   if (costlyCountB > MAX_COSTLY_POSITIONS) {
     throw TransactionBuildingError.transferPositionsInvalidSelection(
       `destination account cannot hold ${costlyCountB} integration and staked positions (max ${MAX_COSTLY_POSITIONS})`,
-      positions.map((p) => p.bankAddress.toBase58())
+      positions.map((p) => p.bankAddress)
     );
   }
 
@@ -196,23 +197,16 @@ export function classifyAndValidate(params: MakeTransferPositionsTxParams): Clas
 // Integration reserve/rate refresh
 // --------------------------------------------------------------------------------------
 
-/**
- * On-chain reserve/rate refresh ixs the integration collateral legs depend on. Kamino has no
- * self-refresh, so its reserves must be re-derived and the bank-level obligations of the banks we
- * act on refreshed. JupLend deposit/withdraw self-refresh their own bank, so only *other* JupLend
- * banks that stay in a health pack need the permissionless rate crank.
- *
- * Following the swap-collateral / repay-with-collateral precedent these ride in a transaction that
- * precedes the flashloan rather than inside it: the builders return no signer keys, and keeping them
- * out of the flashloan preserves its byte/lock budget.
- */
+// Kamino has no self-refresh, so its reserves and the transferred banks' obligations are
+// refreshed; JupLend deposits/withdraws refresh their own bank, so only the *other* JupLend banks in
+// a health pack get a rate crank. These go in the prelude to keep the flashloan's byte budget.
 function buildIntegrationRefreshIxs(args: {
   accountA: MarginfiAccountType;
   destinationAccount?: MarginfiAccountType;
   positions: ClassifiedPosition[];
   bankMap: Map<string, BankType>;
   bankMetadataMap: BankIntegrationMetadataMap;
-}): TransactionInstruction[] {
+}): Instruction[] {
   const { accountA, destinationAccount, positions, bankMap, bankMetadataMap } = args;
 
   const transferredKaminoPks = positions
@@ -222,30 +216,22 @@ function buildIntegrationRefreshIxs(args: {
     .filter((p) => p.bank.config.assetTag === AssetTag.JUPLEND)
     .map((p) => p.bankAddress);
 
-  const ixs: TransactionInstruction[] = [];
+  const ixs: Instruction[] = [];
 
   // Kamino: refresh reserves for the source's active Kamino banks (covers the transferred ones,
   // which are active on A) plus the obligations of the transferred banks.
-  ixs.push(
-    ...makeRefreshKaminoBanksIxs(accountA, bankMap, transferredKaminoPks, bankMetadataMap)
-      .instructions
-  );
+  ixs.push(...makeRefreshKaminoBanksIxs(accountA, bankMap, transferredKaminoPks, bankMetadataMap));
   // A pre-existing destination may hold its own Kamino collateral read by each borrow's health pack.
   if (destinationAccount) {
-    ixs.push(
-      ...makeRefreshKaminoBanksIxs(destinationAccount, bankMap, [], bankMetadataMap).instructions
-    );
+    ixs.push(...makeRefreshKaminoBanksIxs(destinationAccount, bankMap, [], bankMetadataMap));
   }
 
   // JupLend: crank the rate on the source's *other* JupLend banks; transferred banks self-refresh
   // through their own withdraw (A) and deposit (B).
-  ixs.push(
-    ...makeUpdateJupLendRateIxs(accountA, bankMap, transferredJupPks, bankMetadataMap).instructions
-  );
+  ixs.push(...makeUpdateJupLendRateIxs(accountA, bankMap, transferredJupPks, bankMetadataMap));
   if (destinationAccount) {
     ixs.push(
       ...makeUpdateJupLendRateIxs(destinationAccount, bankMap, transferredJupPks, bankMetadataMap)
-        .instructions
     );
   }
 
@@ -256,14 +242,10 @@ function buildIntegrationRefreshIxs(args: {
 // Instruction assembly
 // --------------------------------------------------------------------------------------
 
-function dedupeBanks(banks: BankType[]): BankType[] {
-  const seen = new Map<string, BankType>();
-  for (const bank of banks) seen.set(bank.address.toBase58(), bank);
-  return [...seen.values()];
-}
-
 export interface BuildContext {
-  program: MarginfiProgram;
+  programAddress: Address;
+  /** The authority of both accounts. */
+  authority: TransactionSigner;
   accountA: MarginfiAccountType;
   accountB: MarginfiAccountType;
   bankMap: Map<string, BankType>;
@@ -271,188 +253,91 @@ export interface BuildContext {
   assetShareValueMultiplierByBank: Map<string, BigNumber>;
   borrowPaddingBps: number;
   groupRateLimiterEnabled: boolean;
-  overrideInferAccounts?: { group?: PublicKey; authority?: PublicKey };
   /** Banks the destination account already holds before the transfer starts. */
   destPreexistingBanks: BankType[];
 }
 
 /**
- * Build one collateral position's withdraw-from-A + deposit-into-B instructions, dispatching to the
- * right builder for the bank's asset tag. This is the single place that defines which banks the
- * action supports: `DEFAULT`/`SOL`/`STAKED` use the standard withdraw/deposit; `KAMINO`/`JUPLEND`
- * use their dedicated builders (which lock the integration's reserve/vault accounts and, for Kamino,
- * convert the underlying UI amount to cToken units); anything else throws
- * `TRANSFER_POSITIONS_UNSUPPORTED_BANK`. The reserve/rate state each integration builder needs is
- * read from `bankMetadataMap`; the on-chain refresh those reads depend on is emitted separately in
- * `buildIntegrationRefreshIxs`.
+ * Build one collateral position's withdraw-from-A + deposit-into-B instructions. This is the single
+ * place that defines which banks the action supports: `DEFAULT`/`SOL`/`STAKED` and the
+ * `KAMINO`/`JUPLEND` integrations (whose builders read their reserve/vault state from
+ * `bankMetadataMap`; the on-chain refresh those reads depend on is emitted separately in
+ * `buildIntegrationRefreshIxs`); anything else throws `TRANSFER_POSITIONS_UNSUPPORTED_BANK`.
  *
- * `observationBanksOverride` controls the withdraw leg's health pack (empty while A is flashloaned
- * with the group limiter off; the withdrawn bank's oracle when it is on). The deposit leg runs no
- * health check, so it needs none.
+ * The withdraw leg carries no health accounts (A is inside the flashloan) and appends the withdrawn
+ * bank only when the group rate limiter is on. The deposit leg runs no health check, so it needs
+ * none.
  */
 export async function buildCollateralLegIxs(
   ctx: BuildContext,
-  position: ClassifiedPosition,
-  isSync: boolean,
-  observationBanksOverride: ReturnType<typeof computeHealthAccountMetas>
-): Promise<{ withdrawIxs: TransactionInstruction[]; depositIxs: TransactionInstruction[] }> {
+  position: ClassifiedPosition
+): Promise<{ withdrawIxs: Instruction[]; depositIxs: Instruction[] }> {
   const { bank, tokenProgram, uiAmount } = position;
   const tag = bank.config.assetTag;
-  const key = bank.address.toBase58();
 
-  if (tag === AssetTag.KAMINO) {
-    const reserve = ctx.bankMetadataMap[key]?.kaminoStates?.reserveState;
-    if (!reserve) {
-      throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `kamino reserve state missing for bank ${key} (populate bankMetadataMap.kaminoStates)`,
-        [key]
-      );
-    }
-    const multiplier = ctx.assetShareValueMultiplierByBank.get(key) ?? new BigNumber(1);
-    const cTokenAmount = uiAmount.div(multiplier);
-    const withdraw = await makeKaminoWithdrawIx({
-      program: ctx.program,
-      bank,
-      bankMap: ctx.bankMap,
-      tokenProgram,
-      cTokenAmount,
-      marginfiAccount: ctx.accountA,
-      authority: ctx.accountA.authority,
-      reserve,
-      bankMetadataMap: ctx.bankMetadataMap,
-      withdrawAll: true,
-      isSync,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts: ctx.overrideInferAccounts,
-        observationBanksOverride,
-      },
-    });
-    const deposit = await makeKaminoDepositIx({
-      program: ctx.program,
-      bank,
-      tokenProgram,
-      amount: uiAmount,
-      accountAddress: ctx.accountB.address,
-      authority: ctx.accountA.authority,
-      group: ctx.accountB.group,
-      reserve,
-      isSync,
-      opts: { wrapAndUnwrapSol: false, overrideInferAccounts: ctx.overrideInferAccounts },
-    });
-    return { withdrawIxs: withdraw.instructions, depositIxs: deposit.instructions };
+  // DRIFT/SOLEND (or a future tag) have no collateral-leg support yet.
+  if (
+    ![AssetTag.DEFAULT, AssetTag.SOL, AssetTag.STAKED, AssetTag.KAMINO, AssetTag.JUPLEND].includes(
+      tag
+    )
+  ) {
+    throw TransactionBuildingError.transferPositionsUnsupportedBank(
+      bank.address,
+      tag,
+      bank.tokenSymbol
+    );
   }
 
-  if (tag === AssetTag.JUPLEND) {
-    const jupLendingState = ctx.bankMetadataMap[key]?.jupLendStates?.jupLendingState;
-    if (!jupLendingState) {
-      throw TransactionBuildingError.transferPositionsInvalidSelection(
-        `juplend lending state missing for bank ${key} (populate bankMetadataMap.jupLendStates)`,
-        [key]
-      );
-    }
-    const withdraw = await makeJuplendWithdrawIx({
-      program: ctx.program,
+  return {
+    withdrawIxs: await makeWithdrawIx({
+      programAddress: ctx.programAddress,
       bank,
       bankMap: ctx.bankMap,
       tokenProgram,
       amount: uiAmount,
       marginfiAccount: ctx.accountA,
-      authority: ctx.accountA.authority,
-      jupLendingState,
+      authority: ctx.authority,
       bankMetadataMap: ctx.bankMetadataMap,
+      assetShareValueMultiplierByBank: ctx.assetShareValueMultiplierByBank,
       withdrawAll: true,
-      isSync,
       opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts: ctx.overrideInferAccounts,
-        observationBanksOverride,
+        createAta: false,
+        unwrapSol: false,
+        activeBanks: [],
+        groupRateLimiterEnabled: ctx.groupRateLimiterEnabled,
       },
-    });
-    const deposit = await makeJuplendDepositIx({
-      program: ctx.program,
+    }),
+    depositIxs: await makeDepositIx({
+      programAddress: ctx.programAddress,
       bank,
       tokenProgram,
       amount: uiAmount,
-      accountAddress: ctx.accountB.address,
-      authority: ctx.accountA.authority,
-      group: ctx.accountB.group,
-      isSync,
-      opts: { wrapAndUnwrapSol: false, overrideInferAccounts: ctx.overrideInferAccounts },
-    });
-    return { withdrawIxs: withdraw.instructions, depositIxs: deposit.instructions };
-  }
-
-  // Standard banks (DEFAULT/SOL/STAKED) move with the plain lending ixs. Any other tag is an
-  // integration we don't yet have a collateral-leg builder for (DRIFT/SOLEND, or a future tag).
-  // Adding an integration means adding one branch above, nothing elsewhere.
-  if (tag !== AssetTag.DEFAULT && tag !== AssetTag.SOL && tag !== AssetTag.STAKED) {
-    throw TransactionBuildingError.transferPositionsUnsupportedBank(key, tag, bank.tokenSymbol);
-  }
-
-  const withdraw = await makeWithdrawIx({
-    program: ctx.program,
-    bank,
-    bankMap: ctx.bankMap,
-    tokenProgram,
-    amount: uiAmount,
-    marginfiAccount: ctx.accountA,
-    authority: ctx.accountA.authority,
-    withdrawAll: true,
-    bankMetadataMap: ctx.bankMetadataMap,
-    isSync,
-    opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
-      overrideInferAccounts: ctx.overrideInferAccounts,
-      observationBanksOverride,
-    },
-  });
-  const deposit = await makeDepositIx({
-    program: ctx.program,
-    bank,
-    tokenProgram,
-    amount: uiAmount,
-    accountAddress: ctx.accountB.address,
-    authority: ctx.accountA.authority,
-    group: ctx.accountB.group,
-    isSync,
-    opts: { wrapAndUnwrapSol: false, overrideInferAccounts: ctx.overrideInferAccounts },
-  });
-  return { withdrawIxs: withdraw.instructions, depositIxs: deposit.instructions };
+      marginfiAccount: ctx.accountB,
+      authority: ctx.authority,
+      bankMetadataMap: ctx.bankMetadataMap,
+      opts: { wrapSol: false },
+    }),
+  };
 }
 
-/**
- * Build the flashloan's inner instructions for the whole selection:
- *   [cu…, withdraws(A)…, deposits(B)…, borrows(B)…, repays(A)…]
- * All deposits precede all borrows so every intermediate destination state is healthier than the
- * transaction-final one. Withdraws and repays carry no health accounts (A is inside the flashloan);
- * withdraws only gain the withdrawn bank's oracle when the group limiter is enabled. Each borrow
- * carries the destination's health pack for its banks active at that point.
- */
+// [compute budget, withdraws (A), deposits (B), borrows (B), repays (A)]: every deposit precedes
+// every borrow, so each intermediate state of B is healthier than its final one. A is inside the
+// flashloan, so its withdraws and repays carry no health accounts.
 async function buildInnerIxs(
   ctx: BuildContext,
-  positions: ClassifiedPosition[],
-  isSync: boolean
-): Promise<TransactionInstruction[]> {
+  positions: ClassifiedPosition[]
+): Promise<Instruction[]> {
   const collateral = positions.filter((p) => p.side === "collateral");
   const debts = positions.filter((p) => p.side === "debt");
   const collateralBanks = collateral.map((p) => p.bank);
 
-  const withdrawIxs: TransactionInstruction[] = [];
-  const depositIxs: TransactionInstruction[] = [];
-  const borrowIxs: TransactionInstruction[] = [];
-  const repayIxs: TransactionInstruction[] = [];
+  const withdrawIxs: Instruction[] = [];
+  const depositIxs: Instruction[] = [];
+  const borrowIxs: Instruction[] = [];
+  const repayIxs: Instruction[] = [];
 
   for (const position of collateral) {
-    // A is flagged: no health pack. Group off ⇒ no oracle either. Group on ⇒ trailing bank oracle.
-    const observationBanksOverride = ctx.groupRateLimiterEnabled
-      ? computeHealthAccountMetas({ banksToInclude: [], trailingBanks: [position.bank] })
-      : [];
-
-    const legs = await buildCollateralLegIxs(ctx, position, isSync, observationBanksOverride);
+    const legs = await buildCollateralLegIxs(ctx, position);
     withdrawIxs.push(...legs.withdrawIxs);
     depositIxs.push(...legs.depositIxs);
   }
@@ -472,7 +357,7 @@ async function buildInnerIxs(
           ctx.bankMap,
           transferredKaminoPks,
           ctx.bankMetadataMap
-        ).instructions
+        )
       : [];
 
   const borrowedSoFar: BankType[] = [];
@@ -481,47 +366,42 @@ async function buildInnerIxs(
     borrowedSoFar.push(bank);
 
     // Destination banks active at this borrow: pre-existing + all collateral + debts so far.
-    const activeBanks = dedupeBanks([
-      ...ctx.destPreexistingBanks,
-      ...collateralBanks,
-      ...borrowedSoFar,
-    ]);
-    const observationBanksOverride = computeHealthAccountMetas({ banksToInclude: activeBanks });
+    const activeBanks = [...ctx.destPreexistingBanks, ...collateralBanks, ...borrowedSoFar].map(
+      (b) => b.address
+    );
 
     const borrowUi = position.uiAmount.times(1 + ctx.borrowPaddingBps / 10_000);
-    const borrow = await makeBorrowIx({
-      program: ctx.program,
-      bank,
-      bankMap: ctx.bankMap,
-      tokenProgram,
-      amount: borrowUi,
-      marginfiAccount: ctx.accountB,
-      authority: ctx.accountA.authority,
-      isSync,
-      opts: {
-        createAtas: false,
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts: ctx.overrideInferAccounts,
-        observationBanksOverride,
-      },
-    });
-    borrowIxs.push(...borrow.instructions);
+    borrowIxs.push(
+      ...(await makeBorrowIx({
+        programAddress: ctx.programAddress,
+        bank,
+        bankMap: ctx.bankMap,
+        tokenProgram,
+        amount: borrowUi,
+        marginfiAccount: ctx.accountB,
+        authority: ctx.authority,
+        opts: {
+          createAta: false,
+          unwrapSol: false,
+          activeBanks,
+        },
+      }))
+    );
 
-    const repay = await makeRepayIx({
-      program: ctx.program,
-      bank,
-      tokenProgram,
-      amount: position.uiAmount,
-      accountAddress: ctx.accountA.address,
-      authority: ctx.accountA.authority,
-      repayAll: true,
-      isSync,
-      opts: {
-        wrapAndUnwrapSol: false,
-        overrideInferAccounts: ctx.overrideInferAccounts,
-      },
-    });
-    repayIxs.push(...repay.instructions);
+    repayIxs.push(
+      ...(await makeRepayIx({
+        programAddress: ctx.programAddress,
+        bank,
+        tokenProgram,
+        amount: position.uiAmount,
+        marginfiAccount: ctx.accountA,
+        authority: ctx.authority,
+        repayAll: true,
+        opts: {
+          wrapSol: false,
+        },
+      }))
+    );
   }
 
   return [
@@ -534,41 +414,54 @@ async function buildInnerIxs(
   ];
 }
 
-/**
- * Wrap the inner instructions in a single flashloan on the source account.
- * Order: `[preIxs…, beginFL(A), inner…, endFL(A)]`; the begin ix points at the end ix.
- */
+// [preIxs, begin (A), inner, end (A)]: `makeFlashLoanTx` can't put instructions before begin
 async function buildTransferFlashloanTx(args: {
-  program: MarginfiProgram;
+  programAddress: Address;
+  authority: TransactionSigner;
   accountA: MarginfiAccountType;
-  projectedActiveBanksA: BankType[];
-  innerIxs: TransactionInstruction[];
-  preIxs: TransactionInstruction[];
-  blockhash: string;
-  luts: AddressLookupTableAccount[];
-}): Promise<ExtendedV0Transaction> {
-  const { program, accountA, projectedActiveBanksA, innerIxs, preIxs, blockhash, luts } = args;
+  bankMap: Map<string, BankType>;
+  projectedActiveBanksA: Address[];
+  innerIxs: Instruction[];
+  preIxs: Instruction[];
+  latestBlockhash: BlockhashLifetimeConstraint;
+  txFormat: TransactionFormat;
+}): Promise<SolanaTransaction> {
+  const {
+    programAddress,
+    authority,
+    accountA,
+    bankMap,
+    projectedActiveBanksA,
+    innerIxs,
+    preIxs,
+    latestBlockhash,
+    txFormat,
+  } = args;
 
   const endIndex = preIxs.length + innerIxs.length + 1;
-  const begin = await makeBeginFlashLoanIx(program, accountA.address, endIndex, accountA.authority);
-  const end = await makeEndFlashLoanIx(
-    program,
-    accountA.address,
-    accountA.group,
-    projectedActiveBanksA,
-    accountA.authority
-  );
-
-  const message = new TransactionMessage({
-    payerKey: accountA.authority,
-    recentBlockhash: blockhash,
-    instructions: [...preIxs, ...begin.instructions, ...innerIxs, ...end.instructions],
-  }).compileToV0Message(luts);
-
-  return addTransactionMetadata(new VersionedTransaction(message), {
-    addressLookupTables: luts,
-    type: TransactionType.FLASHLOAN,
+  const begin = await makeBeginFlashLoanIx({
+    programAddress,
+    marginfiAccount: accountA,
+    authority,
+    endIndex,
   });
+  const end = await makeEndFlashLoanIx({
+    programAddress,
+    marginfiAccount: accountA,
+    authority,
+    bankMap,
+    activeBanks: projectedActiveBanksA,
+  });
+
+  return {
+    message: makeTransactionMessage({
+      instructions: [...preIxs, begin, ...innerIxs, end],
+      feePayer: authority,
+      latestBlockhash,
+      txFormat,
+    }),
+    type: TransactionType.FLASHLOAN,
+  };
 }
 
 function destPreexistingBanksOf(
@@ -576,12 +469,9 @@ function destPreexistingBanksOf(
   bankMap: Map<string, BankType>
 ): BankType[] {
   if (!account) return [];
-  return dedupeBanks(
-    account.balances
-      .filter((b) => b.active)
-      .map((b) => bankMap.get(b.bankPk.toBase58()))
-      .filter((b): b is BankType => Boolean(b))
-  );
+  return account.balances
+    .filter((b) => b.active)
+    .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)));
 }
 
 // --------------------------------------------------------------------------------------
@@ -589,67 +479,60 @@ function destPreexistingBanksOf(
 // --------------------------------------------------------------------------------------
 
 /**
- * Atomically move a selected set of positions from account A to account B in a single flashloan.
- * Per position: collateral → `withdraw(A)` + `deposit(B)`; debt → `borrow(B)` + `repay(A)`. Returns
- * unsigned transactions ordered for sequential execution (setup/refresh + crank first, then the
- * flashloan, then the order closes); the caller signs and sends them.
+ * Moves the positions in `bankAddresses` from `marginfiAccount` (A) to `destinationAccount` (B, or
+ * a new account created in the same transaction) in one flashloan: collateral is withdrawn from A
+ * and deposited into B; debt is borrowed on B and repaid on A. Both accounts' health is checked
+ * on-chain. The selection is capped at `maxPositions` (default 5) so it fits one transaction;
+ * transfer more in batches. Supports `DEFAULT`, `SOL` and `STAKED` banks, and `KAMINO` and
+ * `JUPLEND` collateral. Dust from the borrow padding and withdraw-all stays in the wallet.
  *
- * The whole transfer must fit one v0 transaction — the selection is capped at `maxPositions`
- * (default 5), and the built flashloan is size-checked, throwing `TRANSFER_POSITIONS_UNSPLITTABLE`
- * if it still overflows (possible with several integration positions). Transfer larger sets in
- * batches. Correctness (both accounts staying healthy) is enforced on-chain: `endFL(A)` checks A's
- * remainder and each `borrow(B)` checks B — no client-side health prediction.
- *
- * Supported asset tags: `DEFAULT`/`SOL`/`STAKED` on either leg, and the collateral-only integrations
- * `KAMINO`/`JUPLEND` on the collateral leg (dedicated builders + a preceding reserve/rate refresh).
- * `DRIFT`/`SOLEND` are rejected.
- *
- * Runtime notes:
- *  - Each borrow-before-repay transiently spikes the debt bank's rate-limit window; a bank near its
- *    cap can revert with `BankHourly/DailyRateLimitExceeded`. The whole flashloan reverts atomically,
- *    so this is safe and retryable — treat it as such.
- *  - Integration (Kamino/JupLend) reserve/rate refresh rides in the prelude transaction and requires
- *    `bankMetadataMap` to carry fresh `kaminoStates`/`jupLendStates`.
- *  - All transactions share one blockhash; execute them in order within its validity window. When
- *    `mustBeAtomicBundle` is true, they must also land atomically in one bundle.
- *  - Dust (borrow padding minus accrued interest; withdraw-all/cToken-conversion excess) remains in
- *    the wallet ATAs.
+ * Each borrow briefly adds to the debt bank's rate-limit window before its repay, so a bank near
+ * its cap can revert with `BankHourly/DailyRateLimitExceeded`; the flashloan reverts atomically,
+ * so retrying is safe.
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_INVALID_SELECTION) if the selection or the
+ * destination can't take the transfer
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_UNSUPPORTED_BANK) if a collateral position
+ * is in a Drift or Solend bank
+ * @throws TransactionBuildingError (TRANSFER_POSITIONS_UNSPLITTABLE) if the flashloan doesn't fit
+ * one transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if either account's orders to close
+ * don't fit in one transaction after the flashloan
  */
 export async function makeTransferPositionsTx(
   params: MakeTransferPositionsTxParams
 ): Promise<TransferPositionsResult> {
   const {
-    program,
-    connection,
+    programAddress,
+    authority,
+    rpc,
     marginfiAccount: accountA,
     bankMap,
     bankMetadataMap,
     assetShareValueMultiplierByBank,
-    addressLookupTableAccounts,
-    overrideInferAccounts,
+    txFormat,
   } = params;
 
-  const luts = addressLookupTableAccounts ?? [];
   const borrowPaddingBps = params.borrowPaddingBps ?? DEFAULT_BORROW_PADDING_BPS;
-  const groupRateLimiterEnabled = params.groupRateLimiterEnabled ?? false;
+  const groupRateLimiterEnabled = params.groupRateLimiterEnabled ?? true;
 
   const positions = classifyAndValidate(params);
 
   // Resolve / create the destination account.
   let accountB = params.destinationAccount;
-  let createIx: TransactionInstruction | undefined;
+  let createIx: Instruction | undefined;
   if (!accountB) {
     const accountIndex =
       params.createDestinationOpts?.accountIndex ??
       (await findRandomAvailableAccountIndex(
-        connection,
-        program.programId,
+        rpc,
+        programAddress,
         accountA.group,
-        accountA.authority
+        accountA.authority,
+        params.createDestinationOpts?.thirdPartyId
       ));
     const created = await makeCreateAccountIxWithProjection({
-      program,
-      authority: accountA.authority,
+      programAddress,
+      authority,
       group: accountA.group,
       accountIndex,
       thirdPartyId: params.createDestinationOpts?.thirdPartyId,
@@ -659,7 +542,8 @@ export async function makeTransferPositionsTx(
   }
 
   const ctx: BuildContext = {
-    program,
+    programAddress,
+    authority,
     accountA,
     accountB,
     bankMap,
@@ -667,36 +551,37 @@ export async function makeTransferPositionsTx(
     assetShareValueMultiplierByBank,
     borrowPaddingBps,
     groupRateLimiterEnabled,
-    overrideInferAccounts,
     destPreexistingBanks: destPreexistingBanksOf(params.destinationAccount, bankMap),
   };
 
-  const innerIxs = await buildInnerIxs(ctx, positions, false);
+  const innerIxs = await buildInnerIxs(ctx, positions);
 
   // endFL(A) health pack: A's remaining active banks after the whole selection leaves.
-  const transferred = new Set(positions.map((p) => p.bankAddress.toBase58()));
-  const projectedActiveBanksA = dedupeBanks(
-    accountA.balances
-      .filter((b) => b.active && !transferred.has(b.bankPk.toBase58()))
-      .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)))
-  );
+  const transferred = new Set(positions.map((p) => p.bankAddress));
+  const projectedActiveBanksA = accountA.balances
+    .filter((b) => b.active && !transferred.has(b.bankPk))
+    .map((b) => requireBank(bankMap, b.bankPk, invalidSelection(b.bankPk)).address);
 
-  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
   const preIxs = createIx ? [createIx] : [];
   const flashloanTx = await buildTransferFlashloanTx({
-    program,
+    programAddress,
+    authority,
     accountA,
+    bankMap,
     projectedActiveBanksA,
     innerIxs,
     preIxs,
-    blockhash,
-    luts,
+    latestBlockhash,
+    txFormat,
   });
 
-  const size = getTxSize(flashloanTx);
-  const keys = getTotalAccountKeys(flashloanTx);
-  if (size > MAX_TX_SIZE || keys > MAX_ACCOUNT_LOCKS) {
+  const size = getTxSize(flashloanTx.message);
+  const keys = getTotalAccountKeys(flashloanTx.message);
+  if (size > getTransactionMessageSizeLimit(flashloanTx.message) || keys > MAX_ACCOUNT_LOCKS) {
     throw TransactionBuildingError.transferPositionsUnsplittable(
       `built transaction exceeds size limits (${size} bytes, ${keys} accounts); transfer fewer positions`,
       size,
@@ -706,9 +591,9 @@ export async function makeTransferPositionsTx(
 
   // Setup ATAs for every transferred mint, then refresh integration reserves/rates. Both must land
   // before the flashloan (the withdraw legs send to these ATAs and read the refreshed state).
-  const setupIxs = await makeSetupIx({
-    connection,
-    authority: accountA.authority,
+  const setupIxs = await makeCreateMissingAtaIxs({
+    rpc,
+    authority,
     tokens: positions.map((p) => ({ mint: p.bank.mint, tokenProgram: p.tokenProgram })),
   });
   const refreshIxs = buildIntegrationRefreshIxs({
@@ -720,22 +605,22 @@ export async function makeTransferPositionsTx(
   });
 
   const additionalTxs = makePreludeTxs(setupIxs, refreshIxs, {
-    blockhash,
-    payerKey: accountA.authority,
-    luts: luts,
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
   });
-  const sourceOrderTx = await makeOrderChangesTx({ ...params, luts, blockhash });
+
+  const sourceOrderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
   const destinationOrderTx = await makeOrderChangesTx({
     ...params,
     marginfiAccount: accountB,
     ordersToClose: params.destinationOrdersToClose,
-    luts,
-    blockhash,
+    latestBlockhash,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
-  if (sourceOrderTx) transactions.push(sourceOrderTx);
-  if (destinationOrderTx) transactions.push(destinationOrderTx);
+  const transactions = [...additionalTxs, flashloanTx, sourceOrderTx, destinationOrderTx].filter(
+    (tx) => tx !== undefined
+  );
   return {
     transactions,
     actionTxIndex: additionalTxs.length,

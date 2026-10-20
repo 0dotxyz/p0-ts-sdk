@@ -1,7 +1,4 @@
-import BN from "bn.js";
-
 import {
-  AccountFlags,
   BalanceType,
   BalanceTypeDto,
   HealthCacheType,
@@ -10,21 +7,13 @@ import {
   MarginfiAccountTypeDto,
 } from "../types";
 
-/**
- * Convert numeric flag to BN for Solana compatibility
- */
-export function accountFlagToBN(flag: AccountFlags): BN {
-  return new BN(flag);
-}
-
 export function marginfiAccountToDto(marginfiAccount: MarginfiAccountType): MarginfiAccountTypeDto {
   return {
-    address: marginfiAccount.address.toBase58(),
-    group: marginfiAccount.group.toBase58(),
-    authority: marginfiAccount.authority.toBase58(),
+    address: marginfiAccount.address,
+    group: marginfiAccount.group,
+    authority: marginfiAccount.authority,
     balances: marginfiAccount.balances.map(balanceToDto),
     accountFlags: marginfiAccount.accountFlags,
-    emissionsDestinationAccount: marginfiAccount.emissionsDestinationAccount.toBase58(),
     healthCache: healthCacheToDto(marginfiAccount.healthCache),
     activeOrders: marginfiAccount.activeOrders,
   };
@@ -33,7 +22,7 @@ export function marginfiAccountToDto(marginfiAccount: MarginfiAccountType): Marg
 export function balanceToDto(balance: BalanceType): BalanceTypeDto {
   return {
     active: balance.active,
-    bankPk: balance.bankPk.toBase58(),
+    bankPk: balance.bankPk,
     tag: balance.tag,
     assetShares: balance.assetShares.toString(),
     liabilityShares: balance.liabilityShares.toString(),

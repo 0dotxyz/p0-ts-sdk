@@ -20,18 +20,18 @@
  *    Or:  tsx 18-mint-holders.ts <MINT>     (any mint address)
  */
 
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { address } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 import { Project0Client, AssetTag } from "../src";
-import { getConnection, getMarginfiConfig, MINTS } from "./config";
+import { getRpc, getMarginfiConfig, MINTS } from "./config";
 
 // ============================================================================
 // Config
 // ============================================================================
 
 // Mint to inspect: first CLI arg, else USDC. (USDC is widely held — expect a large result set.)
-const MINT = new PublicKey(process.argv[2] ?? MINTS.USDC);
+const MINT = process.argv[2] ? address(process.argv[2]) : MINTS.USDC;
 
 // How many of the 16 per-bank slot scans to run at once. Lower this if your RPC rate-limits.
 const CONCURRENCY = process.env.HOLDERS_CONCURRENCY
@@ -50,19 +50,19 @@ async function mintHoldersExample() {
   // Step 1: Initialize Client
   // --------------------------------------------------------------------------
   console.log("\n🔧 Loading configuration...");
-  const connection = getConnection();
+  const { rpc, rpcEndpoint } = getRpc();
   const config = getMarginfiConfig();
-  console.log(`   RPC: ${connection.rpcEndpoint}`);
+  console.log(`   RPC: ${rpcEndpoint}`);
 
   console.log("\n📡 Initializing Project0Client...");
-  const client = await Project0Client.initialize(connection, config);
+  const client = await Project0Client.initialize({ rpc, rpcEndpoint }, config);
   console.log(`✅ Client initialized with ${client.banks.length} banks`);
 
   // --------------------------------------------------------------------------
   // Step 2: Resolve the mint to its bank(s)
   // --------------------------------------------------------------------------
   const banks = client.getBanksByMint(MINT);
-  console.log(`\n🪙 Mint ${MINT.toBase58()}`);
+  console.log(`\n🪙 Mint ${MINT}`);
   if (banks.length === 0) {
     console.error("   ❌ No banks found for this mint in the configured group. Exiting.");
     return;
@@ -70,7 +70,7 @@ async function mintHoldersExample() {
   console.log(`   Maps to ${banks.length} bank(s):`);
   banks.forEach((bank) => {
     console.log(
-      `     • ${bank.address.toBase58()}  ` +
+      `     • ${bank.address}  ` +
         `[${AssetTag[bank.config.assetTag] ?? bank.config.assetTag}]  ` +
         `${bank.tokenSymbol ?? ""}`
     );
@@ -81,13 +81,13 @@ async function mintHoldersExample() {
   // --------------------------------------------------------------------------
   const firstBank = banks[0];
   console.log(
-    `\n🔎 Scanning accounts holding bank ${firstBank.address.toBase58()} (addresses only)...`
+    `\n🔎 Scanning accounts holding bank ${firstBank.address} (addresses only)...`
   );
   const addresses = await client.getAccountAddressesHoldingBank(firstBank.address, {
     concurrency: CONCURRENCY,
   });
   console.log(`   ✅ ${addresses.length} account(s) hold this bank`);
-  addresses.slice(0, 5).forEach((a) => console.log(`     - ${a.toBase58()}`));
+  addresses.slice(0, 5).forEach((a) => console.log(`     - ${a}`));
   if (addresses.length > 5) console.log(`     ... and ${addresses.length - 5} more`);
 
   // --------------------------------------------------------------------------
@@ -108,10 +108,10 @@ async function mintHoldersExample() {
   const totalBorrowed = rows.reduce((s, r) => s.plus(r.liabilities), new BigNumber(0));
   const depositorCount = rows.filter((r) => r.assets.gt(0)).length;
   const borrowerCount = rows.filter((r) => r.liabilities.gt(0)).length;
-  const uniqueAuthorities = new Set(rows.map((r) => r.authority.toBase58())).size;
+  const uniqueAuthorities = new Set(rows.map((r) => r.authority)).size;
 
   const sym = firstBank.tokenSymbol ?? "tokens";
-  console.log(`\n📈 Summary for mint ${MINT.toBase58()}`);
+  console.log(`\n📈 Summary for mint ${MINT}`);
   console.log(`   Unique authorities : ${uniqueAuthorities}`);
   console.log(`   Depositors         : ${depositorCount}`);
   console.log(`   Borrowers          : ${borrowerCount}`);
@@ -128,9 +128,9 @@ async function mintHoldersExample() {
   console.log(`\n🏆 Top ${topByDeposit.length} positions by deposited amount:`);
   topByDeposit.forEach((r, i) => {
     console.log(
-      `   ${String(i + 1).padStart(2)}. ${r.authority.toBase58()}\n` +
-        `       account: ${r.accountAddress.toBase58()}\n` +
-        `       bank:    ${r.bank.toBase58()}\n` +
+      `   ${String(i + 1).padStart(2)}. ${r.authority}\n` +
+        `       account: ${r.accountAddress}\n` +
+        `       bank:    ${r.bank}\n` +
         `       assets:  ${r.assets.toFixed(6)} ${sym}   ` +
         `liabilities: ${r.liabilities.toFixed(6)} ${sym}`
     );

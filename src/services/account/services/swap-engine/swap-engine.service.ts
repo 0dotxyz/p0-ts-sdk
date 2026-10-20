@@ -1,4 +1,10 @@
-import { SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { getU32Decoder, Instruction } from "@solana/kit";
+import { SYSTEM_PROGRAM_ADDRESS, SystemInstruction } from "@solana-program/system";
+import {
+  findAssociatedTokenPda,
+  TOKEN_PROGRAM_ADDRESS,
+  TokenInstruction,
+} from "@solana-program/token";
 
 import { getSwapAdapter } from "./adapters";
 import {
@@ -9,16 +15,11 @@ import {
   SwapEngineResult,
 } from "./types";
 
-import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { MAX_ACCOUNT_LOCKS, WSOL_MINT } from "~/constants";
 import { TransactionBuildingError } from "~/errors";
 import { SwapApiConfig } from "~/services/account/types";
 import { compileFlashloanPrecheck } from "~/services/account/utils/flashloan-size.utils";
-import {
-  getAssociatedTokenAddressSync,
-  NATIVE_MINT,
-  TOKEN_PROGRAM_ID,
-  TokenInstruction,
-} from "~/vendor/spl";
+import { withLookupTables } from "~/services/transaction";
 
 interface ResolvedAdapter {
   adapter: SwapAdapter;
@@ -90,17 +91,22 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
   // taker's lamports (transfer + SyncNative) or unwraps the output (CloseAccount) — Titan's raw
   // routes do the former, Titan has no input-side `outputWsol` analog — would double-wrap or
   // break the consumer, so those ixs are dropped from every route.
-  const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, req.taker, true);
-  const isProviderSolWrapIx = (ix: TransactionInstruction) =>
-    (ix.programId.equals(SystemProgram.programId) &&
+  const [wsolAta] = await findAssociatedTokenPda({
+    owner: req.taker,
+    mint: WSOL_MINT,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const isProviderSolWrapIx = (ix: Instruction) =>
+    (ix.programAddress === SYSTEM_PROGRAM_ADDRESS &&
+      ix.data !== undefined &&
       ix.data.length >= 12 &&
-      ix.data.readUInt32LE(0) === 2 &&
-      ix.keys[0]?.pubkey.equals(req.taker) &&
-      ix.keys[1]?.pubkey.equals(wsolAta)) ||
-    (ix.programId.equals(TOKEN_PROGRAM_ID) &&
-      (ix.data[0] === TokenInstruction.SyncNative ||
-        ix.data[0] === TokenInstruction.CloseAccount) &&
-      ix.keys[0]?.pubkey.equals(wsolAta));
+      getU32Decoder().decode(ix.data) === SystemInstruction.TransferSol &&
+      ix.accounts?.[0]?.address === req.taker &&
+      ix.accounts?.[1]?.address === wsolAta) ||
+    (ix.programAddress === TOKEN_PROGRAM_ADDRESS &&
+      (ix.data?.[0] === TokenInstruction.SyncNative ||
+        ix.data?.[0] === TokenInstruction.CloseAccount) &&
+      ix.accounts?.[0]?.address === wsolAta);
 
   const candidates = routes.map((route) =>
     annotateFit(
@@ -115,7 +121,7 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
   // A route must both fit the budget AND actually yield output — providers can
   // occasionally return a degenerate route (instructions present, outAmount 0);
   // selecting one would patch the deposit to ~0 and produce a broken tx.
-  const fitting = candidates.filter((c) => c.fits && c.outAmountNative.gtn(0));
+  const fitting = candidates.filter((c) => c.fits && c.outAmountNative > 0n);
 
   if (fitting.length === 0) {
     // Report the closest-to-fitting candidate for diagnostics.
@@ -128,9 +134,7 @@ export async function runSwapEngine(req: SwapEngineRequest): Promise<SwapEngineR
   }
 
   // Highest expected output wins (ExactIn, same output token across providers).
-  const winner = fitting.reduce((best, c) =>
-    c.outAmountNative.gt(best.outAmountNative) ? c : best
-  );
+  const winner = fitting.reduce((best, c) => (c.outAmountNative > best.outAmountNative ? c : best));
 
   console.log("[swap-engine] selected", {
     provider: winner.provider,
@@ -164,15 +168,14 @@ function annotateFit(route: ProviderSwapRoute, req: SwapEngineRequest): SwapCand
   const { footprint } = req;
   if (!footprint) throw new Error("runSwapEngine requires a footprint");
   const allIxs = [...footprint.instructions, ...route.swapInstructions];
-  const luts = [...footprint.luts, ...route.luts];
 
   const precheck = compileFlashloanPrecheck({
     allIxs,
     payer: footprint.payer,
-    luts,
+    txFormat: withLookupTables(footprint.txFormat, route.luts),
     sizeConstraint: footprint.sizeConstraint,
     swapIxCount: route.swapInstructions.length,
-    swapLutCount: route.luts.length,
+    swapLutCount: Object.keys(route.luts).length,
   });
 
   const fits = precheck.overshoot <= 0 && precheck.totalAccounts <= MAX_ACCOUNT_LOCKS;

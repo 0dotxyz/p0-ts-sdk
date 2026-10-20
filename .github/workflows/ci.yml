@@ -2,13 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, main-v2]
   pull_request:
-    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    name: Build
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
 
     steps:
@@ -33,14 +40,33 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
-        run: pnpm test
+      - name: Format
+        run: pnpm format:check
 
       - name: Dead code
         run: pnpm knip
 
+      # src/generated is only ever what the IDLs and codama/ configs produce
+      - name: Generated clients match the IDLs
+        run: |
+          pnpm generate
+          if [ -n "$(git status --porcelain src/generated)" ]; then
+            git status --short src/generated
+            echo "::error::src/generated is out of date; run pnpm generate and commit the result"
+            exit 1
+          fi
+
       - name: Build
         run: pnpm build
+
+      # code_rules §2: no generated (Codama) type may reach the published declarations.
+      - name: No generated types in public declarations
+        run: "! grep -l TAccount dist/*.d.ts"
+
+      - name: Package exports resolve for ESM and CommonJS consumers
+        run: |
+          pnpm dlx @arethetypeswrong/cli@0.18.5 --pack . --profile node16
+          pnpm dlx publint@0.3.24
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -48,3 +74,47 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20.18 is the oldest Node @solana/kit supports (package.json engines)
+        node: ["20.18", "22.x", "24.x"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        if: matrix.node != '22.x'
+        run: pnpm test
+
+      # Fails when coverage drops below the thresholds in vitest.config.ts
+      - name: Test with coverage
+        if: matrix.node == '22.x'
+        run: pnpm test:coverage
+
+      - name: Coverage summary
+        if: matrix.node == '22.x'
+        run: |
+          node -e '
+            const total = require("./coverage/coverage-summary.json").total;
+            const rows = ["lines", "branches", "functions", "statements"]
+              .map((k) => `| ${k} | ${total[k].pct}% | ${total[k].covered}/${total[k].total} |`);
+            console.log(["### Coverage", "", "| | % | covered |", "|---|---|---|", ...rows].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"

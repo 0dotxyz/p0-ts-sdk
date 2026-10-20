@@ -1,4 +1,13 @@
-import { ComputeBudgetProgram } from "@solana/web3.js";
+import {
+  getTransactionMessageSizeLimit,
+  type BlockhashLifetimeConstraint,
+  type Instruction,
+} from "@solana/kit";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+import { findAssociatedTokenPda } from "@solana-program/token";
 
 import {
   computeBorrowEstimateForRepay,
@@ -6,86 +15,82 @@ import {
   swapEngineProvidersFromOpts,
   swapEngineQuoteFieldsFromOpts,
 } from "../services/swap-engine";
-import { MakeSwapDebtTxParams, SwapQuoteResult } from "../types";
+import { MakeSwapDebtTxParams, SwapFlowTxResult, SwapQuoteResult } from "../types";
 import {
-  isWholePosition,
   computeFlashloanSwapConstraints,
+  computeQuantityUi,
   compileFlashloanPrecheck,
-  BridgeOpts,
-  BridgedTxResult,
-  resolveTokenProgramForMint,
-  selectSwapBridges,
-  sharedBridgeLegContext,
-  tryBridgeCandidates,
+  filterRouteSetupIxs,
+  getBalance,
+  resolvePinnedSwapRoute,
 } from "../utils";
 
-import { makeSetupIx } from "./account-lifecycle";
+import { makeCreateMissingAtaIxs } from "./account-lifecycle";
 import { makeBorrowIx } from "./borrow";
-import { composeBridgedSwap, mergeBridgeQuotesDebt } from "./bridge-swap";
+import { BridgedTxResult, BridgeOpts, makeBridgedTx } from "./bridge-swap";
 import { makeFlashLoanTx } from "./flash-loan";
 import { makeOrderChangesTx } from "./orders";
 import { makeRepayIx } from "./repay";
 
-import { MAX_TX_SIZE, MAX_ACCOUNT_LOCKS } from "~/constants";
-import { isDecomposableSwapError, TransactionBuildingError } from "~/errors";
+import { MAX_ACCOUNT_LOCKS } from "~/constants";
+import { TransactionBuildingError } from "~/errors";
 import { BankType } from "~/services/bank";
-import { makeRefreshIntegrationBanksIxs } from "~/services/price";
+import { makeRefreshIntegrationBanksIxs, OraclePrice } from "~/services/price";
 import {
-  ExtendedV0Transaction,
-  getTxSize,
   getTotalAccountKeys,
+  getTxSize,
   makePreludeTxs,
+  SolanaTransaction,
+  withLookupTables,
 } from "~/services/transaction";
 import { nativeToUi, uiToNative } from "~/utils";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-} from "~/vendor/spl";
 
 /**
- * Creates transactions to swap one debt position to another using a flash loan.
- *
- * This allows users to change their debt type (e.g., USDC debt -> SOL debt) without
- * repaying and affecting their health during the swap.
+ * Swaps one debt position into another in one flashloan: borrows the new debt, swaps it into the
+ * old debt's token and repays `repayOpts`, without the account's health dipping in between. The
+ * borrow is sized from the caller's market prices plus a slippage buffer. Prelude transactions
+ * create missing ATAs and refresh integration banks.
+ * @throws TransactionBuildingError (INVALID_AMOUNT) if `repayAmount` isn't positive
+ * @throws TransactionBuildingError (SWAP_QUOTE_FAILED) if no provider can quote the swap
+ * @throws TransactionBuildingError (SWAP_SIZE_EXCEEDED_POSITION_SWAP) if the flashloan doesn't fit
+ * one transaction
+ * @throws TransactionBuildingError (ORDER_CLOSES_DONT_FIT) if `ordersToClose` don't fit in one
+ * transaction after the flashloan
+ * @throws if a pinned route (`swapOpts.swapIxs`) has no min-out
  *
  * @example
  * const { transactions, actionTxIndex, quoteResponse } = await makeSwapDebtTx({
- *   program,
+ *   programAddress,
  *   marginfiAccount,
- *   connection,
+ *   authority,
+ *   rpc,
  *   bankMap,
- *   oraclePrices,
  *   repayOpts: { totalPositionAmount: 100, repayBank: usdcBank, tokenProgram },
  *   borrowOpts: { borrowBank: solBank, tokenProgram },
  *   swapOpts: { swapConfig: { provider: SwapProvider.JUPITER, slippageMode: "DYNAMIC", slippageBps: 50, platformFeeBps: 0 } },
  *   // ...
  * });
  */
-export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
-  transactions: ExtendedV0Transaction[];
-  actionTxIndex: number;
-  quoteResponse: SwapQuoteResult | undefined;
-  /** true → send as ONE atomic Jito bundle (integration refreshes go stale within a slot);
-   *  false → sequential sends are safe (cranked oracles allow ≥ ~1 min staleness). */
-  mustBeAtomicBundle: boolean;
-}> {
+export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<SwapFlowTxResult> {
   const {
     marginfiAccount,
-    connection,
+    authority,
+    rpc,
     bankMap,
     repayOpts,
     borrowOpts,
     bankMetadataMap,
-    addressLookupTableAccounts,
+    txFormat,
     additionalIxs = [],
   } = params;
 
-  const blockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
 
-  const setupIxs = await makeSetupIx({
-    connection,
-    authority: marginfiAccount.authority,
+  const setupIxs = await makeCreateMissingAtaIxs({
+    rpc,
+    authority,
     tokens: [
       { mint: repayOpts.repayBank.mint, tokenProgram: repayOpts.tokenProgram },
       { mint: borrowOpts.borrowBank.mint, tokenProgram: borrowOpts.tokenProgram },
@@ -94,7 +99,7 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
 
   // No jup/drift exclusions here; kamino has no cpi so repay and borrow banks are
   // included in the refresh
-  const refreshIntegrationIxs = makeRefreshIntegrationBanksIxs(
+  const refreshIntegrationIxs = await makeRefreshIntegrationBanksIxs(
     marginfiAccount,
     bankMap,
     [],
@@ -104,50 +109,25 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
 
   const { flashloanTx, setupInstructions, swapQuote } = await buildSwapDebtFlashloanTx({
     ...params,
-    blockhash,
+    latestBlockhash,
   });
 
-  // Filter Jupiter setup instructions to avoid duplicates with our setup
-  const jupiterSetupInstructions = setupInstructions.filter((ix) => {
-    // Filter out compute budget instructions
-    if (ix.programId.equals(ComputeBudgetProgram.programId)) {
-      return false;
-    }
-
-    if (ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
-      // Key 3 is always mint in create ATA instruction
-      const mintKey = ix.keys[3]?.pubkey;
-
-      if (
-        mintKey?.equals(repayOpts.repayBank.mint) ||
-        mintKey?.equals(borrowOpts.borrowBank.mint)
-      ) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  setupIxs.push(...jupiterSetupInstructions);
-
-  const additionalTxs = makePreludeTxs(
-    [...additionalIxs, ...setupIxs],
-    refreshIntegrationIxs.instructions,
-    {
-      blockhash,
-      payerKey: marginfiAccount.authority,
-      luts: addressLookupTableAccounts ?? [],
-    }
+  setupIxs.push(
+    ...filterRouteSetupIxs(setupInstructions, [
+      repayOpts.repayBank.mint,
+      borrowOpts.borrowBank.mint,
+    ])
   );
-  const orderTx = await makeOrderChangesTx({
-    ...params,
-    luts: addressLookupTableAccounts ?? [],
-    blockhash,
+
+  const additionalTxs = makePreludeTxs([...additionalIxs, ...setupIxs], refreshIntegrationIxs, {
+    latestBlockhash,
+    feePayer: authority,
+    txFormat,
   });
 
-  const transactions = [...additionalTxs, flashloanTx];
-  if (orderTx) transactions.push(orderTx);
+  const orderTx = await makeOrderChangesTx({ ...params, latestBlockhash });
+
+  const transactions = [...additionalTxs, flashloanTx, orderTx].filter((tx) => tx !== undefined);
 
   return {
     transactions,
@@ -158,19 +138,23 @@ export async function makeSwapDebtTx(params: MakeSwapDebtTxParams): Promise<{
 }
 
 async function buildSwapDebtFlashloanTx({
-  program,
+  programAddress,
   marginfiAccount,
+  authority,
   bankMap,
   repayOpts,
   borrowOpts,
   swapOpts,
   bankMetadataMap,
-  addressLookupTableAccounts,
-  connection,
-  overrideInferAccounts,
-  blockhash,
+  txFormat,
+  rpc,
+  latestBlockhash,
   swapEngineRunner,
-}: MakeSwapDebtTxParams & { blockhash: string }) {
+}: MakeSwapDebtTxParams & { latestBlockhash: BlockhashLifetimeConstraint }): Promise<{
+  flashloanTx: SolanaTransaction;
+  setupInstructions: Instruction[];
+  swapQuote: SwapQuoteResult;
+}> {
   const {
     repayBank,
     tokenProgram: repayTokenProgram,
@@ -179,30 +163,25 @@ async function buildSwapDebtFlashloanTx({
   } = repayOpts;
   const { borrowBank, tokenProgram: borrowTokenProgram } = borrowOpts;
 
-  // Validate and clamp repayAmount
   if (repayAmount !== undefined && repayAmount <= 0) {
-    throw new Error("repayAmount must be greater than 0");
+    throw TransactionBuildingError.invalidAmount(repayAmount);
   }
 
-  // Use repayAmount if provided, otherwise use totalPositionAmount (full swap)
-  // Clamp to totalPositionAmount to prevent repaying more than owed
   const actualRepayAmount = Math.min(repayAmount ?? totalPositionAmount, totalPositionAmount);
 
   const cuRequestIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    getSetComputeUnitLimitInstruction({ units: 1_200_000 }),
+    getSetComputeUnitPriceInstruction({ microLamports: 1 }),
   ];
 
-  const destinationTokenAccount = getAssociatedTokenAddressSync(
-    repayBank.mint,
-    marginfiAccount.authority,
-    true,
-    repayTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : undefined
-  );
+  const [destinationTokenAccount] = await findAssociatedTokenPda({
+    mint: repayBank.mint,
+    owner: authority.address,
+    tokenProgram: repayTokenProgram,
+  });
 
-  // Step 1: size the borrow from a market-price calculation — never a provider
-  // ExactOut quote (Jupiter Router /build is ExactIn-only, and provider ExactOut
-  // routes are unreliable). See computeBorrowEstimateForRepay for the buffering.
+  // Sized from market prices, not a provider ExactOut quote: Jupiter's `/build` is ExactIn-only and
+  // ExactOut routes are unreliable
   const estimatedBorrowAmount = computeBorrowEstimateForRepay({
     repayTargetUi: actualRepayAmount,
     repayMarketPrice: repayOpts.marketPrice,
@@ -212,153 +191,110 @@ async function buildSwapDebtFlashloanTx({
   });
 
   const swapConstraints = await computeFlashloanSwapConstraints({
-    program,
+    programAddress,
     marginfiAccount,
     bankMap,
     bankMetadataMap,
-    addressLookupTableAccounts: addressLookupTableAccounts ?? [],
+    txFormat,
     primaryIx: { type: "borrow", bank: borrowBank, tokenProgram: borrowTokenProgram },
     secondaryIx: { type: "repay", bank: repayBank, tokenProgram: repayTokenProgram },
-    overrideInferAccounts,
   });
 
-  // Footprint for engine route sizing: borrow + repay ixs at estimate amounts (their
-  // byte/account footprint is amount-independent). The real ixs are built from the
-  // winning quote below.
-  const footprintBorrowIxs = await makeBorrowIx({
-    program,
+  const borrowParams = {
+    programAddress,
     bank: borrowBank,
     bankMap,
     tokenProgram: borrowTokenProgram,
-    amount: estimatedBorrowAmount,
     marginfiAccount,
-    authority: marginfiAccount.authority,
-    isSync: true,
-    opts: { createAtas: false, wrapAndUnwrapSol: false, overrideInferAccounts },
-  });
-  const footprintRepayIxs = await makeRepayIx({
-    program,
+    authority,
+    opts: { createAta: false, unwrapSol: false },
+  };
+  const repayParams = {
+    programAddress,
     bank: repayBank,
     tokenProgram: repayTokenProgram,
-    amount: actualRepayAmount,
-    accountAddress: marginfiAccount.address,
-    authority: marginfiAccount.authority,
-    isSync: true,
-    opts: { wrapAndUnwrapSol: false, overrideInferAccounts },
-  });
+    marginfiAccount,
+    authority,
+    opts: { wrapSol: false },
+  };
 
-  // Step 2: run the multi-provider engine (ExactIn on the estimated borrow amount).
+  // The route is sized against borrow and repay ixs at estimated amounts (their footprint doesn't
+  // depend on the amount); the real ones are built from the winning quote
+  const footprintBorrowIxs = await makeBorrowIx({ ...borrowParams, amount: estimatedBorrowAmount });
+  const footprintRepayIxs = await makeRepayIx({ ...repayParams, amount: actualRepayAmount });
+
   const runEngine = swapEngineRunner ?? runSwapEngine;
-  const engineResult = await runEngine({
-    inputMint: borrowBank.mint.toBase58(),
-    outputMint: repayBank.mint.toBase58(),
-    amountNative: uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals).toNumber(),
-    inputDecimals: borrowBank.mintDecimals,
-    outputDecimals: repayBank.mintDecimals,
-    ...swapEngineQuoteFieldsFromOpts(swapOpts),
-    taker: marginfiAccount.authority,
-    destinationTokenAccount,
-    connection,
-    footprint: {
-      instructions: [
-        ...cuRequestIxs,
-        ...footprintBorrowIxs.instructions,
-        ...footprintRepayIxs.instructions,
-      ],
-      luts: addressLookupTableAccounts ?? [],
-      payer: marginfiAccount.authority,
-      sizeConstraint: swapConstraints.sizeConstraint,
-      maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
-    },
-    providers: swapEngineProvidersFromOpts(swapOpts),
-  });
+  // A pinned route's input is what gets borrowed, as with an engine quote
+  const engineResult = swapOpts.swapIxs
+    ? resolvePinnedSwapRoute(swapOpts.swapIxs)
+    : await runEngine({
+        inputMint: borrowBank.mint,
+        outputMint: repayBank.mint,
+        amountNative: Number(uiToNative(estimatedBorrowAmount, borrowBank.mintDecimals)),
+        inputDecimals: borrowBank.mintDecimals,
+        outputDecimals: repayBank.mintDecimals,
+        ...swapEngineQuoteFieldsFromOpts(swapOpts),
+        taker: authority.address,
+        destinationTokenAccount,
+        rpc,
+        footprint: {
+          instructions: [...cuRequestIxs, ...footprintBorrowIxs, ...footprintRepayIxs],
+          txFormat,
+          payer: authority.address,
+          sizeConstraint: swapConstraints.sizeConstraint,
+          maxSwapTotalAccounts: swapConstraints.maxSwapTotalAccounts,
+        },
+        providers: swapEngineProvidersFromOpts(swapOpts),
+      });
 
   const quoteResponse = engineResult.quoteResponse;
   const outAmount = nativeToUi(quoteResponse.outAmount, repayBank.mintDecimals);
   const outAmountThreshold = nativeToUi(quoteResponse.otherAmountThreshold, repayBank.mintDecimals);
 
-  // If output exceeds total debt, cap at total debt (for repayAll)
-  // Otherwise use minimum output with slippage protection
-  const amountToRepay = outAmount > totalPositionAmount ? totalPositionAmount : outAmountThreshold;
+  // An expected output above the debt repays all of it; otherwise repay the guaranteed minimum
+  const repayAll = outAmount > totalPositionAmount;
+  const amountToRepay = repayAll ? totalPositionAmount : outAmountThreshold;
 
-  // For ExactIn, inAmount is what we borrow
+  // ExactIn: the quote's input is the borrow
   const borrowAmount = nativeToUi(quoteResponse.inAmount, borrowBank.mintDecimals);
+  const borrowIxs = await makeBorrowIx({ ...borrowParams, amount: borrowAmount });
+  const repayIxs = await makeRepayIx({ ...repayParams, amount: amountToRepay, repayAll });
 
-  // Build borrow instruction (new debt)
-  const borrowIxs = await makeBorrowIx({
-    program,
-    bank: borrowBank,
-    bankMap,
-    tokenProgram: borrowTokenProgram,
-    amount: borrowAmount,
-    marginfiAccount,
-    authority: marginfiAccount.authority,
-    isSync: true,
-    opts: {
-      createAtas: false,
-      wrapAndUnwrapSol: false,
-      overrideInferAccounts,
-    },
-  });
-
-  // Build repay instruction (old debt)
-  const repayIxs = await makeRepayIx({
-    program,
-    bank: repayBank,
-    tokenProgram: repayTokenProgram,
-    amount: amountToRepay,
-    accountAddress: marginfiAccount.address,
-    authority: marginfiAccount.authority,
-    repayAll: isWholePosition(
-      {
-        amount: totalPositionAmount,
-        isLending: false,
-      },
-      amountToRepay,
-      repayBank.mintDecimals
-    ),
-    isSync: true,
-    opts: {
-      wrapAndUnwrapSol: false,
-      overrideInferAccounts,
-    },
-  });
-
-  const luts = [...(addressLookupTableAccounts ?? []), ...engineResult.swapLuts];
+  const flashloanFormat = withLookupTables(txFormat, engineResult.swapLuts);
 
   const allNonFlIxs = [
     ...cuRequestIxs,
-    ...borrowIxs.instructions,
+    ...borrowIxs,
     ...engineResult.swapInstructions,
-    ...repayIxs.instructions,
+    ...repayIxs,
   ];
 
   compileFlashloanPrecheck({
     allIxs: allNonFlIxs,
-    payer: marginfiAccount.authority,
-    luts,
+    payer: authority.address,
+    txFormat: flashloanFormat,
     sizeConstraint: swapConstraints.sizeConstraint,
     swapIxCount: engineResult.swapInstructions.length,
-    swapLutCount: engineResult.swapLuts.length,
+    swapLutCount: Object.keys(engineResult.swapLuts).length,
   });
 
-  // Wallets add a priority fee ix by default breaking the flashloan tx so we need to add a placeholder priority fee ix
-  // docs: https://docs.phantom.app/developer-powertools/solana-priority-fees
-  // Solflare requires you to also include the set compute unit price to avoid transaction rejection on flashloans.
   const flashloanTx = await makeFlashLoanTx({
-    program,
+    programAddress,
     marginfiAccount,
+    authority,
     bankMap,
-    addressLookupTableAccounts: luts,
-    blockhash,
+    txFormat: flashloanFormat,
+    latestBlockhash,
     ixs: allNonFlIxs,
-    isSync: true,
   });
 
-  const txSize = getTxSize(flashloanTx);
-  const totalKeys = getTotalAccountKeys(flashloanTx);
+  const txSize = getTxSize(flashloanTx.message);
+  const totalKeys = getTotalAccountKeys(flashloanTx.message);
 
-  if (txSize > MAX_TX_SIZE || totalKeys > MAX_ACCOUNT_LOCKS) {
+  if (
+    txSize > getTransactionMessageSizeLimit(flashloanTx.message) ||
+    totalKeys > MAX_ACCOUNT_LOCKS
+  ) {
     throw TransactionBuildingError.swapSizeExceededPositionSwap(
       txSize,
       totalKeys,
@@ -370,8 +306,6 @@ async function buildSwapDebtFlashloanTx({
     flashloanTx,
     setupInstructions: engineResult.setupInstructions,
     swapQuote: quoteResponse,
-    borrowIxs,
-    repayIxs,
   };
 }
 
@@ -381,130 +315,65 @@ async function buildSwapDebtFlashloanTx({
 
 export interface MakeBridgedSwapDebtTxParams extends MakeSwapDebtTxParams {
   bridgeOpts?: BridgeOpts;
+  /** Prices the bridge legs (by bank address). */
+  oraclePrices: Map<string, OraclePrice>;
 }
 
 /**
- * {@link makeSwapDebtTx} with a transparent bridged fallback: if the direct debt swap `A → C`
- * (repay A by borrowing C) can't fit one tx or has no route, decompose it into `A → bridge` +
- * `bridge → C` through a borrowable bridge debt, as one atomic bundle. The first leg repays A by
- * borrowing the bridge; the second leg repays exactly the bridge the first leg borrowed and
- * borrows C.
+ * {@link makeSwapDebtTx}, or when the debt swap `A → C` (repay A by borrowing C) doesn't fit one
+ * transaction or has no route, repays A by borrowing a bridge, then repays the bridge by borrowing
+ * C, as one atomic bundle (see {@link makeBridgedTx}).
  */
 export async function makeBridgedSwapDebtTx(
   params: MakeBridgedSwapDebtTxParams
 ): Promise<BridgedTxResult> {
-  const { bridgeOpts, ...directParams } = params;
-  try {
-    return await makeSwapDebtTx(directParams);
-  } catch (directError) {
-    if (!isDecomposableSwapError(directError)) throw directError;
-    // A pinned route (swapOpts.swapIxs) belongs to the direct pair and cannot be spliced into
-    // SDK-composed legs — never attempt the bridged fallback with one.
-    if (directParams.swapOpts.swapIxs) throw directError;
-    const bridged = await tryBridgedDebtSwap(directParams, bridgeOpts);
-    if (bridged) return bridged;
-    throw directError;
-  }
-}
-
-async function tryBridgedDebtSwap(
-  params: MakeSwapDebtTxParams,
-  bridgeOpts: BridgeOpts | undefined
-): Promise<BridgedTxResult | null> {
-  const sourceBank = params.repayOpts.repayBank;
-  const destinationBank = params.borrowOpts.borrowBank;
-  const repayAmount = params.repayOpts.repayAmount ?? params.repayOpts.totalPositionAmount;
-  // Bridge legs price via the oracle (0 when missing): caller-supplied market prices only cover
-  // the source/destination pair, never the bridge.
-  const oraclePriceOf = (bank: BankType) =>
-    params.oraclePrices.get(bank.address.toBase58())?.priceRealtime.price.toNumber() ?? 0;
-  // A debt swap BORROWS the bridge → skip any candidate the account is supplying.
-  const { usableBridgeBanks, conflictingBridgeBanks } = selectSwapBridges({
-    sourceMint: sourceBank.mint,
-    destinationMint: destinationBank.mint,
-    bankMap: params.bankMap,
-    marginfiAccount: params.marginfiAccount,
-    bridgeTokenSide: "borrow",
-    bridgeCandidateMints: bridgeOpts?.bridgeCandidateMints,
-  });
-
-  const orderTx = await makeOrderChangesTx({
+  const { repayOpts, borrowOpts } = params;
+  // The legs are priced by oracle (0 when missing): the caller's market prices only cover A and C
+  const priceOf = (bank: BankType) =>
+    params.oraclePrices.get(bank.address)?.priceRealtime.price.toNumber() ?? 0;
+  return makeBridgedTx({
     ...params,
-    luts: params.addressLookupTableAccounts ?? [],
-  });
-  const tokenProgramCache = new Map(bridgeOpts?.tokenProgramByMint);
-  return tryBridgeCandidates({
-    usableBridgeBanks,
-    conflictingBridgeBanks,
-    bridgeTokenSide: "borrow",
-    abortSignal: bridgeOpts?.abortSignal,
-    buildBundleThroughBridge: async (bridgeBank) => {
-      const bridgeTokenProgram = await resolveTokenProgramForMint(
-        bridgeBank.mint,
-        params.connection,
-        tokenProgramCache
-      );
-
-      // First leg: repay A by borrowing the bridge (debt A → bridge).
-      const firstLeg = await makeSwapDebtTx({
-        ...sharedBridgeLegContext(params),
-        repayOpts: {
-          totalPositionAmount: params.repayOpts.totalPositionAmount,
-          repayAmount,
-          repayBank: sourceBank,
-          tokenProgram: params.repayOpts.tokenProgram,
-          marketPrice: oraclePriceOf(sourceBank),
-        },
+    side: "borrow",
+    sourceMint: repayOpts.repayBank.mint,
+    destinationMint: borrowOpts.borrowBank.mint,
+    buildWithoutBridge: () => makeSwapDebtTx(params),
+    buildOpenBridgeLeg: ({ bridgeBank, bridgeTokenProgram, context }) =>
+      makeSwapDebtTx({
+        ...context,
+        repayOpts: { ...repayOpts, marketPrice: priceOf(repayOpts.repayBank) },
         borrowOpts: {
           borrowBank: bridgeBank,
           tokenProgram: bridgeTokenProgram,
-          marketPrice: oraclePriceOf(bridgeBank),
+          marketPrice: priceOf(bridgeBank),
         },
+      }),
+    buildCloseBridgeLeg: async ({ bridgeBank, bridgeTokenProgram, context, openLegQuote }) => {
+      // Repay exactly the bridge the open leg borrowed (its swap input), so repay-all clears it
+      const bridgeDebt = nativeToUi(openLegQuote.inAmount, bridgeBank.mintDecimals);
+      if (bridgeDebt <= 0) return null;
+      // Debt the account already owed in the bridge counts toward the total, so a repay-all can't
+      // swap it too
+      const owedBridge = getBalance(
+        bridgeBank.address,
+        params.marginfiAccount.balances
+      ).liabilityShares.gt(0);
+      const totalPositionAmount = owedBridge
+        ? computeQuantityUi(
+            getBalance(bridgeBank.address, context.marginfiAccount.balances),
+            bridgeBank
+          ).liabilities.toNumber()
+        : bridgeDebt;
+      return makeSwapDebtTx({
+        ...context,
+        repayOpts: {
+          totalPositionAmount,
+          repayAmount: bridgeDebt,
+          repayBank: bridgeBank,
+          tokenProgram: bridgeTokenProgram,
+          marketPrice: priceOf(bridgeBank),
+        },
+        borrowOpts: { ...borrowOpts, marketPrice: priceOf(borrowOpts.borrowBank) },
       });
-      if (!firstLeg.quoteResponse) return null;
-
-      // The first leg borrowed `inAmount` of the bridge (its swap input). The second leg repays
-      // exactly that bridge debt — exact, so no slippage residual; repay-all clears it (no
-      // partial-leftover deposit conflict).
-      const bridgeBorrowedUi = nativeToUi(firstLeg.quoteResponse.inAmount, bridgeBank.mintDecimals);
-      if (bridgeBorrowedUi <= 0) return null;
-
-      const result = await composeBridgedSwap({
-        firstLeg,
-        buildSecondLeg: (projectedAccount) =>
-          makeSwapDebtTx({
-            ...sharedBridgeLegContext(params),
-            marginfiAccount: projectedAccount,
-            repayOpts: {
-              totalPositionAmount: bridgeBorrowedUi,
-              repayAmount: bridgeBorrowedUi,
-              repayBank: bridgeBank,
-              tokenProgram: bridgeTokenProgram,
-              marketPrice: oraclePriceOf(bridgeBank),
-            },
-            borrowOpts: {
-              borrowBank: destinationBank,
-              tokenProgram: params.borrowOpts.tokenProgram,
-              marketPrice: oraclePriceOf(destinationBank),
-            },
-          }),
-        marginfiAccount: params.marginfiAccount,
-        program: params.program,
-        banksMap: params.bankMap,
-        assetShareValueMultiplierByBank: params.assetShareValueMultiplierByBank,
-        feePayer: params.overrideInferAccounts?.authority ?? params.marginfiAccount.authority,
-        maxBundleTxs: bridgeOpts?.maxBundleTxs,
-        reservedTxs: orderTx ? 1 : 0,
-      });
-      if (!result) return null;
-
-      return {
-        transactions: orderTx ? [...result.transactions, orderTx] : result.transactions,
-        actionTxIndex: result.transactions.length - 1,
-        quoteResponse: mergeBridgeQuotesDebt(result.firstLegQuote, result.secondLegQuote),
-        bridgeMint: bridgeBank.mint,
-        mustBeAtomicBundle: true,
-      };
     },
   });
 }
