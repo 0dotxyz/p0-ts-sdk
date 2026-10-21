@@ -181,6 +181,26 @@ export function getLiabilityWeight(
   }
 }
 
+const DEFAULT_LIQUIDATION_FEE = new BigNumber(0.025);
+const U32_MAX = 0xffffffff;
+
+/**
+ * The liquidator's and insurance fund's cuts of a classic liquidation against `bank`'s
+ * liability, as fractions (0.025 = 2.5%). Mirrors `Bank::liquidator_fee` / `insurance_fee`: a
+ * stored 0 means the program's 2.5% default.
+ */
+export function getBankLiquidationFees(bank: BankType): {
+  liquidatorFee: BigNumber;
+  insuranceFee: BigNumber;
+} {
+  const toFraction = (fee: number) =>
+    fee === 0 ? DEFAULT_LIQUIDATION_FEE : new BigNumber(fee).div(U32_MAX);
+  return {
+    liquidatorFee: toFraction(bank.liquidationLiquidatorFee),
+    insuranceFee: toFraction(bank.liquidationInsuranceFee),
+  };
+}
+
 /**
  * Configuration for computing USD value from token quantity
  */

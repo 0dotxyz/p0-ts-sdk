@@ -31,6 +31,7 @@ import type {
 
 import { decodeBankRaw, OperationalStateRaw, OracleSetupRaw, RiskTierRaw } from "~/accounts";
 import {
+  CIRCUIT_BREAKER_ENABLED_FLAG,
   DEFAULT_ORACLE_MAX_AGE,
   KAMINO_MARKET_EMERGENCY_FLAG,
   PREMIUM_ACTIVE_FLAG,
@@ -251,6 +252,11 @@ export function parseBankRaw(
     premiumActive,
     premiumActivatedAt: Number(accountParsed.premiumActivatedAt),
     kaminoEmergency: (flags & KAMINO_MARKET_EMERGENCY_FLAG) > 0,
+    liquidationLiquidatorFee: accountParsed.liquidationLiquidatorFee,
+    liquidationInsuranceFee: accountParsed.liquidationInsuranceFee,
+    isCircuitBreakerEnabled: (flags & CIRCUIT_BREAKER_ENABLED_FLAG) > 0,
+    cbTier: accountParsed.cbTier,
+    cbHaltEndedAt: Number(accountParsed.cbHaltEndedAt),
     rateLimiter,
     tokenSymbol,
     kaminoIntegrationAccounts,
@@ -302,6 +308,11 @@ export function dtoToBank(bankDto: BankTypeDto): BankType {
     premiumActive: bankDto.premiumActive ?? false,
     premiumActivatedAt: bankDto.premiumActivatedAt ?? 0,
     kaminoEmergency: bankDto.kaminoEmergency ?? false,
+    liquidationLiquidatorFee: bankDto.liquidationLiquidatorFee ?? 0,
+    liquidationInsuranceFee: bankDto.liquidationInsuranceFee ?? 0,
+    isCircuitBreakerEnabled: bankDto.isCircuitBreakerEnabled ?? false,
+    cbTier: bankDto.cbTier ?? 0,
+    cbHaltEndedAt: bankDto.cbHaltEndedAt ?? 0,
     rateLimiter: bankDto.rateLimiter ? dtoToBankRateLimiter(bankDto.rateLimiter) : undefined,
     tokenSymbol: bankDto.tokenSymbol,
     feesDestinationAccount: bankDto.feesDestinationAccount
@@ -400,6 +411,9 @@ export function dtoToBankConfig(bankConfigDto: BankConfigDto): BankConfigType {
     oracleMaxConfidence: bankConfigDto.oracleMaxConfidence,
     fixedPrice: new BigNumber(bankConfigDto.fixedPrice),
     scopeEntryIndex: bankConfigDto.scopeEntryIndex,
+    cbWindowMaxUpBps: bankConfigDto.cbWindowMaxUpBps ?? 0,
+    cbWindowMaxDownBps: bankConfigDto.cbWindowMaxDownBps ?? 0,
+    cbWindowSeconds: bankConfigDto.cbWindowSeconds ?? 0,
   };
 }
 
@@ -494,6 +508,9 @@ export function parseBankConfigRaw(bankConfigRaw: BankConfigRaw): BankConfigType
     oracleMaxConfidence,
     fixedPrice,
     scopeEntryIndex,
+    cbWindowMaxUpBps: bankConfigRaw.cbWindowMaxUpBps,
+    cbWindowMaxDownBps: bankConfigRaw.cbWindowMaxDownBps,
+    cbWindowSeconds: bankConfigRaw.cbWindowSeconds,
   };
 }
 

@@ -66,6 +66,9 @@ export interface BankConfigDto {
   oracleMaxConfidence: number;
   fixedPrice: string;
   scopeEntryIndex?: number;
+  cbWindowMaxUpBps?: number;
+  cbWindowMaxDownBps?: number;
+  cbWindowSeconds?: number;
 }
 
 export interface RateLimitWindowDto {
@@ -143,6 +146,11 @@ export interface BankTypeDto {
   premiumActive?: boolean;
   premiumActivatedAt?: number;
   kaminoEmergency?: boolean;
+  liquidationLiquidatorFee?: number;
+  liquidationInsuranceFee?: number;
+  isCircuitBreakerEnabled?: boolean;
+  cbTier?: number;
+  cbHaltEndedAt?: number;
   rateLimiter?: BankRateLimiterDto;
   feesDestinationAccount?: string;
   lendingPositionCount?: string;

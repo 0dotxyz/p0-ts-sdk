@@ -66,6 +66,15 @@ export function isStandardDepositable(bank: BankType): boolean {
   );
 }
 
+/**
+ * Whether the bank's oracle circuit breaker has tripped and its halt is still running at
+ * `nowSeconds`, blocking risk-increasing actions. Mirrors `Bank::is_cb_halted`. A permanent halt
+ * shows as `OperationalState.CircuitBroken` instead.
+ */
+export function isBankCircuitBreakerHalted(bank: BankType, nowSeconds: number): boolean {
+  return bank.isCircuitBreakerEnabled && bank.cbTier > 0 && nowSeconds < bank.cbHaltEndedAt;
+}
+
 const SECONDS_PER_DAY = 24 * 60 * 60;
 /** Mirrors the program's `SECONDS_PER_YEAR` (365 days, no leap adjustment). */
 export const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365;
