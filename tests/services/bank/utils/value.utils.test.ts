@@ -5,6 +5,7 @@ import { MarginRequirementType } from "~/services/account";
 import {
   BankType,
   getAssetWeight,
+  getBankLiquidationFees,
   OperationalState,
   RiskTier,
   withKaminoReserveEmergency,
@@ -74,5 +75,24 @@ describe("withKaminoReserveEmergency", () => {
 
   it("leaves kaminoEmergency unset when neither is in emergency", () => {
     expect(withKaminoReserveEmergency(bank(false), reserve(0)).kaminoEmergency).toBe(false);
+  });
+});
+
+describe("getBankLiquidationFees", () => {
+  const feeBank = (liquidationLiquidatorFee: number, liquidationInsuranceFee: number) =>
+    ({ liquidationLiquidatorFee, liquidationInsuranceFee }) as unknown as BankType;
+
+  it("falls back to the 2.5% default for a stored 0", () => {
+    const { liquidatorFee, insuranceFee } = getBankLiquidationFees(feeBank(0, 0));
+    expect(liquidatorFee).toEqual(new BigNumber(0.025));
+    expect(insuranceFee).toEqual(new BigNumber(0.025));
+  });
+
+  it("decodes the u32 encoding (u32::MAX = 100%)", () => {
+    const { liquidatorFee, insuranceFee } = getBankLiquidationFees(
+      feeBank(0xffffffff, Math.round(0xffffffff * 0.01))
+    );
+    expect(liquidatorFee.toNumber()).toBe(1);
+    expect(insuranceFee.toNumber()).toBeCloseTo(0.01, 9);
   });
 });

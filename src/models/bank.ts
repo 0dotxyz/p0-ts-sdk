@@ -102,6 +102,11 @@ class Bank implements BankType {
     public readonly premiumActive: boolean,
     public readonly premiumActivatedAt: number,
     public readonly kaminoEmergency: boolean,
+    public readonly liquidationLiquidatorFee: number,
+    public readonly liquidationInsuranceFee: number,
+    public readonly isCircuitBreakerEnabled: boolean,
+    public readonly cbTier: number,
+    public readonly cbHaltEndedAt: number,
     public readonly stakedOracleDisabled?: boolean,
     public readonly stakedOracleUsesOnramp?: boolean,
     public readonly rateLimiter?: BankRateLimiterType,
@@ -172,6 +177,9 @@ class Bank implements BankType {
       bankType.config.operationalState,
       bankType.config.oracleMaxConfidence,
       bankType.config.fixedPrice,
+      bankType.config.cbWindowMaxUpBps,
+      bankType.config.cbWindowMaxDownBps,
+      bankType.config.cbWindowSeconds,
       bankType.config.configFlags,
       bankType.config.scopeEntryIndex
     );
@@ -209,6 +217,11 @@ class Bank implements BankType {
       bankType.premiumActive,
       bankType.premiumActivatedAt,
       bankType.kaminoEmergency,
+      bankType.liquidationLiquidatorFee,
+      bankType.liquidationInsuranceFee,
+      bankType.isCircuitBreakerEnabled,
+      bankType.cbTier,
+      bankType.cbHaltEndedAt,
       bankType.stakedOracleDisabled,
       bankType.stakedOracleUsesOnramp,
       bankType.rateLimiter,
@@ -422,6 +435,9 @@ class BankConfig implements BankConfigType {
     public readonly operationalState: OperationalState,
     public readonly oracleMaxConfidence: number,
     public readonly fixedPrice: BigNumber,
+    public readonly cbWindowMaxUpBps: number,
+    public readonly cbWindowMaxDownBps: number,
+    public readonly cbWindowSeconds: number,
     public readonly configFlags?: BankConfigFlag,
     public readonly scopeEntryIndex?: number
   ) {}

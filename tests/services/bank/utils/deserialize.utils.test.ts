@@ -1,9 +1,16 @@
+import { address } from "@solana/kit";
 import { describe, it, expect } from "vitest";
 
 import { BANK_DISCRIMINATOR, decodeBankRaw, OracleSetupRaw } from "~/accounts";
+import { CIRCUIT_BREAKER_ENABLED_FLAG } from "~/constants";
 import { OracleSetup } from "~/services/bank/types";
-import { parseOracleSetup, parseBankConfigRaw } from "~/services/bank/utils/deserialize.utils";
-import { serializeOracleSetup } from "~/services/bank/utils/serialize.utils";
+import {
+  dtoToBank,
+  parseBankConfigRaw,
+  parseBankRaw,
+  parseOracleSetup,
+} from "~/services/bank/utils/deserialize.utils";
+import { serializeOracleSetup, toBankDto } from "~/services/bank/utils/serialize.utils";
 
 /** Every real (non-reserved) variant with its confirmed on-chain discriminant. */
 const SETUP_INDICES: [OracleSetup, number][] = [
@@ -87,5 +94,65 @@ describe("scopeEntryIndex plumbing", () => {
       oracleMaxAge: 0,
     };
     expect(parseBankConfigRaw(pythConfig).oracleMaxAge).toBeGreaterThan(0);
+  });
+});
+
+describe("liquidation fee and circuit breaker plumbing", () => {
+  const BANK_ADDRESS = address("11111111111111111111111111111111");
+  const zeroBank = () => {
+    const data = new Uint8Array(4096);
+    data.set(BANK_DISCRIMINATOR);
+    return decodeBankRaw(data);
+  };
+
+  it("parses the raw fees, the breaker flag and its halt state", () => {
+    const raw = zeroBank();
+    const bank = parseBankRaw(BANK_ADDRESS, {
+      ...raw,
+      flags: BigInt(CIRCUIT_BREAKER_ENABLED_FLAG),
+      liquidationLiquidatorFee: 123,
+      liquidationInsuranceFee: 456,
+      cbTier: 2,
+      cbHaltEndedAt: 1_800_000_000n,
+      config: {
+        ...raw.config,
+        cbWindowMaxUpBps: 300,
+        cbWindowMaxDownBps: 250,
+        cbWindowSeconds: 86400,
+      },
+    });
+
+    expect(bank.liquidationLiquidatorFee).toBe(123);
+    expect(bank.liquidationInsuranceFee).toBe(456);
+    expect(bank.isCircuitBreakerEnabled).toBe(true);
+    expect(bank.cbTier).toBe(2);
+    expect(bank.cbHaltEndedAt).toBe(1_800_000_000);
+    expect(bank.config.cbWindowMaxUpBps).toBe(300);
+    expect(bank.config.cbWindowMaxDownBps).toBe(250);
+    expect(bank.config.cbWindowSeconds).toBe(86400);
+  });
+
+  it("defaults the fields on DTOs serialized before they existed", () => {
+    const dto = toBankDto(parseBankRaw(BANK_ADDRESS, zeroBank()));
+    /* eslint-disable @typescript-eslint/no-unused-vars */
+    const {
+      liquidationLiquidatorFee,
+      liquidationInsuranceFee,
+      isCircuitBreakerEnabled,
+      cbTier,
+      cbHaltEndedAt,
+      ...oldDto
+    } = dto;
+    const { cbWindowMaxUpBps, cbWindowMaxDownBps, cbWindowSeconds, ...oldConfig } = dto.config;
+    /* eslint-enable @typescript-eslint/no-unused-vars */
+
+    const bank = dtoToBank({ ...oldDto, config: oldConfig });
+
+    expect(bank.liquidationLiquidatorFee).toBe(0);
+    expect(bank.liquidationInsuranceFee).toBe(0);
+    expect(bank.isCircuitBreakerEnabled).toBe(false);
+    expect(bank.cbTier).toBe(0);
+    expect(bank.cbHaltEndedAt).toBe(0);
+    expect(bank.config.cbWindowSeconds).toBe(0);
   });
 });

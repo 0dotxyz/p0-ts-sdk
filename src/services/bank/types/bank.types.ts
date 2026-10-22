@@ -177,6 +177,9 @@ export interface BankConfigType {
   oracleMaxConfidence: number;
   fixedPrice: BigNumber;
   scopeEntryIndex?: number;
+  cbWindowMaxUpBps: number;
+  cbWindowMaxDownBps: number;
+  cbWindowSeconds: number;
 }
 
 export interface BankType {
@@ -239,6 +242,19 @@ export interface BankType {
    * {@link withKaminoReserveEmergency} ORs in the reserve's `emergencyMode`.
    */
   kaminoEmergency: boolean;
+  /**
+   * Liquidator's cut of a classic liquidation against this bank's liability, raw on-chain u32
+   * (`u32::MAX` = 100%, 0 = program default). Decode with {@link getBankLiquidationFees}.
+   */
+  liquidationLiquidatorFee: number;
+  /** Insurance fund's cut of that liquidation, same encoding as `liquidationLiquidatorFee` */
+  liquidationInsuranceFee: number;
+  /** Flags bit 11: the per-bank oracle circuit breaker is enabled (0.1.10) */
+  isCircuitBreakerEnabled: boolean;
+  /** Current circuit-breaker halt tier (0 = not tripped) */
+  cbTier: number;
+  /** Unix seconds the current circuit-breaker halt ends */
+  cbHaltEndedAt: number;
   rateLimiter?: BankRateLimiterType;
   feesDestinationAccount?: Address;
   lendingPositionCount?: BigNumber;

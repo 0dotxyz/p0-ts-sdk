@@ -6,6 +6,7 @@ import { makeBank } from "../../../helpers/factories";
 
 import {
   computeRemainingCapacity,
+  isBankCircuitBreakerHalted,
   isStandardBorrowable,
   isStandardDepositable,
   AssetTag,
@@ -140,5 +141,24 @@ describe("computeRemainingCapacity", () => {
     // scaled limit = 1000e6 * 1e3 = 1e12; total = 600_000e6 = 6e11 → remaining 4e11 - 1 native
     const { depositCapacity } = computeRemainingCapacity(b);
     expect(depositCapacity.toNumber()).toBe(4e11 - 1);
+  });
+});
+
+describe("isBankCircuitBreakerHalted", () => {
+  const NOW = 1_800_000_000;
+  const breakerBank = (isCircuitBreakerEnabled: boolean, cbTier: number, cbHaltEndedAt: number) =>
+    ({ isCircuitBreakerEnabled, cbTier, cbHaltEndedAt }) as unknown as BankType;
+
+  it("is halted while a tripped breaker's halt runs", () => {
+    expect(isBankCircuitBreakerHalted(breakerBank(true, 1, NOW + 60), NOW)).toBe(true);
+  });
+
+  it("is not halted once the halt has ended", () => {
+    expect(isBankCircuitBreakerHalted(breakerBank(true, 1, NOW), NOW)).toBe(false);
+  });
+
+  it("is not halted when untripped or disabled", () => {
+    expect(isBankCircuitBreakerHalted(breakerBank(true, 0, NOW + 60), NOW)).toBe(false);
+    expect(isBankCircuitBreakerHalted(breakerBank(false, 1, NOW + 60), NOW)).toBe(false);
   });
 });

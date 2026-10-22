@@ -212,6 +212,11 @@ export function toBankDto(bank: BankType): BankTypeDto {
     premiumActive: bank.premiumActive,
     premiumActivatedAt: bank.premiumActivatedAt,
     kaminoEmergency: bank.kaminoEmergency,
+    liquidationLiquidatorFee: bank.liquidationLiquidatorFee,
+    liquidationInsuranceFee: bank.liquidationInsuranceFee,
+    isCircuitBreakerEnabled: bank.isCircuitBreakerEnabled,
+    cbTier: bank.cbTier,
+    cbHaltEndedAt: bank.cbHaltEndedAt,
     rateLimiter: bank.rateLimiter ? toBankRateLimiterDto(bank.rateLimiter) : undefined,
     tokenSymbol: bank.tokenSymbol,
     feesDestinationAccount: bank.feesDestinationAccount,
@@ -278,6 +283,9 @@ export function toBankConfigDto(bankConfig: BankConfigType): BankConfigDto {
     oracleMaxConfidence: bankConfig.oracleMaxConfidence,
     fixedPrice: bankConfig.fixedPrice.toString(),
     scopeEntryIndex: bankConfig.scopeEntryIndex,
+    cbWindowMaxUpBps: bankConfig.cbWindowMaxUpBps,
+    cbWindowMaxDownBps: bankConfig.cbWindowMaxDownBps,
+    cbWindowSeconds: bankConfig.cbWindowSeconds,
   };
 }
 
