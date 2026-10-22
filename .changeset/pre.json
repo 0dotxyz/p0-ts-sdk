@@ -5,6 +5,7 @@
     "@0dotxyz/p0-ts-sdk": "2.10.0"
   },
   "changesets": [
+    "bank-risk-fields",
     "solana-kit-v3"
   ]
 }

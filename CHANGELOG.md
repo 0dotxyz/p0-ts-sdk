@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0-next.1
+
+### Minor Changes
+
+- e7befd7: Banks now carry their per-bank classic-liquidation fees (`liquidationLiquidatorFee`, `liquidationInsuranceFee`) and circuit-breaker state (`isCircuitBreakerEnabled`, `cbTier`, `cbHaltEndedAt`, plus `config.cbWindowMaxUpBps` / `cbWindowMaxDownBps` / `cbWindowSeconds`), decoded on-chain and carried through the DTO. New `getBankLiquidationFees` decodes the fees with the program's 2.5% default, and `isBankCircuitBreakerHalted` mirrors the program's halt check.
+
 ## 3.0.0-next.0
 
 ### Major Changes
