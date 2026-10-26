@@ -27,7 +27,7 @@ import { AssetTag, BankType } from "~/services/bank/types";
 import { makeUpdateJupLendRateIxs, OraclePrice } from "~/services/price";
 import { makeTransactionMessage, simulateBundle } from "~/services/transaction";
 import { BankIntegrationMetadataMap } from "~/types";
-import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
+import { wrappedI80F48toBigNumber } from "~/utils";
 import { makeUpdateSpotMarketCumulativeInterestIx } from "~/vendor/drift";
 import { makeRefreshReservesBatchIx } from "~/vendor/klend";
 
@@ -152,14 +152,16 @@ export async function simulateAccountHealthCacheWithFallback(
       bankIntegrationMap,
     });
 
-    marginfiAccount = parseMarginfiAccountRaw(params.marginfiAccount.address, {
-      ...simulatedAccount,
+    const simulated = parseMarginfiAccountRaw(params.marginfiAccount.address, simulatedAccount);
+    marginfiAccount = {
+      ...simulated,
       healthCache: {
-        ...simulatedAccount.healthCache,
-        assetValueEquity: bigNumberToWrappedI80F48(assetValueEquity),
-        liabilityValueEquity: bigNumberToWrappedI80F48(liabilityValueEquity),
+        ...simulated.healthCache,
+        assetValueEquity,
+        liabilityValueEquity,
+        simulationStatus: HealthCacheStatus.ONCHAIN,
       },
-    });
+    };
   } catch (e) {
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
       computeHealthComponentsFromBalances({

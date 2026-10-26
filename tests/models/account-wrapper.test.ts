@@ -26,18 +26,24 @@ const banks = Object.fromEntries(
 const bankMap = new Map(Object.values(banks).map((bank) => [bank.address as string, bank]));
 const account = MarginfiAccount.fromAccountType(mainnetAccount());
 
-const client = new Project0Client(
-  {} as never,
-  "",
-  programAddress,
-  new MarginfiGroup(account.authority, account.group),
-  bankMap,
-  venueMetadataMap,
-  new Map(),
-  new Map(),
-  new Map(Object.values(banks).map((bank) => [bank.address, { mint: bank.mint, tokenProgram }])),
-  {},
-  []
+const makeClient = (group: MarginfiGroup) =>
+  new Project0Client(
+    {} as never,
+    "",
+    programAddress,
+    group,
+    bankMap,
+    venueMetadataMap,
+    new Map(),
+    new Map(),
+    new Map(Object.values(banks).map((bank) => [bank.address, { mint: bank.mint, tokenProgram }])),
+    {},
+    []
+  );
+// v2.8.3 always added a withdraw-all's closed bank for the group rate limiter, i.e. the limiter on;
+// the fixture bank's limiter stands in for an enabled group limiter
+const client = makeClient(
+  new MarginfiGroup(account.authority, account.group, banks.default.rateLimiter)
 );
 const wrapper = new MarginfiAccountWrapper(account, client);
 
@@ -70,6 +76,23 @@ describe("MarginfiAccountWrapper", () => {
 
   it.each(Object.keys(cases) as (keyof typeof cases)[])("%s matches v2.8.3", async (name) => {
     expect(toWire(await cases[name]())).toEqual(v283Cases[name]);
+  });
+
+  it("leaves a withdraw-all's closed bank out of the health accounts when the group limiter is off", async () => {
+    const limiterOff = new MarginfiAccountWrapper(
+      account,
+      makeClient(new MarginfiGroup(account.authority, account.group))
+    );
+    const accounts = async (w: MarginfiAccountWrapper) => {
+      const ixs = await w.makeWithdrawIx(banks.default.address, 5, true);
+      const withdraw = ixs.find(isMarginfiIx(MarginfiInstruction.LendingAccountWithdraw));
+      return (withdraw?.accounts ?? []).map((meta) => meta.address);
+    };
+
+    const withLimiter = await accounts(wrapper);
+    const withoutLimiter = await accounts(limiterOff);
+    expect(withoutLimiter).toEqual(withLimiter.slice(0, withoutLimiter.length));
+    expect(withoutLimiter.length).toBeLessThan(withLimiter.length);
   });
 
   it("passes the client's state so deposits get the pulse with no extra arguments", async () => {
