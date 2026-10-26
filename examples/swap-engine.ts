@@ -58,7 +58,6 @@ async function main() {
     providers.push({
       provider: SwapProvider.TITAN,
       apiConfig: {
-        basePath: process.env.TITAN_GATEWAY_URL,
         wsUrl: process.env.TITAN_WS_URL || `${process.env.TITAN_GATEWAY_URL.replace(/^http/, "ws")}/ws`,
         apiKey: process.env.TITAN_API_KEY,
       },
@@ -67,7 +66,7 @@ async function main() {
   if (process.env.JUPITER_API_KEY) {
     providers.push({
       provider: SwapProvider.JUPITER,
-      apiConfig: { basePath: "https://api.jup.ag/swap/v1", apiKey: process.env.JUPITER_API_KEY },
+      apiConfig: { apiKey: process.env.JUPITER_API_KEY },
     });
   }
   if (providers.length === 0) {

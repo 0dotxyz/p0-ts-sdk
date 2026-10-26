@@ -269,12 +269,9 @@ async function swapDebtExample() {
     );
   }
 
-  // Quote display. For a debt swap the NEW debt is the borrow (`inAmount`) on the direct quote;
-  // the merged bridged quote maps it to `outAmount` (new-debt-borrowed) — see mergeBridgeQuotesDebt.
+  // Quote display. For a debt swap the NEW debt is the borrow (`inAmount`).
   if (result.quoteResponse) {
-    const newDebtNative = isBridged
-      ? result.quoteResponse.outAmount
-      : result.quoteResponse.inAmount;
+    const newDebtNative = result.quoteResponse.inAmount;
     const newDebtUi = Number(newDebtNative) / Math.pow(10, destinationBank.mintDecimals);
     console.log(`\n📈 ${isBridged ? "Merged bridged" : "Swap-engine"} quote:`);
     console.log(

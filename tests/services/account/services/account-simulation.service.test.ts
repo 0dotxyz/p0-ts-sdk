@@ -153,11 +153,8 @@ describe("simulateAccountHealthCache", () => {
 });
 
 describe("simulateAccountHealthCacheWithFallback", () => {
-  it("computes the health cache on a failed simulation, leaving the caller's account as is", async () => {
-    post.healthCache = { mrgnErr: 6010, internalErr: 3 };
-    const healthCache = marginfiAccount.healthCache;
-
-    const result = await simulateAccountHealthCacheWithFallback({
+  const simulateWithFallback = () =>
+    simulateAccountHealthCacheWithFallback({
       rpc,
       rpcEndpoint,
       programAddress,
@@ -167,6 +164,19 @@ describe("simulateAccountHealthCacheWithFallback", () => {
       bankIntegrationMap: {},
       assetShareValueMultiplierByBank: new Map(),
     });
+
+  it("marks a simulated health cache as on-chain", async () => {
+    const result = await simulateWithFallback();
+
+    expect(result.error).toBeUndefined();
+    expect(result.marginfiAccount.healthCache.simulationStatus).toBe(HealthCacheStatus.ONCHAIN);
+  });
+
+  it("computes the health cache on a failed simulation, leaving the caller's account as is", async () => {
+    post.healthCache = { mrgnErr: 6010, internalErr: 3 };
+    const healthCache = marginfiAccount.healthCache;
+
+    const result = await simulateWithFallback();
 
     expect(result.error).toBeInstanceOf(HealthCacheSimulationError);
     expect(result.marginfiAccount.healthCache.simulationStatus).toBe(HealthCacheStatus.COMPUTED);
