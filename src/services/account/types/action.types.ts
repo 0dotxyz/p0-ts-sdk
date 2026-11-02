@@ -29,6 +29,8 @@ export enum SwapProvider {
 }
 
 export interface SwapApiConfig {
+  /** @deprecated Unused: the Jupiter adapter calls the Router `/build` endpoint and the Titan
+   *  adapter quotes over `wsUrl`. Will be removed in a future release. */
   basePath?: string;
   /** WebSocket endpoint (e.g. `wss://<host>/api/v1/ws`). Used by the Titan V3
    *  adapter, which sends the full footprint template inline over the socket to

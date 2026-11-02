@@ -96,14 +96,13 @@ export const UNIVERSAL_BRIDGE_MINTS = [MINTS.USDC, MINTS.SOL, MINTS.USDT, MINTS.
  * queried; with no Titan creds it falls back to Jupiter only.
  *
  * Env vars:
- *   TITAN_GATEWAY_URL      REST gateway base, e.g. https://<host>/api/v1
+ *   TITAN_GATEWAY_URL      gateway base, e.g. https://<host>/api/v1; the WS URL is derived from it
  *   TITAN_API_ENDPOINT     alternative to TITAN_GATEWAY_URL — a bare host is normalized to
  *                          https://<host>/api/v1 (matches the app)
  *   TITAN_WS_URL           Titan V3 quotes over WS, e.g. wss://<host>/api/v1/ws — derived from the
  *                          base when omitted
- *   TITAN_API_KEY          Titan JWT (used for REST + WS)
+ *   TITAN_API_KEY          Titan JWT (sent on the WS connection)
  *   JUPITER_API_KEY        omit to use the public, rate-limited endpoint
- *   JUPITER_BASE_PATH      default https://api.jup.ag/swap/v1
  *   SWAP_SLIPPAGE_MODE     "DYNAMIC" | "FIXED"  (default DYNAMIC)
  *   SWAP_SLIPPAGE_BPS      default 50
  *   SWAP_PLATFORM_FEE_BPS  default 0
@@ -120,23 +119,18 @@ export function getSwapConfig(): SwapProviderConfig {
 
   const jupiterEntry: SwapProviderEntry = {
     provider: SwapProvider.JUPITER,
-    apiConfig: {
-      basePath: getEnvVar("JUPITER_BASE_PATH", false) || "https://api.jup.ag/swap/v1",
-      apiKey: getEnvVar("JUPITER_API_KEY", false) || undefined,
-    },
+    apiConfig: { apiKey: getEnvVar("JUPITER_API_KEY", false) || undefined },
   };
 
   // TITAN primary + JUPITER fallback (the app default) when Titan creds are present. Accept either
   // a full gateway URL or a bare host (TITAN_API_ENDPOINT), normalized like the app.
   const titanRaw = getEnvVar("TITAN_GATEWAY_URL", false) || getEnvVar("TITAN_API_ENDPOINT", false);
   if (titanRaw) {
-    const basePath = normalizeTitanBase(titanRaw);
     return {
       provider: SwapProvider.TITAN,
       ...common,
       apiConfig: {
-        basePath,
-        wsUrl: getEnvVar("TITAN_WS_URL", false) || deriveTitanWs(basePath),
+        wsUrl: getEnvVar("TITAN_WS_URL", false) || deriveTitanWs(normalizeTitanBase(titanRaw)),
         apiKey: getEnvVar("TITAN_API_KEY", false) || undefined,
       },
       fallbackProviders: [jupiterEntry],

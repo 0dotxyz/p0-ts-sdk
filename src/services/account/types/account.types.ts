@@ -41,9 +41,13 @@ export enum HealthCacheFlags {
   ORACLE_OK = 1 << 2, // 4
 }
 
+/** Where an account's `healthCache` values come from. */
 export enum HealthCacheStatus {
+  /** As stored on-chain, not refreshed since the account's last instruction */
   UNSET,
+  /** Refreshed by a simulated `pulse_health`: values, prices and flags come from the program */
   ONCHAIN,
+  /** Computed locally from balances and oracle prices after the simulation failed; no prices or flags */
   COMPUTED,
 }
 

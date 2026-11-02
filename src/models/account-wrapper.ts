@@ -202,7 +202,7 @@ export class MarginfiAccountWrapper {
 
   /**
    * Withdraw instructions for `amount` (UI units) from `bankAddress`; `withdrawAll` closes the
-   * balance.
+   * balance. `opts.groupRateLimiterEnabled` defaults to the group's limiter state.
    * @throws Error if `amount` isn't positive without `withdrawAll`
    */
   async makeWithdrawIx(
@@ -218,7 +218,10 @@ export class MarginfiAccountWrapper {
       ...(await this.lendingContext(bankAddress)),
       amount,
       withdrawAll,
-      opts,
+      opts: {
+        groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
+        ...opts,
+      },
     });
   }
 
@@ -257,7 +260,7 @@ export class MarginfiAccountWrapper {
 
   /**
    * Withdraw transaction for `amount` (UI units) from `bankAddress`; `withdrawAll` closes the
-   * balance.
+   * balance. `opts.groupRateLimiterEnabled` defaults to the group's limiter state.
    */
   async makeWithdrawTx(
     bankAddress: Address,
@@ -269,7 +272,10 @@ export class MarginfiAccountWrapper {
       ...(await this.lendingContext(bankAddress)),
       amount,
       withdrawAll,
-      opts,
+      opts: {
+        groupRateLimiterEnabled: isGroupRateLimiterEnabled(this.client.group.rateLimiter),
+        ...opts,
+      },
     });
   }
 

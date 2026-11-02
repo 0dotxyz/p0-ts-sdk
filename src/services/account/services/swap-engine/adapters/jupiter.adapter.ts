@@ -69,7 +69,6 @@ function deserializeJupiterInstruction(instruction: JupiterInstruction): Instruc
 function toJupiterConfig(apiConfig?: SwapApiConfig): JupiterClientConfig | undefined {
   if (!apiConfig) return undefined;
   return {
-    basePath: apiConfig.basePath,
     apiKey: apiConfig.apiKey,
     headers: apiConfig.headers,
   };
