@@ -32,7 +32,7 @@ import {
   TransactionType,
 } from "~/services/transaction";
 import { BankIntegrationMetadataMap, MarginfiProgram } from "~/types";
-import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "~/utils";
+import { wrappedI80F48toBigNumber } from "~/utils";
 import { DriftSpotMarket, makeUpdateSpotMarketIx } from "~/vendor/drift";
 import klendInstructions from "~/vendor/klend/instructions";
 
@@ -144,11 +144,16 @@ export async function simulateAccountHealthCacheWithFallback(
       bankIntegrationMap,
     });
 
-    simulatedAccount.healthCache.assetValueEquity = bigNumberToWrappedI80F48(assetValueEquity);
-    simulatedAccount.healthCache.liabilityValueEquity =
-      bigNumberToWrappedI80F48(liabilityValueEquity);
-
-    marginfiAccount = parseMarginfiAccountRaw(params.marginfiAccount.address, simulatedAccount);
+    const simulated = parseMarginfiAccountRaw(params.marginfiAccount.address, simulatedAccount);
+    marginfiAccount = {
+      ...simulated,
+      healthCache: {
+        ...simulated.healthCache,
+        assetValueEquity,
+        liabilityValueEquity,
+        simulationStatus: HealthCacheStatus.ONCHAIN,
+      },
+    };
   } catch (e) {
     console.log("e", e);
     const { assets: assetValueMaint, liabilities: liabilityValueMaint } =
