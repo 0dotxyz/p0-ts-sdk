@@ -1,10 +1,16 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import {
+  decodeGammaDepositPolicyData,
   decodeGammaLpVaultData,
+  decodeGammaWithdrawalPolicyData,
   decodeGammaWithdrawReceiptData,
+  deriveGammaDepositPolicy,
+  deriveGammaWithdrawalPolicy,
   deriveGammaWithdrawReceipt,
+  GammaDepositPolicyRaw,
   GammaLpVaultRaw,
+  GammaWithdrawalPolicyRaw,
   GammaWithdrawReceiptRaw,
 } from "~/vendor/gamma";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~/vendor/spl";
@@ -38,6 +44,34 @@ export async function fetchGammaWithdrawReceipt(
   const info = await connection.getAccountInfo(receipt);
   if (!info) return null;
   return decodeGammaWithdrawReceiptData(info.data, receipt);
+}
+
+/**
+ * Fetch and decode a Gamma LP vault's `DepositPolicy` (deposit cap + pause switch).
+ * Returns `null` when the vault has no deposit policy account.
+ */
+export async function fetchGammaDepositPolicy(
+  connection: Connection,
+  lpVault: PublicKey
+): Promise<GammaDepositPolicyRaw | null> {
+  const [policy] = deriveGammaDepositPolicy(lpVault);
+  const info = await connection.getAccountInfo(policy);
+  if (!info) return null;
+  return decodeGammaDepositPolicyData(info.data, policy);
+}
+
+/**
+ * Fetch and decode a Gamma LP vault's `WithdrawalPolicy` (withdrawal fee + rolling
+ * hourly/daily caps). Returns `null` when the vault has no withdrawal policy account.
+ */
+export async function fetchGammaWithdrawalPolicy(
+  connection: Connection,
+  lpVault: PublicKey
+): Promise<GammaWithdrawalPolicyRaw | null> {
+  const [policy] = deriveGammaWithdrawalPolicy(lpVault);
+  const info = await connection.getAccountInfo(policy);
+  if (!info) return null;
+  return decodeGammaWithdrawalPolicyData(info.data, policy);
 }
 
 /**
