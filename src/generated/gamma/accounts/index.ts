@@ -6,5 +6,7 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from "./depositPolicy";
 export * from "./lpVault";
+export * from "./withdrawalPolicy";
 export * from "./withdrawReceipt";
