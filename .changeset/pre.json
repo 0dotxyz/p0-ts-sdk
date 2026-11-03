@@ -6,6 +6,7 @@
   },
   "changesets": [
     "bank-risk-fields",
+    "health-cache-onchain-status",
     "solana-kit-v3"
   ]
 }
