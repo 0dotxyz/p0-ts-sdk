@@ -34,10 +34,16 @@ import {
   type SelfPlanAndSendFunctions,
 } from "@solana/kit/program-client-core";
 import {
+  getDepositPolicyCodec,
   getLpVaultCodec,
+  getWithdrawalPolicyCodec,
   getWithdrawReceiptCodec,
+  type DepositPolicy,
+  type DepositPolicyArgs,
   type LpVault,
   type LpVaultArgs,
+  type WithdrawalPolicy,
+  type WithdrawalPolicyArgs,
   type WithdrawReceipt,
   type WithdrawReceiptArgs,
 } from "../accounts";
@@ -82,14 +88,27 @@ export const GAMMA_VAULT_PROGRAM_ADDRESS =
   "GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV" as Address<"GaMmanX9i4jGmqDZZD2tbD6B2v9p21btenPneMXnTczV">;
 
 export enum GammaVaultAccount {
+  DepositPolicy,
   LpVault,
   WithdrawReceipt,
+  WithdrawalPolicy,
 }
 
 export function identifyGammaVaultAccount(
   account: { data: ReadonlyUint8Array } | ReadonlyUint8Array
 ): GammaVaultAccount {
   const data = "data" in account ? account.data : account;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([159, 243, 65, 242, 81, 27, 41, 167])
+      ),
+      0
+    )
+  ) {
+    return GammaVaultAccount.DepositPolicy;
+  }
   if (
     containsBytes(
       data,
@@ -111,6 +130,17 @@ export function identifyGammaVaultAccount(
     )
   ) {
     return GammaVaultAccount.WithdrawReceipt;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([52, 231, 68, 59, 247, 250, 119, 244])
+      ),
+      0
+    )
+  ) {
+    return GammaVaultAccount.WithdrawalPolicy;
   }
   throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, {
     accountData: data,
@@ -220,9 +250,13 @@ export type GammaVaultPlugin = {
 };
 
 export type GammaVaultPluginAccounts = {
+  depositPolicy: ReturnType<typeof getDepositPolicyCodec> &
+    SelfFetchFunctions<DepositPolicyArgs, DepositPolicy>;
   lpVault: ReturnType<typeof getLpVaultCodec> & SelfFetchFunctions<LpVaultArgs, LpVault>;
   withdrawReceipt: ReturnType<typeof getWithdrawReceiptCodec> &
     SelfFetchFunctions<WithdrawReceiptArgs, WithdrawReceipt>;
+  withdrawalPolicy: ReturnType<typeof getWithdrawalPolicyCodec> &
+    SelfFetchFunctions<WithdrawalPolicyArgs, WithdrawalPolicy>;
 };
 
 export type GammaVaultPluginInstructions = {
@@ -273,8 +307,10 @@ export function gammaVaultProgram() {
     return extendClient(client, {
       gammaVault: <GammaVaultPlugin>{
         accounts: {
+          depositPolicy: addSelfFetchFunctions(client, getDepositPolicyCodec()),
           lpVault: addSelfFetchFunctions(client, getLpVaultCodec()),
           withdrawReceipt: addSelfFetchFunctions(client, getWithdrawReceiptCodec()),
+          withdrawalPolicy: addSelfFetchFunctions(client, getWithdrawalPolicyCodec()),
         },
         instructions: {
           completeWithdrawal: (input) =>

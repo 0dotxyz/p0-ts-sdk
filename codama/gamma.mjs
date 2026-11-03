@@ -6,7 +6,7 @@ export default {
       args: [
         {
           instructions: ["deposit", "withdraw", "completeWithdrawal"],
-          accounts: ["lpVault", "withdrawReceipt"],
+          accounts: ["depositPolicy", "lpVault", "withdrawReceipt", "withdrawalPolicy"],
         },
       ],
     },
