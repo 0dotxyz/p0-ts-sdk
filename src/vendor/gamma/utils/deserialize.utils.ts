@@ -3,12 +3,19 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 
 import { GAMMA_VAULT_IDL } from "../idl";
-import { GammaLpVaultRaw, GammaWithdrawReceiptRaw } from "../types";
+import {
+  GammaDepositPolicyRaw,
+  GammaLpVaultRaw,
+  GammaWithdrawalPolicyRaw,
+  GammaWithdrawReceiptRaw,
+} from "../types";
 
 const GAMMA_ACCOUNTS_CODER = new BorshAccountsCoder(GAMMA_VAULT_IDL);
 
 const lpVaultDiscriminator = Buffer.from([189, 45, 167, 23, 91, 118, 105, 190]);
 const withdrawReceiptDiscriminator = Buffer.from([132, 238, 44, 182, 207, 9, 124, 140]);
+const depositPolicyDiscriminator = Buffer.from([159, 243, 65, 242, 81, 27, 41, 167]);
+const withdrawalPolicyDiscriminator = Buffer.from([52, 231, 68, 59, 247, 250, 119, 244]);
 
 const toBN = (v: unknown): BN => (BN.isBN(v) ? v : new BN((v ?? 0).toString()));
 
@@ -64,6 +71,51 @@ export function decodeGammaWithdrawReceiptData(
     claimableShares: toBN(d.claimable_shares ?? d.claimableShares),
     claimableAssets: toBN(d.claimable_assets ?? d.claimableAssets),
     oldestPendingAt: toBN(d.oldest_pending_at ?? d.oldestPendingAt),
+    bump: d.bump,
+  };
+}
+
+/** Decode a Gamma `DepositPolicy` account from raw buffer data. */
+export function decodeGammaDepositPolicyData(
+  data: Buffer,
+  pubkey: PublicKey
+): GammaDepositPolicyRaw {
+  if (!data.subarray(0, 8).equals(depositPolicyDiscriminator)) {
+    throw new Error("invalid Gamma DepositPolicy account discriminator");
+  }
+
+  const d = GAMMA_ACCOUNTS_CODER.decode("DepositPolicy", data);
+
+  return {
+    pubkey,
+    lpVault: d.lp_vault ?? d.lpVault,
+    capacityAssets: toBN(d.capacity_assets ?? d.capacityAssets),
+    depositsPaused: d.deposits_paused ?? d.depositsPaused,
+    bump: d.bump,
+  };
+}
+
+/** Decode a Gamma `WithdrawalPolicy` account from raw buffer data. */
+export function decodeGammaWithdrawalPolicyData(
+  data: Buffer,
+  pubkey: PublicKey
+): GammaWithdrawalPolicyRaw {
+  if (!data.subarray(0, 8).equals(withdrawalPolicyDiscriminator)) {
+    throw new Error("invalid Gamma WithdrawalPolicy account discriminator");
+  }
+
+  const d = GAMMA_ACCOUNTS_CODER.decode("WithdrawalPolicy", data);
+
+  return {
+    pubkey,
+    lpVault: d.lp_vault ?? d.lpVault,
+    withdrawalFeeBps: d.withdrawal_fee_bps ?? d.withdrawalFeeBps,
+    hourlyWithdrawalCapBps: d.hourly_withdrawal_cap_bps ?? d.hourlyWithdrawalCapBps,
+    dailyWithdrawalCapBps: d.daily_withdrawal_cap_bps ?? d.dailyWithdrawalCapBps,
+    hourlyWithdrawnAssets: toBN(d.hourly_withdrawn_assets ?? d.hourlyWithdrawnAssets),
+    dailyWithdrawnAssets: toBN(d.daily_withdrawn_assets ?? d.dailyWithdrawnAssets),
+    hourlyWindowStart: toBN(d.hourly_window_start ?? d.hourlyWindowStart),
+    dailyWindowStart: toBN(d.daily_window_start ?? d.dailyWindowStart),
     bump: d.bump,
   };
 }
