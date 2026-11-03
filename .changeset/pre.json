@@ -6,6 +6,7 @@
   },
   "changesets": [
     "bank-risk-fields",
+    "gamma-vault-policies",
     "health-cache-onchain-status",
     "solana-kit-v3"
   ]
