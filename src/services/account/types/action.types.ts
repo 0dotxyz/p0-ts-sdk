@@ -175,6 +175,12 @@ export interface AppendPremiumRefreshParams extends MakePremiumRefreshIxsParams 
 export interface MakeDepositTxParams
   extends MakeDepositIxParams, ActionTxParams, PremiumRefreshParams, OrderChangesParams {
   bankMetadataMap: BankIntegrationMetadataMap;
+  /**
+   * Put in the deposit transaction ahead of the deposit's own instructions (after any order
+   * closes), e.g. `makeCreateAccountIx` to open `marginfiAccount` (built with
+   * `makeCreateAccountIxWithProjection`) and fund it in one transaction.
+   */
+  prependedIxs?: Instruction[];
 }
 
 export interface MakeRepayIxOpts extends WrapSolOpts {
@@ -535,6 +541,7 @@ export interface MakeLoopTxParams extends SwapFlowTxParams {
     // market price (USD per token, UI units) used for the no-slippage deposit estimate
     marketPrice: number;
   };
+  /** Put first in the prelude transactions, which land before the flashloan transactions. */
   additionalIxs?: Instruction[];
   /**
    * Places a take-profit / stop-loss order with this trigger on the loop's pair (deposit bank as
@@ -725,6 +732,7 @@ export interface MakeSwapDebtTxParams extends SwapFlowTxParams {
     // Market price (USD per token, UI units) used to size the borrow amount.
     marketPrice: number;
   };
+  /** Put first in the prelude transactions, which land before the flashloan transactions. */
   additionalIxs?: Instruction[];
 }
 

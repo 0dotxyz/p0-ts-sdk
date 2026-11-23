@@ -198,7 +198,7 @@ export async function makeDepositIx({
  * the action
  */
 export async function makeDepositTx(params: MakeDepositTxParams): Promise<SolanaTransaction> {
-  const { rpc, txFormat, latestBlockhash, bankMap, ...depositIxParams } = params;
+  const { rpc, txFormat, latestBlockhash, bankMap, prependedIxs = [], ...depositIxParams } = params;
   const { bank, bankMetadataMap } = params;
   if (exceedsCostlyPositionLimit(params.marginfiAccount.balances, bankMap, bank)) {
     throw TransactionBuildingError.costlyPositionLimitExceeded(bank.address);
@@ -215,7 +215,7 @@ export async function makeDepositTx(params: MakeDepositTxParams): Promise<Solana
 
   const actionIxs = await prependOrderCloses({
     ...params,
-    actionIxs: [...refreshIxs, ...depositIxs],
+    actionIxs: [...prependedIxs, ...refreshIxs, ...depositIxs],
     txFormat: selectLutsForBanks(txFormat, [bank]),
   });
   const { instructions: txIxs, txFormat: selectedFormat } = await appendPremiumRefresh({
