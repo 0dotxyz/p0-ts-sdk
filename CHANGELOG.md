@@ -1,29 +1,5 @@
 # Changelog
 
-## 3.0.0
-
-### Major Changes
-
-- c7747f9: v3: the SDK runs on Solana Kit and Codama instead of web3.js and Anchor.
-  - `@solana/kit` is a peer dependency; public types are Kit types (`Address`, Kit instructions, signers and transaction messages). web3.js, Anchor, bn.js, borsh and Switchboard are gone.
-  - Every program client (marginfi, Kamino, Drift, JupLend, Gamma, Exponent, Pyth, Scope) is generated with Codama and only reachable through the SDK's own types.
-  - Transaction builders take one `txFormat` (`{ version: 0, luts }` or `{ version: 1 }`) instead of separate lookup tables and a version.
-  - The `./instructions` subpath export is removed.
-  - Bridged debt-swap quotes come back direct-shaped; drop any flip applied to them.
-  - Requires Node 20.18 or later.
-
-### Minor Changes
-
-- e7befd7: Banks now carry their per-bank classic-liquidation fees (`liquidationLiquidatorFee`, `liquidationInsuranceFee`) and circuit-breaker state (`isCircuitBreakerEnabled`, `cbTier`, `cbHaltEndedAt`, plus `config.cbWindowMaxUpBps` / `cbWindowMaxDownBps` / `cbWindowSeconds`), decoded on-chain and carried through the DTO. New `getBankLiquidationFees` decodes the fees with the program's 2.5% default, and `isBankCircuitBreakerHalted` mirrors the program's halt check.
-- 324ecf9: `makeDepositTx` takes `prependedIxs`, put in the deposit transaction ahead of the deposit's own instructions. Pass `makeCreateAccountIx` (with the account from `makeCreateAccountIxWithProjection`) to create an account and make its first deposit in one transaction.
-- 98a3525: Gamma vault policies and share price inputs. `fetchGammaDepositPolicy` / `fetchGammaWithdrawalPolicy` (plus `decodeGammaDepositPolicy` / `decodeGammaWithdrawalPolicy` and `deriveGammaDepositPolicy` / `deriveGammaWithdrawalPolicy` in `vendor`) read a vault's `DepositPolicy` (deposit cap `capacityAssets`, `depositsPaused`) and `WithdrawalPolicy` (`withdrawalFeeBps`, rolling hourly/daily withdrawal caps and what each window has used); both return `null` when the vault has no policy account. `GammaLpVault` (what `fetchGammaLpVault` returns) now also types `nav`, `totalShares`, `navUpdatedAt`, `navMaxStaleness`, `pendingWithdrawalValue`, `performanceFeeBps`, `vaultName` and `pendingSharesAccount`, which the decoder already returned, so a caller can compute the share price (`nav / totalShares`) and check NAV staleness without Gamma's API.
-
-### Patch Changes
-
-- df9a728: - **Health cache status:** a successfully simulated health cache now reads `HealthCacheStatus.ONCHAIN`. It used to stay `UNSET`, so every health read after `client.fetchAccount` or `simulateHealthCache` logged "Health cache not computed", and the status couldn't tell a simulated cache from one never computed. `COMPUTED` still marks the local fallback.
-  - **Wrapper withdrawals:** `MarginfiAccountWrapper.makeWithdrawIx` / `makeWithdrawTx` fill `groupRateLimiterEnabled` from the client's group, as `makeTransferPositionsTx` already did. With the group limiter off, a withdraw-all no longer appends the closed bank's accounts. Passing `opts.groupRateLimiterEnabled` still overrides it.
-  - **Swap config:** `SwapApiConfig.basePath` is deprecated; the swap engine never used it. The Jupiter adapter calls the Router `/build` endpoint at `https://api.jup.ag/swap/v2`, and Titan quotes over `wsUrl`. The examples no longer set it.
-
 ## 3.0.0-next.3
 
 ### Minor Changes
