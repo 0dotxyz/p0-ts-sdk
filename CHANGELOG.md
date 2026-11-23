@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0-next.4
+
+### Minor Changes
+
+- 9546f4f: `makeDepositTx` takes `prependedIxs`, put in the deposit transaction ahead of the deposit's own instructions. Pass `makeCreateAccountIx` (with the account from `makeCreateAccountIxWithProjection`) to create an account and make its first deposit in one transaction.
+
 ## 3.0.0-next.3
 
 ### Minor Changes
