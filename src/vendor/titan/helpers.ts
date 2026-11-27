@@ -16,6 +16,7 @@ import {
   type Instruction,
   type Rpc,
 } from "@solana/kit";
+import { BigNumber } from "bignumber.js";
 
 // --- Serialized (base64) types from the HTTP proxy ---
 
@@ -112,6 +113,7 @@ export interface TitanSwapQuoteResult {
   timeTaken?: number;
 }
 
+/** Builds a quote with native-unit amount strings, rounding the slippage threshold down for ExactIn or up for ExactOut. */
 export function buildSwapQuoteResult(
   route: {
     inAmount: number | bigint;
@@ -124,16 +126,17 @@ export function buildSwapQuoteResult(
   swapMode: "ExactIn" | "ExactOut"
 ): TitanSwapQuoteResult {
   const slippageBps = route.slippageBps;
-  // The WebSocket/protobuf path decodes int64 amounts as BigInt; token amounts fit safely in a
-  // JS number, so coerce for the slippage float math (BigInt × number throws).
-  const outAmount = Number(route.outAmount);
-  const inAmount = Number(route.inAmount);
+  const slippage = new BigNumber(slippageBps).shiftedBy(-4);
 
   let otherAmountThreshold: string;
   if (swapMode === "ExactIn") {
-    otherAmountThreshold = String(Math.floor(outAmount * (1 - slippageBps / 10000)));
+    otherAmountThreshold = new BigNumber(route.outAmount.toString())
+      .times(new BigNumber(1).minus(slippage))
+      .toFixed(0, BigNumber.ROUND_FLOOR);
   } else {
-    otherAmountThreshold = String(Math.ceil(inAmount * (1 + slippageBps / 10000)));
+    otherAmountThreshold = new BigNumber(route.inAmount.toString())
+      .times(new BigNumber(1).plus(slippage))
+      .toFixed(0, BigNumber.ROUND_CEIL);
   }
 
   return {

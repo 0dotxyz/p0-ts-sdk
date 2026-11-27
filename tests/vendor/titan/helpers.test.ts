@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { key } from "../../helpers/addresses";
 
-import { deserializeSerializedInstruction } from "~/vendor/titan";
+import { buildSwapQuoteResult, deserializeSerializedInstruction } from "~/vendor/titan";
 
 // Recorded from the web3.js implementation this replaced; never update with `-u`.
 
@@ -53,4 +53,27 @@ describe("titan wire format", () => {
     };
     expect(toWire(deserializeSerializedInstruction(serialized))).toMatchSnapshot();
   });
+});
+
+describe("buildSwapQuoteResult", () => {
+  it.each([
+    ["ExactIn", 100, 100, 1700, "83"],
+    ["ExactOut", 100, 100, 1000, "110"],
+    ["ExactIn", 999, 101, 100, "99"],
+    ["ExactOut", 101, 999, 100, "103"],
+    ["ExactIn", 999, 10000, 0.5, "9999"],
+    ["ExactOut", 10000, 999, 0.5, "10001"],
+    ["ExactIn", 9007199254740993n, 9007199254740993n, 0, "9007199254740993"],
+    ["ExactOut", 9007199254740993n, 9007199254740993n, 0, "9007199254740993"],
+    ["ExactIn", 18446744073709551615n, 18446744073709551615n, 50, "18354510353341003856"],
+    ["ExactOut", 18446744073709551615n, 18446744073709551615n, 50, "18538977794078099374"],
+  ] as const)(
+    "computes the %s threshold for %s / %s at %s bps",
+    (swapMode, inAmount, outAmount, slippageBps, threshold) => {
+      const result = buildSwapQuoteResult({ inAmount, outAmount, slippageBps }, swapMode);
+      expect(result.otherAmountThreshold).toBe(threshold);
+      expect(result.inAmount).toBe(String(inAmount));
+      expect(result.outAmount).toBe(String(outAmount));
+    }
+  );
 });
